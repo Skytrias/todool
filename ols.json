@@ -1,0 +1,13 @@
+{
+    "collections": [
+        { "name": "core", "path": "../Odin/core" },
+        { "name": "shared", "path": "../Odin/shared"},
+        { "name": "vendor", "path": "../Odin/vendor"},
+    ],
+    "thread_pool_count": 4,
+    "enable_document_symbols": true,
+    "enable_semantic_tokens": false,
+    "enable_hover": true,
+    "enable_global_std": true,
+    "verbose": true
+}

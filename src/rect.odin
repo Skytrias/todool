@@ -1,0 +1,134 @@
+package src
+
+Rect :: struct {
+	l, r, t, b: f32,
+}
+
+rect_one :: #force_inline proc(a: f32) -> Rect {
+	return { a, a, a, a }
+}
+
+rect_one_inv :: #force_inline proc(a: f32) -> Rect {
+	return { a, -a, a, -a }
+}
+
+rect_negate :: #force_inline proc(a: Rect) -> Rect {
+	return {
+		-a.l,
+		-a.r,
+		-a.t,
+		-a.b,
+	}
+}
+
+rect_valid :: #force_inline proc(a: Rect) -> bool {
+	return a.r > a.l && a.b > a.t
+}
+
+rect_invalid :: #force_inline proc(rect: Rect) -> bool { 
+	return !rect_valid(rect) 
+}
+
+rect_wh :: #force_inline proc(x, y, w, h: f32) -> Rect {
+  return { x, x + w, y, y + h }
+}
+
+rect_center :: #force_inline proc(a: Rect) -> (x, y: f32) {
+	return a.l + (a.r - a.l) / 2, a.t + (a.b - a.t) / 2
+}
+
+rect_width_halfed :: #force_inline proc(a: Rect) -> f32 {
+	return (a.r - a.l) / 2
+}
+
+rect_width :: #force_inline proc(a: Rect) -> f32 {
+	return (a.r - a.l)
+}
+
+rect_height_halfed :: #force_inline proc(a: Rect) -> f32 {
+	return (a.b - a.t) / 2
+}
+
+rect_height :: #force_inline proc(a: Rect) -> f32 {
+	return (a.b - a.t)
+}
+
+rect_xxyy :: #force_inline proc(x, y: f32) -> Rect {
+	return { x, x, y, y }
+}
+
+rect_intersection :: proc(a, b: Rect) -> Rect {
+	a := a
+	if a.l < b.l do a.l = b.l
+	if a.t < b.t do a.t = b.t
+	if a.r > b.r do a.r = b.r
+	if a.b > b.b do a.b = b.b
+	return a
+}
+
+// smallest rectangle
+rect_bounding :: proc(a, b: Rect) -> Rect {
+	a := a
+	if a.l > b.l do a.l = b.l
+	if a.t > b.t do a.t = b.t
+	if a.r < b.r do a.r = b.r
+	if a.b < b.b do a.b = b.b
+	return a;
+}
+
+rect_contains :: proc(a: Rect, x, y: f32) -> bool {
+	return a.l <= x && a.r > x && a.t <= y && a.b > y
+}		
+
+rect_cut_left :: proc(rect: ^Rect, a: f32) -> Rect {
+	min_x := rect.l
+	rect.l = min(rect.r, rect.l + a)
+	return { min_x, rect.l, rect.t, rect.b }
+}
+
+rect_cut_right :: proc(rect: ^Rect, a: f32) -> Rect {
+	max_x := rect.r
+	rect.r = max(rect.l, rect.r - a)
+	return { rect.r, max_x, rect.t, rect.b }
+}
+
+rect_cut_top :: proc(rect: ^Rect, a: f32) -> Rect {
+	min_y := rect.t
+	rect.t = min(rect.b, rect.t + a)
+	return { rect.l, rect.r, min_y, rect.t }
+}
+
+rect_cut_bottom :: proc(rect: ^Rect, a: f32) -> Rect {
+	max_y := rect.b
+	rect.b = max(rect.t, rect.b - a)
+	return { rect.l, rect.r, rect.b, max_y }
+}
+
+// add another rect as padding
+rect_padding :: proc(a, b: Rect) -> Rect {
+	a := a
+	a.l += b.l
+	a.t += b.t
+	a.r -= b.r
+	a.b -= b.b
+	return a
+}
+
+// add another rect as padding
+rect_margin :: proc(a: Rect, value: f32) -> Rect {
+	a := a
+	a.l += value
+	a.t += value
+	a.r -= value
+	a.b -= value
+	return a
+}
+
+rect_add :: proc(a, b: Rect) -> Rect {
+	a := a
+	a.l += b.l
+	a.t += b.t
+	a.r += b.r
+	a.b += b.b
+	return a
+}
