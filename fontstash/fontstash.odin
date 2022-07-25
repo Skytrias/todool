@@ -43,6 +43,8 @@ Icon :: enum {
 
 	Locked = 0xef7a,
 	Unlocked = 0xf01b,
+
+	Cog = 0xefb0,
 }
 
 LUT_SIZE :: 256

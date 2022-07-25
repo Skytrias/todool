@@ -395,6 +395,15 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 }
 
 add_shortcuts :: proc(window: ^Window) {
+	window_add_shortcut(window, "escape", proc() -> bool {
+		if sb.mode != .None {
+			sidebar_mode_toggle(.None)
+			element_repaint(mode_panel)
+		}
+
+		return true
+	})
+
 	window_add_shortcut(window, "ctrl+1", proc() -> bool {
 		tag_toggle(0x01)
 		return true
@@ -577,8 +586,7 @@ add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "alt+q", proc() -> bool {
 		if mode_panel.mode != .List {
 			mode_panel.mode = .List
-			element_message(mode_button, .Update)
-			element_repaint(mode_button)
+			element_repaint(mode_panel)
 		}	
 
 		return true
@@ -587,8 +595,7 @@ add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "alt+w", proc() -> bool {
 		if mode_panel.mode != .Kanban {
 			mode_panel.mode = .Kanban
-			element_message(mode_button, .Update)
-			element_repaint(mode_button)
+			element_repaint(mode_panel)
 		}	
 
 		return true
@@ -646,14 +653,14 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "alt+1", proc() -> bool {
-		theme_editor()
+		theme_editor_spawn()
 		return true
 	})
 
-	window_add_shortcut(window, "alt+2", proc() -> bool {
-		table_test()
-		return true
-	})
+	// window_add_shortcut(window, "alt+2", proc() -> bool {
+	// 	table_test()
+	// 	return true
+	// })
 
 	window_add_shortcut(window, "ctrl+z", proc() -> bool {
 		// hstate := &mode_panel.window.hstate

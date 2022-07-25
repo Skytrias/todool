@@ -11,6 +11,10 @@ import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "../fontstash"
 
+Global_Scale :: 1
+Line_Width :: f32(int(2 * Global_Scale))
+Rect_Roundness :: f32(int(5 * Global_Scale))
+
 Font :: fontstash.Font
 font_regular: ^Font
 font_bold: ^Font
@@ -45,6 +49,7 @@ Window :: struct {
 	// interactable elements
 	hovered: ^Element,
 	pressed: ^Element,
+	pressed_last: ^Element,
 	focused: ^Element,
 
 	// hovered info 
@@ -192,6 +197,8 @@ window_init :: proc(
 	res.shortcuts = make(map[string]Shortcut_Proc, 32)
 	res.target = render_target_init(window)
 	res.update_next = true
+	res.cursor_x = -100
+	res.cursor_y = -100
 	undo_manager_init(&res.manager)
 	append(&gs.windows, res)
 
@@ -229,23 +236,31 @@ window_init :: proc(
 	panel.float_height = 40
 	panel.shadow = true
 	panel.z_index = 255
-	label_init(panel, { .CF, .Label_Center }, "testing this out man")
+	label_init(panel, { .CF, .Label_Center })
 	res.hovered_panel = panel
 	element_hide(panel, true)
 
 	return
 }
 
-window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element) {
+window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: string) {
 	p := window.hovered_panel
 	element_hide(p, false)
 	p.float_x = window.cursor_x
+
+	// NOTE static
+	label := cast(^Label) p.children[0]
+	strings.builder_reset(&label.builder)
+	strings.write_string(&label.builder, text)
+
 	goal_y := element.bounds.b + 5
 
 	// bounds check
-	if goal_y - p.float_height < window.heightf {
+	if goal_y + p.float_height > window.heightf {
 		goal_y = element.bounds.t - p.float_height
 	}
+
+	log.info("goal_y", goal_y)
 
 	p.float_y = goal_y
 }
@@ -418,6 +433,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			previous := window.hovered
 			window.hovered = hovered
 			window.hovered_start = time.tick_now()
+			window.pressed_last = nil
 
 			element_message(previous, .Update, UPDATE_HOVERED)
 			element_message(window.hovered, .Update, UPDATE_HOVERED)
@@ -426,16 +442,18 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			e := window.hovered
 
 			if (.Hide in window.hovered_panel.flags) {
-				if (.Hover_Has_Info in e.flags) {
+				if e.hover_info != "" && window.pressed_last != e {
 					diff := time.tick_since(window.hovered_start)
 
 					if diff > HOVER_TIME {
-						window_hovered_panel_spawn(window, e)
+						text := e.hover_info
+						window_hovered_panel_spawn(window, e, text)
 						element_repaint(&window.element)
 					}
 				}
 			} else {
-				if (.Hover_Has_Info not_in e.flags) {
+				// hide away again on non info
+				if e.hover_info == "" {
 					element_hide(window.hovered_panel, true)
 					element_repaint(&window.element)
 				}
@@ -483,6 +501,11 @@ window_set_pressed :: proc(window: ^Window, element: ^Element, button: int) {
 
 		window.clicked_last = element
 		window.clicked_start = time.tick_now()
+	}
+
+	// save non nil pressed
+	if element != nil {
+		window.pressed_last = element
 	}
 }
 
@@ -848,6 +871,13 @@ gs_draw_and_cleanup :: proc() {
 			unordered_remove(&gs.windows, i)
 			// log.info("dealloc window")
 		} else if window.update_next {
+			// reset focuse on hidden
+			if window.focused != nil {
+				if !window_focused_shown(window) {
+					window.focused = nil
+				}
+			}
+
 			if window.update != nil {
 				window.update()
 			}
@@ -997,7 +1027,18 @@ dialog_spawn :: proc(
 	return dialog_output 
 }
 
+// sdl helpers
+
 window_border_toggle :: proc(window: ^Window) {
 	sdl.SetWindowBordered(window.w, cast(sdl.bool) window.bordered)
 	window.bordered = !window.bordered
+}
+
+clipboard_has_content :: sdl.HasClipboardText
+
+clipboard_get_string :: proc(allocator := context.allocator) -> string {
+	text := sdl.GetClipboardText()
+	result := strings.clone(string(text), allocator)
+	sdl.free(cast(rawptr) text)
+	return result
 }

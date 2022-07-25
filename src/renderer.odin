@@ -295,18 +295,17 @@ render_rect :: proc(
 	target: ^Render_Target,
 	rect: Rect, 
 	color: Color,
-	roundness: f32 = 0,
-	thickness: f32 = 0,
+	roundness: f32,
 ) {
-	render_rect_outline(target, rect, color, roundness, thickness)
+	render_rect_outline(target, rect, color, roundness, 0)
 }
 
 render_rect_outline :: proc(
 	target: ^Render_Target,
 	rect_goal: Rect,
 	color: Color,
-	roundness: f32 = 0,
-	thickness: f32 = 2,
+	roundness: f32,
+	thickness: f32,
 ) #no_bounds_check {
 	group := &target.groups[len(target.groups) - 1]
 	vertices := render_target_push_vertices(target, group, 6)
@@ -341,7 +340,7 @@ render_underline :: proc(
 ) {
 	r := r
 	r.t = r.b - line_width
-	render_rect(target, r, color)
+	render_rect(target, r, color, 0)
 }
 
 render_drop_shadow :: proc(
@@ -578,7 +577,7 @@ render_text_strike_through :: proc(
 	r := r
 	r.t = r.b - ascent / 2 - line_width
 	r.b = r.t + line_width
-	render_rect(target, r, color)
+	render_rect(target, r, color, 0)
 }
 
 render_string_aligned :: proc(
@@ -720,24 +719,24 @@ string_align_xy :: proc(
 	return
 }
 
-// render element background dropshadow or rect
-render_element_background :: proc(
-	target: ^Render_Target,
-	rect: Rect,
+// // render element background dropshadow or rect
+// render_element_background :: proc(
+// 	target: ^Render_Target,
+// 	rect: Rect,
 
-	rect_color: Color,
-	text_color: ^Color,
+// 	rect_color: Color,
+// 	text_color: ^Color,
 
-	hovered, pressed: bool,
-) {
-	if hovered || pressed {
-		render_drop_shadow(target, rect, text_color^, style.roundness)
-		text_color^ = rect_color
-	} else {
-		render_rect(target, rect, rect_color, style.roundness)
-		render_rect_outline(target, rect, text_color^, style.roundness)
-	}
-}
+// 	hovered, pressed: bool,
+// ) {
+// 	if hovered || pressed {
+// 		render_drop_shadow(target, rect, text_color^, style.roundness)
+// 		text_color^ = rect_color
+// 	} else {
+// 		render_rect(target, rect, rect_color, style.roundness)
+// 		render_rect_outline(target, rect, text_color^, style.roundness)
+// 	}
+// }
 
 // paint children, dont use this yourself
 render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {

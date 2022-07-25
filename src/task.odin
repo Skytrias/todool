@@ -10,10 +10,7 @@ import "core:reflect"
 import "../cutf8"
 import "../fontstash"
 
-panel_top: ^Panel
 panel_info: ^Panel
-panel_temp: ^Panel
-mode_button: ^Button
 mode_panel: ^Mode_Panel
 
 slider_tab: ^Slider
@@ -33,8 +30,6 @@ TAB_WIDTH :: 50
 TASK_DATA_GAP :: 5
 TASK_TEXT_OFFSET :: 2
 TASK_DATA_MARGIN :: 2
-
-TAB_TEMP :: 0.5
 
 Task_State :: enum u8 {
 	Normal,
@@ -200,26 +195,7 @@ task_init :: proc(
 			case .Update: {
 				button.icon = task.folded ? .Simple_Right : .Simple_Down
 			}
-
-			case .Paint_Recursive: {
-				// NOTE: copy paste from original
-				pressed := element.window.pressed == element
-				hovered := element.window.hovered == element
-				target := element.window.target
-
-				text_color := theme.text[.Normal]
-				// render_element_background(target, element.bounds, theme.background, &text_color, hovered, pressed)
-
-				icon_size := style.icon_size * scale
-				render_icon_aligned(target, font_icon, button.icon, element.bounds, text_color, .Middle, .Middle, icon_size)
-
-				if element.window.focused == element {
-					render_rect_outline(target, element.bounds, RED, style.roundness)
-				}
-
-				return 1
-			}
-		}
+ 		}
 
 		return 0
 	}
@@ -321,9 +297,9 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 	}
 
 	scale := mode_panel.window.scale
-	tab := TAB_TEMP * TAB_WIDTH * scale
+	tab := options_tab() * TAB_WIDTH * scale
 	p := tasks_visible[task_head]
-	color := theme.text[.Normal]
+	color := theme.text_default
 
 	for p != nil {
 		if p.visible_parent != nil {
@@ -339,8 +315,8 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			}
 
 			bound_rect.l -= tab
-			bound_rect.r = bound_rect.l + 2
-			render_rect(target, bound_rect, color)
+			bound_rect.r = bound_rect.l + 2 * scale
+			render_rect(target, bound_rect, color, 0)
 
 			if color.a == 255 {
 				color.a = 100
@@ -349,267 +325,6 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 		p = p.visible_parent
 	}
-}
-
-task_box_mouse_selection :: proc(task: ^Task, clicks: int, dragging: bool) -> (res: int) {
-	// log.info("relative clicks", clicks)
-	text := strings.to_string(task.box.builder)
-	font, size := element_retrieve_font_options(task)
-	scaled_size := size * task.window.scale
-	scale := fontstash.scale_for_pixel_height(font, scaled_size)
-
-	// state used in word / single mouse selection
-	Mouse_Character_Selection :: struct {
-		relative_x, relative_y: f32,
-		old_x, x: f32,
-		old_y, y: f32,	
-		codepoint_offset: int, // offset after a text line ended in rune codepoints ofset
-		width_codepoint: f32, // global to store width
-	}
-	mcs: Mouse_Character_Selection
-
-	// single character collision
-	mcs_check_single :: proc(
-		using mcs: ^Mouse_Character_Selection,
-		b: ^Box,
-		codepoint_index: int,
-		dragging: bool,
-	) -> bool {
-		if old_x < relative_x && 
-			relative_x < x && 
-			old_y < relative_y && 
-			relative_y < y {
-			if !dragging {
-				codepoint_index := codepoint_index
-				box_set_caret(b, 0, &codepoint_index)
-			} else {
-				b.head = codepoint_index
-			}
-
-			return true
-		}
-
-		return false
-	}
-
-	// check word collision
-	// 
-	// old_x is word_start_x
-	// x is word_end_x
-	mcs_check_word :: proc(
-		using mcs: ^Mouse_Character_Selection,
-		b: ^Box,
-		word_start: int,
-		word_end: int,
-	) -> bool {
-		if old_x < relative_x && 
-			relative_x < x && 
-			old_y < relative_y && 
-			relative_y < y {
-			// set first result of word selection, further selection extends range
-			if !b.word_selection_started {
-				b.word_selection_started = true
-				b.word_start = word_start
-				b.word_end = word_end
-			}
-
-			// get result
-			low := min(word_start, b.word_start)
-			high := max(word_end, b.word_end)
-
-			// visually position the caret left / right when selecting the first word
-			if word_start == b.word_start && word_end == b.word_end {
-				diff := x - old_x
-				
-				// middle of word crossed, swap
-				if old_x < relative_x && relative_x < old_x + diff / 2 {
-					low, high = high, low
-				}
-			}
-
-			// invert head
-			if word_start < b.word_start {
-				b.head = low
-				b.tail = high
-			} else {
-				b.head = high
-				b.tail = low
-			}
-
-			return true
-		}
-
-		return false
-	}
-
-	// clamp to left when x is below 0 and y above 
-	mcs_check_line_last :: proc(using mcs: ^Mouse_Character_Selection, b: ^Box) {
-		if relative_y > y {
-			b.head = codepoint_offset
-		}
-	}
-
-	using mcs
-	relative_x = task.window.cursor_x - task.box.bounds.l
-	relative_y = task.window.cursor_y - task.box.bounds.t
-
-	ds := &task.box.ds
-	b := task.box
-	clicks := clicks % 3
-
-	// reset on new click start
-	if clicks == 0 && !dragging {
-		b.word_selection_started = false
-		b.line_selection_started = false
-	}
-
-	// NOTE single line clicks
-	if clicks == 0 {
-		// loop through lines
-		search_line: for text in b.wrapped_lines {
-			// set state
-			y += scaled_size
-			x = 0
-			old_x = 0
-
-			// clamp to left when x is below 0 and y above 
-			if relative_x < 0 && relative_y < old_y {
-				b.head = codepoint_offset
-				break
-			}
-
-			// loop through codepoints
-			ds^ = {}
-			for codepoint, i in cutf8.ds_iter(ds, text) {
-				width_codepoint = fontstash.codepoint_xadvance(font, codepoint, scale)
-				x += width_codepoint
-
-				// check mouse collision
-				if mcs_check_single(&mcs, b, i + codepoint_offset, dragging) {
-					break search_line
-				}
-			}
-
-			x += scaled_size
-			mcs_check_single(&mcs, b, ds.codepoint_count + codepoint_offset, dragging)
-
-			codepoint_offset += ds.codepoint_count
-			old_y = y
-		}
-
-		mcs_check_line_last(&mcs, b)
-	} else {
-		if clicks == 1 {
-			// NOTE WORD selection
-			// loop through lines
-			search_line_word: for text in b.wrapped_lines {
-				// set state
-				old_x = 0 
-				x = 0
-				y += scaled_size
-
-				// temp
-				index_word_start: int = -1
-				codepoint_last: rune
-				index_whitespace_start: int = -1
-				x_word_start: f32
-				x_whitespace_start: f32 = -1
-
-				// clamp to left
-				if relative_x < 0 && relative_y < old_y && b.word_selection_started {
-					b.head = codepoint_offset
-					break
-				}
-
-				// loop through codepoints
-				ds^ = {}
-				for codepoint, i in cutf8.ds_iter(ds, text) {
-					width_codepoint := fontstash.codepoint_xadvance(font, codepoint, scale)
-					
-					// check for word completion
-					if index_word_start != -1 && codepoint == ' ' {
-						old_x = x_word_start
-						mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + i)
-						index_word_start = -1
-					}
-					
-					// check for starting codepoint being letter
-					if index_word_start == -1 && unicode.is_letter(codepoint) {
-						index_word_start = i
-						x_word_start = x
-					}
-
-					// check for space word completion
-					if index_whitespace_start != -1 && unicode.is_letter(codepoint) {
-						old_x = x_whitespace_start
-						mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + i)
-						index_whitespace_start = -1
-					}
-
-					// check for starting whitespace being letter
-					if index_whitespace_start == -1 && codepoint == ' ' {
-						index_whitespace_start = i
-						x_whitespace_start = x
-					}
-
-					// set new position
-					x += width_codepoint
-					codepoint_last = codepoint
-				}
-
-				// finish whitespace and end letter
-				if index_whitespace_start != -1 && codepoint_last == ' ' {
-					old_x = x_whitespace_start
-					mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + ds.codepoint_count)
-				}
-
-				// finish end word
-				if index_word_start != -1 && unicode.is_letter(codepoint_last) {
-					old_x = x_word_start
-					mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + ds.codepoint_count)
-				}
-
-				old_y = y
-				codepoint_offset += ds.codepoint_count
-			}
-
-			mcs_check_line_last(&mcs, b)
-		} else {
-			// LINE
-			for text, line_index in b.wrapped_lines {
-				y += scaled_size
-				codepoints := cutf8.count(text)
-
-				if old_y < relative_y && relative_y < y {
-					if !b.line_selection_started {
-						b.line_selection_start = codepoint_offset
-						b.line_selection_end = codepoint_offset + codepoints
-						b.line_selection_start_y = y
-						b.line_selection_started = true
-					} 
-
-					goal_left := codepoint_offset
-					goal_right := codepoint_offset + codepoints
-
-					low := min(goal_left, b.line_selection_start)
-					high := max(goal_right, b.line_selection_end)
-
-					if relative_y > b.line_selection_start_y {
-						low, high = high, low
-					}
-
-					b.head = low
-					b.tail = high
-					break
-				}
-
-				codepoint_offset += codepoints
-				old_y = y
-			}
-		}
-	}
-
-	return
 }
 
 //////////////////////////////////////////////
@@ -663,7 +378,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						}
 
 						// format before taking height
-						tab_size := f32(task.indentation) * TAB_TEMP * TAB_WIDTH * scale
+						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * scale
 						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * scale) : 0
 						width_limit := rect_width(element.bounds) - tab_size - fold_size
 						width_limit -= drag.offset_x
@@ -720,13 +435,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							}
 
 							kanban_width := KANBAN_WIDTH * scale
-							kanban_width += f32(max_indentations) * TAB_TEMP * TAB_WIDTH * scale
+							kanban_width += f32(max_indentations) * options_tab() * TAB_WIDTH * scale
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							cut.l += panel.gap_horizontal * scale + KANBAN_MARGIN * 2 * scale
 						}
 
 						// format before taking height, predict width
-						tab_size := f32(task.indentation) * TAB_TEMP * TAB_WIDTH * scale
+						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * scale
 						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * scale) : 0
 						task_box_format_to_lines(task.box, rect_width(kanban_current) - tab_size - fold_size)
 						h := element_message(task, .Get_Height)
@@ -750,8 +465,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Paint_Recursive: {
 			target := element.window.target 
+			line_width := math.round(Line_Width * scale)
+
 			bounds := element.bounds
-			render_rect(target, bounds, theme.background)
+			render_rect(target, bounds, theme.background[0], 0)
 			bounds.l -= drag.offset_x
 			bounds.t -= drag.offset_y
 
@@ -796,7 +513,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					if low <= task.visible_index && task.visible_index <= high {
 						is_head := task.visible_index == task_head
 						color := is_head ? theme.caret : theme.caret_highlight
-						render_rect_outline(target, rect, color, style.roundness)
+						render_rect_outline(target, rect, color, style.roundness, line_width)
 					} 
 				}
 			}
@@ -859,8 +576,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	#partial switch msg {
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
-			// color^ = theme.text[.Normal]
-			color^ = theme.text[task.state]
+			color^ = theme_task_text(task.state)
 			return 1
 		}
 
@@ -868,18 +584,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			target := element.window.target
 			box.bounds.l += TASK_TEXT_OFFSET
 			
-			// if task.state != .Normal {
-			// 	scaled_size := math.round(DEFAULT_FONT_SIZE / 2 * scale)
-			// 	icon_rect := rect_cut_left(&box.bounds, scaled_size + 10)
-			// 	icon_rect.t += 1
-			// 	icon_rect.b -= 1
-			// 	icon: Icon = task.state == .Done ? .Check : .Close
-			// 	color := theme.text[task.state]
-			// 	render_rect(target, icon_rect, theme.text[.Normal], style.roundness)
-			// 	render_icon_aligned(target, font_icon, icon, icon_rect, color, .Middle, .Middle, scaled_size)
-			// 	box.bounds.l += 5
-			// }
-
 			if task.has_children {
 				box.bounds.l += math.round(DEFAULT_FONT_SIZE * scale)
 			}
@@ -905,12 +609,14 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				box_set_caret(task.box, BOX_END, nil)
 			} else {
 				old_tail := box.tail
-				task_box_mouse_selection(task, di, false)
+				element_box_mouse_selection(task, task.box, di, false)
 
 				if element.window.shift && di == 0 {
 					box.tail = old_tail
 				}
 			}
+
+			return 1
 		}
 
 		case .Mouse_Drag: {
@@ -919,10 +625,11 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
 			if element.window.pressed_button == MOUSE_LEFT {
-				task_box_mouse_selection(task, di, true)
-				// task.box.head = res
+				element_box_mouse_selection(task, task.box, di, true)
 				element_repaint(task)
 			}
+
+			return 1
 		}
 
 		case .Value_Changed: {
@@ -936,7 +643,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
 	scale := element.window.scale
-	tab := TAB_TEMP * TAB_WIDTH * scale
+	tab := options_tab() * TAB_WIDTH * scale
 
 	#partial switch msg {
 		case .Get_Width: {
@@ -1015,11 +722,12 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				for i in 0..<u8(8) {
 					value := u8(1 << i)
 					if task.tags & value == value {
-						tag := &tags_data[i]
-						width := fontstash.string_width(font, scaled_size, tag.text)
+						tag := &sb.tags.tag_data[i]
+						text := strings.to_string(tag.builder^)
+						width := fontstash.string_width(font, scaled_size, text)
 						r := rect_cut_left(&rect, width + text_margin)
 						render_rect(target, r, tag.color, style.roundness)
-						render_string_aligned(target, font, tag.text, r, theme.panel_front, .Middle, .Middle, scaled_size)
+						render_string_aligned(target, font, text, r, theme.panel_front, .Middle, .Middle, scaled_size)
 						rect.l += gap
 					}
 				}

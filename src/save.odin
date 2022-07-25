@@ -26,6 +26,7 @@ header:
 task line: atleast "task_bytes_min" big
 	indentation: (1B) u8 -> indentation used, capped to 255
 	folded: (1B) u8 -> task folded
+	state: (1B) u8 -> task state
 	text_size: (2B) u16be -> text content amount to read
 	text_content: [N]u8
 
@@ -46,6 +47,7 @@ V1_Save_Header :: struct {
 V1_Save_Task :: struct {
 	indentation: u8,
 	folded: u8,
+	state: u8,
 	text_size: u16be,
 }
 
@@ -93,6 +95,7 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 		task := cast(^Task) child
 		buffer_write_type(&buffer, u8(task.indentation)) or_return
 		buffer_write_type(&buffer, b8(task.folded)) or_return
+		buffer_write_type(&buffer, b8(task.state)) or_return
 		buffer_write_builder(&buffer, task.box.builder) or_return
 	}
 

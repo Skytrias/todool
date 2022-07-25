@@ -24,6 +24,8 @@ import "../fontstash"
 // images on top of cards
 // breadcrumbs?
 // edit & navigation mode? would help immensly for easier navigation
+// unsaved/saved tracking
+// font size for tasks
 
 // ADDED
 // line selection now head + tail based, similar to text box selections
@@ -43,23 +45,12 @@ import "../fontstash"
 
 // DEVLOG
 // FREITAG FRÜH
-//   more detail with task head & tail movement
-
-Tag_Data :: struct {
-	text: string,
-	color: Color,
-}
-
-tags_data := [8]Tag_Data {
-	{ "one", RED },
-	{ "two", BLUE },
-	{ "three", GREEN },
-	{ "four", RED },
-	{ "five", RED },
-	{ "six", RED },
-	{ "seven", RED },
-	{ "eight", RED },
-}
+//	more detail with task head & tail movement
+// SAMSTAG 
+//	UI redesigning -> heavy ui like theme editor in separate window
+//	color picker for theme editor
+//	clipboard message
+//	hovered element support
 
 // elements that can appear as task data
 // folding: bool -> as icon button
@@ -68,6 +59,38 @@ tags_data := [8]Tag_Data {
 
 // bookmarks could be display differently as LINE HIGHLIGHT
 // recording this -> LINE HIGHLIGHT NOW
+
+Mode_Based_Button :: struct {
+	index: int,
+}
+
+mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button) element
+	info := cast(^Mode_Based_Button) element.data
+
+	#partial switch msg {
+		case .Button_Highlight: {
+			color := cast(^Color) dp
+			selected := info.index == int(mode_panel.mode)
+			color^ = selected ? theme.text_default : theme.text_blank
+			return selected ? 1 : 2
+		}
+
+		case .Clicked: {
+			set := cast(^int) &mode_panel.mode
+			if set^ != info.index {
+				set^ = info.index
+				element_repaint(element)
+			}
+		}
+
+		case .Deallocate_Recursive: {
+			free(element.data)
+		}
+	}
+
+	return 0
+}
 
 main :: proc() {
 	gs_init()
@@ -87,7 +110,7 @@ main :: proc() {
 	defer delete(tasks_visible)
 
 	window := window_init("Todool", 900, 900)
-	window.scale = 1
+	window.scale = 1.
 
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element
@@ -96,6 +119,10 @@ main :: proc() {
 			case .Key_Combination: {
 				handled := true
 				combo := (cast(^string) dp)^
+
+				if window_focused_shown(window) {
+					return 0
+				}
 
 				if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
 					box := tasks_visible[task_head].box
@@ -109,6 +136,10 @@ main :: proc() {
 			}
 
 			case .Unicode_Insertion: {
+				if window_focused_shown(window) {
+					return 0
+				}
+
 				if task_head != -1 {
 					task_focused := tasks_visible[task_head]
 					res := element_message(task_focused.box, msg, di, dp)
@@ -191,76 +222,7 @@ main :: proc() {
 	}
 
 	add_shortcuts(window)
-
-	if false {
-		panel_top = panel_init(&window.element, { .CT, .Panel_Default_Background }, 40, 5, 10)
-		panel_top.shadow = true
-		
-		mode_button = button_init(panel_top, { .CL, .CF }, "List")
-		mode_button.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			if msg == .Clicked {
-				mode := cast(^int) &mode_panel.mode
-				
-				if mode^ < len(Mode) -1 {
-					mode^ += 1
-				} else {
-					mode^ = 0
-				}
-
-				element_message(element, .Update)
-			} else if msg == .Update {
-				button := cast(^Button) element
-				b := &button.builder
-				strings.builder_reset(b)
-				fmt.sbprintf(b, "%v", mode_panel.mode)
-				element_repaint(element)
-			}
-
-			return 0
-		}
-		button_init(panel_top, { .CR, .CF }, "None")
-		button_init(panel_top, { .CF }, "TEST")
-	}
-
-	if true {
-		panel_info = panel_init(&window.element, { .CL, .Panel_Default_Background }, 40, 5, 10)
-		panel_info.shadow = true
-		panel_info.z_index = 3
-		icon_button_init(panel_info, { .CT, .CF }, .Stopwatch)
-		// label_init(panel_info, { .CT, .CF, .Label_Center }, "00:00:00")
-		spacer_init(panel_info, { .CT, .CF }, 0, 2, .Thin, false)
-		icon_button_init(panel_info, { .CT, .CF }, .Clock)
-		// label_init(panel_info, { .CT, .CF, .Label_Center }, "00:00:00")
-		spacer_init(panel_info, { .CT, .CF }, 0, 2, .Thin, false)
-		icon_button_init(panel_info, { .CT, .CF }, .Tomato)
-		// label_init(panel_info, { .CT, .CF, .Label_Center }, "00:00:00")
-
-		b := button_init(panel_info, { .CB, .Hover_Has_Info }, "b")
-		b.invoke = proc(data: rawptr) {
-			element := cast(^Element) data
-			window_border_toggle(element.window)
-			element_repaint(element)
-		}
-		b.hover_info = "border"
-
-		button_init(panel_info, { .CB }, "b").invoke = proc(data: rawptr) {
-			element := cast(^Element) data
-			element_hide_toggle(panel_temp)
-			element_repaint(element)
-		}
-
-		// // tab slider up.date panel	
-		// slider_tab = slider_init(panel_info, { .CR, .Hover_Has_Info }, 0.5)
-		// slider_tab.format = "tab: %f"
-		// slider_tab.hover_info = "testing this out"
-	}
-
-	if true {
-		panel_temp = panel_init(&window.element, { .CL, .Panel_Default_Background }, 300, 5, 10)
-		panel_temp.shadow = true
-		panel_temp.z_index = 2
-		element_hide(panel_temp, true)
-	}
+	sidebar_init(window)
 
 	mode_panel = mode_panel_init(&window.element, {})
 	mode_panel.gap_vertical = 5
@@ -281,143 +243,34 @@ main :: proc() {
 		task_tail = 4
 	}
 
-	// fmt.eprintln(size_of(Theme), size_of(Color) * 4 + size_of(Color) * 3)
-
-	// log.info("save", editor_save())
-	// log.info("load", editor_load())
-
 	gs_message_loop()
 }
 
-theme_editor :: proc() {
-	window := window_init("Todool Theme Editor", 600, 800)
+// table_test :: proc() {
+// 	window := window_init("table", 500, 500)
+// 	panel := panel_init(&window.element, { .CF })
+// 	panel.color = theme.background[0]
+// 	panel.margin = 10
+// 	panel.gap = 5
 
-	panel := panel_init(&window.element, { .CF, .Panel_Scrollable, .Panel_Default_Background })
-	panel.margin = 10
-	
-	label := label_init(panel, { .CT }, "Theme Editor")
-	label.font_options = &font_options_header
+// 	button_init(panel, { .CT, .CF }, "testing")
+// 	// button_init(panel, { .CF }, "testing")
+// 	table := table_init(panel, { .CF }, "ABC\tXYZ\tTEST")
+// 	table.column_count = 3
+// 	table.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+// 		table := cast(^Table) element
 
-	SPACER_WIDTH :: 20
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
-	
-	Color_Pair :: struct {
-		color: ^Color,
-		index: int,
-	}
+// 		#partial switch msg {
+// 			case .Table_Get_Item: {
+// 				item := cast(^Table_Get_Item) dp
+// 				item.output = fmt.bprint(item.buffer, "test############")
+// 				// log.info(item.output)
+// 			}
+// 		}
 
-	color_slider :: proc(parent: ^Element, color_mod: ^Color, name: string) {
-		slider_panel := panel_init(parent, { .CT }, 40, 5, 5)
-		label_init(slider_panel, { .CL }, name)
+// 		return 0
+// 	}
 
-		for i in 0..<4 {
-			value := &color_mod[3 - i]
-			s := slider_init(slider_panel, { .CR }, f32(value^) / 255)
-			
-			s.data = new_clone(Color_Pair { color_mod, 3 - i })
-			s.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-				slider := cast(^Slider) element
-
-				#partial switch msg {
-					case .Value_Changed: {
-						pair := cast(^Color_Pair) element.data
-						pair.color[pair.index] = u8(slider.position * 255)
-						
-						picker := cast(^Color_Picker) slider.parent.parent.data
-						picker.color_mod = pair.color
-
-						for w in gs.windows {
-							w.update_next = true
-						}
-					}
-
-					case .Reformat: {
-						strings.builder_reset(&slider.builder)
-						fmt.sbprintf(&slider.builder, "%d", u8(slider.position * 255))
-					}
-
-					case .Deallocate_Recursive: {
-						free(slider.data)
-					}
-				} 
-
-				return 0
-			}
-		}
-	}
-
-	color_slider(panel, &theme.background, "background")
-	color_slider(panel, &theme.shadow, "shadow")
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.text[.Normal], "text normal")
-	color_slider(panel, &theme.text[.Done], "text good")
-	color_slider(panel, &theme.text[.Canceled], "text bad")
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.caret, "caret")
-	color_slider(panel, &theme.caret_highlight, "caret highlight")
-	color_slider(panel, &theme.caret_selection, "caret selection")
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.panel_back, "panel back")
-	color_slider(panel, &theme.panel_front, "panel front")
-
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
-	picker := color_picker_init(panel, { .CT }, 0)
-	panel.data = picker
-
-	// button_init(panel, { .CT, .CF }, "Randomize").invoke = proc(data: rawptr) {
-	// 	total_size := size_of(Theme) / size_of(Color)
-		
-	// 	for i in 0..<total_size {
-	// 		root := uintptr(&theme) + uintptr(i * size_of(Color))
-	// 		color := cast(^Color) root
-	// 		color.r = u8(rand.float32() * 255)
-	// 		color.g = u8(rand.float32() * 255)
-	// 		color.b = u8(rand.float32() * 255)
-	// 	}
-
-	// 	// button := cast(^Button) data
-	// 	// for child in button.parent.children {
-	// 	// 	log.info("yo")
-	// 	// 	if child.message_class == slider_message {
-	// 	// 		log.info("tried")
-	// 	// 		value := cast(^u8) child.data
-	// 	// 		slider := cast(^Slider) child
-	// 	// 		slider.position = f32(value^) / 255
-	// 	// 		element_message(child, .Reformat)
-	// 	// 	}
-	// 	// }
-
-	// 	for w in gs.windows {
-	// 		w.update_next = true
-	// 	}
-	// }
-}
-
-table_test :: proc() {
-	window := window_init("table", 500, 500)
-	panel := panel_init(&window.element, { .CF })
-	panel.color = theme.background
-	panel.margin = 10
-	panel.gap = 5
-
-	button_init(panel, { .CT, .CF }, "testing")
-	// button_init(panel, { .CF }, "testing")
-	table := table_init(panel, { .CF }, "ABC\tXYZ\tTEST")
-	table.column_count = 3
-	table.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		table := cast(^Table) element
-
-		#partial switch msg {
-			case .Table_Get_Item: {
-				item := cast(^Table_Get_Item) dp
-				item.output = fmt.bprint(item.buffer, "test############")
-				// log.info(item.output)
-			}
-		}
-
-		return 0
-	}
-
-	table.item_count = 10
-	table_resize_columns(table)
-}
+// 	table.item_count = 10
+// 	table_resize_columns(table)
+// }

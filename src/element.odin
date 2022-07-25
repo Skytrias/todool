@@ -26,37 +26,6 @@ BLACK :: Color { 0, 0, 0, 255 }
 WHITE :: Color { 255, 255, 255, 255 }
 TRANSPARENT :: Color { }
 
-Theme :: struct {
-	background: Color,
-	text: [Task_State]Color,
-	shadow: Color,
-	
-	caret: Color,
-	caret_highlight: Color,
-	caret_selection: Color,
-
-	panel_back: Color,
-	panel_front: Color,
-}
-
-theme := Theme {
-	background = { 200, 200, 200, 255 },
-	// background = {},
-	text = {
-		.Normal = BLACK,
-		.Done = { 25, 200, 25, 255 },
-		.Canceled = { 200, 25, 25, 255 },
-	},
-	shadow = BLACK,
-	
-	caret = BLUE,
-	caret_highlight = RED,
-	caret_selection = GREEN,
-
-	panel_back = { 230, 230, 230, 255 },
-	panel_front = { 255, 255, 255, 255 },
-}
-
 Style :: struct {
 	roundness: f32,
 	icon_size: f32,
@@ -111,6 +80,8 @@ Message :: enum {
 	Box_Text_Color,
 	Table_Get_Item, // dp = Table_Get_Item
 	Reformat,
+	Button_Highlight, // di = 1 use, dp = optional color
+	Panel_Color,
 
 	// windowing
 	Window_Close,
@@ -140,7 +111,6 @@ Element_Flag :: enum {
 	Destroy_Descendent,
 	Disabled, // cant receive any input messages
 	Layout_Ignore, // non client elements
-	Hover_Has_Info, // wether this element hover info should be used
 
 	// cut direction
 	CL, // Cut Left
@@ -152,6 +122,7 @@ Element_Flag :: enum {
 	// element specific flags
 	Label_Center,
 	Button_Can_Focus,
+	Box_Can_Focus,
 
 	Panel_Panable,
 	Panel_Scrollable,
@@ -515,6 +486,25 @@ element_focus :: proc(element: ^Element) -> bool {
 	return true
 }
 
+// true if the given element is 
+window_focused_shown :: proc(window: ^Window) -> bool {
+	if window.focused == nil {
+		return false
+	}
+
+	p := window.focused
+	
+	for p != nil {
+		if .Hide in p.flags {
+			return false
+		}
+
+		p = p.parent
+	}
+
+	return true
+}
+
 //////////////////////////////////////////////
 // button
 //////////////////////////////////////////////
@@ -528,6 +518,7 @@ Button :: struct {
 button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Button) element
 	scale := element.window.scale
+	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -535,14 +526,25 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			hovered := element.window.hovered == element
 			target := element.window.target
 
-			text_color := theme.text[.Normal]
-			render_element_background(target, element.bounds, theme.background, &text_color, hovered, pressed)
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
+				if res == 1 {
+					rect := element.bounds
+					rect.r = rect.l + 4
+					render_rect(target, rect, text_color, 0)
+				}
+			}
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, text_color, style.roundness, line_width)
+			}
 
 			text := strings.to_string(button.builder)
 			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
 
 			if element.window.focused == element {
-				render_rect_outline(target, element.bounds, RED, style.roundness)
+				render_rect_outline(target, element.bounds, RED, style.roundness, line_width)
 			}
 		}
 
@@ -619,6 +621,7 @@ Icon_Button :: struct {
 icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Icon_Button) element
 	scale := element.window.scale
+	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -626,14 +629,23 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			hovered := element.window.hovered == element
 			target := element.window.target
 
-			text_color := theme.text[.Normal]
-			render_element_background(target, element.bounds, theme.background, &text_color, hovered, pressed)
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if element_message(element, .Button_Highlight, 0, &text_color) == 1 {
+				rect := element.bounds
+				rect.r = rect.l + 4
+				render_rect(target, rect, text_color, 0)
+			}
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, text_color, style.roundness, line_width)
+			}
 
 			icon_size := style.icon_size * scale
 			render_icon_aligned(target, font_icon, button.icon, element.bounds, text_color, .Middle, .Middle, icon_size)
 
 			if element.window.focused == element {
-				render_rect_outline(target, element.bounds, RED, style.roundness)
+				render_rect_outline(target, element.bounds, RED, style.roundness, line_width)
 			}
 		}
 
@@ -717,7 +729,7 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				av = .Middle
 			}
 
-			color := theme.text[.Normal]
+			color := theme.text_default
 			erender_string_aligned(element, text, element.bounds, color, ah, av)
 		}
 		
@@ -759,6 +771,7 @@ Slider :: struct {
 slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	slider := cast(^Slider) element
 	scale := element.window.scale
+	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -766,15 +779,14 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			hovered := element.window.hovered == element
 			target := element.window.target
 			
-			text_color := theme.text[.Normal]
-			render_element_background(target, element.bounds, theme.background, &text_color, hovered, pressed)
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+			render_rect_outline(target, element.bounds, theme.text_default, style.roundness, line_width)
 
 			slide := element.bounds
-			slide.t = slide.b - 4
-			slide.b = slide.t + 2
+			slide.t = slide.b - 4 * scale
+			slide.b = slide.t + 2 * scale
 			slide.r = slide.l + slider.position	* f32(rect_width(slide))
-			
-			render_rect(target, slide, text_color)
+			render_rect(target, slide, text_color, 0)
 
 			element_message(slider, .Reformat)
 
@@ -805,7 +817,7 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Get_Height: {
-			return int(scale * 50)
+			return int(efont_size(element) + 10)
 		}
 
 		case .Reformat: {
@@ -915,16 +927,16 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			hovered := element.window.hovered == element
 			target := element.window.target
 
-			text_color := theme.text[.Normal]
-			render_element_background(target, element.bounds, theme.background, &text_color, hovered, pressed)
+			text_color := theme.text_default
+			// render_element_background(target, element.bounds, theme.background[0], &text_color, hovered, pressed)
 
 			box_rect := box_icon_rect(box)
-			box_color := box.state == .True ? theme.text[.Done] : theme.text[.Canceled]
+			box_color := box.state == .True ? theme.text_good : theme.text_bad
 			render_rect(target, box_rect, box_color, style.roundness)
 
 			icon: Icon = box.state == .True ? .Check : .Close
 			icon_size := style.icon_size * scale
-			render_icon_aligned(target, font_icon, icon, box_rect, theme.background, .Middle, .Middle, icon_size)
+			render_icon_aligned(target, font_icon, icon, box_rect, theme.background[0], .Middle, .Middle, icon_size)
 
 			text_bounds := element.bounds
 			text_bounds.l = box_rect.r + BOX_GAP * scale
@@ -991,22 +1003,22 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				
 				case .Thin: {
 					// limit to height / width
-					LINE_WIDTH :: 2
 					rect := element.bounds
+					line_width := math.round(Line_Width * scale)
 
 					if spacer.vertical {
 						rect.l += math.round(rect_width_halfed(rect))
-						rect.r = rect.l + LINE_WIDTH
+						rect.r = rect.l + line_width
 					} else {
 						rect.t += math.round(rect_height_halfed(rect))
-						rect.b = rect.t + LINE_WIDTH
+						rect.b = rect.t + line_width
 					}
 
-					render_rect(target, rect, theme.text[.Normal], style.roundness)
+					render_rect(target, rect, theme.text_default, style.roundness)
 				} 
 
 				case .Full: {
-					render_rect(target, element.bounds, theme.text[.Normal], style.roundness)
+					render_rect(target, element.bounds, theme.text_default, style.roundness)
 				}
 
 				case .Dotted: {
@@ -1072,6 +1084,7 @@ Panel :: struct {
 	float_transparency: f32,
 
 	scrollbar: ^Scrollbar,
+	background_index: int,
 }
 
 // layout your panel, output the expected w / h
@@ -1277,7 +1290,6 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Middle_Down: {
 			// store temp position
-
 			if panable {
 				panel.drag_x = panel.offset_x
 				panel.drag_y = panel.offset_y
@@ -1332,14 +1344,24 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			return int(rect_height(element.bounds))
 		}
 
-		case .Paint_Recursive: {
-			color := panel.color
+		case .Panel_Color: {
+			color := cast(^Color) dp
+			color^ = panel.color
 
 			if .Panel_Default_Background in panel.flags {
-				color = theme.background
+				color^ = theme.background[panel.background_index]
 			}
 
-			if color == TRANSPARENT {
+			if color^ == TRANSPARENT {
+				return 0
+			}
+		}
+
+		case .Paint_Recursive: {
+			color: Color
+			element_message(element, .Panel_Color, 0, &color)
+
+			if color == {} {
 				return 0
 			}
 
@@ -1354,7 +1376,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if panel.shadow {
 				render_drop_shadow(target, bounds, color, style.roundness)
 			} else {
-				render_rect(target, bounds, color)
+				render_rect(target, bounds, color, 0)
 			}
 		}
 	}
@@ -1404,7 +1426,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		case .Paint_Recursive: {
 			rect := element.bounds
 			rect = rect_margin(rect, 2 * scale)
-			render_rect(element.window.target, rect, theme.background, style.roundness)
+			render_rect(element.window.target, rect, theme.background[0], style.roundness)
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -1530,7 +1552,7 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			hovered := element.window.hovered == element
 			pressed := element.window.pressed == element
 			rect := rect_margin(element.bounds, 3 * scale)
-			color := theme.text[.Normal]
+			color := theme.text_default
 			color.a = pressed || hovered ? 200 : 150
 			render_rect(target, rect, color, style.roundness)
 		}
@@ -1599,6 +1621,7 @@ Table :: struct {
 table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	table := cast(^Table) element
 	scale := element.window.scale
+	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Get_Width: {
@@ -1619,7 +1642,7 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Paint_Recursive: {
 			target := element.window.target
-			defer render_rect_outline(target, element.bounds, theme.text[.Normal], style.roundness)
+			defer render_rect_outline(target, element.bounds, theme.text_default, style.roundness, line_width)
 
 			assert(table.column_widths != nil, "table_resize_columns needs to be called once")
 
@@ -1644,15 +1667,15 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				item.index = i
 				item.is_selected = false
 				item.column = 0
-				text_color := theme.text[.Normal]
+				text_color := theme.text_default
 				element_message(element, .Table_Get_Item, 0, &item)
 
 				if item.is_selected {
-					render_rect(target, row, text_color)
-					text_color = theme.background
+					render_rect(target, row, text_color, 0)
+					text_color = theme.background[0]
 				} else if hovered == i {
-					render_rect(target, row, text_color)
-					text_color = theme.background
+					render_rect(target, row, text_color, 0)
+					text_color = theme.background[0]
 				}
 
 				cell := row
@@ -1677,11 +1700,11 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			// header 
 			header := element.bounds
 			header.b = header.t + TABLE_HEADER * scale
-			render_rect(target, header, color_blend_amount(theme.text[.Normal], WHITE, 0.1), style.roundness)
-			render_underline(target, header, theme.text[.Normal], 2)
+			render_rect(target, header, color_blend_amount(theme.text_default, WHITE, 0.1), style.roundness)
+			render_underline(target, header, theme.text_default, 2)
 			header.l += TABLE_COLUMN_GAP * scale
 
-			text_color := theme.text[.Normal]
+			text_color := theme.text_default
 			// draw each column
 			index := 0
 			mod := table.columns
@@ -1836,6 +1859,7 @@ Color_Picker :: struct {
 Color_Picker_SV :: struct {
 	using element: Element,
 	x, y: f32,
+	output: Color,
 }
 
 Color_Picker_HUE :: struct {
@@ -1846,6 +1870,7 @@ Color_Picker_HUE :: struct {
 color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	picker := cast(^Color_Picker) element
 	scale := element.window.scale
+	line_width := math.round(Line_Width * scale)
 
 	SV_WIDTH :: 200
 	HUE_WIDTH :: 50
@@ -1878,8 +1903,8 @@ color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Paint_Recursive: {
 			target := element.window.target
-			render_rect(target, element.bounds, theme.background)
-			render_rect_outline(target, element.bounds, theme.text[.Normal])
+			render_rect(target, element.bounds, theme.background[0], 0)
+			render_rect_outline(target, element.bounds, theme.text_default, 0, line_width)
 		}
 	}
 
@@ -1890,12 +1915,13 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 	hue := cast(^Color_Picker_HUE) element
 	scale := element.window.scale
 	sv := cast(^Color_Picker_SV) element.parent.children[0]
+	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
 			render_texture(target, .HUE, element.bounds)
-			render_rect_outline(target, element.bounds, theme.text[.Normal])
+			render_rect_outline(target, element.bounds, theme.text_default, 0, line_width)
 
 			OUT_SIZE :: 10
 			out_size := math.round(OUT_SIZE * scale)
@@ -1904,7 +1930,7 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			hue_out.t += hue.y * rect_height(element.bounds) - out_size / 2
 			hue_out.b = hue_out.t + out_size
 
-			render_rect_outline(target, hue_out, theme.text[.Normal])
+			render_rect_outline(target, hue_out, theme.text_default, 0, line_width)
 		}
 
 		case .Get_Cursor: {
@@ -1928,13 +1954,14 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	scale := element.window.scale
 	SV_OUT_SIZE :: 10
 	sv_out_size := math.round(SV_OUT_SIZE * scale)
+	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
 			color := color_hsv_to_rgb(hue.y, 1, 1)
 			render_texture(target, .SV, element.bounds, color)
-			render_rect_outline(target, element.bounds, theme.text[.Normal])
+			render_rect_outline(target, element.bounds, theme.text_default, 0, line_width)
 
 			sv_out := rect_wh(
 				element.bounds.l + sv.x * rect_width(element.bounds) - sv_out_size / 2, 
@@ -1942,7 +1969,7 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				sv_out_size,
 				sv_out_size,
 			)
-			render_rect_outline(target, sv_out, theme.text[.Normal])
+			render_rect_outline(target, sv_out, theme.text_default, 0, line_width)
 		}
 
 		case .Get_Cursor: {

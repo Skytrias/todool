@@ -1,5 +1,6 @@
 package src
 
+import "core:math"
 import "core:unicode"
 import "core:unicode/utf8"
 import "core:mem"
@@ -45,11 +46,11 @@ Box :: struct {
 	change_start: time.Tick,
 }
 
-// Text_Box :: struct {
-// 	using element: Element,
-// 	using box: Box,
-// 	scroll: f32,
-// }
+Text_Box :: struct {
+	using element: Element,
+	using box: Box,
+	scroll: f32,
+}
 
 Task_Box :: struct {
 	using element: Element,
@@ -283,201 +284,175 @@ undo_box_insert_runes :: proc(manager: ^Undo_Manager, item: rawptr) {
 	undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
 }
 
-// text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-// 	box := cast(^Text_Box) element
-// 	scale := element.window.scale
+//////////////////////////////////////////////
+// Task Box
+//////////////////////////////////////////////
 
-// 	#partial switch msg {
-// 		case .Left_Down: {
-// 			// select caret once
-// 			if element_focus(element) {
-// 				// TODO unicode
-// 				box.head = len(box.builder.buf)
-// 				box.tail = box.head
-// 			} else {
-// 				// old_head := box.head
-// 				// old_tail := box.tail
-// 				// clicks := di
+text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	box := cast(^Text_Box) element
+	scale := element.window.scale
+	line_width := math.round(Line_Width * scale)
 
-// 				// // TODO unicode
-// 				// w := element.window
-// 				// length := len(box.builder.buf)
-// 				// text_bounds := element.bounds
-// 				// // text_bounds.l += OFF
-// 				// text_bounds.r = text_bounds.l + length * GLYPH_WIDTH
-// 				// pos := f32(w.cursor_x - text_bounds.l) / f32(rect_width(text_bounds))
-// 				// pos = clamp(pos, 0, 1)
+	#partial switch msg {
+		case .Layout: {
+			font, size := element_retrieve_font_options(box)
+			clear(&box.wrapped_lines)
+			append(&box.wrapped_lines, strings.to_string(box.builder))
+		}
 
-// 				// if clicks < 2 {
-// 				// 	box.head = int(pos * f32(length))
-// 				// 	box.tail = box.head
-// 				// } else {
-// 				// 	box.head = length
-// 				// 	box.tail = 0
-// 				// }
+		case .Get_Cursor: {
+			return int(Cursor.IBeam)
+		}
 
-// 				// // repaint on changed head
-// 				// if old_head != box.head || old_tail != box.tail {
-// 				// 	element_repaint(element)
-// 				// }
-// 			}
-// 		}
+		case .Box_Text_Color: {
+			color := cast(^Color) dp
+			color^ = theme_task_text(.Normal)
+		}
 
-// 		// case .Animate: {
-// 		// 	now := time.tick_now()
-// 		// 	diff := time.tick_diff(box.last_tick, now)
-// 		// 	dt := time.duration_milliseconds(diff)
-// 		// 	box.last_tick = now
-// 		// 	box.offset = int(math.sin(dt) * 100)
-// 		// 	log.info("animating", dt, box.offset)
-// 		// 	element_refresh(element)
-// 		// }
+		case .Paint_Recursive: {
+			focused := element.window.focused == element
+			target := element.window.target
+			font, size := element_retrieve_font_options(element)
+			scaled_size := size * scale
+			OFF :: 5
+			offset := 5 * scale
+			text := strings.to_string(box.builder)
+			text_width := estring_width(element, text) - offset
+			caret_x: f32
 
-// 		case .Mouse_Drag: {
-// 			// // selection dragging
-// 			// if element.window.focused == element {
-// 			// 	old_head := box.head
-// 			// 	// TODO unicode
-// 			// 	length := len(box.builder.buf)
-// 			// 	text_bounds := element.bounds
-// 			// 	// text_bounds.l += OFF
-// 			// 	text_bounds.r = text_bounds.l + f32(length * GLYPH_WIDTH)
-// 			// 	pos := f32(element.window.cursor_x - text_bounds.l) / f32(rect_width(text_bounds))
-// 			// 	pos = clamp(pos, 0, 1)
-// 			// 	box.head = int(pos * f32(length))
+			// handle scrolling
+			{
+				// TODO review with scaling
+				// clamp scroll(?)
+				if box.scroll > text_width - rect_width(element.bounds) {
+					box.scroll = text_width - rect_width(element.bounds)
+				}
 
-// 			// 	// repaint on changed head
-// 			// 	if old_head != box.head {
-// 			// 		element_repaint(element)
-// 			// 	}
-// 			// }
-// 		}
+				if box.scroll < 0 {
+					box.scroll = 0
+				}
 
-// 		case .Get_Cursor: {
-// 			return int(Cursor.IBeam)
-// 		}
+				caret_x = estring_width(element, text[:box.head]) - box.scroll
 
-// 		case .Paint_Recursive: {
-// 			target := element.window.target
-// 			window := element.window
-			
-// 			outline := window.focused == element ? RED : BLACK
-// 			render_rect(target, element.bounds, WHITE)
-// 			render_rect_outline(target, element.bounds, outline)
-// 			focused := window.focused == element
-// 			text := strings.to_string(box.builder)
-// 			MARGIN :: 2
-// 			scaled_margin := scale * MARGIN
-// 			// TODO unicode
-// 			text_width := estring_width(element, text) + scaled_margin * 2
-// 			text_bounds := rect_add(element.bounds, rect_one_inv(scaled_margin))
-// 			caret_x: f32
+				// check caret x
+				if caret_x < 0 {
+					box.scroll = caret_x + box.scroll
+				} else if caret_x > rect_width(element.bounds) {
+					box.scroll = caret_x - rect_width(element.bounds) + box.scroll + 1
+				}
+			}
 
-// 			// handle scrolling
-// 			{
-// 				// TODO review with scaling
-// 				// clamp scroll(?)
-// 				if box.scroll > text_width - rect_width(text_bounds) {
-// 					box.scroll = text_width - rect_width(text_bounds)
-// 				}
+			old_bounds := element.bounds
+			element.bounds.l += offset
 
-// 				if box.scroll < 0 {
-// 					box.scroll = 0
-// 				}
+			color: Color
+			element_message(element, .Box_Text_Color, 0, &color)
 
-// 				caret_x = estring_width(element, text[:box.head]) - box.scroll
+			// selection & caret
+			if focused {
+				render_rect(target, old_bounds, theme.panel_front, style.roundness)
+				font, size := element_retrieve_font_options(box)
+				scaled_size := size * scale
+				x := box.bounds.l - box.scroll
+				y := box.bounds.t
+				box_render_selection(target, box, font, scaled_size, x, y)
+				box_render_caret(target, box, font, scaled_size, x, y)
+			}
 
-// 				// check caret x
-// 				if caret_x < 0 {
-// 					box.scroll = caret_x + box.scroll
-// 				} else if caret_x > rect_width(text_bounds) {
-// 					box.scroll = caret_x - rect_width(text_bounds) + box.scroll + 1
-// 				}
-// 			}
+			text_color := theme.text_default
+			render_rect_outline(target, old_bounds, text_color, style.roundness, line_width)
 
-// 			// selection
-// 			if focused && box.head != box.tail {
-// 				selection := text_bounds
-// 				selection.l = selection.l - box.scroll
-// 				selection.r = selection.l
-// 				low, high := box_low_and_high(box)
-// 				selection.l += estring_width(element, text[:low])
-// 				selection.r += estring_width(element, text[:high])
-// 				render_rect(target, selection, GREEN)
-// 			} 
-			
-// 			// text
-// 			text_rect := text_bounds
-// 			text_rect.l = text_rect.l - box.scroll
-// 			erender_string_aligned(element, text, text_rect, BLACK, .Left, .Middle)
+			// draw each wrapped line
+			y: f32
+			for wrap_line, i in box.wrapped_lines {
+				render_string(
+					target,
+					font,
+					wrap_line,
+					element.bounds.l - box.scroll,
+					element.bounds.t + y,
+					color,
+					scaled_size,
+				)
+				y += scaled_size
+			}
+		}
 
-// 			// cursor
-// 			if focused {
-// 				cursor := text_bounds
-// 				cursor.l += (estring_width(element, text[:box.head]) - box.scroll)
-// 				cursor.r = cursor.l + scale * 2
-// 				render_rect(target, cursor, RED)
-// 			}
-// 		}
+		case .Key_Combination: {
+			combo := (cast(^string) dp)^
+			shift := element.window.shift
+			ctrl := element.window.ctrl
+			handled := box_evaluate_combo(box, &box.box, combo, ctrl, shift)
 
-// 		case .Key_Combination: {
-// 			combo := (cast(^string) dp)^
-// 			shift := element.window.shift
-// 			ctrl := element.window.ctrl
-// 			handled := box_evaluate_combo(box, combo, ctrl, shift)
+			if handled {
+				element_repaint(element)
+			}
 
-// 			if handled {
-// 				element_repaint(element)
-// 			}
+			return int(handled)
+		}
 
-// 			return int(handled)
-// 		}
+		case .Deallocate_Recursive: {
+			delete(box.builder.buf)
+		}
 
-// 		case .Unicode_Insertion: {
-// 			codepoint := (cast(^rune) dp)^
-// 			box_insert(box, codepoint)
-// 			element_repaint(element)
-// 		}
+		case .Update: {
+			element_repaint(element)	
+		}
 
-// 		case .Update: {
-// 			element_repaint(element)	
-// 		}
+		case .Unicode_Insertion: {
+			codepoint := (cast(^rune) dp)^
+			box_insert(element, box, codepoint)
+			element_repaint(element)
+			return 1
+		}
 
-// 		case .Get_Width: {
-// 			return int(scale * 200)
-// 		}
+		case .Box_Set_Caret: {
+			box_set_caret(box, di, dp)
+		}
 
-// 		case .Get_Height: {
-// 			return int(efont_size(element))
-// 		}
+		case .Left_Down: {
+			element_focus(element)
+			// element.window.focused = element
 
-// 		case .Deallocate_Recursive: {
-// 			delete(box.builder.buf)
-// 		}
+			old_tail := box.tail
+			element_box_mouse_selection(box, box, di, false)
 
-// 		case .Box_Set_Caret: {
-// 			box_set_caret(box, di, dp)
-// 		}
-// 	}
+			if element.window.shift && di == 0 {
+				box.tail = old_tail
+			}
+		}
 
-// 	return 0
-// }
+		case .Mouse_Drag: {
+			if element.window.pressed_button == MOUSE_LEFT {
+				element_box_mouse_selection(box, box, di, true)
+				element_repaint(box)
+			}
+		}
 
-// text_box_init :: proc(
-// 	parent: ^Element, 
-// 	flags: Element_Flags, 
-// 	text := "",
-// 	index_at := -1,
-// ) -> (res: ^Text_Box) {
-// 	res = element_init(Text_Box, parent, flags, text_box_message, index_at)
-// 	res.builder = strings.builder_make(0, 32)
-// 	strings.write_string(&res.builder, text)
-// 	// TODO unicode
-// 	length := len(res.builder.buf)
-// 	res.head = length
-// 	res.tail = length
-// 	return	
-// }
+		case .Get_Width: {
+			return int(scale * 200)
+		}
+
+		case .Get_Height: {
+			return int(efont_size(element))
+		}
+	}
+
+	return 0
+}
+
+text_box_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	text := "",
+	index_at := -1,
+) -> (res: ^Text_Box) {
+	res = element_init(Text_Box, parent, flags, text_box_message, index_at)
+	res.builder = strings.builder_make(0, 32)
+	strings.write_string(&res.builder, text)
+	box_move_end(&res.box, false)
+	return	
+}
 
 //////////////////////////////////////////////
 // Task Box
@@ -494,7 +469,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
-			color^ = theme.text[.Normal]
+			color^ = theme_task_text(.Normal)
 		}
 
 		case .Paint_Recursive: {
@@ -567,7 +542,6 @@ task_box_init :: proc(
 	res = element_init(Task_Box, parent, flags, task_box_message, index_at)
 	res.builder = strings.builder_make(0, 32)
 	strings.write_string(&res.builder, text)
-
 	box_move_end(&res.box, false)
 	return
 }
@@ -931,7 +905,7 @@ box_render_caret :: proc(
 		scaled_size,
 	)
 
-	render_rect(target, caret_rect, theme.caret)
+	render_rect(target, caret_rect, theme.caret, 0)
 }
 
 Wrap_State :: struct {
@@ -1036,7 +1010,273 @@ box_render_selection :: proc(
 		if state.rect_valid {
 			rect := state.rect
 			translated := rect_add(rect, rect_xxyy(x, y))
-			render_rect(target, translated, theme.caret_selection)
+			render_rect(target, translated, theme.caret_selection, 0)
 		}
 	}
+}
+
+// mouse selection
+element_box_mouse_selection :: proc(
+	element: ^Element,
+	b: ^Box,
+	clicks: int,
+	dragging: bool,
+) -> (res: int) {
+	// log.info("relative clicks", clicks)
+	text := strings.to_string(b.builder)
+	font, size := element_retrieve_font_options(element)
+	scaled_size := size * element.window.scale
+	scale := fontstash.scale_for_pixel_height(font, scaled_size)
+
+	// state used in word / single mouse selection
+	Mouse_Character_Selection :: struct {
+		relative_x, relative_y: f32,
+		old_x, x: f32,
+		old_y, y: f32,	
+		codepoint_offset: int, // offset after a text line ended in rune codepoints ofset
+		width_codepoint: f32, // global to store width
+	}
+	mcs: Mouse_Character_Selection
+
+	// single character collision
+	mcs_check_single :: proc(
+		using mcs: ^Mouse_Character_Selection,
+		b: ^Box,
+		codepoint_index: int,
+		dragging: bool,
+	) -> bool {
+		if old_x < relative_x && 
+			relative_x < x && 
+			old_y < relative_y && 
+			relative_y < y {
+			if !dragging {
+				codepoint_index := codepoint_index
+				box_set_caret(b, 0, &codepoint_index)
+			} else {
+				b.head = codepoint_index
+			}
+
+			return true
+		}
+
+		return false
+	}
+
+	// check word collision
+	// 
+	// old_x is word_start_x
+	// x is word_end_x
+	mcs_check_word :: proc(
+		using mcs: ^Mouse_Character_Selection,
+		b: ^Box,
+		word_start: int,
+		word_end: int,
+	) -> bool {
+		if old_x < relative_x && 
+			relative_x < x && 
+			old_y < relative_y && 
+			relative_y < y {
+			// set first result of word selection, further selection extends range
+			if !b.word_selection_started {
+				b.word_selection_started = true
+				b.word_start = word_start
+				b.word_end = word_end
+			}
+
+			// get result
+			low := min(word_start, b.word_start)
+			high := max(word_end, b.word_end)
+
+			// visually position the caret left / right when selecting the first word
+			if word_start == b.word_start && word_end == b.word_end {
+				diff := x - old_x
+				
+				// middle of word crossed, swap
+				if old_x < relative_x && relative_x < old_x + diff / 2 {
+					low, high = high, low
+				}
+			}
+
+			// invert head
+			if word_start < b.word_start {
+				b.head = low
+				b.tail = high
+			} else {
+				b.head = high
+				b.tail = low
+			}
+
+			return true
+		}
+
+		return false
+	}
+
+	// clamp to left when x is below 0 and y above 
+	mcs_check_line_last :: proc(using mcs: ^Mouse_Character_Selection, b: ^Box) {
+		if relative_y > y {
+			b.head = codepoint_offset
+		}
+	}
+
+	using mcs
+	relative_x = element.window.cursor_x - element.bounds.l
+	relative_y = element.window.cursor_y - element.bounds.t
+
+	ds := &b.ds
+	clicks := clicks % 3
+
+	// reset on new click start
+	if clicks == 0 && !dragging {
+		b.word_selection_started = false
+		b.line_selection_started = false
+	}
+
+	// NOTE single line clicks
+	if clicks == 0 {
+		// loop through lines
+		search_line: for text in b.wrapped_lines {
+			// set state
+			y += scaled_size
+			x = 0
+			old_x = 0
+
+			// clamp to left when x is below 0 and y above 
+			if relative_x < 0 && relative_y < old_y {
+				b.head = codepoint_offset
+				break
+			}
+
+			// loop through codepoints
+			ds^ = {}
+			for codepoint, i in cutf8.ds_iter(ds, text) {
+				width_codepoint = fontstash.codepoint_xadvance(font, codepoint, scale)
+				x += width_codepoint
+
+				// check mouse collision
+				if mcs_check_single(&mcs, b, i + codepoint_offset, dragging) {
+					break search_line
+				}
+			}
+
+			x += scaled_size
+			mcs_check_single(&mcs, b, ds.codepoint_count + codepoint_offset, dragging)
+
+			codepoint_offset += ds.codepoint_count
+			old_y = y
+		}
+
+		mcs_check_line_last(&mcs, b)
+	} else {
+		if clicks == 1 {
+			// NOTE WORD selection
+			// loop through lines
+			search_line_word: for text in b.wrapped_lines {
+				// set state
+				old_x = 0 
+				x = 0
+				y += scaled_size
+
+				// temp
+				index_word_start: int = -1
+				codepoint_last: rune
+				index_whitespace_start: int = -1
+				x_word_start: f32
+				x_whitespace_start: f32 = -1
+
+				// clamp to left
+				if relative_x < 0 && relative_y < old_y && b.word_selection_started {
+					b.head = codepoint_offset
+					break
+				}
+
+				// loop through codepoints
+				ds^ = {}
+				for codepoint, i in cutf8.ds_iter(ds, text) {
+					width_codepoint := fontstash.codepoint_xadvance(font, codepoint, scale)
+					
+					// check for word completion
+					if index_word_start != -1 && codepoint == ' ' {
+						old_x = x_word_start
+						mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + i)
+						index_word_start = -1
+					}
+					
+					// check for starting codepoint being letter
+					if index_word_start == -1 && unicode.is_letter(codepoint) {
+						index_word_start = i
+						x_word_start = x
+					}
+
+					// check for space word completion
+					if index_whitespace_start != -1 && unicode.is_letter(codepoint) {
+						old_x = x_whitespace_start
+						mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + i)
+						index_whitespace_start = -1
+					}
+
+					// check for starting whitespace being letter
+					if index_whitespace_start == -1 && codepoint == ' ' {
+						index_whitespace_start = i
+						x_whitespace_start = x
+					}
+
+					// set new position
+					x += width_codepoint
+					codepoint_last = codepoint
+				}
+
+				// finish whitespace and end letter
+				if index_whitespace_start != -1 && codepoint_last == ' ' {
+					old_x = x_whitespace_start
+					mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + ds.codepoint_count)
+				}
+
+				// finish end word
+				if index_word_start != -1 && unicode.is_letter(codepoint_last) {
+					old_x = x_word_start
+					mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + ds.codepoint_count)
+				}
+
+				old_y = y
+				codepoint_offset += ds.codepoint_count
+			}
+
+			mcs_check_line_last(&mcs, b)
+		} else {
+			// LINE
+			for text, line_index in b.wrapped_lines {
+				y += scaled_size
+				codepoints := cutf8.count(text)
+
+				if old_y < relative_y && relative_y < y {
+					if !b.line_selection_started {
+						b.line_selection_start = codepoint_offset
+						b.line_selection_end = codepoint_offset + codepoints
+						b.line_selection_start_y = y
+						b.line_selection_started = true
+					} 
+
+					goal_left := codepoint_offset
+					goal_right := codepoint_offset + codepoints
+
+					low := min(goal_left, b.line_selection_start)
+					high := max(goal_right, b.line_selection_end)
+
+					if relative_y > b.line_selection_start_y {
+						low, high = high, low
+					}
+
+					b.head = low
+					b.tail = high
+					break
+				}
+
+				codepoint_offset += codepoints
+				old_y = y
+			}
+		}
+	}
+
+	return
 }
