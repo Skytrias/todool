@@ -11,9 +11,9 @@ import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "../fontstash"
 
-Global_Scale :: 1
-Line_Width :: f32(int(2 * Global_Scale))
-Rect_Roundness :: f32(int(5 * Global_Scale))
+SCALE := f32(1)
+LINE_WIDTH := f32(int(2.0 * SCALE))
+ROUNDNESS := f32(int(5.0 * SCALE))
 
 Font :: fontstash.Font
 font_regular: ^Font
@@ -73,7 +73,6 @@ Window :: struct {
 	
 	// rendering
 	update_next: bool,
-	scale: f32,
 	target: ^Render_Target,
 	
 	// sdl data
@@ -142,7 +141,6 @@ window_add_shortcut :: proc(
 window_init :: proc(
 	title: cstring, 
 	w, h: i32,
-	scale: f32 = 1,
 ) -> (res: ^Window) {
 	window := sdl.CreateWindow(
 		title, 
@@ -191,7 +189,6 @@ window_init :: proc(
 	res.w = window
 	res.w_id = window_id
 	res.hovered = &res.element
-	res.scale = scale
 	res.combo_builder = strings.builder_make(0, 32)
 	res.title_builder = strings.builder_make(0, 64)
 	res.shortcuts = make(map[string]Shortcut_Proc, 32)
@@ -420,10 +417,12 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			}
 
 			case .Mouse_Scroll_X: {
+				di := di * options_scroll_x()
 				element_send_msg_until_received(window.hovered, .Mouse_Scroll_X, di, dp)
 			}
 
 			case .Mouse_Scroll_Y: {
+				di := di * options_scroll_y()
 				element_send_msg_until_received(window.hovered, .Mouse_Scroll_Y, di, dp)
 			}
 		}
@@ -904,8 +903,8 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			assert(len(element.children) != 0)
 			
 			// TODO poll max necessary width
-			width := 300 * w.scale
-			height := 100 * w.scale
+			width := 300 * SCALE
+			height := 100 * SCALE
 
 			// set dialog size
 			element.bounds = rect_wh(

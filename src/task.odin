@@ -26,7 +26,7 @@ old_task_tail := 0
 tasks_visible: [dynamic]^Task
 task_parent_stack: [128]^Task
 // editor_pushed_unsaved: bool
-TAB_WIDTH :: 50
+TAB_WIDTH :: 100
 TASK_DATA_GAP :: 5
 TASK_TEXT_OFFSET :: 2
 TASK_DATA_MARGIN :: 2
@@ -181,7 +181,6 @@ task_init :: proc(
 	res.button_fold.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		button := cast(^Icon_Button) element
 		task := cast(^Task) button.parent
-		scale := element.window.scale
 
 		#partial switch msg {
 			case .Clicked: {
@@ -249,9 +248,9 @@ task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
 	font, size := element_retrieve_font_options(box)
 	fontstash.format_to_lines(
 		font,
-		size * box.window.scale,
+		size * SCALE,
 		strings.to_string(box.builder),
-		max(300 * box.window.scale, width),
+		max(300 * SCALE, width),
 		&box.wrapped_lines,
 	)
 }
@@ -296,8 +295,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 		return
 	}
 
-	scale := mode_panel.window.scale
-	tab := options_tab() * TAB_WIDTH * scale
+	tab := options_tab() * TAB_WIDTH * SCALE
 	p := tasks_visible[task_head]
 	color := theme.text_default
 
@@ -315,7 +313,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			}
 
 			bound_rect.l -= tab
-			bound_rect.r = bound_rect.l + 2 * scale
+			bound_rect.r = bound_rect.l + 2 * SCALE
 			render_rect(target, bound_rect, color, 0)
 
 			if color.a == 255 {
@@ -333,7 +331,6 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Mode_Panel) element
-	scale := element.window.scale
 	drag := &panel.drag[panel.mode]
 
 	#partial switch msg {
@@ -364,7 +361,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds := element.bounds
 			bounds.l += drag.offset_x
 			bounds.t += drag.offset_y
-			gap_vertical_scaled := math.round(panel.gap_vertical * scale)
+			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
 
 			switch panel.mode {
 				case .List: {
@@ -378,8 +375,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						}
 
 						// format before taking height
-						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * scale
-						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * scale) : 0
+						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * SCALE
+						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
 						width_limit := rect_width(element.bounds) - tab_size - fold_size
 						width_limit -= drag.offset_x
 						task_box_format_to_lines(task.box, width_limit)
@@ -434,15 +431,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 								}
 							}
 
-							kanban_width := KANBAN_WIDTH * scale
-							kanban_width += f32(max_indentations) * options_tab() * TAB_WIDTH * scale
+							kanban_width := KANBAN_WIDTH * SCALE
+							kanban_width += f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE
 							kanban_current = rect_cut_left(&cut, kanban_width)
-							cut.l += panel.gap_horizontal * scale + KANBAN_MARGIN * 2 * scale
+							cut.l += panel.gap_horizontal * SCALE + KANBAN_MARGIN * 2 * SCALE
 						}
 
 						// format before taking height, predict width
-						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * scale
-						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * scale) : 0
+						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * SCALE
+						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
 						task_box_format_to_lines(task.box, rect_width(kanban_current) - tab_size - fold_size)
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&kanban_current, f32(h))
@@ -465,7 +462,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Paint_Recursive: {
 			target := element.window.target 
-			line_width := math.round(Line_Width * scale)
 
 			bounds := element.bounds
 			render_rect(target, bounds, theme.background[0], 0)
@@ -482,8 +478,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					color := theme.panel_back
 					// color := color_blend(mix, BLACK, 0.9, false)
 					for outline in panel.kanban_outlines {
-						rect := rect_margin(outline, -KANBAN_MARGIN * scale)
-						render_rect(target, rect, color, style.roundness)
+						rect := rect_margin(outline, -KANBAN_MARGIN * SCALE)
+						render_rect(target, rect, color, ROUNDNESS)
 					}
 				}
 			}
@@ -513,7 +509,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					if low <= task.visible_index && task.visible_index <= high {
 						is_head := task.visible_index == task_head
 						color := is_head ? theme.caret : theme.caret_highlight
-						render_rect_outline(target, rect, color, style.roundness, line_width)
+						render_rect_outline(target, rect, color)
 					} 
 				}
 			}
@@ -571,7 +567,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	box := cast(^Task_Box) element
 	task := cast(^Task) element.parent
-	scale := element.window.scale
 
 	#partial switch msg {
 		case .Box_Text_Color: {
@@ -585,12 +580,12 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			box.bounds.l += TASK_TEXT_OFFSET
 			
 			if task.has_children {
-				box.bounds.l += math.round(DEFAULT_FONT_SIZE * scale)
+				box.bounds.l += math.round(DEFAULT_FONT_SIZE * SCALE)
 			}
 
 			if task.visible_index == task_head {
 				font, size := element_retrieve_font_options(box)
-				scaled_size := size * scale
+				scaled_size := size * SCALE
 				x := box.bounds.l
 				y := box.bounds.t
 				box_render_selection(target, box, font, scaled_size, x, y)
@@ -609,7 +604,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				box_set_caret(task.box, BOX_END, nil)
 			} else {
 				old_tail := box.tail
-				element_box_mouse_selection(task, task.box, di, false)
+				element_box_mouse_selection(task.box, task.box, di, false)
 
 				if element.window.shift && di == 0 {
 					box.tail = old_tail
@@ -625,7 +620,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
 			if element.window.pressed_button == MOUSE_LEFT {
-				element_box_mouse_selection(task, task.box, di, true)
+				element_box_mouse_selection(task.box, task.box, di, true)
 				element_repaint(task)
 			}
 
@@ -642,22 +637,36 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
-	scale := element.window.scale
-	tab := options_tab() * TAB_WIDTH * scale
+	tab := options_tab() * TAB_WIDTH * SCALE
+	tag_mode := options_tag_mode()
+	draw_tags := tag_mode != TAG_SHOW_NONE && task.tags != 0x00
+	TAG_COLOR_ONLY :: 10
+
+	additional_size :: proc(task: ^Task, draw_tags: bool) -> (res: f32) {
+		if draw_tags {
+			tag_mode := options_tag_mode()
+			if tag_mode == TAG_SHOW_TEXT_AND_COLOR {
+				res = DEFAULT_FONT_SIZE * SCALE + TASK_DATA_MARGIN * 2 * SCALE
+			} else if tag_mode == TAG_SHOW_COLOR {
+				res = TAG_COLOR_ONLY * SCALE + TASK_DATA_MARGIN * 2 * SCALE
+			}
+		}
+
+		return
+	}
 
 	#partial switch msg {
 		case .Get_Width: {
-			return int(scale * 200)
+			return int(SCALE * 200)
 		}
 
 		case .Get_Height: {
 			task.font_options = task.has_children ? &font_options_bold : nil
 			line_size := efont_size(element) * f32(len(task.box.wrapped_lines))
 
-			if task.tags != 0x00 {
-				line_size += DEFAULT_FONT_SIZE * scale + TASK_DATA_MARGIN * 2 * scale
-			}
+			line_size_addition := additional_size(task, draw_tags)
 
+			line_size += line_size_addition
 			return int(line_size)
 		}
 
@@ -679,8 +688,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			if task.has_children {
 				left := cut
-				left.r = left.l + math.round(DEFAULT_FONT_SIZE * scale)
-				scaled_size := task.font_options.size * scale
+				left.r = left.l + math.round(DEFAULT_FONT_SIZE * SCALE)
+				scaled_size := task.font_options.size * SCALE
 				left.b = left.t + scaled_size
 				element_move(task.button_fold, left)
 			}
@@ -696,38 +705,66 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			{
 				rect := task.box.bounds
 				color := color_blend_amount(GREEN, theme.panel_front, task.has_children ? 0.05 : 0)
-				render_rect(target, rect, color, style.roundness)
+				render_rect(target, rect, color, ROUNDNESS)
 			}
 
 			// draw tags at an offset
-			if task.tags != 0x00 {
-				rect := task.box.bounds
-				rect = rect_margin(rect, math.round(TASK_DATA_MARGIN * scale))
+			if draw_tags {
+				rect := task.box.clip
+				rect = rect_margin(rect, math.round(TASK_DATA_MARGIN * SCALE))
 
 				// offset
 				{
-					font, size := element_retrieve_font_options(task.box)
-					scaled_size := size * scale
-					rect.t += scaled_size
+					add := additional_size(task, true)
+					rect.t = rect.b - add + math.round(TASK_DATA_GAP * SCALE)
 				}
 
-				rect.b = rect.t + math.round(20 * scale)
+				switch tag_mode {
+					case TAG_SHOW_TEXT_AND_COLOR: {
+						rect.b = rect.t + math.round(DEFAULT_FONT_SIZE * SCALE)
+					}
+
+					case TAG_SHOW_COLOR: {
+						rect.b = rect.t + TAG_COLOR_ONLY * SCALE
+					}
+				}
 
 				font := font_regular
-				scaled_size := DEFAULT_FONT_SIZE * scale
-				text_margin := math.round(10 * scale)
-				gap := math.round(TASK_DATA_GAP * scale)
+				scaled_size := DEFAULT_FONT_SIZE * SCALE
+				text_margin := math.round(10 * SCALE)
+				gap := math.round(TASK_DATA_GAP * SCALE)
 
 				// go through each existing tag, draw each one
 				for i in 0..<u8(8) {
 					value := u8(1 << i)
+
 					if task.tags & value == value {
 						tag := &sb.tags.tag_data[i]
-						text := strings.to_string(tag.builder^)
-						width := fontstash.string_width(font, scaled_size, text)
-						r := rect_cut_left(&rect, width + text_margin)
-						render_rect(target, r, tag.color, style.roundness)
-						render_string_aligned(target, font, text, r, theme.panel_front, .Middle, .Middle, scaled_size)
+
+						switch tag_mode {
+							case TAG_SHOW_TEXT_AND_COLOR: {
+								text := strings.to_string(tag.builder^)
+								width := fontstash.string_width(font, scaled_size, text)
+								r := rect_cut_left_hard(&rect, width + text_margin)
+
+								if rect_valid(r) {
+									render_rect(target, r, tag.color, ROUNDNESS)
+									render_string_aligned(target, font, text, r, theme.panel_front, .Middle, .Middle, scaled_size)
+								}
+							}
+
+							case TAG_SHOW_COLOR: {
+								r := rect_cut_left_hard(&rect, 50 * SCALE)
+								if rect_valid(r) {
+									render_rect(target, r, tag.color, ROUNDNESS)
+								}
+							}
+
+							case: {
+								unimplemented("shouldnt get here")
+							}
+						}
+
 						rect.l += gap
 					}
 				}
@@ -761,13 +798,21 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		case .Animate: {
 			handled := false
 
-			if task.indentation_animating {
-				handled |= animate_to(&task.indentation_smooth, f32(task.indentation), 2, 0.01)
-			}
-
-			if task.top_animating {
-				handled |= animate_to(&task.top_offset, 0, 1, 1)
-			}
+			handled |= animate_to(
+				&task.indentation_animating,
+				&task.indentation_smooth, 
+				f32(task.indentation),
+				2, 
+				0.01,
+			)
+			
+			handled |= animate_to(
+				&task.top_animating,
+				&task.top_offset, 
+				0, 
+				1, 
+				1,
+			)
 
 			return int(handled)
 		}

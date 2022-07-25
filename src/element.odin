@@ -17,6 +17,9 @@ UPDATE_FOCUSED :: 3
 BOX_START :: 1
 BOX_END :: 2
 SCROLLBAR_SIZE :: 15
+TEXT_MARGIN_VERTICAL :: 10
+TEXT_MARGIN_HORIZONTAL :: 10
+DEFAULT_FONT_SIZE :: 20
 
 Color :: [4]u8
 RED :: Color { 255, 0, 0, 255 }
@@ -27,11 +30,9 @@ WHITE :: Color { 255, 255, 255, 255 }
 TRANSPARENT :: Color { }
 
 Style :: struct {
-	roundness: f32,
 	icon_size: f32,
 }
 style := Style {
-	roundness = 5,
 	icon_size = 18,
 }
 
@@ -233,14 +234,19 @@ element_animation_stop :: proc(element: ^Element) -> bool {
 // animate an value to a goal 
 // returns true when the value is still lerped
 animate_to :: proc(
+	animate: ^bool,
 	value: ^f32, 
 	goal: f32,
 	rate := f32(1),
 	cuttoff := f32(0.001),
-) -> bool {
+) -> (ok: bool) {
+	// skip early
+	if !animate^ {
+		return
+	}
+
 	if value^ == -1 {
 		value^ = goal
-		return false
 	} else {
 		lambda := 10 * rate
 		res := math.lerp(value^, goal, 1 - math.exp(-lambda * gs.dt))
@@ -249,13 +255,18 @@ animate_to :: proc(
 		// skip cutoff
 		if abs(res - goal) < cuttoff {
 			value^ = goal
-			return false
 		} else {
 			value^ = res
+			ok = true
 		}
 	}
 
-	return true
+	// set animate to false
+	if !ok {
+		animate^ = false
+	}
+
+	return
 }
 
 element_message :: proc(element: ^Element, msg: Message, di: int = 0, dp: rawptr = nil) -> int {
@@ -517,8 +528,6 @@ Button :: struct {
 
 button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Button) element
-	scale := element.window.scale
-	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -537,14 +546,14 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			}
 
 			if hovered || pressed {
-				render_rect_outline(target, element.bounds, text_color, style.roundness, line_width)
+				render_rect_outline(target, element.bounds, text_color)
 			}
 
 			text := strings.to_string(button.builder)
 			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
 
 			if element.window.focused == element {
-				render_rect_outline(target, element.bounds, RED, style.roundness, line_width)
+				render_rect_outline(target, element.bounds, RED)
 			}
 		}
 
@@ -578,12 +587,12 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 		case .Get_Width: {
 			text := strings.to_string(button.builder)
-			width := max(50 * scale, estring_width(element, text) + 10)
+			width := max(50 * SCALE, estring_width(element, text) + TEXT_MARGIN_HORIZONTAL * SCALE)
 			return int(width)
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + 10 * scale)
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Key_Combination: {
@@ -620,8 +629,6 @@ Icon_Button :: struct {
 
 icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Icon_Button) element
-	scale := element.window.scale
-	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -638,14 +645,14 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			}
 
 			if hovered || pressed {
-				render_rect_outline(target, element.bounds, text_color, style.roundness, line_width)
+				render_rect_outline(target, element.bounds, text_color)
 			}
 
-			icon_size := style.icon_size * scale
+			icon_size := style.icon_size * SCALE
 			render_icon_aligned(target, font_icon, button.icon, element.bounds, text_color, .Middle, .Middle, icon_size)
 
 			if element.window.focused == element {
-				render_rect_outline(target, element.bounds, RED, style.roundness, line_width)
+				render_rect_outline(target, element.bounds, RED)
 			}
 		}
 
@@ -674,13 +681,13 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Get_Width: {
-			icon_size := style.icon_size * scale
+			icon_size := style.icon_size * SCALE
 			icon_width := fontstash.icon_width(font_icon, icon_size, button.icon) 
-			return int(icon_width + 10 * scale)
+			return int(icon_width + TEXT_MARGIN_HORIZONTAL * SCALE)
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + 10 * scale)
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Key_Combination: {
@@ -715,7 +722,6 @@ Label :: struct {
 
 label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	label := cast(^Label) element
-	scale := element.window.scale
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -770,8 +776,6 @@ Slider :: struct {
 
 slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	slider := cast(^Slider) element
-	scale := element.window.scale
-	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -780,11 +784,11 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			target := element.window.target
 			
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
-			render_rect_outline(target, element.bounds, theme.text_default, style.roundness, line_width)
+			render_rect_outline(target, element.bounds, text_color)
 
 			slide := element.bounds
-			slide.t = slide.b - 4 * scale
-			slide.b = slide.t + 2 * scale
+			slide.t = slide.b - math.round(5 * SCALE)
+			slide.b = slide.t + math.round(3 * SCALE)
 			slide.r = slide.l + slider.position	* f32(rect_width(slide))
 			render_rect(target, slide, text_color, 0)
 
@@ -813,7 +817,7 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Get_Width: {
-			return int(scale * 100)
+			return int(SCALE * 100)
 		}
 
 		case .Get_Height: {
@@ -866,28 +870,24 @@ slider_init :: proc(parent: ^Element, flags: Element_Flags, position: f32 = 0) -
 // checkbox
 //////////////////////////////////////////////
 
-Checkbox_State :: enum {
-	False,
-	True,
-}
-
 Checkbox :: struct {
 	using element: Element,
 	builder: strings.Builder,
-	state: Checkbox_State,
+	state: bool,
+	state_transition: bool,
+	state_unit: f32,
 	invoke: proc(data: rawptr),
 }
 
 checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	box := cast(^Checkbox) element
-	scale := element.window.scale
 
 	BOX_MARGIN :: 5
 	BOX_GAP :: 5
 
 	box_icon_rect :: proc(box: ^Checkbox) -> (res: Rect) {
-		res = rect_margin(box.bounds, BOX_MARGIN * box.window.scale)
-		res.r = res.l + rect_height(res)
+		res = rect_margin(box.bounds, BOX_MARGIN * SCALE)
+		res.r = res.l + (rect_height(box.bounds) + TEXT_MARGIN_VERTICAL) * SCALE
 		return
 	}
 
@@ -897,8 +897,8 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			text := strings.to_string(box.builder)
 			text_width := estring_width(element, text)
 			
-			margin := BOX_MARGIN * scale
-			gap := BOX_GAP * scale
+			margin := BOX_MARGIN * SCALE
+			gap := BOX_GAP * SCALE
 			box_rect := box_icon_rect(box) 
 
 			return int(text_width + margin * 2 + rect_width(box_rect) + gap)
@@ -915,7 +915,7 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Get_Height: {
-			return int(50 * scale)
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Get_Cursor: {
@@ -927,19 +927,23 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			hovered := element.window.hovered == element
 			target := element.window.target
 
-			text_color := theme.text_default
-			// render_element_background(target, element.bounds, theme.background[0], &text_color, hovered, pressed)
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+			render_rect_outline(target, element.bounds, text_color)
 
 			box_rect := box_icon_rect(box)
-			box_color := box.state == .True ? theme.text_good : theme.text_bad
-			render_rect(target, box_rect, box_color, style.roundness)
+			box_color := color_blend(theme.text_good, theme.text_bad, box.state_unit, true)
+			render_rect(target, box_rect, box_color, ROUNDNESS)
 
-			icon: Icon = box.state == .True ? .Check : .Close
-			icon_size := style.icon_size * scale
-			render_icon_aligned(target, font_icon, icon, box_rect, theme.background[0], .Middle, .Middle, icon_size)
+			box_width := math.round(rect_width_halfed(box_rect))
+
+			moving_rect := box_rect
+			moving_rect.l = box_rect.l + box.state_unit * box_width
+			moving_rect.r = moving_rect.l + (box_width - 1 * SCALE)
+			moving_rect = rect_margin(moving_rect, 2 * SCALE)
+			render_rect(target, moving_rect, text_color, ROUNDNESS)
 
 			text_bounds := element.bounds
-			text_bounds.l = box_rect.r + BOX_GAP * scale
+			text_bounds.l = box_rect.r + BOX_GAP * SCALE
 
 			erender_string_aligned(
 				element,
@@ -952,13 +956,27 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Clicked: {
-			value := cast(^int) &box.state
-			value^ = (value^ + 1) % len(Checkbox_State)
+			box.state = !box.state
 			element_repaint(element)
+	
+			element_animation_start(element)
+			box.state_transition = true
 
 			if box.invoke != nil {
 				box.invoke(box.data)
 			}
+		}
+
+		case .Animate: {
+			handled := animate_to(
+				&box.state_transition,
+				&box.state_unit,
+				box.state ? 1 : 0,
+				1,
+				0.01,
+			)
+
+			return int(handled)
 		}
 	}
 
@@ -992,7 +1010,6 @@ Spacer :: struct {
 
 spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	spacer := cast(^Spacer) element
-	scale := element.window.scale
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -1004,21 +1021,20 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				case .Thin: {
 					// limit to height / width
 					rect := element.bounds
-					line_width := math.round(Line_Width * scale)
 
 					if spacer.vertical {
 						rect.l += math.round(rect_width_halfed(rect))
-						rect.r = rect.l + line_width
+						rect.r = rect.l + LINE_WIDTH
 					} else {
 						rect.t += math.round(rect_height_halfed(rect))
-						rect.b = rect.t + line_width
+						rect.b = rect.t + LINE_WIDTH
 					}
 
-					render_rect(target, rect, theme.text_default, style.roundness)
+					render_rect(target, rect, theme.text_default, ROUNDNESS)
 				} 
 
 				case .Full: {
-					render_rect(target, element.bounds, theme.text_default, style.roundness)
+					render_rect(target, element.bounds, theme.text_default, ROUNDNESS)
 				}
 
 				case .Dotted: {
@@ -1028,11 +1044,11 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Get_Width: {
-			return int(spacer.width * scale)
+			return int(spacer.width * SCALE)
 		}
 
 		case .Get_Height: {
-			return int(spacer.height * scale)
+			return int(spacer.height * SCALE)
 		}
 	}
 
@@ -1090,8 +1106,7 @@ Panel :: struct {
 // layout your panel, output the expected w / h
 // effected by cut directions
 panel_layout :: proc(panel: ^Panel, measure := false) -> (output_w, output_h: f32) {
-	scale := panel.window.scale
-	scrollbar_size := SCROLLBAR_SIZE * scale
+	scrollbar_size := SCROLLBAR_SIZE * SCALE
 
 	{
 		// check parent
@@ -1111,19 +1126,19 @@ panel_layout :: proc(panel: ^Panel, measure := false) -> (output_w, output_h: f3
 			y := panel.float_y
 
 			if .Panel_Floaty_Center_X in panel.flags {
-				x += panel.window.widthf / 2 - panel.float_width * scale / 2
+				x += panel.window.widthf / 2 - panel.float_width * SCALE / 2
 				// y += style.floaty_margin * scale
 			}
 
 			if .Panel_Floaty_Center_Y in panel.flags {
-				y += panel.window.heightf / 2 - panel.float_height * scale / 2
+				y += panel.window.heightf / 2 - panel.float_height * SCALE / 2
 			}
 
-			res = rect_wh(x, y, panel.float_width * scale, panel.float_height * scale)
+			res = rect_wh(x, y, panel.float_width * SCALE, panel.float_height * SCALE)
 		} else {
 			// cut bounds of panel
 			flag := cut_flag_from_flags(panel.flags)
-			amt := scale * panel.cut_amount
+			amt := SCALE * panel.cut_amount
 			res = rect_cut_from_flag(flag, cut_from, amt, amt)
 		}
 
@@ -1149,10 +1164,10 @@ panel_layout :: proc(panel: ^Panel, measure := false) -> (output_w, output_h: f3
 		panel.bounds.r -= scrollbar_size
 	}
 
-	panel.bounds = rect_margin(panel.bounds, panel.margin * scale)
+	panel.bounds = rect_margin(panel.bounds, panel.margin * SCALE)
 
 	// cut bound per element 
-	gap_size := scale * panel.gap
+	gap_size := SCALE * panel.gap
 	last_cut := Element_Flag.Invalid
 	for child in panel.children {
 		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
@@ -1224,7 +1239,6 @@ panel_layout :: proc(panel: ^Panel, measure := false) -> (output_w, output_h: f3
 
 panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Panel) element
-	scale := element.window.scale
 	panable := (.Panel_Panable in element.flags)
 	floaty := (.Panel_Floaty in element.flags)
 	// disallow both at the same time
@@ -1374,7 +1388,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			}
 
 			if panel.shadow {
-				render_drop_shadow(target, bounds, color, style.roundness)
+				render_drop_shadow(target, bounds, color, ROUNDNESS)
 			} else {
 				render_rect(target, bounds, color, 0)
 			}
@@ -1420,13 +1434,12 @@ Scrollbar :: struct {
 
 scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	scrollbar := cast(^Scrollbar) element
-	scale := element.window.scale
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			rect := element.bounds
-			rect = rect_margin(rect, 2 * scale)
-			render_rect(element.window.target, rect, theme.background[0], style.roundness)
+			rect = rect_margin(rect, 2 * SCALE)
+			render_rect(element.window.target, rect, theme.background[0], ROUNDNESS)
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -1529,13 +1542,14 @@ scroll_up_down_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 		}
 
 		case .Animate: {
-			// log.info("animating")
-			direction: f32 = is_down ? 1 : -1
-			goal := scrollbar.position + direction * 0.1 * scrollbar.page
-			animate_to(&scrollbar.position, goal, 1, 1)
-			element_repaint(scrollbar)
+			// TODO investigate
+			// // log.info("animating")
+			// direction: f32 = is_down ? 1 : -1
+			// goal := scrollbar.position + direction * 0.1 * scrollbar.page
+			// animate_to(&scrollbar.position, goal, 1, 1)
+			// element_repaint(scrollbar)
 
-			return 1
+			// return 1
 		}
 	}
 
@@ -1544,17 +1558,16 @@ scroll_up_down_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 
 scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	scrollbar := cast(^Scrollbar) element.parent
-	scale := element.window.scale
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
 			hovered := element.window.hovered == element
 			pressed := element.window.pressed == element
-			rect := rect_margin(element.bounds, 3 * scale)
+			rect := rect_margin(element.bounds, 3 * SCALE)
 			color := theme.text_default
 			color.a = pressed || hovered ? 200 : 150
-			render_rect(target, rect, color, style.roundness)
+			render_rect(target, rect, color, ROUNDNESS)
 		}
 
 		case .Update: {
@@ -1620,29 +1633,27 @@ Table :: struct {
 
 table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	table := cast(^Table) element
-	scale := element.window.scale
-	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Get_Width: {
-			return int(200 * scale)
+			return int(200 * SCALE)
 		}
 
 		case .Get_Height: {
-			return int(200 * scale)
+			return int(200 * SCALE)
 		}
 
 		case .Layout: {
 			scrollbar_bounds := element.bounds
-			scrollbar_bounds.l = scrollbar_bounds.r - SCROLLBAR_SIZE * scale
-			table.scrollbar.maximum = f32(table.item_count) * TABLE_ROW * scale
-			table.scrollbar.page = rect_height(element.bounds) - TABLE_HEADER * scale
+			scrollbar_bounds.l = scrollbar_bounds.r - SCROLLBAR_SIZE * SCALE
+			table.scrollbar.maximum = f32(table.item_count) * TABLE_ROW * SCALE
+			table.scrollbar.page = rect_height(element.bounds) - TABLE_HEADER * SCALE
 			element_move(table.scrollbar, scrollbar_bounds)
 		}
 
 		case .Paint_Recursive: {
 			target := element.window.target
-			defer render_rect_outline(target, element.bounds, theme.text_default, style.roundness, line_width)
+			defer render_rect_outline(target, element.bounds, theme.text_default)
 
 			assert(table.column_widths != nil, "table_resize_columns needs to be called once")
 
@@ -1651,8 +1662,8 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			}
 
 			row := element.bounds
-			row_height := TABLE_ROW * scale
-			row.t += TABLE_HEADER * scale
+			row_height := TABLE_ROW * SCALE
+			row.t += TABLE_HEADER * SCALE
 			row.t -= f32(int(table.scrollbar.position) % int(row_height))
 
 			hovered := table_hit_test(table, element.window.cursor_x, element.window.cursor_y)
@@ -1679,7 +1690,7 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				}
 
 				cell := row
-				cell.l += TABLE_COLUMN_GAP * scale
+				cell.l += TABLE_COLUMN_GAP * SCALE
 
 				// walk through each column
 				for j in 0..<table.column_count {
@@ -1691,7 +1702,7 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 					cell.r = cell.l + table.column_widths[j]
 					erender_string_aligned(element, item.output, cell, text_color, .Left, .Middle)
-					cell.l += table.column_widths[j] + TABLE_COLUMN_GAP * scale
+					cell.l += table.column_widths[j] + TABLE_COLUMN_GAP * SCALE
 				}
 
 				row.t += row_height
@@ -1699,10 +1710,10 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 			// header 
 			header := element.bounds
-			header.b = header.t + TABLE_HEADER * scale
-			render_rect(target, header, color_blend_amount(theme.text_default, WHITE, 0.1), style.roundness)
+			header.b = header.t + TABLE_HEADER * SCALE
+			render_rect(target, header, color_blend_amount(theme.text_default, WHITE, 0.1), ROUNDNESS)
 			render_underline(target, header, theme.text_default, 2)
-			header.l += TABLE_COLUMN_GAP * scale
+			header.l += TABLE_COLUMN_GAP * SCALE
 
 			text_color := theme.text_default
 			// draw each column
@@ -1711,7 +1722,7 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			for word in strings.split_iterator(&mod, "\t") {
 				header.r = header.l + table.column_widths[index]
 				erender_string_aligned(element, word, header, text_color, .Left, .Middle)
-				header.l += table.column_widths[index] + TABLE_COLUMN_GAP * scale
+				header.l += table.column_widths[index] + TABLE_COLUMN_GAP * SCALE
 				index += 1	
 			}
 		}
@@ -1742,18 +1753,17 @@ table_init :: proc(parent: ^Element, flags: Element_Flags, columns := "") -> (re
 
 table_hit_test :: proc(table: ^Table, x, y: f32) -> int {
 	x := x - table.bounds.l
-	scale := table.window.scale
 
 	// x check
-	if x < 0 || x >= rect_width(table.bounds) - SCROLLBAR_SIZE * scale {
+	if x < 0 || x >= rect_width(table.bounds) - SCROLLBAR_SIZE * SCALE {
 		return - 1
 	}
 
 	y := y
-	y -= (table.bounds.t + TABLE_HEADER * scale) - table.scrollbar.position
+	y -= (table.bounds.t + TABLE_HEADER * SCALE) - table.scrollbar.position
 
 	// y check
-	row_height := TABLE_ROW * scale
+	row_height := TABLE_ROW * SCALE
 	if y < 0 || y >= row_height * f32(table.item_count) {
 		return -1
 	}
@@ -1766,10 +1776,9 @@ table_header_hit_test :: proc(table: ^Table, x, y: int) -> int {
 		return -1
 	}
 
-	scale := table.window.scale
 	header := table.bounds
-	header.b = header.t + TABLE_HEADER * scale
-	header.l += TABLE_COLUMN_GAP * scale
+	header.b = header.t + TABLE_HEADER * SCALE
+	header.l += TABLE_COLUMN_GAP * SCALE
 
 	// iterate columns
 	mod := table.columns
@@ -1781,7 +1790,7 @@ table_header_hit_test :: proc(table: ^Table, x, y: int) -> int {
 			return index
 		}
 
-		header.l += table.column_widths[index] + TABLE_COLUMN_GAP * scale
+		header.l += table.column_widths[index] + TABLE_COLUMN_GAP * SCALE
 		index += 1
 	}
 
@@ -1789,10 +1798,9 @@ table_header_hit_test :: proc(table: ^Table, x, y: int) -> int {
 }
 
 table_ensure_visible :: proc(table: ^Table, index: int) -> bool {
-	scale := table.window.scale
-	row_height := TABLE_ROW * scale
+	row_height := TABLE_ROW * SCALE
 	y := f32(index) * row_height
-	height := rect_height(table.bounds) - TABLE_HEADER * scale - row_height
+	height := rect_height(table.bounds) - TABLE_HEADER * SCALE - row_height
 
 	if y < 0 {
 		table.scrollbar.position += y
@@ -1869,28 +1877,26 @@ Color_Picker_HUE :: struct {
 
 color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	picker := cast(^Color_Picker) element
-	scale := element.window.scale
-	line_width := math.round(Line_Width * scale)
 
 	SV_WIDTH :: 200
 	HUE_WIDTH :: 50
 
 	#partial switch msg {
 		case .Get_Width: {
-			return int((HUE_WIDTH + SV_WIDTH) * scale)
+			return int((HUE_WIDTH + SV_WIDTH) * SCALE)
 		}
 
 		case .Get_Height: {
-			return int(200 * scale)
+			return int(200 * SCALE)
 		}
 
 		case .Layout: {
 			sv := element.children[0]
 			hue := element.children[1]
 		
-			gap := math.round(10 * scale)
+			gap := math.round(10 * SCALE)
 			cut := rect_margin(element.bounds, 5)
-			left := rect_cut_left(&cut, math.round(SV_WIDTH * scale))
+			left := rect_cut_left(&cut, math.round(SV_WIDTH * SCALE))
 			cut.l += gap
 			element_move(sv, left)
 			element_move(hue, cut)
@@ -1904,7 +1910,7 @@ color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		case .Paint_Recursive: {
 			target := element.window.target
 			render_rect(target, element.bounds, theme.background[0], 0)
-			render_rect_outline(target, element.bounds, theme.text_default, 0, line_width)
+			render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 		}
 	}
 
@@ -1913,24 +1919,22 @@ color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	hue := cast(^Color_Picker_HUE) element
-	scale := element.window.scale
 	sv := cast(^Color_Picker_SV) element.parent.children[0]
-	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
 			render_texture(target, .HUE, element.bounds)
-			render_rect_outline(target, element.bounds, theme.text_default, 0, line_width)
+			render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			OUT_SIZE :: 10
-			out_size := math.round(OUT_SIZE * scale)
+			out_size := math.round(OUT_SIZE * SCALE)
 
 			hue_out := element.bounds
 			hue_out.t += hue.y * rect_height(element.bounds) - out_size / 2
 			hue_out.b = hue_out.t + out_size
 
-			render_rect_outline(target, hue_out, theme.text_default, 0, line_width)
+			render_rect_outline(target, hue_out, theme.text_default, 0, LINE_WIDTH)
 		}
 
 		case .Get_Cursor: {
@@ -1951,17 +1955,15 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	sv := cast(^Color_Picker_SV) element
 	hue := cast(^Color_Picker_HUE) element.parent.children[1]
-	scale := element.window.scale
 	SV_OUT_SIZE :: 10
-	sv_out_size := math.round(SV_OUT_SIZE * scale)
-	line_width := math.round(Line_Width * scale)
+	sv_out_size := math.round(SV_OUT_SIZE * SCALE)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
 			color := color_hsv_to_rgb(hue.y, 1, 1)
 			render_texture(target, .SV, element.bounds, color)
-			render_rect_outline(target, element.bounds, theme.text_default, 0, line_width)
+			render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			sv_out := rect_wh(
 				element.bounds.l + sv.x * rect_width(element.bounds) - sv_out_size / 2, 
@@ -1969,7 +1971,7 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				sv_out_size,
 				sv_out_size,
 			)
-			render_rect_outline(target, sv_out, theme.text_default, 0, line_width)
+			render_rect_outline(target, sv_out, theme.text_default, 0, LINE_WIDTH)
 		}
 
 		case .Get_Cursor: {
@@ -2006,6 +2008,127 @@ color_picker_init :: proc(parent: ^Element, flags: Element_Flags, hue: f32) -> (
 }
 
 //////////////////////////////////////////////
+// enum selector
+//////////////////////////////////////////////
+
+Toggle_Selector :: struct {
+	using element: Element,
+	value: ^int,
+	count: int,
+	names: []string,
+
+	// layouted cells and animation
+	cells: []Rect,
+	cell_transition: bool,
+	cell_unit: f32,
+	cell_width: f32, // width per cell
+}
+
+toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	toggle := cast(^Toggle_Selector) element
+	assert(len(toggle.names) == toggle.count)
+
+	#partial switch msg {
+		case .Layout: {
+			toggle.cell_width = rect_width(element.bounds) / f32(toggle.count)
+
+			// layout cells
+			cut := element.bounds
+			for i in 0..<toggle.count {
+				toggle.cells[i] = rect_cut_left(&cut, toggle.cell_width)
+			}
+		}
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			hovered := element.window.hovered == element
+			pressed := element.window.pressed == element
+
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			// animated cell highlight
+			highlight := toggle.cells[0]
+			highlight.l += toggle.cell_unit * toggle.cell_width 
+			highlight.r = highlight.l + toggle.cell_width
+			render_rect(target, highlight, theme.text_good, ROUNDNESS)
+
+			for i in 0..<toggle.count {
+				r := toggle.cells[i]
+				color := text_color
+
+				if !rect_contains(r, element.window.cursor_x, element.window.cursor_y) {
+					color = theme.text_blank
+				}
+
+				erender_string_aligned(element, toggle.names[i], r, color, .Middle, .Middle)
+			}
+			
+			render_rect_outline(target, element.bounds, text_color)
+		}
+
+		case .Get_Width: {
+			return int(100 * SCALE)
+		}
+
+		case .Get_Height: {
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+		}
+
+		case .Mouse_Move: {
+			element_repaint(element)
+		}
+
+		case .Clicked: {
+			old := toggle.value^
+
+			// select and start animation transition towards
+			for i in 0..<toggle.count {
+				r := toggle.cells[i]
+				if rect_contains(r, element.window.cursor_x, element.window.cursor_y) {
+					toggle.value^ = i
+					toggle.cell_transition = true
+					element_animation_start(element)
+					break
+				}
+			}
+
+			if old != toggle.value^ {
+				element_repaint(element)
+			}
+		}
+
+		case .Animate: {
+			handled := animate_to(
+				&toggle.cell_transition,
+				&toggle.cell_unit,
+				f32(toggle.value^),
+				1,
+				0.01,
+			)
+
+			return int(handled)
+		}
+	}
+
+	return 0
+}
+
+toggle_selector_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	value: ^int,
+	count: int,
+	names: []string,
+) -> (res: ^Toggle_Selector) {
+	res = element_init(Toggle_Selector, parent, flags, toggle_selector_message)
+	res.value = value
+	res.count = count
+	res.names = names
+	res.cells = make([]Rect, count)
+	return 
+}
+
+//////////////////////////////////////////////
 // font size helpers
 //////////////////////////////////////////////
 
@@ -2013,8 +2136,6 @@ Font_Options :: struct {
 	font: ^Font,
 	size: f32,
 }
-
-DEFAULT_FONT_SIZE :: 20
 
 element_retrieve_font_options :: proc(element: ^Element) -> (font: ^Font, size: f32) {
 	// default
@@ -2047,21 +2168,21 @@ erender_string_aligned :: #force_inline proc(
 		color, 
 		ah, 
 		av, 
-		size * element.window.scale,
+		size * SCALE,
 	)
 }
 
 erunes_width :: #force_inline proc(element: ^Element, runes: []rune) -> f32 {
 	font, size := element_retrieve_font_options(element)
-	return fontstash.runes_width(font, size * element.window.scale, runes)
+	return fontstash.runes_width(font, size * SCALE, runes)
 }
 
 estring_width :: #force_inline proc(element: ^Element, text: string) -> f32 {
 	font, size := element_retrieve_font_options(element)
-	return fontstash.string_width(font, size * element.window.scale, text)
+	return fontstash.string_width(font, size * SCALE, text)
 }
 
 efont_size :: proc(element: ^Element) -> f32 {
 	_, size := element_retrieve_font_options(element)
-	return math.round(size * element.window.scale)
+	return math.round(size * SCALE)
 }

@@ -12,20 +12,17 @@ import "../fontstash"
 
 // TODO UI
 // scrollbar horizontal
-// scaling looks off for rectangle outlines -> maybe round
-// window title setting
-
-// TODO ELEMENT DATA
-// allow custom allocator
+// element allow custom allocator
 
 // TODO
-// save file -> export to json too
+// save file -> export to json too, TRY ONE SAVE FILE FOR ALL
 // task sorting
 // images on top of cards
-// breadcrumbs?
+// breadcrumbs? could do a prompt
 // edit & navigation mode? would help immensly for easier navigation
 // unsaved/saved tracking
-// font size for tasks
+// font size for tasks specifically so you could zoom in / out
+// add autosave timer & exit scheme
 
 // ADDED
 // line selection now head + tail based, similar to text box selections
@@ -49,8 +46,14 @@ import "../fontstash"
 // SAMSTAG 
 //	UI redesigning -> heavy ui like theme editor in separate window
 //	color picker for theme editor
-//	clipboard message
 //	hovered element support
+//	clipboard retrieve
+// SONNTAG
+//	theme editor movable index
+// 	sidebar on the left
+//		panels per enum mode
+// 		added options back
+// 		tag show checkbox
 
 // elements that can appear as task data
 // folding: bool -> as icon button
@@ -110,7 +113,6 @@ main :: proc() {
 	defer delete(tasks_visible)
 
 	window := window_init("Todool", 900, 900)
-	window.scale = 1.
 
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element

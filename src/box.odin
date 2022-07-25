@@ -290,8 +290,6 @@ undo_box_insert_runes :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	box := cast(^Text_Box) element
-	scale := element.window.scale
-	line_width := math.round(Line_Width * scale)
 
 	#partial switch msg {
 		case .Layout: {
@@ -306,16 +304,20 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
-			color^ = theme_task_text(.Normal)
+			focused := element.window.focused == element
+			hovered := element.window.hovered == element
+			pressed := element.window.pressed == element
+			color^ = hovered || pressed || focused ? theme.text_default : theme.text_blank
 		}
 
 		case .Paint_Recursive: {
 			focused := element.window.focused == element
+
 			target := element.window.target
 			font, size := element_retrieve_font_options(element)
-			scaled_size := size * scale
+			scaled_size := size * SCALE
 			OFF :: 5
-			offset := 5 * scale
+			offset := 5 * SCALE
 			text := strings.to_string(box.builder)
 			text_width := estring_width(element, text) - offset
 			caret_x: f32
@@ -350,17 +352,16 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			// selection & caret
 			if focused {
-				render_rect(target, old_bounds, theme.panel_front, style.roundness)
+				render_rect(target, old_bounds, theme.panel_front, ROUNDNESS)
 				font, size := element_retrieve_font_options(box)
-				scaled_size := size * scale
+				scaled_size := size * SCALE
 				x := box.bounds.l - box.scroll
 				y := box.bounds.t
 				box_render_selection(target, box, font, scaled_size, x, y)
 				box_render_caret(target, box, font, scaled_size, x, y)
 			}
 
-			text_color := theme.text_default
-			render_rect_outline(target, old_bounds, text_color, style.roundness, line_width)
+			render_rect_outline(target, old_bounds, color)
 
 			// draw each wrapped line
 			y: f32
@@ -430,7 +431,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Get_Width: {
-			return int(scale * 200)
+			return int(SCALE * 200)
 		}
 
 		case .Get_Height: {
@@ -460,7 +461,6 @@ text_box_init :: proc(
 
 task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task_box := cast(^Task_Box) element
-	scale := element.window.scale
 
 	#partial switch msg {
 		case .Get_Cursor: {
@@ -476,7 +476,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			focused := element.window.focused == element
 			target := element.window.target
 			font, size := element_retrieve_font_options(element)
-			scaled_size := size * scale
+			scaled_size := size * SCALE
 
 			color: Color
 			element_message(element, .Box_Text_Color, 0, &color)
@@ -1025,7 +1025,7 @@ element_box_mouse_selection :: proc(
 	// log.info("relative clicks", clicks)
 	text := strings.to_string(b.builder)
 	font, size := element_retrieve_font_options(element)
-	scaled_size := size * element.window.scale
+	scaled_size := size * SCALE
 	scale := fontstash.scale_for_pixel_height(font, scaled_size)
 
 	// state used in word / single mouse selection

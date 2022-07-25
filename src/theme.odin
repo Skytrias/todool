@@ -152,7 +152,7 @@ theme_editor_spawn :: proc() {
 
 				panel_selected := theme_editor.panel_list[theme_editor.panel_selected_index]
 				if panel == panel_selected {
-					render_rect(target, element.bounds, theme.background[2], style.roundness)
+					render_rect(target, element.bounds, theme.background[2], ROUNDNESS)
 				}
 			}
 

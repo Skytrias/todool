@@ -10,24 +10,24 @@ import "core:os"
 /* 
 TODOOL SAVE FILE FORMAT
 
-file_signature: (8B) "TODOOLFF"
+file_signature: "TODOOLFF"
 
 header: 
-	block_size: (8B) u64be
-	version: (2B) u16be -> version number
+	block_size: u64be
+	version: u16be -> version number
 	
 	block read into struct -> based on block_size
 		V1:
-			task_head: (8B) u64be -> head line
-			task_tail: (8B) u64be -> tail line
-			task_bytes_min: (2B) u16be -> size to read per task line in memory
-			task_count: (8B) u64be -> how many "task lines" to read
+			task_head: u64be -> head line
+			task_tail: u64be -> tail line
+			task_bytes_min: u16be -> size to read per task line in memory
+			task_count: u64be -> how many "task lines" to read
 
 task line: atleast "task_bytes_min" big
-	indentation: (1B) u8 -> indentation used, capped to 255
-	folded: (1B) u8 -> task folded
-	state: (1B) u8 -> task state
-	text_size: (2B) u16be -> text content amount to read
+	indentation: u8 -> indentation used, capped to 255
+	folded: u8 -> task folded
+	state: u8 -> task state
+	text_size: u16be -> text content amount to read
 	text_content: [N]u8
 
 body: hold *N* task lines
@@ -86,7 +86,7 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 		u64be(task_head),
 		u64be(task_tail),
 		u64be(len(mode_panel.children)),
-		4,
+		size_of(V1_Save_Task),
 	}
 	buffer_write_type(&buffer, header) or_return
 	
@@ -129,6 +129,7 @@ editor_load_version :: proc(
 
 				line := task_push(int(block_task.indentation), string(text_byte_content[:]))
 				line.folded = bool(block_task.folded)
+				line.state = Task_State(block_task.state)
 			}
 
 			task_head = int(header.task_head)

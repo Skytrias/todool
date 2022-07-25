@@ -419,6 +419,31 @@ add_shortcuts :: proc(window: ^Window) {
 		return true
 	})
 
+	window_add_shortcut(window, "ctrl+4", proc() -> bool {
+		tag_toggle(0x08)
+		return true
+	})
+
+	window_add_shortcut(window, "ctrl+5", proc() -> bool {
+		tag_toggle(0x10)
+		return true
+	})
+
+	window_add_shortcut(window, "ctrl+6", proc() -> bool {
+		tag_toggle(0x20)
+		return true
+	})
+
+	window_add_shortcut(window, "ctrl+7", proc() -> bool {
+		tag_toggle(0x40)
+		return true
+	})
+
+	window_add_shortcut(window, "ctrl+8", proc() -> bool {
+		tag_toggle(0x80)
+		return true
+	})
+
 	// toggle folding
 	window_add_shortcut(window, "ctrl+j", proc() -> bool {
 		if task_head != -1 {

@@ -80,6 +80,8 @@ rect_contains :: proc(a: Rect, x, y: f32) -> bool {
 	return a.l <= x && a.r > x && a.t <= y && a.b > y
 }		
 
+// rect cutting with MIN
+
 rect_cut_left :: proc(rect: ^Rect, a: f32) -> Rect {
 	min_x := rect.l
 	rect.l = min(rect.r, rect.l + a)
@@ -102,6 +104,36 @@ rect_cut_bottom :: proc(rect: ^Rect, a: f32) -> Rect {
 	max_y := rect.b
 	rect.b = max(rect.t, rect.b - a)
 	return { rect.l, rect.r, rect.b, max_y }
+}
+
+// rect cutting with HARD CUT, will result in invalid rectangles when out of size
+
+rect_cut_left_hard :: proc(rect: ^Rect, a: f32) -> (res: Rect) {
+	res = rect^
+	res.r = rect.l + a
+	rect.l = res.r
+	return
+}
+
+rect_cut_right_hard :: proc(rect: ^Rect, a: f32) -> (res: Rect) {
+	res = rect^
+	res.l = rect.r - a
+	rect.r = res.l
+	return
+}
+
+rect_cut_top_hard :: proc(rect: ^Rect, a: f32) -> (res: Rect) {
+	res = rect^
+	res.b = rect.t + a
+	rect.t = res.b
+	return
+}
+
+rect_cut_bottom_hard :: proc(rect: ^Rect, a: f32) -> (res: Rect) {
+	res = rect^
+	res.t = rect.b - a
+	rect.b = res.t
+	return
 }
 
 // add another rect as padding

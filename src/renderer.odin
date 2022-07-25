@@ -295,7 +295,7 @@ render_rect :: proc(
 	target: ^Render_Target,
 	rect: Rect, 
 	color: Color,
-	roundness: f32,
+	roundness: f32 = 0,
 ) {
 	render_rect_outline(target, rect, color, roundness, 0)
 }
@@ -304,8 +304,8 @@ render_rect_outline :: proc(
 	target: ^Render_Target,
 	rect_goal: Rect,
 	color: Color,
-	roundness: f32,
-	thickness: f32,
+	roundness: f32 = ROUNDNESS,
+	thickness: f32 = LINE_WIDTH,
 ) #no_bounds_check {
 	group := &target.groups[len(target.groups) - 1]
 	vertices := render_target_push_vertices(target, group, 6)
