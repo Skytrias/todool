@@ -16,7 +16,6 @@ import "../fontstash"
 
 // TODO
 // save file -> export to json too, TRY ONE SAVE FILE FOR ALL
-// task sorting
 // images on top of cards
 // breadcrumbs? could do a prompt
 // edit & navigation mode? would help immensly for easier navigation
@@ -40,60 +39,24 @@ import "../fontstash"
 // WEBSITE 
 // work on a proper website
 
-// DEVLOG
-// FREITAG FRÜH
-//	more detail with task head & tail movement
-// SAMSTAG 
-//	UI redesigning -> heavy ui like theme editor in separate window
-//	color picker for theme editor
-//	hovered element support
-//	clipboard retrieve
-// SONNTAG
-//	theme editor movable index
-// 	sidebar on the left
-//		panels per enum mode
-// 		added options back
-// 		tag show checkbox
-
 // elements that can appear as task data
 // folding: bool -> as icon button
 // duration spent: time.Duration -> as string
 // assigned date: time.Time -> as string
-
 // bookmarks could be display differently as LINE HIGHLIGHT
 // recording this -> LINE HIGHLIGHT NOW
 
-Mode_Based_Button :: struct {
-	index: int,
-}
+// TODAY
+// Uppercase on word
+// task automation
+// added dirty file
 
-mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	button := cast(^Button) element
-	info := cast(^Mode_Based_Button) element.data
-
-	#partial switch msg {
-		case .Button_Highlight: {
-			color := cast(^Color) dp
-			selected := info.index == int(mode_panel.mode)
-			color^ = selected ? theme.text_default : theme.text_blank
-			return selected ? 1 : 2
-		}
-
-		case .Clicked: {
-			set := cast(^int) &mode_panel.mode
-			if set^ != info.index {
-				set^ = info.index
-				element_repaint(element)
-			}
-		}
-
-		case .Deallocate_Recursive: {
-			free(element.data)
-		}
-	}
-
-	return 0
-}
+// REST
+// SHOCO string compression option
+// Changelog options?
+// goto prompt
+// search prompt
+// indentation prompt?
 
 main :: proc() {
 	gs_init()
@@ -156,61 +119,19 @@ main :: proc() {
 		return 0
 	} 
 
-	window.update = proc() {
-		clear(&tasks_visible)
+	window.update = proc(window: ^Window) {
+		task_set_children_info()
+		task_set_visible_tasks()
+		task_check_parent_states(nil)
+		task_check_parent_sorting()
 
-		// set parental info
-		task_parent_stack[0] = nil
-		prev: ^Task
-		for child, i in mode_panel.children {
-			task := cast(^Task) child
-			task.index = i
-			task.has_children = false
-
-			if prev != nil {
-				if prev.indentation < task.indentation {
-					prev.has_children = true
-					task_parent_stack[task.indentation] = prev
-				} 
-			}
-
-			prev = task
-			task.visible_parent = task_parent_stack[task.indentation]
-		}
-
-		// set visible lines based on fold of parents
-		for child in mode_panel.children {
-			task := cast(^Task) child
-			p := task.visible_parent
-			task.visible = true
-
-			// unset folded 
-			if !task.has_children {
-				task.folded = false
-			}
-
-			// recurse up 
-			for p != nil {
-				if p.folded {
-					task.visible = false
-				}
-
-				p = p.visible_parent
-			}
-			
-			if task.visible {
-				// just update icon & hide each
-				element_message(task.button_fold, .Update)
-				element_hide(task.button_fold, !task.has_children)
-				task.visible_index = len(tasks_visible)
-				append(&tasks_visible, task)
-			}
-		}
+		window_title_build(window, dirty != dirty_saved ? "Todool*" : "Todool")
 
 		// just clamp for safety here instead of everywhere
 		task_head = clamp(task_head, 0, len(tasks_visible) - 1)
 		task_tail = clamp(task_tail, 0, len(tasks_visible) - 1)
 
+		// call box changes immediatly when leaving task head / tail 
 		if old_task_head != task_head || old_task_tail != task_tail {
 			if len(tasks_visible) != 0 && old_task_head != -1 && old_task_head < len(tasks_visible) {
 				task := tasks_visible[old_task_head]
@@ -231,16 +152,18 @@ main :: proc() {
 	mode_panel.gap_horizontal = 10
 
 	{
-		task_push(0, "one")
+		// task_push(0, "one")
 		task_push(0, "two")
 		task_push(1, "three")
-		task_push(2, "four")
-		task_push(2, "four")
-		task_push(2, "four")
+		// task_push(2, "four")
+		// task_push(2, "four")
+		// task_push(2, "four")
 		task_push(1, "four")
-		task_push(1, "long word to test out mouse selection")
-		task_push(0, "long word to test out word wrapping on this particular piece of text even longer to test out moreeeeeeeeeeeee")
-		task_push(0, "five")
+		task_push(1, "five")
+		task_push(1, "six")
+		// task_push(1, "long word to test out mouse selection")
+		// task_push(0, "long word to test out word wrapping on this particular piece of text even longer to test out moreeeeeeeeeeeee")
+		// task_push(0, "five")
 		task_head = 4
 		task_tail = 4
 	}

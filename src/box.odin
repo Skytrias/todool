@@ -284,6 +284,54 @@ undo_box_insert_runes :: proc(manager: ^Undo_Manager, item: rawptr) {
 	undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
 }
 
+Undo_Builder_Uppercased_Content :: struct {
+	builder: ^strings.Builder,
+}
+
+Undo_Builder_Uppercased_Content_Reset :: struct {
+	builder: ^strings.Builder,
+	byte_count: int, // content coming in the next bytes
+}
+
+undo_box_uppercased_content_reset :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Builder_Uppercased_Content_Reset) item
+
+	// reset and write old content
+	text_root := cast(^u8) (uintptr(item) + size_of(Undo_Builder_Uppercased_Content_Reset))
+	text_content := strings.string_from_ptr(text_root, data.byte_count)
+	strings.builder_reset(data.builder)
+	strings.write_string(data.builder, text_content)
+
+	output := Undo_Builder_Uppercased_Content {
+		builder = data.builder,
+	}
+	undo_push(manager, undo_box_uppercased_content, &output, size_of(Undo_Builder_Uppercased_Content))
+}
+
+undo_box_uppercased_content :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Builder_Uppercased_Content) item
+
+	// generate output before mods
+	output := Undo_Builder_Uppercased_Content_Reset {
+		builder = data.builder,
+		byte_count = len(data.builder.buf),
+	}
+	bytes := undo_push(
+		manager, 
+		undo_box_uppercased_content_reset, 
+		&output, 
+		size_of(Undo_Builder_Uppercased_Content_Reset) + output.byte_count,
+	)
+
+	// write actual text content
+	text_root := cast(^u8) &bytes[size_of(Undo_Builder_Uppercased_Content_Reset)]
+	mem.copy(text_root, raw_data(data.builder.buf), output.byte_count)
+
+	// write uppercased
+	text := strings.to_string(data.builder^)
+	builder_write_uppercased_string(data.builder, text)
+}
+
 //////////////////////////////////////////////
 // Task Box
 //////////////////////////////////////////////
@@ -844,6 +892,24 @@ box_set_caret :: proc(box: ^Box, di: int, dp: rawptr) {
 		case: {
 			log.info("UI: text box unsupported caret setting")
 		}
+	}
+}
+
+// write uppercased version of the string
+builder_write_uppercased_string :: proc(b: ^strings.Builder, s: string) {
+	prev: rune
+	ds: cutf8.Decode_State
+	strings.builder_reset(b)
+
+	for codepoint, i in cutf8.ds_iter(&ds, s) {
+		codepoint := codepoint
+
+		if i == 0 || (prev != 0 && prev == ' ') {
+			codepoint = unicode.to_upper(codepoint)
+		}
+
+		builder_append_rune(b, codepoint)
+		prev = codepoint
 	}
 }
 

@@ -45,6 +45,7 @@ Icon :: enum {
 	Unlocked = 0xf01b,
 
 	Cog = 0xefb0,
+	Sort = 0xefee,
 }
 
 LUT_SIZE :: 256

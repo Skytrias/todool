@@ -55,7 +55,7 @@ Window :: struct {
 	// hovered info 
 	hovered_start: time.Tick, // when the element was first hovered
 	hovered_panel: ^Panel, // set in init, but hidden
-	hover_timer: int, // sdl based timer to check hover on a different thread 
+	hover_timer: sdl.TimerID, // sdl based timer to check hover on a different thread 
 
 	// click counting
 	clicked_last: ^Element,
@@ -94,7 +94,7 @@ Window :: struct {
 	dialog_finished: bool,
 
 	// proc that gets called before layout & draw
-	update: proc(),
+	update: proc(window: ^Window),
 
 	// undo / redo
 	manager: Undo_Manager,
@@ -202,28 +202,21 @@ window_init :: proc(
 	window_ptr := gs.windows[len(gs.windows) - 1]
 	res.element.window = window_ptr
 
-	// window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
-	// 	context = runtime.default_context()
-	// 	context.logger = gs.logger
-	// 	window := cast(^Window) data
+	window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
+		context = runtime.default_context()
+		context.logger = gs.logger
 
-	// 	e := window.hovered
-	// 	if e != nil && (.Hover_Has_Info in e.flags) && window.hovered_start != {} {
-	// 		diff := time.tick_since(window.hovered_start)
+		window := cast(^Window) data
+		if window_hovered_check(window) {
+			custom_event: sdl.Event
+			sdl.PushEvent(&custom_event)
+			// empty event to update message loop
+		}
 
-	// 		if diff > HOVER_TIME && (.Hide in window.hovered_panel.flags) {
-	// 			window_hovered_panel_spawn(window, e)
-	// 			// element_hide(window.hovered_panel, false)
-	// 			// TODO needs to be synced
-	// 			element_repaint(&window.element)
-	// 			log.info("make appear")
-	// 		}
-	// 	}
+		return interval
+	}
 
-	// 	return interval
-	// }
-
-	// sdl.AddTimer(500, window_timer_callback, res)
+	res.hover_timer = sdl.AddTimer(250, window_timer_callback, res)
 
 	// set hovered panel
 	panel := panel_init(&res.element, { .Panel_Floaty, .Panel_Default_Background })
@@ -256,8 +249,6 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 	if goal_y + p.float_height > window.heightf {
 		goal_y = element.bounds.t - p.float_height
 	}
-
-	log.info("goal_y", goal_y)
 
 	p.float_y = goal_y
 }
@@ -437,30 +428,44 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			element_message(previous, .Update, UPDATE_HOVERED)
 			element_message(window.hovered, .Update, UPDATE_HOVERED)
 		} else {
-			// same hovered, do diff check
-			e := window.hovered
-
-			if (.Hide in window.hovered_panel.flags) {
-				if e.hover_info != "" && window.pressed_last != e {
-					diff := time.tick_since(window.hovered_start)
-
-					if diff > HOVER_TIME {
-						text := e.hover_info
-						window_hovered_panel_spawn(window, e, text)
-						element_repaint(&window.element)
-					}
-				}
-			} else {
-				// hide away again on non info
-				if e.hover_info == "" {
-					element_hide(window.hovered_panel, true)
-					element_repaint(&window.element)
-				}
-			}
+			window_hovered_check(window)
 		}
 	}
 
 	return
+}
+
+window_hovered_check :: proc(window: ^Window) -> bool {
+	// same hovered, do diff check
+	e := window.hovered
+
+	if (.Hide in window.hovered_panel.flags) {
+		if e.hover_info != "" && window.pressed_last != e {
+			diff := time.tick_since(window.hovered_start)
+
+			if diff > HOVER_TIME {
+				text := e.hover_info
+				window_hovered_panel_spawn(window, e, text)
+				element_repaint(&window.element)
+				return true
+			}
+		}
+	} else {
+		// hide away again on non info
+		if e.hover_info == "" {
+			element_hide(window.hovered_panel, true)
+			element_repaint(&window.element)
+			return true
+		}
+
+		if window.pressed_last == e {
+			element_hide(window.hovered_panel, true)
+			element_repaint(&window.element)					
+			return true
+		}
+	}
+
+	return false
 }
 
 window_set_pressed :: proc(window: ^Window, element: ^Element, button: int) {
@@ -518,6 +523,8 @@ window_title_build :: proc(window: ^Window, text: string) {
 }
 
 window_destroy :: proc(window: ^Window) {
+	sdl.RemoveTimer(window.hover_timer)
+
 	undo_manager_destroy(window.manager)
 	render_target_destroy(window.target)
 	delete(window.shortcuts)
@@ -610,7 +617,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				// called on first shown
 				case .EXPOSED: {
 					if window.update != nil {
-						window.update()
+						window->update()
 					}
 
 					window_poll_size(window)
@@ -845,6 +852,12 @@ gs_message_loop :: proc() {
 	gs_destroy()
 }
 
+gs_update_all_windows :: proc() {
+	for window in &gs.windows {
+		window.update_next = true
+	}
+}
+
 // send animations messages
 gs_process_animations :: proc() {
 	for element in gs.animating {
@@ -878,7 +891,7 @@ gs_draw_and_cleanup :: proc() {
 			}
 
 			if window.update != nil {
-				window.update()
+				window->update()
 			}
 
 			render_target_begin(window.target, theme.shadow)

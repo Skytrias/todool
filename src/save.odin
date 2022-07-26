@@ -17,18 +17,20 @@ header:
 	version: u16be -> version number
 	
 	block read into struct -> based on block_size
-		V1:
+		Version 1:
 			task_head: u64be -> head line
 			task_tail: u64be -> tail line
 			task_bytes_min: u16be -> size to read per task line in memory
 			task_count: u64be -> how many "task lines" to read
 
 task line: atleast "task_bytes_min" big
-	indentation: u8 -> indentation used, capped to 255
-	folded: u8 -> task folded
-	state: u8 -> task state
-	text_size: u16be -> text content amount to read
-	text_content: [N]u8
+	Version 1:
+		indentation: u8 -> indentation used, capped to 255
+		folded: u8 -> task folded
+		state: u8 -> task state
+		tags: u8 -> task tags, NO STRING CONTENT!
+		text_size: u16be -> text content amount to read
+		text_content: [N]u8
 
 body: hold *N* task lines
 	read task line by line -> read opt data till end 
@@ -46,9 +48,11 @@ V1_Save_Header :: struct {
 
 V1_Save_Task :: struct {
 	indentation: u8,
-	folded: u8,
+	folded: b8,
 	state: u8,
+	tags: u8,
 	text_size: u16be,
+	// N text content comes after this
 }
 
 bytes_file_signature := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', 'F', 'F' }
@@ -79,7 +83,7 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 	// header block
 	header_size := u64be(size_of(V1_Save_Header))
 	buffer_write_type(&buffer, header_size) or_return
-	header_version := u16be(0)
+	header_version := u16be(1)
 	buffer_write_type(&buffer, header_version) or_return
 
 	header := V1_Save_Header {
@@ -93,10 +97,15 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 	// write all lines
 	for child in mode_panel.children {
 		task := cast(^Task) child
-		buffer_write_type(&buffer, u8(task.indentation)) or_return
-		buffer_write_type(&buffer, b8(task.folded)) or_return
-		buffer_write_type(&buffer, b8(task.state)) or_return
-		buffer_write_builder(&buffer, task.box.builder) or_return
+		t := V1_Save_Task {
+			u8(task.indentation),
+			b8(task.folded),
+			u8(task.state),
+			u8(task.tags),
+			u16be(len(task.box.builder.buf)),
+		}
+		buffer_write_type(&buffer, t) or_return
+		bytes.buffer_write_string(&buffer, strings.to_string(task.box.builder)) or_return
 	}
 
 	os.write_entire_file(file_name, buffer.buf[:])
@@ -109,7 +118,7 @@ editor_load_version :: proc(
 	version: u16be,
 ) -> (err: io.Error) {
 	switch version {
-		case 0: {
+		case 1: {
 			if int(block_size) != size_of(V1_Save_Header) {
 				log.error("LOAD: Wrong block size for version: ", version)
 				return
@@ -130,6 +139,7 @@ editor_load_version :: proc(
 				line := task_push(int(block_task.indentation), string(text_byte_content[:]))
 				line.folded = bool(block_task.folded)
 				line.state = Task_State(block_task.state)
+				line.tags = block_task.tags
 			}
 
 			task_head = int(header.task_head)

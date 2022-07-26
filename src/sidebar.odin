@@ -6,12 +6,24 @@ Sidebar_Mode :: enum {
 	None,	
 	Options,
 	Tags,
+	Sorting
 }
 
 Sidebar :: struct {
 	mode: Sidebar_Mode,
 	options: Sidebar_Options,
 	tags: Sidebar_Tags,
+	sorting: Sidebar_Sorting,
+}
+
+Sidebar_Sorting :: struct {
+	panel: ^Panel,
+	checkbox_enabled: ^Checkbox,
+	checkbox_ignore_parent: ^Checkbox,
+	checkbox_low_state_first: ^Checkbox,
+	checkbox_invert_state: ^Checkbox,
+	checkbox_sort_children: ^Checkbox,
+	checkbox_low_children_first: ^Checkbox,
 }
 
 Sidebar_Options :: struct {
@@ -20,6 +32,7 @@ Sidebar_Options :: struct {
 	checkbox_autosave: ^Checkbox,
 	checkbox_invert_x: ^Checkbox,
 	checkbox_invert_y: ^Checkbox,
+	checkbox_uppercase_word: ^Checkbox,
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -53,6 +66,7 @@ sidebar_mode_panel :: proc() -> ^Panel {
 		case .None: return nil
 		case .Options: return sb.options.panel
 		case .Tags: return sb.tags.panel
+		case .Sorting: return sb.sorting.panel
 	}
 
 	return nil
@@ -145,6 +159,11 @@ sidebar_init :: proc(window: ^Window) {
 		i2.data = new_clone(Sidebar_Mode.Tags)
 		i2.hover_info = "Tags"
 		i2.message_user = sidebar_button_message
+
+		i3 := icon_button_init(panel_info, { .CT, .CF }, .Sort)
+		i3.data = new_clone(Sidebar_Mode.Sorting)
+		i3.hover_info = "Sorting"
+		i3.message_user = sidebar_button_message
 	}
 
 	shared_panel :: proc(element: ^Element, title: string) -> ^Panel {
@@ -169,10 +188,13 @@ sidebar_init :: proc(window: ^Window) {
 		temp.slider_tab = slider_init(temp.panel, { .CT, .CF }, 0.5)
 		temp.slider_tab.format = "Tab: %f"
 
-		temp.checkbox_autosave = checkbox_init(temp.panel, { .CT, .CF }, "Autosave")
-		temp.checkbox_invert_x = checkbox_init(temp.panel, { .CT, .CF }, "Invert Scroll X")
-		temp.checkbox_invert_y = checkbox_init(temp.panel, { .CT, .CF }, "Invert Scroll Y")
+		temp.checkbox_autosave = checkbox_init(temp.panel, { .CT, .CF }, "Autosave", true)
+		temp.checkbox_uppercase_word = checkbox_init(temp.panel, { .CT, .CF }, "Uppercase Parent Word", true)
+		temp.checkbox_invert_x = checkbox_init(temp.panel, { .CT, .CF }, "Invert Scroll X", false)
+		temp.checkbox_invert_y = checkbox_init(temp.panel, { .CT, .CF }, "Invert Scroll Y", false)
 	}
+
+	SPACER_HEIGHT :: 10
 
 	{
 		temp := &sb.tags
@@ -200,7 +222,7 @@ sidebar_init :: proc(window: ^Window) {
 		shared_box(temp.panel, "seven")
 		shared_box(temp.panel, "eight")
 
-		spacer_init(temp.panel, { .CT, .CF }, 0, 10, .Empty)
+		spacer_init(temp.panel, { .CT, .CF }, 0, SPACER_HEIGHT, .Empty)
 		label_init(temp.panel, { .CT, .CF, .Label_Center }, "Tag Showcase")
 		temp.toggle_selector_tag = toggle_selector_init(
 			temp.panel,
@@ -209,6 +231,28 @@ sidebar_init :: proc(window: ^Window) {
 			TAG_SHOW_COUNT,
 			tag_show_text[:],
 		)
+	}
+
+	{
+		temp := &sb.sorting
+		using temp
+		
+		flags := Element_Flags { .CT, .CF }
+		panel = shared_panel(&window.element, "Sorting")
+
+		label_init(panel, { .CT, .CF, .Label_Center }, "General")
+		checkbox_enabled = checkbox_init(panel, flags, "Turn On / Off", true)
+		checkbox_ignore_parent = checkbox_init(panel, flags, "Ignore Inside Current Parent", false)
+		
+		spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
+		label_init(panel, { .CT, .CF, .Label_Center }, "State based")
+		checkbox_low_state_first = checkbox_init(panel, flags, "Low First", false)
+		checkbox_invert_state = checkbox_init(panel, flags, "Inverted State", false)
+		
+		spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
+		label_init(panel, { .CT, .CF, .Label_Center }, "Child Count based")
+		checkbox_sort_children = checkbox_init(panel, flags, "Turn On / Off", false)
+		checkbox_low_children_first = checkbox_init(panel, flags, "Low Count First", false)
 	}
 }
 
@@ -226,4 +270,40 @@ options_scroll_y :: #force_inline proc() -> int {
 
 options_tag_mode :: #force_inline proc() -> int {
 	return sb.tags.tag_show_mode
+}
+
+options_uppercase_word :: #force_inline proc() -> bool {
+	return sb.options.checkbox_uppercase_word.state
+}
+
+Mode_Based_Button :: struct {
+	index: int,
+}
+
+mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button) element
+	info := cast(^Mode_Based_Button) element.data
+
+	#partial switch msg {
+		case .Button_Highlight: {
+			color := cast(^Color) dp
+			selected := info.index == int(mode_panel.mode)
+			color^ = selected ? theme.text_default : theme.text_blank
+			return selected ? 1 : 2
+		}
+
+		case .Clicked: {
+			set := cast(^int) &mode_panel.mode
+			if set^ != info.index {
+				set^ = info.index
+				element_repaint(element)
+			}
+		}
+
+		case .Deallocate_Recursive: {
+			free(element.data)
+		}
+	}
+
+	return 0
 }

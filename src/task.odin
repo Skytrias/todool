@@ -1,5 +1,6 @@
 package src
 
+import "core:fmt"
 import "core:unicode"
 import "core:strings"
 import "core:log"
@@ -25,6 +26,9 @@ old_task_head := 0
 old_task_tail := 0
 tasks_visible: [dynamic]^Task
 task_parent_stack: [128]^Task
+dirty := -1
+dirty_saved := -1
+
 // editor_pushed_unsaved: bool
 TAB_WIDTH :: 100
 TASK_DATA_GAP :: 5
@@ -65,6 +69,7 @@ Task :: struct {
 
 	folded: bool,
 	has_children: bool,
+	state_count: [Task_State]int,
 }
 
 Mode :: enum {
@@ -256,7 +261,22 @@ task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
 }
 
 // iter through visible children
-task_children_iter :: proc(
+task_all_children_iter :: proc(
+	indentation: int,
+	index: ^int,
+) -> (res: ^Task, ok: bool) {
+	if index^ > len(mode_panel.children) - 1 {
+		return
+	}
+
+	res = cast(^Task) mode_panel.children[index^]
+	ok = indentation <= res.indentation
+	index^ += 1
+	return
+}
+
+// iter through visible children
+task_visible_children_iter :: proc(
 	indentation: int,
 	index: ^int,
 ) -> (res: ^Task, ok: bool) {
@@ -304,7 +324,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			index := p.visible_parent.visible_index + 1
 			bound_rect: Rect
 
-			for child in task_children_iter(p.indentation, &index) {
+			for child in task_visible_children_iter(p.indentation, &index) {
 				if bound_rect == {} {
 					bound_rect = child.box.bounds
 				} else {
@@ -323,6 +343,196 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 		p = p.visible_parent
 	}
+}
+
+// set has children, index, and visible parent per each task
+task_set_children_info :: proc() {
+	// set parental info
+	task_parent_stack[0] = nil
+	prev: ^Task
+	for child, i in mode_panel.children {
+		task := cast(^Task) child
+		task.index = i
+		task.has_children = false
+
+		if prev != nil {
+			if prev.indentation < task.indentation {
+				prev.has_children = true
+				task_parent_stack[task.indentation] = prev
+			} 
+		}
+
+		prev = task
+		task.visible_parent = task_parent_stack[task.indentation]
+	}
+}
+
+task_set_visible_tasks :: proc() {
+	clear(&tasks_visible)
+
+	// set visible lines based on fold of parents
+	for child in mode_panel.children {
+		task := cast(^Task) child
+		p := task.visible_parent
+		task.visible = true
+
+		// unset folded 
+		if !task.has_children {
+			task.folded = false
+		}
+
+		// recurse up 
+		for p != nil {
+			if p.folded {
+				task.visible = false
+			}
+
+			p = p.visible_parent
+		}
+		
+		// just update icon & hide each
+		if task.visible {
+			element_message(task.button_fold, .Update)
+			element_hide(task.button_fold, !task.has_children)
+			task.visible_index = len(tasks_visible)
+			append(&tasks_visible, task)
+		}
+	}
+}
+
+// automatically set task state of parents based on children counts
+// manager = nil will not push changes to undo
+task_check_parent_states :: proc(manager: ^Undo_Manager) {
+	// reset all counts
+	for i in 0..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+		if task.has_children {
+			task.state_count = {}
+		}
+	}
+
+	changed_any: bool
+
+	// count up states
+	for i := len(mode_panel.children) - 1; i >= 0; i -= 1 {
+		task := cast(^Task) mode_panel.children[i]
+
+		// when has children - set state based on counted result
+		if task.has_children {
+			if task.state_count[.Normal] == 0 {
+				goal: Task_State = task.state_count[.Done] >= task.state_count[.Canceled] ? .Done : .Canceled
+				
+				if task.state != goal {
+					task_set_state_undoable(manager, task, goal)
+					changed_any = true
+				}
+			} else if task.state != .Normal {
+				task_set_state_undoable(manager, task, .Normal)
+				changed_any = true
+			}
+		}
+
+		// count parent up based on this state		
+		if task.visible_parent != nil {
+			task.visible_parent.state_count[task.state] += 1
+		}
+	}	
+
+	// log.info("CHECK", changed_any)
+}
+
+task_children_range :: proc(parent: ^Task) -> (low, high: int) {
+	low = -1
+	high = -1
+
+	for i in parent.index + 1..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+
+		if task.indentation == parent.indentation + 1 {
+			if low == -1 {
+				low = i
+			}
+
+			high = i
+		} else if task.indentation < parent.indentation {
+			break
+		}
+	}
+
+	return
+}
+
+task_gather_children_strict :: proc(
+	parent: ^Task, 
+	allocator := context.temp_allocator,
+) -> (res: [dynamic]^Task) {
+	res = make([dynamic]^Task, 0, 32)
+
+	for i in parent.index + 1..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+
+		if task.indentation == parent.indentation + 1 {
+			append(&res, task)
+		} else if task.indentation < parent.indentation {
+			break
+		}
+	}
+
+	return
+}
+
+task_check_parent_sorting :: proc() {
+// 	changed: bool
+
+// 	// for i := len(mode_panel.children) - 1; i >= 0; i -= 1 {
+// 	for i in 0..<len(mode_panel.children) {
+// 		task := cast(^Task) mode_panel.children[i]
+
+// 		if task.has_children {
+// 			low, high := task_children_range(task)
+// 			log.info("count", low, high, high - low)
+
+// 			// for i in 0..<len(children) {
+// 			// 	task := children[i]
+// 			// 	fmt.eprint(task.index, ' ')
+// 			// }
+// 			// fmt.eprint(task.index, '\n')
+
+// 			if low != -1 && high != -1 {
+// 				sort_call :: proc(a, b: ^Element) -> bool {
+// 					aa := cast(^Task) a
+// 					bb := cast(^Task) b
+// 					return aa.state < bb.state
+// 				}
+// 				slice.stable_sort_by(mode_panel.children[low:high + 1], sort_call)
+// 			}
+
+// 			// for i in 0..<len(children) {
+// 			// 	task := children[i]
+// 			// 	fmt.eprint(task.index, ' ')
+// 			// }
+// 			// fmt.eprint(task.index, '\n')
+// 		}
+
+// 		// // has parent
+// 		// if task^.visible_parent != nil {
+// 		// 	if i > 0 {
+// 		// 		prev := cast(^^Task) &mode_panel.children[i - 1]
+				
+// 		// 		if prev^.indentation >= task^.indentation && 
+// 		// 			prev^.state != .Normal && 
+// 		// 			task^.state == .Normal {
+// 		// 			task^, prev^ = prev^, task^
+// 		// 			changed = true
+// 		// 		}
+// 		// 	}
+// 		// }
+// 	}
+
+// 	if changed {
+// 		// element_repaint(mode_panel)
+// 		// task_set_children_info()
+// 	}
 }
 
 //////////////////////////////////////////////
@@ -628,6 +838,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Value_Changed: {
+			dirty_push(&element.window.manager)
 			// editor_set_unsaved_changes_title(&element.window.manager)
 		}
 	}

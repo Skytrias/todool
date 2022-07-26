@@ -1,5 +1,6 @@
 package src
 
+import "core:strings"
 import "core:log"
 import "core:mem"
 
@@ -27,6 +28,57 @@ import "core:mem"
 // 	}
 // }
 
+Undo_Item_Int_Increase :: struct {
+	value: ^int,
+}
+
+Undo_Item_Int_Set :: struct {
+	value: ^int,
+	to: int,
+}
+
+undo_int_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Int_Increase) item
+	output := Undo_Item_Int_Set { data.value, data.value^ }
+	data.value^ += 1
+	undo_push(manager, undo_int_set, &output, size_of(Undo_Item_Int_Set))
+}
+
+undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Int_Set) item
+	data.value^ = data.to
+	output := Undo_Item_Int_Increase { data.value }
+	undo_push(manager, undo_int_increase, &output, size_of(Undo_Item_Int_Increase))
+}
+
+// Undo_Item_Dirty_Increase :: struct {
+// 	fill: bool,
+// }
+
+// Undo_Item_Dirty_Set :: struct {
+// 	to: bool,
+// }
+
+// undo_dirty_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
+// 	output := Undo_Item_Dirty_Set { dirty }
+// 	dirty = true
+// 	undo_push(manager, undo_dirty_set, &output, size_of(Undo_Item_Dirty_Set))
+// }
+
+// undo_dirty_set :: proc(manager: ^Undo_Manager, item: rawptr) {
+// 	data := cast(^Undo_Item_Dirty_Set) item
+// 	dirty = data.to
+// 	output := Undo_Item_Dirty_Increase {}
+// 	undo_push(manager, undo_dirty_increase, &output, size_of(Undo_Item_Dirty_Increase))
+// }
+
+dirty_push :: proc(manager: ^Undo_Manager) {
+	if dirty == dirty_saved {
+		item := Undo_Item_Int_Increase { &dirty }
+		undo_int_increase(manager, &item)
+	}
+}
+
 Undo_Item_Task_Head_Tail :: struct {
 	head: int,
 	tail: int,
@@ -50,7 +102,7 @@ task_head_tail_push :: proc(manager: ^Undo_Manager) {
 		tail = task_tail,
 	}
 	undo_push(manager, undo_task_head_tail, &item, size_of(Undo_Item_Task_Head_Tail))
-	// editor_set_unsaved_changes_title(manager)
+	dirty_push(manager)
 }
 
 Undo_Item_U8_XOR :: struct {
@@ -146,6 +198,19 @@ undo_u8_set :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data.value^ = data.to
 	data.to = old
 	undo_push(manager, undo_u8_set, item, size_of(Undo_Item_U8_Set))
+}
+
+task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_State) {
+	if manager == nil {
+		task.state = goal
+	} else {
+		item := Undo_Item_U8_Set {
+			cast(^u8) &task.state,
+			cast(u8) task.state,
+		}
+		undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
+		task.state = goal		
+	}
 }
 
 Undo_Item_Task_Indentation_Set :: struct {
@@ -475,22 +540,23 @@ add_shortcuts :: proc(window: ^Window) {
 		selection := task_has_selection()
 		low, high := task_low_and_high()
 
+		// modify all states
 		for i in low..<high + 1 {
 			task := tasks_visible[i]
-			state := cast(^u8) &task.state
+
+			if task.has_children {
+				continue
+			}
+
+			goal := u8(task.state)
+			if goal < len(Task_State) - 1 {
+				goal += 1
+			} else {
+				goal = 0
+			}
 
 			// save old set
-			item := Undo_Item_U8_Set { 
-				value = state,	
-				to = state^,
-			}
-			undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
-			
-			if state^ < len(Task_State) - 1 {
-				state^ += 1
-			} else {
-				state^ = 0
-			}
+			task_set_state_undoable(manager, task, Task_State(goal))
 		}
 
 		element_repaint(mode_panel)
@@ -521,6 +587,10 @@ add_shortcuts :: proc(window: ^Window) {
 				element_animation_start(task)
 			}
 		}		
+
+		// set new indentation based task info and push state changes
+		task_set_children_info()
+		task_check_parent_states(manager)
 
 		element_repaint(mode_panel)
 		return true
@@ -567,16 +637,25 @@ add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "ctrl+return", proc() -> bool {
 		indentation: int
 		goal := len(mode_panel.children) // default append
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
 
 		if task_head < len(tasks_visible) - 1 {
 			goal = tasks_visible[task_head + 1].index
 		}
 
 		if task_head != -1 {
-			indentation = tasks_visible[task_head].indentation + 1
+			current_task := tasks_visible[task_head]
+			indentation = current_task.indentation + 1
+
+			// uppercase word
+			if !current_task.has_children && options_uppercase_word() {
+				item := Undo_Builder_Uppercased_Content { &current_task.box.builder }
+				undo_box_uppercased_content(manager, &item)
+			}
 		}
 
-		task_push(indentation, "", goal)
+		task_push_undoable(manager, indentation, "", goal)
 		task_head += 1
 		task_tail_check()
 		element_repaint(mode_panel)
@@ -723,18 +802,13 @@ add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "ctrl+s", proc() -> bool {
 		editor_save("save.bin")
 
-		// // when anything was pushed - set to false
-		// if editor_pushed_unsaved {
-		// 	manager := &mode_panel.window.manager
-		// 	item := Undo_Item_Bool_Saved { false }
-		// 	undo_group_continue(manager)
-		// 	undo_bool_saved(manager, &item)
-		// 	undo_group_end(manager)
-		// 	editor_pushed_unsaved = false
-		// }
-
+		// when anything was pushed - set to false
+		if dirty != dirty_saved {
+			dirty_saved = dirty
+		}
+	
 		element_repaint(mode_panel)
-		log.info("saved")
+		// log.info("saved")
 		return true
 	})
 
@@ -746,8 +820,8 @@ add_shortcuts :: proc(window: ^Window) {
 		// }
 
 		editor_load("save.bin")
-		log.info("loaded")
 		element_repaint(mode_panel)
+		// log.info("loaded")
 		return true
 	})
 }

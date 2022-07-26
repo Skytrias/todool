@@ -176,10 +176,10 @@ cut_flag_from_flags :: proc(flags: Element_Flags) -> (res: Element_Flag) {
 // TODO optimize this
 rect_cut_from_flag :: proc(flag: Element_Flag, rect: ^Rect, w, h: f32) -> (res: Rect) {
 	#partial switch flag {
-		case .CL: res = rect_cut_left(rect, w)
-		case .CR: res = rect_cut_right(rect, w)
-		case .CT: res = rect_cut_top(rect, h)
-		case .CB: res = rect_cut_bottom(rect, h)
+		case .CL: res = rect_cut_left_hard(rect, w)
+		case .CR: res = rect_cut_right_hard(rect, w)
+		case .CT: res = rect_cut_top_hard(rect, h)
+		case .CB: res = rect_cut_bottom_hard(rect, h)
 		case .CF: {
 			res = rect^
 			rect^ = {}
@@ -983,8 +983,15 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 	return 0
 }
 
-checkbox_init :: proc(parent: ^Element, flags: Element_Flags, text: string) -> (res: ^Checkbox) {
+checkbox_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	text: string,
+	state: bool,
+) -> (res: ^Checkbox) {
 	res = element_init(Checkbox, parent, flags, checkbox_message)
+	res.state = state
+	res.state_unit = f32(state ? 1 : 0)
 	res.builder = strings.builder_make(0, 32)
 	strings.write_string(&res.builder, text)
 	return
@@ -1082,6 +1089,7 @@ Panel :: struct {
 	margin: f32,
 	color: Color,
 	gap: f32,
+	rounded: bool,
 
 	// offset if panel is scrollable
 	drag_x: f32,
@@ -1390,7 +1398,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if panel.shadow {
 				render_drop_shadow(target, bounds, color, ROUNDNESS)
 			} else {
-				render_rect(target, bounds, color, 0)
+				render_rect(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
 			}
 		}
 	}
@@ -2107,6 +2115,10 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			)
 
 			return int(handled)
+		}
+
+		case .Deallocate_Recursive: {
+			delete(toggle.cells)
 		}
 	}
 
