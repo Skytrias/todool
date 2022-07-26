@@ -51,27 +51,6 @@ undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr) {
 	undo_push(manager, undo_int_increase, &output, size_of(Undo_Item_Int_Increase))
 }
 
-// Undo_Item_Dirty_Increase :: struct {
-// 	fill: bool,
-// }
-
-// Undo_Item_Dirty_Set :: struct {
-// 	to: bool,
-// }
-
-// undo_dirty_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
-// 	output := Undo_Item_Dirty_Set { dirty }
-// 	dirty = true
-// 	undo_push(manager, undo_dirty_set, &output, size_of(Undo_Item_Dirty_Set))
-// }
-
-// undo_dirty_set :: proc(manager: ^Undo_Manager, item: rawptr) {
-// 	data := cast(^Undo_Item_Dirty_Set) item
-// 	dirty = data.to
-// 	output := Undo_Item_Dirty_Increase {}
-// 	undo_push(manager, undo_dirty_increase, &output, size_of(Undo_Item_Dirty_Increase))
-// }
-
 dirty_push :: proc(manager: ^Undo_Manager) {
 	if dirty == dirty_saved {
 		item := Undo_Item_Int_Increase { &dirty }
@@ -332,6 +311,7 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 
 			task_head -= 1
 			task_tail_check()
+			bookmark_index = -1
 			task := tasks_visible[max(task_head, 0)]
 			element_repaint(mode_panel)
 			element_message(task.box, .Box_Set_Caret, BOX_END)
@@ -344,6 +324,7 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 
 			task_head += 1
 			task_tail_check()
+			bookmark_index = -1
 
 			task := tasks_visible[min(task_head, len(tasks_visible) - 1)]
 			element_message(task.box, .Box_Set_Caret, BOX_END)
@@ -449,6 +430,18 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 					break
 				}
 			} 
+		}
+
+		// jump from tag to tag
+		case "ctrl+tab", "ctrl+shift+tab": {
+			if len(bookmarks) != 0 {
+				bookmark_advance(mode_panel.window.shift)
+				index := bookmarks[bookmark_index]
+				task := tasks_visible[index]
+				task_head = task.visible_index
+				task_tail = task.visible_index
+				element_repaint(mode_panel)
+			}
 		}
 
 		case: {
@@ -761,21 +754,12 @@ add_shortcuts :: proc(window: ^Window) {
 		return true
 	})
 
-	// window_add_shortcut(window, "alt+2", proc() -> bool {
-	// 	table_test()
-	// 	return true
-	// })
-
 	window_add_shortcut(window, "ctrl+z", proc() -> bool {
-		// hstate := &mode_panel.window.hstate
-
-		// if task_head != -1 {
-		// 	task := tasks_visible[task_head]
-		// 	task_box_check_push(task.box, hstate, true)
-		// }
-
 		manager := &mode_panel.window.manager
 		if !undo_is_empty(manager, false) {
+			// reset bookmark index
+			bookmark_index = -1
+
 			undo_invoke(manager, false)
 			element_repaint(mode_panel)
 		}
@@ -783,15 +767,11 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "ctrl+y", proc() -> bool {
-		// hstate := &mode_panel.window.hstate
-		
-		// if task_head != -1 {
-		// 	task := tasks_visible[task_head]
-		// 	task_box_check_push(task.box, hstate, true)
-		// }
-
 		manager := &mode_panel.window.manager
 		if !undo_is_empty(manager, true) {
+			// reset bookmark index
+			bookmark_index = -1
+
 			undo_invoke(manager, true)
 			element_repaint(mode_panel)
 		}
@@ -823,5 +803,24 @@ add_shortcuts :: proc(window: ^Window) {
 		element_repaint(mode_panel)
 		// log.info("loaded")
 		return true
+	})
+
+	// set tags to selected lines
+	window_add_shortcut(window, "ctrl+b", proc() -> bool {
+		if task_head != -1 {
+			low, high := task_low_and_high()
+			manager := mode_panel_manager_scoped()
+			task_head_tail_push(manager)
+
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+				item := Undo_Item_Bool_Toggle { &task.bookmarked }
+				undo_bool_toggle(manager, &item)
+			}
+
+			element_repaint(mode_panel)
+		}
+
+		return true	
 	})
 }

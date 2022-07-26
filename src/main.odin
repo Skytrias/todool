@@ -74,6 +74,8 @@ main :: proc() {
 	// init global state
 	tasks_visible = make([dynamic]^Task, 0, 128)
 	defer delete(tasks_visible)
+	bookmarks = make([dynamic]int, 0, 32)
+	defer delete(bookmarks)
 
 	window := window_init("Todool", 900, 900)
 
@@ -125,14 +127,25 @@ main :: proc() {
 		task_check_parent_states(nil)
 		task_check_parent_sorting()
 
+		// set bookmarks
+		{
+			clear(&bookmarks)
+			for task, i in tasks_visible {
+				if task.bookmarked {
+					append(&bookmarks, i)
+				}
+			}
+		}
+
 		window_title_build(window, dirty != dirty_saved ? "Todool*" : "Todool")
 
 		// just clamp for safety here instead of everywhere
 		task_head = clamp(task_head, 0, len(tasks_visible) - 1)
 		task_tail = clamp(task_tail, 0, len(tasks_visible) - 1)
 
-		// call box changes immediatly when leaving task head / tail 
+		// line changed
 		if old_task_head != task_head || old_task_tail != task_tail {
+			// call box changes immediatly when leaving task head / tail 
 			if len(tasks_visible) != 0 && old_task_head != -1 && old_task_head < len(tasks_visible) {
 				task := tasks_visible[old_task_head]
 				manager := mode_panel_manager_begin()
@@ -161,9 +174,9 @@ main :: proc() {
 		task_push(1, "four")
 		task_push(1, "five")
 		task_push(1, "six")
-		// task_push(1, "long word to test out mouse selection")
-		// task_push(0, "long word to test out word wrapping on this particular piece of text even longer to test out moreeeeeeeeeeeee")
-		// task_push(0, "five")
+		task_push(1, "long word to test out mouse selection")
+		task_push(0, "long word to test out word wrapping on this particular piece of text even longer to test out moreeeeeeeeeeeee")
+		task_push(0, "five")
 		task_head = 4
 		task_tail = 4
 	}

@@ -28,12 +28,70 @@ tasks_visible: [dynamic]^Task
 task_parent_stack: [128]^Task
 dirty := -1
 dirty_saved := -1
+bookmark_index := -1
+bookmarks: [dynamic]int
+
+bookmark_advance :: proc(backward: bool) {
+	// on reset set to closest from current
+	if bookmark_index == -1 && task_head != -1 {
+		// look for anything higher than the current index
+		visible_index := tasks_visible[task_head].visible_index
+		found: bool
+
+		if backward {
+			// backward
+			for i := len(bookmarks) - 1; i >= 0; i -= 1 {
+				index := bookmarks[i]
+
+				if index < visible_index {
+					bookmark_index = i
+					found = true
+					break
+				}
+			}
+		} else {
+			// forward
+			for index, i in bookmarks {
+				if index > visible_index {
+					bookmark_index = i
+					found = true
+					break
+				}
+			}
+		}
+
+		if found {
+			return
+		}
+	}
+
+	// just normally set
+	range_advance_index(&bookmark_index, len(bookmarks) - 1, backward)
+}
+
+// advance index in a looping fashion, backwards can be easily used
+range_advance_index :: proc(index: ^int, high: int, backwards := false) {
+	if backwards {
+		if index^ > 0 {
+			index^ -= 1
+		} else {
+			index^ = high
+		}
+	} else {
+		if index^ < high {
+			index^ += 1
+		} else {
+			index^ = 0
+		}
+	}
+}
 
 // editor_pushed_unsaved: bool
 TAB_WIDTH :: 100
 TASK_DATA_GAP :: 5
 TASK_TEXT_OFFSET :: 2
 TASK_DATA_MARGIN :: 2
+TASK_BOOKMARK_WIDTH :: 10
 
 Task_State :: enum u8 {
 	Normal,
@@ -70,6 +128,9 @@ Task :: struct {
 	folded: bool,
 	has_children: bool,
 	state_count: [Task_State]int,
+
+	// wether we want to be able to jump to this task
+	bookmarked: bool,
 }
 
 Mode :: enum {
@@ -130,20 +191,6 @@ task_low_and_high :: #force_inline proc() -> (low, high: int) {
 task_tail_check :: proc() {
 	if !mode_panel.window.shift {
 		task_tail = task_head
-	}
-}
-
-// call procedure on all lines selected
-task_call_selection :: proc(call: proc(^Task, bool)) {
-	if task_head == -1 {
-		return
-	}
-
-	selection := task_has_selection()
-	low, high := task_low_and_high()
-
-	for i in low..<high + 1 {
-		call(tasks_visible[i], selection)
 	}
 }
 
@@ -788,6 +835,10 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Paint_Recursive: {
 			target := element.window.target
 			box.bounds.l += TASK_TEXT_OFFSET
+
+			if task.bookmarked {
+				box.bounds.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
+			}
 			
 			if task.has_children {
 				box.bounds.l += math.round(DEFAULT_FONT_SIZE * SCALE)
@@ -899,6 +950,9 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			if task.has_children {
 				left := cut
+				if task.bookmarked {
+					left.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
+				}
 				left.r = left.l + math.round(DEFAULT_FONT_SIZE * SCALE)
 				scaled_size := task.font_options.size * SCALE
 				left.b = left.t + scaled_size
@@ -919,9 +973,21 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				render_rect(target, rect, color, ROUNDNESS)
 			}
 
+			if task.bookmarked {
+				rect := task.box.bounds
+				rect.r = rect.l + math.round(TASK_BOOKMARK_WIDTH * SCALE)
+				color := theme.text_default
+				render_rect(target, rect, color, ROUNDNESS)
+			}
+
 			// draw tags at an offset
 			if draw_tags {
 				rect := task.box.clip
+
+				if task.bookmarked {
+					rect.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
+				}
+
 				rect = rect_margin(rect, math.round(TASK_DATA_MARGIN * SCALE))
 
 				// offset
