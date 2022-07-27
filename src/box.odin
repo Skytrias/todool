@@ -24,6 +24,9 @@ import "../fontstash"
 // e.g. store only one item box header, store commands that happen internally in the byte array
 
 BOX_CHANGE_TIMEOUT :: time.Millisecond * 300
+BOX_START :: 1
+BOX_END :: 2
+BOX_SELECT_ALL :: 3
 
 Box :: struct {
 	builder: strings.Builder, // actual data
@@ -897,6 +900,12 @@ box_set_caret :: proc(box: ^Box, di: int, dp: rawptr) {
 			length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
 			box.head = length
 			box.tail = box.head
+		}
+
+		case BOX_SELECT_ALL: {
+			length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
+			box.tail = 0
+			box.head = length
 		}
 
 		case: {

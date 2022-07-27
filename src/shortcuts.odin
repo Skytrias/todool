@@ -821,8 +821,9 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "ctrl+g", proc() -> bool {
-		element_hide(panel_goto, false)
-		box := cast(^Text_Box) panel_goto.children[0]
+		p := panel_goto
+		element_hide(p, false)
+		box := cast(^Text_Box) p.children[0]
 		element_focus(box)
 
 		goto_saved_head = task_head
@@ -832,6 +833,15 @@ add_shortcuts :: proc(window: ^Window) {
 		strings.builder_reset(&box.builder)
 		box.head = 0
 		box.tail = 0
+		return true
+	})
+
+	window_add_shortcut(window, "ctrl+f", proc() -> bool {
+		p := panel_search
+		element_hide(p, false)
+		box := cast(^Text_Box) p.children[0]
+		element_focus(box)
+		element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
 		return true
 	})
 }

@@ -48,11 +48,11 @@ import "../fontstash"
 
 // TODAY
 // animation checkbox
+// goto implemented
 
 // REST
 // SHOCO string compression option
 // Changelog options?
-// goto prompt
 // search prompt
 // indentation focus prompt?
 
@@ -158,6 +158,7 @@ main :: proc() {
 
 	add_shortcuts(window)
 	sidebar_init(window)
+	search_init(window)
 
 	mode_panel = mode_panel_init(&window.element, {})
 	mode_panel.gap_vertical = 5

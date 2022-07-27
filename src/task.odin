@@ -14,11 +14,20 @@ import "../fontstash"
 
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
+
+// goto state
 panel_goto: ^Panel
 goto_saved_head: int
 goto_saved_tail: int
 
-slider_tab: ^Slider
+// search state
+panel_search: ^Panel
+search_index := -1
+Search_Result :: struct #packed {
+	from, to: u16,
+}
+
+// font options used
 font_options_header: Font_Options
 font_options_bold: Font_Options
 
@@ -30,11 +39,16 @@ old_task_head := 0
 old_task_tail := 0
 tasks_visible: [dynamic]^Task
 task_parent_stack: [128]^Task
+
+// dirty file
 dirty := 0
 dirty_saved := 0
+
+// bookmark data
 bookmark_index := -1
 bookmarks: [dynamic]int
 
+// advance bookmark or jump to closest on reset
 bookmark_advance :: proc(backward: bool) {
 	// on reset set to closest from current
 	if bookmark_index == -1 && task_head != -1 {
@@ -132,6 +146,7 @@ Task :: struct {
 	folded: bool,
 	has_children: bool,
 	state_count: [Task_State]int,
+	search_results: [dynamic]Search_Result,
 
 	// wether we want to be able to jump to this task
 	bookmarked: bool,
@@ -861,6 +876,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Left_Down: {
 			// set line to the head
 			if task_head != task.visible_index {
+				element_hide(panel_goto, true)
+
 				task_head = task.visible_index
 				task_tail_check()
 			} 
@@ -1177,4 +1194,73 @@ goto_init :: proc(window: ^Window) {
 	}
 
 	element_hide(panel_goto, true)
+}
+
+search_init :: proc(window: ^Window) {
+	MARGIN :: 5
+	margin_scaled := math.round(MARGIN * SCALE)
+	height := DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
+	p := panel_init(&window.element, { .CB, .Panel_Default_Background }, height, margin_scaled, 5)
+	p.background_index = 2
+
+	box := text_box_init(p, { .CL, .CF })
+	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		box := cast(^Text_Box) element
+
+		#partial switch msg {
+			case .Key_Combination: {
+				combo := (cast(^string) dp)^
+				handled := true
+
+				switch combo {
+					case "escape": {
+						element_hide(panel_search, true)
+						element_repaint(panel_search)
+					}
+
+					case "return": {
+						element_hide(panel_search, true)
+						element_repaint(panel_search)
+					}
+
+					// next
+					case "f3", "ctrl+n": {
+
+					}
+
+					// prev 
+					case "shift+f3", "ctrl+shift+n": {
+
+					}
+
+					case: {
+						handled = false
+					}
+				}
+
+				return int(handled)
+			}
+		}
+
+		return 0
+	}
+	b1 := button_init(p, { .CL, .CF }, "Find Next")
+	b1.invoke = proc(data: rawptr) {
+		log.info("next")
+	}
+	b2 := button_init(p, { .CL, .CF }, "Find Prev")
+	b2.invoke = proc(data: rawptr) {
+		log.info("next")
+	}
+
+	element_hide(p, true)
+	panel_search = p
+}
+
+search_find_next :: proc() {
+
+}
+
+search_find_prev :: proc() {
+
 }
