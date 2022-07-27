@@ -780,7 +780,10 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "ctrl+s", proc() -> bool {
-		editor_save("save.bin")
+		err := editor_save("save.bin")
+		if err != .None {
+			log.info("SAVE: FAILED =", err)
+		}
 
 		// when anything was pushed - set to false
 		if dirty != dirty_saved {
@@ -799,9 +802,12 @@ add_shortcuts :: proc(window: ^Window) {
 		// 	undo_task_clear(manager, &item)
 		// }
 
-		editor_load("save.bin")
+		err := editor_load("save.bin")
+		if err != .None {
+			log.info("LOAD: FAILED =", err)
+		}
+
 		element_repaint(mode_panel)
-		// log.info("loaded")
 		return true
 	})
 

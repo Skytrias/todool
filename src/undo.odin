@@ -21,6 +21,12 @@ undo_manager_init :: proc(manager: ^Undo_Manager, cap: int = mem.Kilobyte * 10) 
 	manager.redo = make([dynamic]byte, 0, cap)
 }
 
+undo_manager_reset :: proc(manager: ^Undo_Manager) {
+	clear(&manager.undo)
+	clear(&manager.redo)
+	manager.state = .Normal
+}
+
 undo_manager_destroy :: proc(manager: Undo_Manager) {
 	delete(manager.undo)
 	delete(manager.redo)
