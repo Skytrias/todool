@@ -6,25 +6,25 @@ Sidebar_Mode :: enum {
 	None,	
 	Options,
 	Tags,
-	Sorting
+	// Sorting
 }
 
 Sidebar :: struct {
 	mode: Sidebar_Mode,
 	options: Sidebar_Options,
 	tags: Sidebar_Tags,
-	sorting: Sidebar_Sorting,
+	// sorting: Sidebar_Sorting,
 }
 
-Sidebar_Sorting :: struct {
-	panel: ^Panel,
-	checkbox_enabled: ^Checkbox,
-	checkbox_ignore_parent: ^Checkbox,
-	checkbox_low_state_first: ^Checkbox,
-	checkbox_invert_state: ^Checkbox,
-	checkbox_sort_children: ^Checkbox,
-	checkbox_low_children_first: ^Checkbox,
-}
+// Sidebar_Sorting :: struct {
+// 	panel: ^Panel,
+// 	checkbox_enabled: ^Checkbox,
+// 	checkbox_ignore_parent: ^Checkbox,
+// 	checkbox_low_state_first: ^Checkbox,
+// 	checkbox_invert_state: ^Checkbox,
+// 	checkbox_sort_children: ^Checkbox,
+// 	checkbox_low_children_first: ^Checkbox,
+// }
 
 Sidebar_Options :: struct {
 	panel: ^Panel,
@@ -33,6 +33,7 @@ Sidebar_Options :: struct {
 	checkbox_invert_x: ^Checkbox,
 	checkbox_invert_y: ^Checkbox,
 	checkbox_uppercase_word: ^Checkbox,
+	checkbox_use_animations: ^Checkbox,	
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -66,7 +67,7 @@ sidebar_mode_panel :: proc() -> ^Panel {
 		case .None: return nil
 		case .Options: return sb.options.panel
 		case .Tags: return sb.tags.panel
-		case .Sorting: return sb.sorting.panel
+		// case .Sorting: return sb.sorting.panel
 	}
 
 	return nil
@@ -160,10 +161,10 @@ sidebar_init :: proc(window: ^Window) {
 		i2.hover_info = "Tags"
 		i2.message_user = sidebar_button_message
 
-		i3 := icon_button_init(panel_info, { .CT, .CF }, .Sort)
-		i3.data = new_clone(Sidebar_Mode.Sorting)
-		i3.hover_info = "Sorting"
-		i3.message_user = sidebar_button_message
+		// i3 := icon_button_init(panel_info, { .CT, .CF }, .Sort)
+		// i3.data = new_clone(Sidebar_Mode.Sorting)
+		// i3.hover_info = "Sorting"
+		// i3.message_user = sidebar_button_message
 	}
 
 	shared_panel :: proc(element: ^Element, title: string) -> ^Panel {
@@ -183,15 +184,19 @@ sidebar_init :: proc(window: ^Window) {
 
 	{
 		temp := &sb.options
-		temp.panel = shared_panel(&window.element, "Options")
+		using temp
+		flags := Element_Flags { .CT, .CF }
 
-		temp.slider_tab = slider_init(temp.panel, { .CT, .CF }, 0.5)
-		temp.slider_tab.format = "Tab: %f"
+		panel = shared_panel(&window.element, "Options")
 
-		temp.checkbox_autosave = checkbox_init(temp.panel, { .CT, .CF }, "Autosave", true)
-		temp.checkbox_uppercase_word = checkbox_init(temp.panel, { .CT, .CF }, "Uppercase Parent Word", true)
-		temp.checkbox_invert_x = checkbox_init(temp.panel, { .CT, .CF }, "Invert Scroll X", false)
-		temp.checkbox_invert_y = checkbox_init(temp.panel, { .CT, .CF }, "Invert Scroll Y", false)
+		slider_tab = slider_init(panel, flags, 0.5)
+		slider_tab.format = "Tab: %f"
+
+		checkbox_autosave = checkbox_init(panel, flags, "Autosave", true)
+		checkbox_uppercase_word = checkbox_init(panel, flags, "Uppercase Parent Word", true)
+		checkbox_invert_x = checkbox_init(panel, flags, "Invert Scroll X", false)
+		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
+		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 	}
 
 	SPACER_HEIGHT :: 10
@@ -233,27 +238,27 @@ sidebar_init :: proc(window: ^Window) {
 		)
 	}
 
-	{
-		temp := &sb.sorting
-		using temp
+	// {
+	// 	temp := &sb.sorting
+	// 	using temp
 		
-		flags := Element_Flags { .CT, .CF }
-		panel = shared_panel(&window.element, "Sorting")
+	// 	flags := Element_Flags { .CT, .CF }
+	// 	panel = shared_panel(&window.element, "Sorting")
 
-		label_init(panel, { .CT, .CF, .Label_Center }, "General")
-		checkbox_enabled = checkbox_init(panel, flags, "Turn On / Off", true)
-		checkbox_ignore_parent = checkbox_init(panel, flags, "Ignore Inside Current Parent", false)
+	// 	label_init(panel, { .CT, .CF, .Label_Center }, "General")
+	// 	checkbox_enabled = checkbox_init(panel, flags, "Turn On / Off", true)
+	// 	checkbox_ignore_parent = checkbox_init(panel, flags, "Ignore Inside Current Parent", false)
 		
-		spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
-		label_init(panel, { .CT, .CF, .Label_Center }, "State based")
-		checkbox_low_state_first = checkbox_init(panel, flags, "Low First", false)
-		checkbox_invert_state = checkbox_init(panel, flags, "Inverted State", false)
+	// 	spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
+	// 	label_init(panel, { .CT, .CF, .Label_Center }, "State based")
+	// 	checkbox_low_state_first = checkbox_init(panel, flags, "Low First", false)
+	// 	checkbox_invert_state = checkbox_init(panel, flags, "Inverted State", false)
 		
-		spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
-		label_init(panel, { .CT, .CF, .Label_Center }, "Child Count based")
-		checkbox_sort_children = checkbox_init(panel, flags, "Turn On / Off", false)
-		checkbox_low_children_first = checkbox_init(panel, flags, "Low Count First", false)
-	}
+	// 	spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
+	// 	label_init(panel, { .CT, .CF, .Label_Center }, "Child Count based")
+	// 	checkbox_sort_children = checkbox_init(panel, flags, "Turn On / Off", false)
+	// 	checkbox_low_children_first = checkbox_init(panel, flags, "Low Count First", false)
+	// }
 }
 
 options_tab :: #force_inline proc() -> f32 {
@@ -274,6 +279,10 @@ options_tag_mode :: #force_inline proc() -> int {
 
 options_uppercase_word :: #force_inline proc() -> bool {
 	return sb.options.checkbox_uppercase_word.state
+}
+
+options_use_animations :: #force_inline proc() -> bool {
+	return sb.options.checkbox_use_animations.state
 }
 
 Mode_Based_Button :: struct {

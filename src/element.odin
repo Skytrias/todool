@@ -245,6 +245,12 @@ animate_to :: proc(
 		return
 	}
 
+	// check animations supported
+	if !options_use_animations() {
+		value^ = goal
+		return
+	}
+
 	if value^ == -1 {
 		value^ = goal
 	} else {

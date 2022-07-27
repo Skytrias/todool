@@ -4,58 +4,48 @@ import "core:strings"
 import "core:log"
 import "core:mem"
 
-// Undo_Item_Bool_Saved :: struct {
-// 	to: bool,
+// Undo_Item_Int_Increase :: struct {
+// 	value: ^int,
 // }
 
-// undo_bool_saved :: proc(manager: ^Undo_Manager, item: rawptr) {
-// 	data := cast(^Undo_Item_Bool_Saved) item
-
-// 	title := data.to ? "Todool*" : "Todool"
-// 	window_title_build(mode_panel.window, title)
-
-// 	editor_pushed_unsaved = false
-
-// 	data.to = !data.to
-// 	undo_push(manager, undo_bool_saved, item, size_of(Undo_Item_Bool_Saved))
+// Undo_Item_Int_Set :: struct {
+// 	value: ^int,
+// 	to: int,
 // }
 
-// editor_set_unsaved_changes_title :: proc(manager: ^Undo_Manager) {
-// 	if !editor_pushed_unsaved {
-// 		item := Undo_Item_Bool_Saved { true }
-// 		undo_bool_saved(manager, &item)
-// 		editor_pushed_unsaved = true
-// 	}
+// undo_int_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
+// 	data := cast(^Undo_Item_Int_Increase) item
+// 	output := Undo_Item_Int_Set { data.value, data.value^ }
+// 	data.value^ += 1
+// 	undo_push(manager, undo_int_set, &output, size_of(Undo_Item_Int_Set))
 // }
 
-Undo_Item_Int_Increase :: struct {
-	value: ^int,
+// undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr) {
+// 	data := cast(^Undo_Item_Int_Set) item
+// 	data.value^ = data.to
+// 	output := Undo_Item_Int_Increase { data.value }
+// 	undo_push(manager, undo_int_increase, &output, size_of(Undo_Item_Int_Increase))
+// }
+
+Undo_Item_Dirty_Increase :: struct {}
+
+Undo_Item_Dirty_Decrease :: struct {}
+
+undo_dirty_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
+	dirty += 1
+	output := Undo_Item_Dirty_Decrease {}
+	undo_push(manager, undo_dirty_decrease, &output, size_of(Undo_Item_Dirty_Decrease))
 }
 
-Undo_Item_Int_Set :: struct {
-	value: ^int,
-	to: int,
-}
-
-undo_int_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Int_Increase) item
-	output := Undo_Item_Int_Set { data.value, data.value^ }
-	data.value^ += 1
-	undo_push(manager, undo_int_set, &output, size_of(Undo_Item_Int_Set))
-}
-
-undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Int_Set) item
-	data.value^ = data.to
-	output := Undo_Item_Int_Increase { data.value }
-	undo_push(manager, undo_int_increase, &output, size_of(Undo_Item_Int_Increase))
+undo_dirty_decrease :: proc(manager: ^Undo_Manager, item: rawptr) {
+	dirty -= 1
+	output := Undo_Item_Dirty_Increase {}
+	undo_push(manager, undo_dirty_increase, &output, size_of(Undo_Item_Dirty_Increase))
 }
 
 dirty_push :: proc(manager: ^Undo_Manager) {
-	if dirty == dirty_saved {
-		item := Undo_Item_Int_Increase { &dirty }
-		undo_int_increase(manager, &item)
-	}
+	item := Undo_Item_Dirty_Increase {}
+	undo_dirty_increase(manager, &item)
 }
 
 Undo_Item_Task_Head_Tail :: struct {
@@ -828,5 +818,20 @@ add_shortcuts :: proc(window: ^Window) {
 		}
 
 		return true	
+	})
+
+	window_add_shortcut(window, "ctrl+g", proc() -> bool {
+		element_hide(panel_goto, false)
+		box := cast(^Text_Box) panel_goto.children[0]
+		element_focus(box)
+
+		goto_saved_head = task_head
+		goto_saved_tail = task_tail
+
+		// reset text
+		strings.builder_reset(&box.builder)
+		box.head = 0
+		box.tail = 0
+		return true
 	})
 }

@@ -47,16 +47,14 @@ import "../fontstash"
 // recording this -> LINE HIGHLIGHT NOW
 
 // TODAY
-// Uppercase on word
-// task automation
-// added dirty file
+// animation checkbox
 
 // REST
 // SHOCO string compression option
 // Changelog options?
 // goto prompt
 // search prompt
-// indentation prompt?
+// indentation focus prompt?
 
 main :: proc() {
 	gs_init()
@@ -137,6 +135,7 @@ main :: proc() {
 			}
 		}
 
+		// log.info("dirty", dirty, dirty_saved)
 		window_title_build(window, dirty != dirty_saved ? "Todool*" : "Todool")
 
 		// just clamp for safety here instead of everywhere
@@ -180,6 +179,8 @@ main :: proc() {
 		task_head = 4
 		task_tail = 4
 	}
+
+	goto_init(window) 
 
 	gs_message_loop()
 }

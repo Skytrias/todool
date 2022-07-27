@@ -284,8 +284,10 @@ theme_editor_spawn :: proc() {
 				color.b = u8(rand.float32() * 255)
 			}
 
-			p := theme_selected_panel()
-			theme_reformat_panel_sliders(p)
+			for i in 0..<theme_editor.panel_list_index {
+				p := theme_editor.panel_list[i]
+				theme_reformat_panel_sliders(p)
+			}
 			gs_update_all_windows()
 		}		
 		b2 := button_init(button_panel, { .CR, .CF }, "Randomize HSV")
@@ -309,8 +311,10 @@ theme_editor_spawn :: proc() {
 				color^ = color_hsv_to_rgb(h, s, v)
 			}
 
-			p := theme_selected_panel()
-			theme_reformat_panel_sliders(p)
+			for i in 0..<theme_editor.panel_list_index {
+				p := theme_editor.panel_list[i]
+				theme_reformat_panel_sliders(p)
+			}
 			gs_update_all_windows()
 		}		
 

@@ -50,6 +50,7 @@ Text_Box :: struct {
 	using element: Element,
 	using box: Box,
 	scroll: f32,
+	codepoint_numbers_only: bool,
 }
 
 Task_Box :: struct {
@@ -450,8 +451,17 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Unicode_Insertion: {
 			codepoint := (cast(^rune) dp)^
-			box_insert(element, box, codepoint)
-			element_repaint(element)
+
+			if box.codepoint_numbers_only {
+				if unicode.is_number(codepoint) {
+					box_insert(element, box, codepoint)
+					element_repaint(element)
+				}
+			} else {
+				box_insert(element, box, codepoint)
+				element_repaint(element)
+			}
+
 			return 1
 		}
 

@@ -1,5 +1,6 @@
 package src
 
+import "core:strconv"
 import "core:fmt"
 import "core:unicode"
 import "core:strings"
@@ -13,6 +14,9 @@ import "../fontstash"
 
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
+panel_goto: ^Panel
+goto_saved_head: int
+goto_saved_tail: int
 
 slider_tab: ^Slider
 font_options_header: Font_Options
@@ -26,8 +30,8 @@ old_task_head := 0
 old_task_tail := 0
 tasks_visible: [dynamic]^Task
 task_parent_stack: [128]^Task
-dirty := -1
-dirty_saved := -1
+dirty := 0
+dirty_saved := 0
 bookmark_index := -1
 bookmarks: [dynamic]int
 
@@ -1102,4 +1106,75 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 	}
 
 	return 0
+}
+
+goto_init :: proc(window: ^Window) {
+	panel_goto = panel_init(&window.element, { .Panel_Floaty, .Panel_Default_Background })
+	MARGIN :: 4
+	margin_scaled := MARGIN * SCALE
+	panel_goto.margin = margin_scaled
+	panel_goto.background_index = 2
+	// panel_goto.rounded = true
+	panel_goto.shadow = true
+	panel_goto.float_width = 200
+	panel_goto.float_height = DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
+	panel_goto.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		panel := cast(^Panel) element
+
+		#partial switch msg {
+			case .Layout: {
+				panel.float_x = 
+					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - panel.float_width / 2
+				panel.float_y = mode_panel.bounds.t + math.round(10 * SCALE)
+			}
+
+			case .Key_Combination: {
+				combo := (cast(^string) dp)^
+				handled := true
+
+				switch combo {
+					case "escape": {
+						element_hide(panel, true)
+						element_repaint(panel)
+
+						// reset to origin 
+						task_head = goto_saved_head
+						task_tail = goto_saved_tail
+					}
+
+					case "return": {
+						element_hide(panel, true)
+						element_repaint(panel)
+					}
+
+					case: {
+						handled = false
+					}
+				}
+
+				return int(handled)
+			}
+		}
+
+		return 0
+	}
+
+	box := text_box_init(panel_goto, { .CT })
+	box.codepoint_numbers_only = true
+	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		box := cast(^Text_Box) element
+
+		#partial switch msg {
+			case .Value_Changed: {
+				value := strconv.atoi(strings.to_string(box.builder))
+				task_head = value
+				task_tail = value
+				element_repaint(box)
+			}
+		}
+
+		return 0
+	}
+
+	element_hide(panel_goto, true)
 }
