@@ -74,6 +74,8 @@ main :: proc() {
 	defer delete(tasks_visible)
 	bookmarks = make([dynamic]int, 0, 32)
 	defer delete(bookmarks)
+	search_results_mixed = make([dynamic]Search_Result_Mixed, 0, 32)
+	defer delete(search_results_mixed)
 
 	window := window_init("Todool", 900, 900)
 
@@ -175,7 +177,7 @@ main :: proc() {
 		task_push(1, "five")
 		task_push(1, "six")
 		task_push(1, "long word to test out mouse selection")
-		task_push(0, "long word to test out word wrapping on this particular piece of text even longer to test out moreeeeeeeeeeeee")
+		task_push(0, "long  word to test out word wrapping on this word particular piece of text even longer to test out moreeeeeeeeeeeee")
 		task_push(0, "five")
 		task_head = 4
 		task_tail = 4

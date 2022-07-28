@@ -160,3 +160,42 @@ ds_to_runes :: proc(
 
 	return slice.clone(temp[:], allocator)
 }
+
+// decode until the word ended using state
+ds_string_selection :: proc(
+	using ds: ^Decode_State, 
+	text: string,
+	low, high: int,
+) -> (res: string, ok: bool) {
+	codepoint: rune
+	start := -1
+	end := -1
+
+	for byte_offset < len(text) {
+		if decode(&state, &codepoint, text[byte_offset]) {
+			if low == codepoint_count {
+				start = byte_offset
+			}
+
+			if high == codepoint_count {
+				end = byte_offset
+			}
+
+			// codepoint_index = codepoint_count
+			codepoint_count += 1
+		}
+
+		byte_offset += 1
+	}
+
+	if end == -1 && codepoint_count == high {
+		end = codepoint_count
+	}
+
+	if start != -1 && end != -1 {
+		res = text[start:end]
+		ok = true
+	}
+
+	return
+}

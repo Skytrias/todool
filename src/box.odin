@@ -409,7 +409,8 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				scaled_size := size * SCALE
 				x := box.bounds.l - box.scroll
 				y := box.bounds.t
-				box_render_selection(target, box, font, scaled_size, x, y)
+				low, high := box_low_and_high(box)
+				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
 				box_render_caret(target, box, font, scaled_size, x, y)
 			}
 
@@ -1082,20 +1083,22 @@ box_render_selection :: proc(
 	box: ^Box,
 	font: ^Font,
 	scaled_size: f32,
-	x, y: f32,	
+	x, y: f32,
+	color: Color,
 ) {
-	if box.head == box.tail {
+	low, high := box_low_and_high(box)
+
+	if low == high {
 		return
 	}
 
-	low, high := box_low_and_high(box)
 	state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
 
 	for wrap_state_iter(&state, low, high) {
 		if state.rect_valid {
 			rect := state.rect
 			translated := rect_add(rect, rect_xxyy(x, y))
-			render_rect(target, translated, theme.caret_selection, 0)
+			render_rect(target, translated, color, 0)
 		}
 	}
 }

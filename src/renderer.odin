@@ -347,7 +347,7 @@ render_drop_shadow :: proc(
 	target: ^Render_Target,
 	r: Rect,
 	color: Color,
-	roundness: f32 = 0,
+	roundness: f32 = ROUNDNESS,
 ) {
 	group := &target.groups[len(target.groups) - 1] 
 	vertices := render_target_push_vertices(target, group, 6)

@@ -1400,7 +1400,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			}
 
 			if panel.shadow {
-				render_drop_shadow(target, bounds, color, ROUNDNESS)
+				render_drop_shadow(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
 			} else {
 				render_rect(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
 			}

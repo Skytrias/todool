@@ -17,15 +17,31 @@ mode_panel: ^Mode_Panel
 
 // goto state
 panel_goto: ^Panel
-goto_saved_head: int
-goto_saved_tail: int
+goto_saved_task_head: int
+goto_saved_task_tail: int
+goto_transition_animating: bool
+goto_transition_unit: f32
+goto_transition_hide: bool
 
 // search state
 panel_search: ^Panel
 search_index := -1
+search_saved_task_head: int
+search_saved_task_tail: int
+search_saved_box_head: int
+search_saved_box_tail: int
+search_draw_index: int // gets reset & used to highlight search index current
+
 Search_Result :: struct #packed {
-	from, to: u16,
+	low, high: u16,
 }
+
+Search_Result_Mixed :: struct #packed {
+	task: ^Task,
+	low, high: u16,
+}
+
+search_results_mixed: [dynamic]Search_Result_Mixed
 
 // font options used
 font_options_header: Font_Options
@@ -272,6 +288,7 @@ task_init :: proc(
 
 	res.box = task_box_init(res, {}, text)
 	res.box.message_user = task_box_message_custom
+	res.search_results = make([dynamic]Search_Result, 0, 8)
 
 	return
 }
@@ -744,6 +761,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.l -= drag.offset_x
 			bounds.t -= drag.offset_y
 
+			search_draw_index = 0
+
 			switch panel.mode {
 				case .List: {
 
@@ -853,6 +872,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Paint_Recursive: {
 			target := element.window.target
+			draw_search_results := (.Hide not_in panel_search.flags)
 			box.bounds.l += TASK_TEXT_OFFSET
 
 			if task.bookmarked {
@@ -863,12 +883,37 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				box.bounds.l += math.round(DEFAULT_FONT_SIZE * SCALE)
 			}
 
+			// draw the search results outline
+			if draw_search_results && len(task.search_results) != 0 {
+				font, size := element_retrieve_font_options(box)
+				scaled_size := size * SCALE
+				x := box.bounds.l
+				y := box.bounds.t
+
+				for res in task.search_results {
+					color := search_index == search_draw_index ? GREEN : RED
+					state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
+
+					for wrap_state_iter(&state, int(res.low), int(res.high)) {
+						if state.rect_valid {
+							rect := state.rect
+							translated := rect_add(rect, rect_xxyy(x, y))
+							render_rect_outline(target, translated, color, 0)
+						}
+					}
+
+					search_draw_index += 1
+				}
+			}
+
+			// outline visible selected one
 			if task.visible_index == task_head {
 				font, size := element_retrieve_font_options(box)
 				scaled_size := size * SCALE
 				x := box.bounds.l
 				y := box.bounds.t
-				box_render_selection(target, box, font, scaled_size, x, y)
+				low, high := box_low_and_high(box)
+				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
 				box_render_caret(target, box, font, scaled_size, x, y)
 			}
 		}
@@ -1131,18 +1176,39 @@ goto_init :: proc(window: ^Window) {
 	margin_scaled := MARGIN * SCALE
 	panel_goto.margin = margin_scaled
 	panel_goto.background_index = 2
-	// panel_goto.rounded = true
+	panel_goto.z_index = 255
+	panel_goto.rounded = true
 	panel_goto.shadow = true
 	panel_goto.float_width = 200
 	panel_goto.float_height = DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
+	
 	panel_goto.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		panel := cast(^Panel) element
 
 		#partial switch msg {
+			case .Animate: {
+				handled := animate_to(
+					&goto_transition_animating,
+					&goto_transition_unit,
+					goto_transition_hide ? 1 : 0,
+					4,
+					0.01,
+				)
+
+				if !handled && goto_transition_hide {
+					element_hide(panel, true)
+				}
+
+				return int(handled)
+			}
+
 			case .Layout: {
 				panel.float_x = 
 					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - panel.float_width / 2
-				panel.float_y = mode_panel.bounds.t + math.round(10 * SCALE)
+				
+				off := math.round(10 * SCALE)
+				panel.float_y = 
+					(mode_panel.bounds.t + off) + (goto_transition_unit * -(panel.float_height + off))
 			}
 
 			case .Key_Combination: {
@@ -1151,17 +1217,21 @@ goto_init :: proc(window: ^Window) {
 
 				switch combo {
 					case "escape": {
-						element_hide(panel, true)
-						element_repaint(panel)
+						goto_transition_unit = 0
+						goto_transition_hide = true
+						goto_transition_animating = true
+						element_animation_start(panel)
 
 						// reset to origin 
-						task_head = goto_saved_head
-						task_tail = goto_saved_tail
+						task_head = goto_saved_task_head
+						task_tail = goto_saved_task_tail
 					}
 
 					case "return": {
-						element_hide(panel, true)
-						element_repaint(panel)
+						goto_transition_unit = 0
+						goto_transition_hide = true
+						goto_transition_animating = true
+						element_animation_start(panel)
 					}
 
 					case: {
@@ -1202,12 +1272,28 @@ search_init :: proc(window: ^Window) {
 	height := DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
 	p := panel_init(&window.element, { .CB, .Panel_Default_Background }, height, margin_scaled, 5)
 	p.background_index = 2
+	p.shadow = true
+	p.z_index = 2
 
-	box := text_box_init(p, { .CL, .CF })
+	b1 := button_init(p, { .CR, .CF }, "Find Next")
+	b1.invoke = proc(data: rawptr) {
+		search_find_next()
+	}
+	b2 := button_init(p, { .CR, .CF }, "Find Prev")
+	b2.invoke = proc(data: rawptr) {
+		search_find_prev()
+	}
+
+	box := text_box_init(p, { .CF })
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
 
 		#partial switch msg {
+			case .Value_Changed: {
+				query := strings.to_string(box.builder)
+				search_update_results(query)
+			}
+
 			case .Key_Combination: {
 				combo := (cast(^string) dp)^
 				handled := true
@@ -1216,6 +1302,8 @@ search_init :: proc(window: ^Window) {
 					case "escape": {
 						element_hide(panel_search, true)
 						element_repaint(panel_search)
+						task_head = search_saved_task_head
+						task_tail = search_saved_task_tail
 					}
 
 					case "return": {
@@ -1225,12 +1313,12 @@ search_init :: proc(window: ^Window) {
 
 					// next
 					case "f3", "ctrl+n": {
-
+						search_find_next()
 					}
 
 					// prev 
 					case "shift+f3", "ctrl+shift+n": {
-
+						search_find_prev()
 					}
 
 					case: {
@@ -1244,23 +1332,128 @@ search_init :: proc(window: ^Window) {
 
 		return 0
 	}
-	b1 := button_init(p, { .CL, .CF }, "Find Next")
-	b1.invoke = proc(data: rawptr) {
-		log.info("next")
-	}
-	b2 := button_init(p, { .CL, .CF }, "Find Prev")
-	b2.invoke = proc(data: rawptr) {
-		log.info("next")
-	}
 
 	element_hide(p, true)
 	panel_search = p
 }
 
-search_find_next :: proc() {
+search_update_results :: proc(query: string) {
+	// clear all panel based search results, even hidden
+	for i in 0..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+		clear(&task.search_results)
+	}
+	search_index = -1
 
+	// skip empty query
+	if query == "" {
+		return
+	}
+
+	// find results
+	for i in 0..<len(tasks_visible) {
+		task := tasks_visible[i]
+		text := strings.to_string(task.box.builder)
+		index: int
+
+		// find results and insert
+		for rune_start, rune_end in contains_multiple_iterator(text, query, &index) {
+			append(&task.search_results, Search_Result {
+				rune_start,
+				rune_end,
+			})
+		}
+	}
+}
+
+search_find_next :: proc() {
+	// fill mixed results
+	clear(&search_results_mixed)
+	for i in 0..<len(tasks_visible) {
+		task := tasks_visible[i]
+
+		if len(task.search_results) != 0 {
+			for res in task.search_results {
+				append(&search_results_mixed, Search_Result_Mixed {
+					task,
+					res.low,
+					res.high,
+				})
+			}
+		}
+	}
+
+	if len(search_results_mixed) == 0 {
+		return
+	}
+
+	range_advance_index(&search_index, len(search_results_mixed) - 1, false)
+	res := search_results_mixed[search_index]
+	task_head = res.task.visible_index
+	task_tail = res.task.visible_index
+	res.task.box.head = int(res.high)
+	res.task.box.tail = int(res.low)
+
+	element_repaint(mode_panel)
 }
 
 search_find_prev :: proc() {
+	// fill mixed results
+	clear(&search_results_mixed)
+	for i in 0..<len(tasks_visible) {
+		task := tasks_visible[i]
 
+		if len(task.search_results) != 0 {
+			for res in task.search_results {
+				append(&search_results_mixed, Search_Result_Mixed {
+					task,
+					res.low,
+					res.high,
+				})
+			}
+		}
+	}
+
+	if len(search_results_mixed) == 0 {
+		return
+	}
+
+	range_advance_index(&search_index, len(search_results_mixed) - 1, true)
+	res := search_results_mixed[search_index]
+	task_head = res.task.visible_index
+	task_tail = res.task.visible_index
+	res.task.box.head = int(res.high)
+	res.task.box.tail = int(res.low)
+
+	element_repaint(mode_panel)
+}
+
+// iterator approach to finding a subtr
+contains_multiple_iterator :: proc(s, substr: string, index: ^int) -> (rune_start, rune_end: u16, ok: bool) {
+	for {
+		if index^ > len(s) {
+			break
+		}
+
+		search := s[index^:]
+		
+		// TODO could maybe be optimized by using cutf8!
+		if res := strings.index(search, substr); res >= 0 {
+			// NOTE: start & end are in rune offsets!
+			start := strings.rune_count(s[:index^ + res])
+
+			ok = true
+			rune_start = u16(start)
+			rune_end = u16(start + strings.rune_count(substr))
+
+			// index moves by bytes
+			index^ += res + len(substr)
+			return
+		} else {
+			break
+		}
+	}
+
+	ok = false
+	return
 }

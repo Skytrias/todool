@@ -3,6 +3,7 @@ package src
 import "core:strings"
 import "core:log"
 import "core:mem"
+import "../cutf8"
 
 // Undo_Item_Int_Increase :: struct {
 // 	value: ^int,
@@ -822,12 +823,18 @@ add_shortcuts :: proc(window: ^Window) {
 
 	window_add_shortcut(window, "ctrl+g", proc() -> bool {
 		p := panel_goto
+
 		element_hide(p, false)
+		goto_transition_unit = 1
+		goto_transition_hide = false
+		goto_transition_animating = true
+		element_animation_start(p)
+
 		box := cast(^Text_Box) p.children[0]
 		element_focus(box)
 
-		goto_saved_head = task_head
-		goto_saved_tail = task_tail
+		goto_saved_task_head = task_head
+		goto_saved_task_tail = task_tail
 
 		// reset text
 		strings.builder_reset(&box.builder)
@@ -839,9 +846,39 @@ add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "ctrl+f", proc() -> bool {
 		p := panel_search
 		element_hide(p, false)
-		box := cast(^Text_Box) p.children[0]
+
+		// save info
+		search_saved_task_head = task_head
+		search_saved_task_tail = task_tail
+	
+		box := cast(^Text_Box) p.children[2]
 		element_focus(box)
+
+		if task_head != -1 {
+			task := tasks_visible[task_head]
+
+			// set word to search instantly
+			if task.box.head != task.box.tail {
+				// cut out selected word
+				ds: cutf8.Decode_State
+				low, high := box_low_and_high(task.box)
+				text, ok := cutf8.ds_string_selection(
+					&ds, 
+					strings.to_string(task.box.builder), 
+					low, 
+					high,
+				)
+
+				strings.builder_reset(&box.builder)
+				strings.write_string(&box.builder, text)
+			}
+
+			search_saved_box_head = task.box.head
+			search_saved_box_tail = task.box.tail
+		}		
+
 		element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
+
 		return true
 	})
 }
