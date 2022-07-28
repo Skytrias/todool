@@ -1,5 +1,6 @@
 package src
 
+import "core:mem"
 import "core:strconv"
 import "core:fmt"
 import "core:unicode"
@@ -32,6 +33,10 @@ search_saved_box_head: int
 search_saved_box_tail: int
 search_draw_index: int // gets reset & used to highlight search index current
 
+// copy state
+copy_text_data: strings.Builder
+copy_task_data: [dynamic]Copy_Task
+
 Search_Result :: struct #packed {
 	low, high: u16,
 }
@@ -63,6 +68,88 @@ dirty_saved := 0
 // bookmark data
 bookmark_index := -1
 bookmarks: [dynamic]int
+
+task_data_init :: proc() {
+	tasks_visible = make([dynamic]^Task, 0, 128)
+	bookmarks = make([dynamic]int, 0, 32)
+	search_results_mixed = make([dynamic]Search_Result_Mixed, 0, 32)
+
+	font_options_header = {
+		font = font_bold,
+		size = 30,
+	}
+	font_options_bold = {
+		font = font_bold,
+		size = DEFAULT_FONT_SIZE + 5,
+	}
+
+	strings.builder_init(&copy_text_data, 0, mem.Kilobyte * 10)
+	copy_task_data = make([dynamic]Copy_Task, 0, 128)
+}
+
+task_data_destroy :: proc() {
+	delete(tasks_visible)
+	delete(bookmarks)
+	delete(search_results_mixed)
+	delete(copy_text_data.buf)
+	delete(copy_task_data)
+}
+
+// reset copy data
+copy_reset :: proc() {
+	strings.builder_reset(&copy_text_data)
+	clear(&copy_task_data)
+}
+
+// push a task to copy list
+copy_push :: proc(task: ^Task) {
+	// NOTE works with utf8 :) copies task text
+	text_byte_start := len(copy_text_data.buf)
+	strings.write_string(&copy_text_data, strings.to_string(task.box.builder))
+	text_byte_end := len(copy_text_data.buf)
+
+	// copy crucial info of task
+	append(&copy_task_data, Copy_Task {
+		u32(text_byte_start),
+		u32(text_byte_end),
+		u8(task.indentation),
+		task.state,
+		task.tags,
+		task.folded,
+		task.bookmarked,
+	})
+}
+
+copy_empty :: proc() -> bool {
+	return len(copy_task_data) == 0
+}
+
+copy_paste_at :: proc(
+	manager: ^Undo_Manager, 
+	real_index: int, 
+	indentation: int,
+) {
+	full_text := strings.to_string(copy_text_data)
+	index_at := real_index
+
+	// find lowest indentation
+	lowest_indentation := 255
+	for t, i in copy_task_data {
+		lowest_indentation = min(lowest_indentation, int(t.indentation))
+	}
+
+	// copy into index range
+	for t, i in copy_task_data {
+		text := full_text[t.text_byte_start:t.text_byte_end]
+		relative_indentation := indentation + int(t.indentation) - lowest_indentation
+		
+		task := task_push_undoable(manager, relative_indentation, text, index_at + i)
+		task.folded = t.folded
+		task.state = t.state
+		task.bookmarked = t.bookmarked
+		task.tags = t.tags
+	}
+}
 
 // advance bookmark or jump to closest on reset
 bookmark_advance :: proc(backward: bool) {
@@ -132,6 +219,17 @@ Task_State :: enum u8 {
 	Done,
 	Canceled,
 } 
+
+// Bare data to copy task from
+Copy_Task :: struct #packed {
+	text_byte_start: u32, // offset into text_list
+	text_byte_end: u32, // offset into text_list
+	indentation: u8,
+	state: Task_State,
+	tags: u8,
+	folded: bool,
+	bookmarked: bool,
+}
 
 Task :: struct {
 	using element: Element,
@@ -797,7 +895,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 				low, high := task_low_and_high()
 
-				for i in low..<high + 1 {
+				for i in low..<high {
 					task := tasks_visible[i]
 					rect := task.box.clip
 					

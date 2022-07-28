@@ -269,6 +269,23 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 // 	undo_push(manager, undo_task_clear, item, size_of(Undo_Item_Task_Clear))
 // }
 
+task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
+	low, high := task_low_and_high()
+	remove_count: int
+	for i := low; i < high + 1; i += 1 {
+		item := Undo_Item_Task_Remove_At {
+			tasks_visible[i].index - remove_count,
+		}
+		undo_task_remove_at(manager, &item)
+		remove_count += 1
+	}
+
+	if move {
+		task_head = low - 1
+		task_tail = low - 1
+	}
+}
+
 shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 	handled = true
 
@@ -654,19 +671,8 @@ add_shortcuts :: proc(window: ^Window) {
 
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
+		task_remove_selection(manager, true)
 
-		low, high := task_low_and_high()
-		remove_count: int
-		for i := low; i < high + 1; i += 1 {
-			item := Undo_Item_Task_Remove_At {
-				tasks_visible[i].index - remove_count,
-			}
-			undo_task_remove_at(manager, &item)
-			remove_count += 1
-		}
-
-		task_head = low - 1
-		task_tail = low - 1
 		element_repaint(mode_panel)
 		return true
 	})
@@ -871,6 +877,8 @@ add_shortcuts :: proc(window: ^Window) {
 
 				strings.builder_reset(&box.builder)
 				strings.write_string(&box.builder, text)
+
+				search_update_results(text)
 			}
 
 			search_saved_box_head = task.box.head
@@ -879,6 +887,60 @@ add_shortcuts :: proc(window: ^Window) {
 
 		element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
 
+		return true
+	})
+
+	window_add_shortcut(window, "ctrl+c", proc() -> bool {
+		if task_head != -1 {
+			copy_reset()
+			low, high := task_low_and_high()
+
+			// copy each line
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+				copy_push(task)
+			}
+
+			// log.info("copied", len(copy_text_data.buf), len(copy_task_data))
+		}
+
+		return true
+	})
+
+	window_add_shortcut(window, "ctrl+v", proc() -> bool {
+		if task_head == -1 || copy_empty() {
+			return false
+		}
+
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+
+		// no selection
+		if task_head == task_tail {
+			task := tasks_visible[task_head]
+			copy_paste_at(manager, task.index + 1, task.indentation)
+			
+			task_head += len(copy_task_data)
+			task_tail = task_head
+		} else {
+			// low := min(task_head, task_tail)
+			// task := tasks_visible[low]
+			// index := task.index + 1
+			// indentation := task.indentation
+
+			task_remove_selection(manager, false)
+
+			task := tasks_visible[task_head]
+			index := task.index + 1
+			indentation := task.indentation
+			// log.info("task.")
+			copy_paste_at(manager, index, indentation)
+			
+			task_head += len(copy_task_data)
+			task_tail = task_head
+		}
+
+		element_repaint(mode_panel)
 		return true
 	})
 }

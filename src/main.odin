@@ -18,8 +18,6 @@ import "../fontstash"
 // save file -> export to json too, TRY ONE SAVE FILE FOR ALL
 // images on top of cards
 // breadcrumbs? could do a prompt
-// edit & navigation mode? would help immensly for easier navigation
-// unsaved/saved tracking
 // font size for tasks specifically so you could zoom in / out
 // add autosave timer & exit scheme
 
@@ -47,38 +45,31 @@ import "../fontstash"
 // recording this -> LINE HIGHLIGHT NOW
 
 // TODAY
-// animation checkbox
-// goto implemented
 
 // REST
 // SHOCO string compression option
 // Changelog options?
-// search prompt
 // indentation focus prompt?
+// nice copy & paste 																	<----------
+// timers functionality
+// save leaving prompt
+// progress bar on kanban?
+// camera
+// mouse dragging
+// text box copy & paste
+// theme editor copy & paste
+
+// IDEAS
+// change alpha of lesser indentations
 
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
 
-	font_options_header = {
-		font = font_bold,
-		size = 30,
-	}
-	font_options_bold = {
-		font = font_bold,
-		size = DEFAULT_FONT_SIZE + 5,
-	}
-
-	// init global state
-	tasks_visible = make([dynamic]^Task, 0, 128)
-	defer delete(tasks_visible)
-	bookmarks = make([dynamic]int, 0, 32)
-	defer delete(bookmarks)
-	search_results_mixed = make([dynamic]Search_Result_Mixed, 0, 32)
-	defer delete(search_results_mixed)
+	task_data_init()
+	defer task_data_destroy()
 
 	window := window_init("Todool", 900, 900)
-
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element
 
