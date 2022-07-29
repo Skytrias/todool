@@ -45,19 +45,19 @@ import "../fontstash"
 // recording this -> LINE HIGHLIGHT NOW
 
 // TODAY
+// nice copy & paste
+// theme editor copy & paste
 
 // REST
 // SHOCO string compression option
 // Changelog options?
 // indentation focus prompt?
-// nice copy & paste 																	<----------
 // timers functionality
 // save leaving prompt
 // progress bar on kanban?
 // camera
 // mouse dragging
 // text box copy & paste
-// theme editor copy & paste
 
 // IDEAS
 // change alpha of lesser indentations
@@ -116,7 +116,16 @@ main :: proc() {
 		task_set_children_info()
 		task_set_visible_tasks()
 		task_check_parent_states(nil)
-		task_check_parent_sorting()
+		
+		// find dragging index at
+		if dragging {
+			for task, i in tasks_visible {
+				if task.bounds.t < task.window.cursor_y && task.window.cursor_y < task.bounds.b {
+					drag_index_at = task.visible_index
+					break
+				}
+			}
+		}
 
 		// set bookmarks
 		{
@@ -175,6 +184,7 @@ main :: proc() {
 	}
 
 	goto_init(window) 
+	drag_init(window)
 
 	gs_message_loop()
 }

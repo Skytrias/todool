@@ -20,6 +20,8 @@ Theme_Editor :: struct {
 	slider_hue: ^Slider,
 	slider_sat: ^Slider,
 	slider_value: ^Slider,
+
+	color_copy: Color,
 }
 theme_editor: Theme_Editor
 
@@ -101,12 +103,20 @@ theme_editor_spawn :: proc() {
 				combo := (cast(^string) dp)^
 
 				switch combo {
+					case "ctrl+c": {
+						p := theme_selected_panel()
+						color_mod := cast(^Color) p.data
+						theme_editor.color_copy = color_mod^
+					}
+
 					case "ctrl+v": {
+						found: bool
+
 						if clipboard_has_content() {
 							// NOTE could be big clip
 							text := clipboard_get_string(context.temp_allocator)
 							color, ok := color_parse_string(text)
-							log.info("clipboard", text, ok, color)
+							// log.info("clipboard", text, ok, color)
 
 							if ok {
 								p := theme_selected_panel()
@@ -115,7 +125,16 @@ theme_editor_spawn :: proc() {
 
 								theme_reformat_panel_sliders(p)
 								gs_update_all_windows()
+								found = true
 							}
+						} 
+
+						if !found && theme_editor.color_copy != {} {
+							p := theme_selected_panel()
+							color_mod := cast(^Color) p.data
+							color_mod^ = theme_editor.color_copy
+							theme_reformat_panel_sliders(p)
+							gs_update_all_windows()
 						}
 					}
 
@@ -332,42 +351,10 @@ theme_editor_spawn :: proc() {
 		theme_editor.checkbox_value = checkbox_init(p3, { .CL, .CF }, "Randomize Value", false)
 		theme_editor.slider_value = slider_init(p3, { .CR, .CF }, 1)
 		theme_editor.slider_value.format = "Value: %f"
-
-		// slider_panel := panel_init(panel, { .CT, .CF, .Panel_Default_Background }, 50, 5, 0)
-		// slider_panel.background_index = 1
-
-		// s1 := slider_init(panel, )
 	}
-
-	// button_init(panel, { .CT, .CF }, "Randomize").invoke = proc(data: rawptr) {
-	// 	total_size := size_of(Theme) / size_of(Color)
-		
-	// 	for i in 0..<total_size {
-	// 		root := uintptr(&theme) + uintptr(i * size_of(Color))
-	// 		color := cast(^Color) root
-	// 		color.r = u8(rand.float32() * 255)
-	// 		color.g = u8(rand.float32() * 255)
-	// 		color.b = u8(rand.float32() * 255)
-	// 	}
-
-	// 	// button := cast(^Button) data
-	// 	// for child in button.parent.children {
-	// 	// 	log.info("yo")
-	// 	// 	if child.message_class == slider_message {
-	// 	// 		log.info("tried")
-	// 	// 		value := cast(^u8) child.data
-	// 	// 		slider := cast(^Slider) child
-	// 	// 		slider.position = f32(value^) / 255
-	// 	// 		element_message(child, .Reformat)
-	// 	// 	}
-	// 	// }
-
-	// 	for w in gs.windows {
-	// 		w.update_next = true
-	// 	}
-	// }
 }
 
+// parse text to color
 color_parse_string :: proc(text: string) -> (res: Color, ok: bool) {
 	text := text
 

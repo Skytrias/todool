@@ -61,6 +61,13 @@ old_task_tail := 0
 tasks_visible: [dynamic]^Task
 task_parent_stack: [128]^Task
 
+// drag state
+drag_list: [dynamic]^Task
+drag_panel: ^Panel
+drag_label: ^Label
+dragging: bool
+drag_index_at: int
+
 // dirty file
 dirty := 0
 dirty_saved := 0
@@ -68,6 +75,73 @@ dirty_saved := 0
 // bookmark data
 bookmark_index := -1
 bookmarks: [dynamic]int
+
+drag_init :: proc(window: ^Window) {
+	p := panel_init(&window.element, { .Panel_Floaty, .Panel_Default_Background })
+	p.margin = 10
+	p.background_index = 2
+	p.float_x = 0
+	p.float_y = 0
+	p.float_width = 50
+	p.float_height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+	p.rounded = true
+	p.shadow = true
+	p.z_index = 200
+	p.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		panel := cast(^Panel) element
+
+		#partial switch msg {
+			case .Layout: {
+				panel.float_x = element.window.cursor_x - 10
+				panel.float_y = element.window.cursor_y - 10
+			}
+
+			case .Animate: {
+				return int(dragging)
+			}
+		}
+
+		return 0
+	}
+	
+	drag_label = label_init(p, { .CT, .CF, .Label_Center }, "3x")
+	drag_panel = p
+
+	element_hide(p, true)
+	// element_animation_start(p)
+}
+
+task_head_tail_call_all :: proc(
+	data: rawptr,
+	call: proc(task: ^Task, data: rawptr), 
+) {
+	// empty
+	if task_head == -1 {
+		return
+	}
+
+	low, high := task_low_and_high()
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+		call(task, data)
+	}
+}
+
+task_head_tail_call :: proc(
+	data: rawptr,
+	call: proc(task: ^Task, data: rawptr), 
+) {
+	// empty
+	if task_head == -1 || task_head == task_tail {
+		return
+	}
+
+	low, high := task_low_and_high()
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+		call(task, data)
+	}
+}
 
 task_data_init :: proc() {
 	tasks_visible = make([dynamic]^Task, 0, 128)
@@ -85,6 +159,8 @@ task_data_init :: proc() {
 
 	strings.builder_init(&copy_text_data, 0, mem.Kilobyte * 10)
 	copy_task_data = make([dynamic]Copy_Task, 0, 128)
+
+	drag_list = make([dynamic]^Task, 0, 64)
 }
 
 task_data_destroy :: proc() {
@@ -93,6 +169,7 @@ task_data_destroy :: proc() {
 	delete(search_results_mixed)
 	delete(copy_text_data.buf)
 	delete(copy_task_data)
+	delete(drag_list)
 }
 
 // reset copy data
@@ -321,10 +398,20 @@ task_low_and_high :: #force_inline proc() -> (low, high: int) {
 }
 
 // set line selection to head when no shift
-task_tail_check :: proc() {
+task_head_tail_check_end :: proc() {
 	if !mode_panel.window.shift {
 		task_tail = task_head
 	}
+}
+
+task_head_tail_check_begin :: proc() ->  bool {
+	if !mode_panel.window.shift && task_head != task_tail {
+		task_tail = task_head
+		task_head = task_head
+		return false
+	}
+
+	return true
 }
 
 // find a line linearly in the panel children
@@ -409,6 +496,17 @@ task_push :: proc(
 	return
 }
 
+// insert a task undoable to a region
+task_insert_at :: proc(manager: ^Undo_Manager, index_at: int, res: ^Task) {
+	if index_at == -1 || index_at == len(mode_panel.children) {
+		item := Undo_Item_Task_Append { res }
+		undo_task_append(manager, &item)
+	} else {
+		item := Undo_Item_Task_Insert_At { index_at, res }
+		undo_task_insert_at(manager, &item)
+	}	
+}
+
 // push line element to panel middle with indentation
 task_push_undoable :: proc(
 	manager: ^Undo_Manager,
@@ -417,16 +515,7 @@ task_push_undoable :: proc(
 	index_at := -1,
 ) -> (res: ^Task) {
 	res = task_init(indentation, text)
-	parent := res.parent
-
-	if index_at == -1 || index_at == len(parent.children) {
-		item := Undo_Item_Task_Append { res }
-		undo_task_append(manager, &item)
-	} else {
-		item := Undo_Item_Task_Insert_At { index_at, res }
-		undo_task_insert_at(manager, &item)
-	}	
-
+	task_insert_at(manager, index_at, res)
 	return
 }
 
@@ -528,8 +617,12 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 // set has children, index, and visible parent per each task
 task_set_children_info :: proc() {
+	// reset all stack
+	for p in &task_parent_stack {
+		p = nil
+	}
+
 	// set parental info
-	task_parent_stack[0] = nil
 	prev: ^Task
 	for child, i in mode_panel.children {
 		task := cast(^Task) child
@@ -660,60 +753,6 @@ task_gather_children_strict :: proc(
 	}
 
 	return
-}
-
-task_check_parent_sorting :: proc() {
-// 	changed: bool
-
-// 	// for i := len(mode_panel.children) - 1; i >= 0; i -= 1 {
-// 	for i in 0..<len(mode_panel.children) {
-// 		task := cast(^Task) mode_panel.children[i]
-
-// 		if task.has_children {
-// 			low, high := task_children_range(task)
-// 			log.info("count", low, high, high - low)
-
-// 			// for i in 0..<len(children) {
-// 			// 	task := children[i]
-// 			// 	fmt.eprint(task.index, ' ')
-// 			// }
-// 			// fmt.eprint(task.index, '\n')
-
-// 			if low != -1 && high != -1 {
-// 				sort_call :: proc(a, b: ^Element) -> bool {
-// 					aa := cast(^Task) a
-// 					bb := cast(^Task) b
-// 					return aa.state < bb.state
-// 				}
-// 				slice.stable_sort_by(mode_panel.children[low:high + 1], sort_call)
-// 			}
-
-// 			// for i in 0..<len(children) {
-// 			// 	task := children[i]
-// 			// 	fmt.eprint(task.index, ' ')
-// 			// }
-// 			// fmt.eprint(task.index, '\n')
-// 		}
-
-// 		// // has parent
-// 		// if task^.visible_parent != nil {
-// 		// 	if i > 0 {
-// 		// 		prev := cast(^^Task) &mode_panel.children[i - 1]
-				
-// 		// 		if prev^.indentation >= task^.indentation && 
-// 		// 			prev^.state != .Normal && 
-// 		// 			task^.state == .Normal {
-// 		// 			task^, prev^ = prev^, task^
-// 		// 			changed = true
-// 		// 		}
-// 		// 	}
-// 		// }
-// 	}
-
-// 	if changed {
-// 		// element_repaint(mode_panel)
-// 		// task_set_children_info()
-// 	}
 }
 
 //////////////////////////////////////////////
@@ -893,18 +932,22 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// render selection outlines
 			if task_head != -1 {
 				render_push_clip(target, panel.clip)
-				low, high := task_low_and_high()
 
-				for i in low..<high {
-					task := tasks_visible[i]
-					rect := task.box.clip
-					
-					if low <= task.visible_index && task.visible_index <= high {
-						is_head := task.visible_index == task_head
-						color := is_head ? theme.caret : theme.caret_highlight
-						render_rect_outline(target, rect, color)
-					} 
-				}
+				task_head_tail_call_all(target, proc(task: ^Task, data: rawptr) {
+					target := cast(^Render_Target) data
+					color := theme.caret_highlight
+					if task_head != task_tail && task.visible_index == task_head {
+						color = theme.caret
+					}
+					render_rect_outline(target, task.box.clip, color)
+				})
+			}
+
+			if task_head != -1 && dragging && drag_index_at != -1 {
+				render_push_clip(target, panel.clip)
+				
+				drag_task := tasks_visible[drag_index_at]
+				render_underline(target, drag_task.bounds, GREEN)
 			}
 
 			return 1
@@ -1005,7 +1048,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
 			// outline visible selected one
-			if task.visible_index == task_head {
+			if task_head == task_tail && task.visible_index == task_head {
 				font, size := element_retrieve_font_options(box)
 				scaled_size := size * SCALE
 				x := box.bounds.l
@@ -1021,8 +1064,9 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			if task_head != task.visible_index {
 				element_hide(panel_goto, true)
 
+				task_head_tail_check_begin()
 				task_head = task.visible_index
-				task_tail_check()
+				task_head_tail_check_end()
 			} 
 
 			if task_head != task_tail {
@@ -1050,6 +1094,95 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
 			return 1
+		}
+
+		case .Right_Up: {
+			if dragging {
+				dragging = false
+				element_hide(drag_panel, true)
+
+				// find lowest indentation 
+				lowest_indentation := 255
+				for i in 0..<len(drag_list) {
+					task := drag_list[i]
+					lowest_indentation = min(lowest_indentation, task.indentation)
+				}
+
+				drag_indentation: int
+
+				if task_head != -1 && drag_index_at != -1 {
+					drag_indentation = tasks_visible[drag_index_at].indentation
+				}
+
+				manager := mode_panel_manager_scoped()
+				task_head_tail_push(manager)
+
+				// paste lines with indentation change saved
+				for i in 0..<len(drag_list) {
+					t := drag_list[i]
+					relative_indentation := drag_indentation + int(t.indentation) - lowest_indentation
+					
+					item := Undo_Item_Task_Indentation_Set {
+						task = t,
+						set = t.indentation,
+					}	
+					undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+
+					t.indentation = relative_indentation
+					t.indentation_smooth = f32(t.indentation)
+					task_insert_at(manager, drag_index_at + i + 1, t)
+				}
+
+				task_tail = drag_index_at + 1
+				task_head = drag_index_at + len(drag_list)
+
+				element_repaint(mode_panel)
+			}
+		}
+
+		case .Right_Down: {
+			if task_head == -1 {
+				return 0
+			}
+
+			low, high := task_low_and_high()
+			selected := low <= task.visible_index && task.visible_index <= high
+
+			// on not task != selection just select this one
+			if !selected {
+				task_head = task.visible_index
+				task_tail = task.visible_index
+				low, high = task_low_and_high()
+			}
+
+			clear(&drag_list)
+			manager := mode_panel_manager_scoped()
+			task_head_tail_push(manager)
+
+			// push removal tasks to array before
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+				append(&drag_list, task)
+			}
+
+			task_head_tail_push(manager)
+			task_remove_selection(manager, false)
+
+			if low != high {
+				task_head = low
+				task_tail = low
+			}
+
+			{
+				b := &drag_label.builder
+				strings.builder_reset(b)
+				fmt.sbprintf(b, "%dx", len(drag_list))
+
+				dragging = true
+				drag_index_at = -1
+				element_hide(drag_panel, false)
+				element_animation_start(drag_panel)
+			}
 		}
 
 		case .Value_Changed: {

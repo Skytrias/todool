@@ -222,9 +222,10 @@ window_init :: proc(
 	panel := panel_init(&res.element, { .Panel_Floaty, .Panel_Default_Background })
 	panel.float_x = 0
 	panel.float_y = 0
-	panel.float_width = 200
-	panel.float_height = 40
+	panel.float_width = 200 * SCALE
+	panel.float_height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 	panel.shadow = true
+	panel.rounded = true
 	panel.z_index = 255
 	label_init(panel, { .CF, .Label_Center })
 	res.hovered_panel = panel

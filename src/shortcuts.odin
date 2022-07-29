@@ -9,24 +9,17 @@ import "../cutf8"
 // 	value: ^int,
 // }
 
-// Undo_Item_Int_Set :: struct {
-// 	value: ^int,
-// 	to: int,
-// }
+Undo_Item_Int_Set :: struct {
+	value: ^int,
+	to: int,
+}
 
-// undo_int_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
-// 	data := cast(^Undo_Item_Int_Increase) item
-// 	output := Undo_Item_Int_Set { data.value, data.value^ }
-// 	data.value^ += 1
-// 	undo_push(manager, undo_int_set, &output, size_of(Undo_Item_Int_Set))
-// }
-
-// undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr) {
-// 	data := cast(^Undo_Item_Int_Set) item
-// 	data.value^ = data.to
-// 	output := Undo_Item_Int_Increase { data.value }
-// 	undo_push(manager, undo_int_increase, &output, size_of(Undo_Item_Int_Increase))
-// }
+undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Int_Set) item
+	output := Undo_Item_Int_Set { data.value, data.value^ }
+	data.value^ = data.to
+	undo_push(manager, undo_int_set, &output, size_of(Undo_Item_Int_Set))
+}
 
 Undo_Item_Dirty_Increase :: struct {}
 
@@ -286,6 +279,20 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	}
 }
 
+// copy selected tasks
+copy_selection :: proc() {
+	if task_head != -1 {
+		copy_reset()
+		low, high := task_low_and_high()
+
+		// copy each line
+		for i in low..<high + 1 {
+			task := tasks_visible[i]
+			copy_push(task)
+		}
+	}
+}
+
 shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 	handled = true
 
@@ -317,8 +324,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 				return
 			}
 
-			task_head -= 1
-			task_tail_check()
+			if task_head_tail_check_begin() {
+				task_head -= 1
+			}
+			task_head_tail_check_end()
 			bookmark_index = -1
 			task := tasks_visible[max(task_head, 0)]
 			element_repaint(mode_panel)
@@ -330,8 +339,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 				return 
 			}
 
-			task_head += 1
-			task_tail_check()
+			if task_head_tail_check_begin() {
+				task_head += 1
+			}
+			task_head_tail_check_end()
 			bookmark_index = -1
 
 			task := tasks_visible[min(task_head, len(tasks_visible) - 1)]
@@ -348,8 +359,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 					task := cast(^Task) mode_panel.children[i]
 
 					if task.indentation == 0 && task.visible {
-						task_head = task.visible_index
-						task_tail_check()
+						if task_head_tail_check_begin() {
+							task_head = task.visible_index
+						}
+						task_head_tail_check_end()
 						element_message(task.box, .Box_Set_Caret, BOX_END)
 						element_repaint(task)
 						break
@@ -367,8 +380,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 					task := cast(^Task) mode_panel.children[i]
 
 					if task.indentation == 0 && task.visible {
-						task_head = task.visible_index
-						task_tail_check()
+						if task_head_tail_check_begin() {
+							task_head = task.visible_index
+						}
+						task_head_tail_check_end()
 						element_repaint(task)
 						element_message(task.box, .Box_Set_Caret, BOX_END)
 						break
@@ -389,8 +404,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 				task := tasks_visible[i]
 				
 				if task.indentation == task_current.indentation {
-					task_head = i
-					task_tail_check()
+					if task_head_tail_check_begin() {
+						task_head = i
+					}
+					task_head_tail_check_end()
 					element_repaint(mode_panel)
 					element_message(task.box, .Box_Set_Caret, BOX_END)
 					break
@@ -410,8 +427,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 				task := tasks_visible[i]
 				
 				if task.indentation == task_current.indentation {
-					task_head = i
-					task_tail_check()
+					if task_head_tail_check_begin() {
+						task_head = i
+					}
+					task_head_tail_check_end()
 					element_repaint(mode_panel)
 					element_message(task.box, .Box_Set_Caret, BOX_END)
 					break
@@ -431,8 +450,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 				task := tasks_visible[i]
 				
 				if task.indentation < task_current.indentation {
-					task_head = i
-					task_tail_check()
+					if task_head_tail_check_begin() {
+						task_head = i
+					}
+					task_head_tail_check_end()
 					element_repaint(mode_panel)
 					element_message(task.box, .Box_Set_Caret, BOX_END)
 					break
@@ -450,6 +471,18 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 				task_tail = task.visible_index
 				element_repaint(mode_panel)
 			}
+		}
+
+		case "ctrl+d", "ctrl+shift+k": {
+			if task_head == -1 {
+				return
+			}
+
+			manager := mode_panel_manager_scoped()
+			task_head_tail_push(manager)
+			task_remove_selection(manager, true)
+
+			element_repaint(mode_panel)
 		}
 
 		case: {
@@ -629,7 +662,7 @@ add_shortcuts :: proc(window: ^Window) {
 
 		task_push_undoable(manager, indentation, "", goal)
 		task_head += 1
-		task_tail_check()
+		task_head_tail_check_end()
 		element_repaint(mode_panel)
 
 		return true
@@ -658,22 +691,9 @@ add_shortcuts :: proc(window: ^Window) {
 
 		task_push_undoable(manager, indentation, "", goal)
 		task_head += 1
-		task_tail_check()
+		task_head_tail_check_end()
 		element_repaint(mode_panel)
 
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+d", proc() -> bool {
-		if task_head == -1 {
-			return true
-		}
-
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-		task_remove_selection(manager, true)
-
-		element_repaint(mode_panel)
 		return true
 	})
 
@@ -891,20 +911,23 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "ctrl+c", proc() -> bool {
-		if task_head != -1 {
-			copy_reset()
-			low, high := task_low_and_high()
+		copy_selection()
+		return true
+	})
 
-			// copy each line
-			for i in low..<high + 1 {
-				task := tasks_visible[i]
-				copy_push(task)
-			}
-
-			// log.info("copied", len(copy_text_data.buf), len(copy_task_data))
+	window_add_shortcut(window, "ctrl+x", proc() -> bool {
+		if task_head == -1 {
+			return false
 		}
 
-		return true
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+
+		copy_selection()
+		task_remove_selection(manager, true)
+		element_repaint(mode_panel)
+
+		return true	
 	})
 
 	window_add_shortcut(window, "ctrl+v", proc() -> bool {
@@ -923,17 +946,21 @@ add_shortcuts :: proc(window: ^Window) {
 			task_head += len(copy_task_data)
 			task_tail = task_head
 		} else {
-			// low := min(task_head, task_tail)
-			// task := tasks_visible[low]
-			// index := task.index + 1
-			// indentation := task.indentation
+			indentation := 255
+	
+			// get lowest indentation of removal selection
+			{
+				low, high := task_low_and_high()
+				for i in low..<high + 1 {
+					task := tasks_visible[i]
+					indentation = min(indentation, task.indentation)
+				}
+			}
 
-			task_remove_selection(manager, false)
+			task_remove_selection(manager, true)
 
 			task := tasks_visible[task_head]
 			index := task.index + 1
-			indentation := task.indentation
-			// log.info("task.")
 			copy_paste_at(manager, index, indentation)
 			
 			task_head += len(copy_task_data)
