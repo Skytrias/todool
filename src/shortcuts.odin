@@ -4,10 +4,7 @@ import "core:strings"
 import "core:log"
 import "core:mem"
 import "../cutf8"
-
-// Undo_Item_Int_Increase :: struct {
-// 	value: ^int,
-// }
+import "../nfd"
 
 Undo_Item_Int_Set :: struct {
 	value: ^int,
@@ -813,16 +810,23 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "ctrl+o", proc() -> bool {
-		// {
-		// 	manager := mode_panel_manager_scoped()
-		// 	item := Undo_Item_Task_Clear {}
-		// 	undo_task_clear(manager, &item)
-		// }
-
 		err := editor_load("save.bin")
+
 		if err != .None {
 			log.info("LOAD: FAILED =", err)
 		}
+
+		// out_path: cstring
+		// res := nfd.OpenDialog("", "", &out_path)
+		// log.info(res, out_path)
+
+		// if res == .OKAY {
+		// 	err := editor_load("save.bin")
+
+		// 	if err != .None {
+		// 		log.info("LOAD: FAILED =", err)
+		// 	}
+		// }
 
 		element_repaint(mode_panel)
 		return true

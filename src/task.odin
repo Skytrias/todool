@@ -15,6 +15,7 @@ import "../fontstash"
 
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
+window_main: ^Window
 
 // goto state
 panel_goto: ^Panel

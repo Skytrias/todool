@@ -47,6 +47,7 @@ import "../fontstash"
 // TODAY
 // nice copy & paste
 // theme editor copy & paste
+// mouse dragging tasks
 
 // REST
 // SHOCO string compression option
@@ -56,11 +57,24 @@ import "../fontstash"
 // save leaving prompt
 // progress bar on kanban?
 // camera
-// mouse dragging
 // text box copy & paste
 
 // IDEAS
 // change alpha of lesser indentations
+
+// import "../nfd"
+
+// main :: proc() {
+// 	fmt.eprintln("start")
+// 	defer fmt.eprintln("end")
+
+// 	out_path: cstring = "*.c"
+// 	// res := nfd.OpenDialog("", "", &out_path)
+// 	// fmt.eprintln(res, out_path)
+
+// 	res := nfd.SaveDialog("", "", &out_path)
+// 	fmt.eprintln(res, out_path)
+// }
 
 main :: proc() {
 	gs_init()
@@ -70,6 +84,7 @@ main :: proc() {
 	defer task_data_destroy()
 
 	window := window_init("Todool", 900, 900)
+	window_main = window
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element
 
@@ -106,6 +121,38 @@ main :: proc() {
 					}
 					return res
 				}
+			}
+
+			case .Window_Close: {
+				if dirty != dirty_saved {
+					res := dialog_spawn(
+						window, 
+						"Leave without saving progress?",
+						"%bSave",
+						"%bCancel",
+						"%bClose Without Saving",
+					)
+					
+					switch res {
+						case "Save": {
+							log.info("saved")
+							editor_save("save.bin")
+						}
+
+						case "Cancel": {
+							log.info("canceled")
+							return 1
+						}
+
+						case "Close Without Saving": {
+							log.info("close without saving")
+						}
+					}
+
+					// log.info("res", res)
+				}
+
+				log.info("close window", dirty != dirty_saved)
 			}
 		}
 

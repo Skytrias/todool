@@ -439,6 +439,9 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 window_hovered_check :: proc(window: ^Window) -> bool {
 	// same hovered, do diff check
 	e := window.hovered
+	if e == nil {
+		return false
+	}
 
 	if (.Hide in window.hovered_panel.flags) {
 		if e.hover_info != "" && window.pressed_last != e {
@@ -952,11 +955,12 @@ dialog_spawn :: proc(
 	}
 
 	window.dialog = element_init(Element, &window.element, {}, dialog_message)
-	panel := panel_init(window.dialog, { .CF })
-	panel.color = { 255, 210, 210, 255 }
+	panel := panel_init(window.dialog, { .CF, .Panel_Default_Background })
+	panel.background_index = 2
 	panel.margin = 10
 	panel.gap = 5
 	panel.shadow = true
+	panel.rounded = true
 	window.dialog.z_index = 255
 
 	dialog_output: string
@@ -1003,7 +1007,11 @@ dialog_spawn :: proc(
 	old_focus := window.focused
 	assert(focus_next != nil)
 	element_focus(focus_next)
-	defer element_focus(old_focus)
+	defer {
+		if old_focus != nil {
+			element_focus(old_focus)
+		}
+	}
 
 	for element in window.element.children {
 		if element != window.dialog {

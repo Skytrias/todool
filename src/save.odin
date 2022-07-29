@@ -237,7 +237,7 @@ editor_load :: proc(file_name: string) -> (err: io.Error) {
 	if mem.compare(start, bytes_file_signature[:]) != 0 {
 		log.error("LOAD: Start signature invalid")
 		return
-	}
+	} 
 
 	// NOTE TEMP
 	clear(&mode_panel.children)
