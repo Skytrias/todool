@@ -11,7 +11,7 @@ import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "../fontstash"
 
-SCALE := f32(1)
+SCALE := f32(1.5)
 LINE_WIDTH := f32(int(2.0 * SCALE))
 ROUNDNESS := f32(int(5.0 * SCALE))
 
@@ -400,6 +400,66 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				handled := window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
 				res = handled
 
+				if !handled && !window.ctrl && !window.alt {
+					combo := (cast(^string) dp)^
+					match := combo == "tab" || combo == "shift+tab"
+
+					if match {
+						start := window.focused != nil ? window.focused : &window.element
+						element := start
+						// check :: proc(element, start: ^Element) -> bool {
+
+						// }
+
+						next_search: for {
+							// set to first child?
+							if len(element.children) != 0 && (.Hide not_in element.flags) {
+								if window.shift {
+									element = element.children[len(element.children) - 1]
+								} else {
+									element = element.children[0]
+								}
+
+								log.info("set first child")
+								continue
+							}
+
+							// set sibling
+							for element != nil {
+								sibling := element_next_or_previous_sibling(element, window.shift)
+
+								if sibling != nil {
+									element = sibling
+									log.info("found sibling")
+									break
+								}
+
+								element = element.parent
+							}
+
+							// set to window element
+							if element == nil {
+								log.info("element was nil, set to window")
+								element = &window.element
+							}
+
+							if 
+								element != start && (
+									(.Tab_Stop in element.flags) &&
+									(.Hide not_in element.flags)
+								) {
+								break
+							}
+						}
+
+						// log.info("try", element)
+						element_focus(element)
+						element_repaint(element)
+						res = true
+					}
+
+				}
+
 				// NOTE could add tab movement on "tab" or "shift tab"
 			}
 
@@ -434,6 +494,26 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 	}
 
 	return
+}
+
+element_next_or_previous_sibling :: proc(element: ^Element, shift: bool) -> ^Element {
+	if element.parent == nil {
+		return nil
+	}
+
+	children := element.parent.children
+	for e, i in children {
+		if e == element {
+			// shift moves backwards
+			if shift {
+				return i > 0 ? children[i - 1] : nil
+			} else {
+				return i < len(children) - 1 ? children[i + 1] : nil
+			}
+		}
+	}
+
+	unimplemented("ELEMENT_NEXT_OR_PREVIOUS_SIBLING FAILED")
 }
 
 window_hovered_check :: proc(window: ^Window) -> bool {
@@ -983,7 +1063,7 @@ dialog_spawn :: proc(
 				b.data = &dialog_output
 
 				if focus_next == nil {
-					incl(&b.flags, Element_Flag.Button_Can_Focus)
+					// incl(&b.flags, Element_Flag.Button_Can_Focus)
 					focus_next = b
 				}
 			

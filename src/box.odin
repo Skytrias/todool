@@ -416,6 +416,12 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			render_rect_outline(target, old_bounds, color)
 
+			if element.window.focused == element {
+				// log.info("rendering outline")
+				render_rect_outline(target, old_bounds, RED)
+			}
+
+
 			// draw each wrapped line
 			y: f32
 			for wrap_line, i in box.wrapped_lines {
@@ -510,6 +516,8 @@ text_box_init :: proc(
 	text := "",
 	index_at := -1,
 ) -> (res: ^Text_Box) {
+	flags := flags
+	flags |= { .Tab_Stop }
 	res = element_init(Text_Box, parent, flags, text_box_message, index_at)
 	res.builder = strings.builder_make(0, 32)
 	strings.write_string(&res.builder, text)
@@ -987,7 +995,7 @@ box_render_caret :: proc(
 	caret_rect := rect_wh(
 		x + low_width,
 		y + f32(wanted_line) * scaled_size,
-		2,
+		math.round(2 * SCALE),
 		scaled_size,
 	)
 

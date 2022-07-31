@@ -491,7 +491,7 @@ task_push :: proc(
 	if index_at == -1 || index_at == len(parent.children) {
 		append(&parent.children, res)
 	} else {
-		insert_at(&parent.children, index_at, res)
+		inject_at(&parent.children, index_at, res)
 	}	
 
 	return

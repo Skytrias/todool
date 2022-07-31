@@ -118,9 +118,15 @@ Element_Flag :: enum {
 	CB, // Cut Bottom
 	CF, // Cut fill can be additional to fill region or panel
 
+	VF, // Vertical Fill
+	HF, // Horizontal Fill
+	HP, // Horizontal Panel
+
+	Panel_Tab_Movement,
+	Tab_Stop,
+
 	// element specific flags
 	Label_Center,
-	Button_Can_Focus,
 	Box_Can_Focus,
 
 	Panel_Panable,
@@ -318,7 +324,7 @@ element_init :: proc(
 		if index_at == -1 || index_at == len(parent.children) {
 			append(&parent.children, element)
 		} else {
-			insert_at(&parent.children, index_at, element)
+			inject_at(&parent.children, index_at, element)
 		}
 	} 
 
@@ -557,6 +563,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
 
 			if element.window.focused == element {
+				// log.info("rendering outline")
 				render_rect_outline(target, element.bounds, RED)
 			}
 		}
@@ -600,13 +607,13 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Key_Combination: {
-			if .Button_Can_Focus in element.flags {
-				combo := (cast(^string) dp)^
+			// if .Button_Can_Focus in element.flags {
+			// 	combo := (cast(^string) dp)^
 				
-				if combo == "space" || combo == "return" {
-					element_message(element, .Clicked)
-				}
-			}
+			// 	if combo == "space" || combo == "return" {
+			// 		element_message(element, .Clicked)
+			// 	}
+			// }
 		}
 	}
 
@@ -614,6 +621,8 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 }
 
 button_init :: proc(parent: ^Element, flags: Element_Flags, text: string) -> (res: ^Button) {
+	flags := flags
+	flags |= { .Tab_Stop }
 	res = element_init(Button, parent, flags, button_message)
 	res.builder = strings.builder_make(0, 32)
 	res.data = res
@@ -695,13 +704,13 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Key_Combination: {
-			if .Button_Can_Focus in element.flags {
-				combo := (cast(^string) dp)^
+			// if .Button_Can_Focus in element.flags {
+			// 	combo := (cast(^string) dp)^
 				
-				if combo == "space" || combo == "return" {
-					element_message(element, .Clicked)
-				}
-			}
+			// 	if combo == "space" || combo == "return" {
+			// 		element_message(element, .Clicked)
+			// 	}
+			// }
 		}
 	}
 
@@ -709,6 +718,9 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 }
 
 icon_button_init :: proc(parent: ^Element, flags: Element_Flags, icon: Icon) -> (res: ^Icon_Button) {
+	flags := flags
+	flags |= { .Tab_Stop }
+	log.info("FLAGS", flags)
 	res = element_init(Icon_Button, parent, flags, icon_button_message)
 	res.icon = icon
 	res.data = res
@@ -825,7 +837,7 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + 10)
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Reformat: {
@@ -1114,6 +1126,49 @@ Panel :: struct {
 	scrollbar: ^Scrollbar,
 	background_index: int,
 }
+
+panel_calculate_per_fill :: proc(panel: ^Panel, _count: ^int, hspace, vspace: int, scale: f32) -> int {
+	horizontal := .HP in panel.flags 
+	available := horizontal ? hspace : vspace;
+	count, fill, per_fill: int
+
+	for child in panel.children {
+		if .Hide in child.flags {
+			continue;
+		}
+
+		count += 1
+
+		if horizontal {
+			if .HF in child.flags {
+				fill += 1
+			} else if available > 0 {
+				available -= element_message(child, .Get_Width, vspace)
+			}
+		} else {
+			if .VF in child.flags {
+				fill += 1
+			} else if available > 0 {
+				available -= element_message(child, .Get_Height, hspace)
+			}
+		}
+	}
+
+	if count != 0 {
+		available -= (count - 1) * int(panel.gap * scale)
+	}
+
+	if available > 0 && fill != 0 {
+		per_fill = available / fill
+	}
+
+	if _count != nil {
+		_count^ = count
+	}
+
+	return per_fill
+}
+
 
 // layout your panel, output the expected w / h
 // effected by cut directions

@@ -58,6 +58,7 @@ import "../fontstash"
 // progress bar on kanban?
 // camera
 // text box copy & paste
+// Tab based movement & left / right in dialog panel
 
 // IDEAS
 // change alpha of lesser indentations
@@ -97,15 +98,16 @@ main :: proc() {
 					return 0
 				}
 
-				if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
-					box := tasks_visible[task_head].box
+				// // if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
+				// // 	box := tasks_visible[task_head].box
 					
-					if element_message(box, msg, di, dp) == 1 {
-						return 1
-					}
-				}
+				// // 	if element_message(box, msg, di, dp) == 1 {
+				// // 		return 1
+				// // 	}
+				// // }
 
-				return int(shortcuts_run_multi(combo))
+				// return int(shortcuts_run_multi(combo))
+				return 0
 			}
 
 			case .Unicode_Insertion: {
@@ -205,7 +207,7 @@ main :: proc() {
 		old_task_tail = task_tail
 	}
 
-	add_shortcuts(window)
+	// add_shortcuts(window)
 	sidebar_init(window)
 	search_init(window)
 

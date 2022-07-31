@@ -211,7 +211,7 @@ undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 undo_task_insert_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Task_Insert_At) item
-	insert_at(&mode_panel.children, data.index, data.task)
+	inject_at(&mode_panel.children, data.index, data.task)
 
 	output := Undo_Item_Task_Remove_At { data.index }
 	undo_push(manager, undo_task_remove_at, &output, size_of(Undo_Item_Task_Remove_At))
