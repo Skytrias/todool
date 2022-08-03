@@ -492,10 +492,10 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 
 add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "escape", proc() -> bool {
-		if sb.mode != .None {
-			sidebar_mode_toggle(.None)
-			element_repaint(mode_panel)
-		}
+		// if sb.mode != .None {
+		// 	// sidebar_mode_toggle(.None)
+		// 	element_repaint(mode_panel)
+		// }
 
 		return true
 	})
@@ -628,6 +628,7 @@ add_shortcuts :: proc(window: ^Window) {
 	}
 
 	window_add_shortcut(window, "tab", proc() -> bool {
+		log.info("try")
 		return task_indentation_move(1)
 	})
 
@@ -860,7 +861,7 @@ add_shortcuts :: proc(window: ^Window) {
 		goto_transition_animating = true
 		element_animation_start(p)
 
-		box := cast(^Text_Box) p.children[0]
+		box := cast(^Text_Box) p.panel.children[0]
 		element_focus(box)
 
 		goto_saved_task_head = task_head

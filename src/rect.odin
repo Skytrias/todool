@@ -164,3 +164,12 @@ rect_add :: proc(a, b: Rect) -> Rect {
 	a.b += b.b
 	return a
 }
+
+rect_translate :: proc(a, b: Rect) -> Rect {
+	a := a
+	a.l += b.l
+	a.t += b.t
+	a.r += b.l
+	a.b += b.t
+	return a
+}

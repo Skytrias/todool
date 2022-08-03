@@ -49,6 +49,10 @@ import "../fontstash"
 // theme editor copy & paste
 // mouse dragging tasks
 
+// SHOWCASE TODO 
+// search prompt
+// nfd showcase
+
 // REST
 // SHOCO string compression option
 // Changelog options?
@@ -98,16 +102,15 @@ main :: proc() {
 					return 0
 				}
 
-				// // if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
-				// // 	box := tasks_visible[task_head].box
+				if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
+					box := tasks_visible[task_head].box
 					
-				// // 	if element_message(box, msg, di, dp) == 1 {
-				// // 		return 1
-				// // 	}
-				// // }
+					if element_message(box, msg, di, dp) == 1 {
+						return 1
+					}
+				}
 
-				// return int(shortcuts_run_multi(combo))
-				return 0
+				return int(shortcuts_run_multi(combo))
 			}
 
 			case .Unicode_Insertion: {
@@ -127,31 +130,29 @@ main :: proc() {
 
 			case .Window_Close: {
 				if dirty != dirty_saved {
-					res := dialog_spawn(
-						window, 
-						"Leave without saving progress?",
-						"%bSave",
-						"%bCancel",
-						"%bClose Without Saving",
-					)
+					// res := dialog_spawn(
+					// 	window, 
+					// 	"Leave without saving progress?",
+					// 	"%bSave",
+					// 	"%bCancel",
+					// 	"%bClose Without Saving",
+					// )
 					
-					switch res {
-						case "Save": {
-							log.info("saved")
-							editor_save("save.bin")
-						}
+					// switch res {
+					// 	case "Save": {
+					// 		log.info("saved")
+					// 		editor_save("save.bin")
+					// 	}
 
-						case "Cancel": {
-							log.info("canceled")
-							return 1
-						}
+					// 	case "Cancel": {
+					// 		log.info("canceled")
+					// 		return 1
+					// 	}
 
-						case "Close Without Saving": {
-							log.info("close without saving")
-						}
-					}
-
-					// log.info("res", res)
+					// 	case "Close Without Saving": {
+					// 		log.info("close without saving")
+					// 	}
+					// }
 				}
 
 				log.info("close window", dirty != dirty_saved)
@@ -207,11 +208,12 @@ main :: proc() {
 		old_task_tail = task_tail
 	}
 
-	// add_shortcuts(window)
-	sidebar_init(window)
+	add_shortcuts(window)
+	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
+	split := sidebar_init(panel)
 	search_init(window)
 
-	mode_panel = mode_panel_init(&window.element, {})
+	mode_panel = mode_panel_init(split, {})
 	mode_panel.gap_vertical = 5
 	mode_panel.gap_horizontal = 10
 
@@ -224,7 +226,7 @@ main :: proc() {
 		// task_push(2, "four")
 		task_push(1, "four")
 		task_push(1, "five")
-		task_push(1, "six")
+		task_push(2, "six")
 		task_push(1, "long word to test out mouse selection")
 		task_push(0, "long  word to test out word wrapping on this word particular piece of text even longer to test out moreeeeeeeeeeeee")
 		task_push(0, "five")
@@ -237,32 +239,3 @@ main :: proc() {
 
 	gs_message_loop()
 }
-
-// table_test :: proc() {
-// 	window := window_init("table", 500, 500)
-// 	panel := panel_init(&window.element, { .CF })
-// 	panel.color = theme.background[0]
-// 	panel.margin = 10
-// 	panel.gap = 5
-
-// 	button_init(panel, { .CT, .CF }, "testing")
-// 	// button_init(panel, { .CF }, "testing")
-// 	table := table_init(panel, { .CF }, "ABC\tXYZ\tTEST")
-// 	table.column_count = 3
-// 	table.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-// 		table := cast(^Table) element
-
-// 		#partial switch msg {
-// 			case .Table_Get_Item: {
-// 				item := cast(^Table_Get_Item) dp
-// 				item.output = fmt.bprint(item.buffer, "test############")
-// 				// log.info(item.output)
-// 			}
-// 		}
-
-// 		return 0
-// 	}
-
-// 	table.item_count = 10
-// 	table_resize_columns(table)
-// }

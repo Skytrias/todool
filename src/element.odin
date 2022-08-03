@@ -18,6 +18,8 @@ SCROLLBAR_SIZE :: 15
 TEXT_MARGIN_VERTICAL :: 10
 TEXT_MARGIN_HORIZONTAL :: 10
 DEFAULT_FONT_SIZE :: 20
+DEFAULT_ICON_SIZE :: 18
+SPLITTER_SIZE :: 4
 
 Color :: [4]u8
 RED :: Color { 255, 0, 0, 255 }
@@ -26,13 +28,6 @@ BLUE :: Color { 0, 0, 255, 255 }
 BLACK :: Color { 0, 0, 0, 255 }
 WHITE :: Color { 255, 255, 255, 255 }
 TRANSPARENT :: Color { }
-
-Style :: struct {
-	icon_size: f32,
-}
-style := Style {
-	icon_size = 18,
-}
 
 Message :: enum {
 	Invalid,
@@ -111,30 +106,24 @@ Element_Flag :: enum {
 	Disabled, // cant receive any input messages
 	Layout_Ignore, // non client elements
 
-	// cut direction
-	CL, // Cut Left
-	CR, // Cut Right
-	CT, // Cut Top
-	CB, // Cut Bottom
-	CF, // Cut fill can be additional to fill region or panel
-
 	VF, // Vertical Fill
 	HF, // Horizontal Fill
-	HP, // Horizontal Panel
 
-	Panel_Tab_Movement,
-	Tab_Stop,
+	Panel_Expand,
+	Tab_Movement_Allowed, // wether or not movement is allowed for the parent  
+	Tab_Stop, // wether the element acts as a tab stop
 
 	// element specific flags
 	Label_Center,
 	Box_Can_Focus,
 
+	Panel_Horizontal,
 	Panel_Panable,
 	Panel_Scrollable,
-	Panel_Floaty,
-	Panel_Floaty_Center_X,
-	Panel_Floaty_Center_Y,
 	Panel_Default_Background,
+
+	Split_Pane_Vertical,
+	Split_Pane_Hidable,
 
 	Scrollbar_Horizontal,
 }
@@ -160,40 +149,15 @@ Element :: struct {
 	data: rawptr,
 }
 
-// TODO optimize this
-cut_flag_from_flags :: proc(flags: Element_Flags) -> (res: Element_Flag) {
-	if .CL in flags {
-		res = .CL
-	} else if .CR in flags {
-		res = .CR
-	} else if .CT in flags {
-		res = .CT
-	} else if .CB in flags {
-		res = .CB
-	} else if .CF in flags {
-		res = .CF
-	} 
-
-	return
-}
-
-// TODO optimize this
-rect_cut_from_flag :: proc(flag: Element_Flag, rect: ^Rect, w, h: f32) -> (res: Rect) {
-	#partial switch flag {
-		case .CL: res = rect_cut_left_hard(rect, w)
-		case .CR: res = rect_cut_right_hard(rect, w)
-		case .CT: res = rect_cut_top_hard(rect, h)
-		case .CB: res = rect_cut_bottom_hard(rect, h)
-		case .CF: {
-			res = rect^
-			rect^ = {}
-		}
-		case: {
-			log.panic("no right cut flag inserted!", flag)
+// default way to call clicked event on tab stop element
+key_combination_check_click :: proc(element: ^Element, dp: rawptr) {
+	combo := (cast(^string) dp)^
+	
+	if element.window.focused == element {
+		if combo == "space" || combo == "return" {
+			element_message(element, .Clicked)
 		}
 	}
-
-	return
 }
 
 // toggle hide flag
@@ -344,29 +308,39 @@ element_repaint :: #force_inline proc(element: ^Element) {
 	element.window.update_next = true
 }
 
+// custom call that can be used to iterate as wanted through children and output result
+element_find_by_point_custom :: proc(element: ^Element, p: ^Find_By_Point) -> int {
+	for i := len(element.children) - 1; i >= 0; i -= 1 {
+		child := element.children[i]
+
+		if (.Hide not_in child.flags) && rect_contains(child.bounds, p.x, p.y) {
+			p.res = child
+			return 1
+		}
+	}
+
+	return 0
+}
+
 // find first element by point
 element_find_by_point :: proc(element: ^Element, x, y: f32) -> ^Element {
 	p := Find_By_Point { x, y, nil }
 
-	// stop disabled from interacting
-	if (.Disabled in element.flags) {
-		return nil
-	}
+	// // stop disabled from interacting
+	// if (.Disabled in element.flags) {
+	// 	return nil
+	// }
 
 	// allowing custom find by point calls
 	if element_message(element, .Find_By_Point_Recursive, 0, &p) == 1 {
 		return p.res != nil ? p.res : element
 	}
 
-	// default children watching
-	// NOTE reverse order
 	for i := len(element.children) - 1; i >= 0; i -= 1 {
 		child := element.children[i]
 
-		if (.Hide not_in child.flags) && rect_contains(child.clip, x, y) {
-			if res := element_find_by_point(child, x, y); res != nil {
-				return res
-			}
+		if (.Hide not_in child.flags) && rect_contains(child.clip, p.x, p.y) {
+			return element_find_by_point(child, x, y)
 		}
 	}
 
@@ -485,6 +459,15 @@ element_deallocate :: proc(element: ^Element) -> bool {
 	}
 }
 
+// reset focus to window
+element_reset_focus :: proc(window: ^Window) {
+	if window.focused != &window.element {
+		element_focus(&window.element)
+		element_repaint(&window.element)
+	}
+}
+
+// focus an element and update both elements
 element_focus :: proc(element: ^Element) -> bool {
 	prev := element.window.focused
 	
@@ -561,21 +544,6 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 			text := strings.to_string(button.builder)
 			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
-
-			if element.window.focused == element {
-				// log.info("rendering outline")
-				render_rect_outline(target, element.bounds, RED)
-			}
-		}
-
-		case .Custom_Clip: {
-			pressed := element.window.pressed == element
-			hovered := element.window.hovered == element
-
-			if pressed || hovered {
-				clip := cast(^Rect) dp
-				clip^ = rect_margin(clip^, -DROP_SHADOW)
-			}
 		}
 
 		case .Update: {
@@ -607,13 +575,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Key_Combination: {
-			// if .Button_Can_Focus in element.flags {
-			// 	combo := (cast(^string) dp)^
-				
-			// 	if combo == "space" || combo == "return" {
-			// 		element_message(element, .Clicked)
-			// 	}
-			// }
+			key_combination_check_click(element, dp)
 		}
 	}
 
@@ -621,9 +583,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 }
 
 button_init :: proc(parent: ^Element, flags: Element_Flags, text: string) -> (res: ^Button) {
-	flags := flags
-	flags |= { .Tab_Stop }
-	res = element_init(Button, parent, flags, button_message)
+	res = element_init(Button, parent, flags | { .Tab_Stop }, button_message)
 	res.builder = strings.builder_make(0, 32)
 	res.data = res
 	strings.write_string(&res.builder, text)
@@ -661,22 +621,8 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				render_rect_outline(target, element.bounds, text_color)
 			}
 
-			icon_size := style.icon_size * SCALE
+			icon_size := DEFAULT_ICON_SIZE * SCALE
 			render_icon_aligned(target, font_icon, button.icon, element.bounds, text_color, .Middle, .Middle, icon_size)
-
-			if element.window.focused == element {
-				render_rect_outline(target, element.bounds, RED)
-			}
-		}
-
-		case .Custom_Clip: {
-			pressed := element.window.pressed == element
-			hovered := element.window.hovered == element
-
-			if pressed || hovered {
-				clip := cast(^Rect) dp
-				clip^ = rect_margin(clip^, -DROP_SHADOW)
-			}
 		}
 
 		case .Update: {
@@ -694,7 +640,7 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Get_Width: {
-			icon_size := style.icon_size * SCALE
+			icon_size := DEFAULT_ICON_SIZE * SCALE
 			icon_width := fontstash.icon_width(font_icon, icon_size, button.icon) 
 			return int(icon_width + TEXT_MARGIN_HORIZONTAL * SCALE)
 		}
@@ -704,13 +650,7 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Key_Combination: {
-			// if .Button_Can_Focus in element.flags {
-			// 	combo := (cast(^string) dp)^
-				
-			// 	if combo == "space" || combo == "return" {
-			// 		element_message(element, .Clicked)
-			// 	}
-			// }
+			key_combination_check_click(element, dp)
 		}
 	}
 
@@ -718,10 +658,7 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 }
 
 icon_button_init :: proc(parent: ^Element, flags: Element_Flags, icon: Icon) -> (res: ^Icon_Button) {
-	flags := flags
-	flags |= { .Tab_Stop }
-	log.info("FLAGS", flags)
-	res = element_init(Icon_Button, parent, flags, icon_button_message)
+	res = element_init(Icon_Button, parent, flags | { .Tab_Stop }, icon_button_message)
 	res.icon = icon
 	res.data = res
 	return
@@ -812,16 +749,6 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 			text := strings.to_string(slider.builder)
 			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
-		}
-
-		case .Custom_Clip: {
-			pressed := element.window.pressed == element
-			hovered := element.window.hovered == element
-
-			if pressed || hovered {
-				clip := cast(^Rect) dp
-				clip^ = rect_margin(clip^, -DROP_SHADOW)
-			}
 		}
 
 		case .Get_Cursor: {
@@ -920,16 +847,6 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			return int(text_width + margin * 2 + rect_width(box_rect) + gap)
 		}
 
-		case .Custom_Clip: {
-			pressed := element.window.pressed == element
-			hovered := element.window.hovered == element
-
-			if pressed || hovered {
-				clip := cast(^Rect) dp
-				clip^ = rect_margin(clip^, -DROP_SHADOW)
-			}
-		}
-
 		case .Get_Height: {
 			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
@@ -994,6 +911,10 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			return int(handled)
 		}
+
+		case .Key_Combination: {
+			key_combination_check_click(element, dp)
+		}
 	}
 
 	return 0
@@ -1005,7 +926,7 @@ checkbox_init :: proc(
 	text: string,
 	state: bool,
 ) -> (res: ^Checkbox) {
-	res = element_init(Checkbox, parent, flags, checkbox_message)
+	res = element_init(Checkbox, parent, flags | { .Tab_Stop }, checkbox_message)
 	res.state = state
 	res.state_unit = f32(state ? 1 : 0)
 	res.builder = strings.builder_make(0, 32)
@@ -1101,7 +1022,6 @@ Panel :: struct {
 	using element: Element,
 	
 	// gut info
-	cut_amount: f32,
 	margin: f32,
 	color: Color,
 	gap: f32,
@@ -1127,10 +1047,10 @@ Panel :: struct {
 	background_index: int,
 }
 
-panel_calculate_per_fill :: proc(panel: ^Panel, _count: ^int, hspace, vspace: int, scale: f32) -> int {
-	horizontal := .HP in panel.flags 
+panel_calculate_per_fill :: proc(panel: ^Panel, hspace, vspace: int) -> (per_fill, count: int) {
+	horizontal := .Panel_Horizontal in panel.flags 
 	available := horizontal ? hspace : vspace;
-	count, fill, per_fill: int
+	fill: int
 
 	for child in panel.children {
 		if .Hide in child.flags {
@@ -1155,161 +1075,110 @@ panel_calculate_per_fill :: proc(panel: ^Panel, _count: ^int, hspace, vspace: in
 	}
 
 	if count != 0 {
-		available -= (count - 1) * int(panel.gap * scale)
+		available -= (count - 1) * int(panel.gap * SCALE)
 	}
 
 	if available > 0 && fill != 0 {
 		per_fill = available / fill
 	}
 
-	if _count != nil {
-		_count^ = count
-	}
-
-	return per_fill
+	return
 }
 
+panel_measure :: proc(panel: ^Panel, di: int) -> int {
+	horizontal := .Panel_Horizontal in panel.flags 
+	per_fill, _ := panel_calculate_per_fill(panel, horizontal ? di : 0, horizontal ? 0 : di)
+	size := 0
 
-// layout your panel, output the expected w / h
-// effected by cut directions
-panel_layout :: proc(panel: ^Panel, measure := false) -> (output_w, output_h: f32) {
-	scrollbar_size := SCROLLBAR_SIZE * SCALE
-
-	{
-		// check parent
-		cut_from: ^Rect
-		if panel.parent == &panel.window.element {
-			cut_from = &panel.window.modifiable_bounds
-		} else {
-			cut_from = &panel.parent.bounds
-		}
-	
-		// get element rect		
-		res: Rect
-		if .Panel_Floaty in panel.flags {
-			// get expected w + h
-			// w, h := panel_layout(panel, true)
-			x := panel.float_x
-			y := panel.float_y
-
-			if .Panel_Floaty_Center_X in panel.flags {
-				x += panel.window.widthf / 2 - panel.float_width * SCALE / 2
-				// y += style.floaty_margin * scale
-			}
-
-			if .Panel_Floaty_Center_Y in panel.flags {
-				y += panel.window.heightf / 2 - panel.float_height * SCALE / 2
-			}
-
-			res = rect_wh(x, y, panel.float_width * SCALE, panel.float_height * SCALE)
-		} else {
-			// cut bounds of panel
-			flag := cut_flag_from_flags(panel.flags)
-			amt := SCALE * panel.cut_amount
-			res = rect_cut_from_flag(flag, cut_from, amt, amt)
-		}
-
-		panel.clip = rect_intersection(panel.parent.clip, res)
-		panel.bounds = res
-	}
-
-	if .Panel_Panable in panel.flags {
-		panel.bounds.l += panel.offset_x
-		panel.bounds.t += panel.offset_y
-	}
-
-	// scaled padding
-	original := panel.bounds
-
-	// use scrollbar
-	if panel.scrollbar != nil {
-		panel.bounds.t -= math.round(panel.scrollbar.position)
-	}
-
-	// subtract bounds
-	if panel.scrollbar != nil {
-		panel.bounds.r -= scrollbar_size
-	}
-
-	panel.bounds = rect_margin(panel.bounds, panel.margin * SCALE)
-
-	// cut bound per element 
-	gap_size := SCALE * panel.gap
-	last_cut := Element_Flag.Invalid
-	for child in panel.children {
-		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
+	for child, i in panel.children {
+		if .Hide in child.flags {
 			continue
 		}
 
-		w := f32(element_message(child, .Get_Width, 1))
-		h := f32(element_message(child, .Get_Height, 1))
-		flag := cut_flag_from_flags(child.flags)
-
-		// apply gap
-		if last_cut != .Invalid && panel.gap != 0 {
-			// skip := 
-			// 	panel.last_cut == .CL && flag == .CR ||
-			// 	panel.last_cut == .CR && flag == .CL 
-			skip := false						
-
-			// disallow few scenarios
-			if !skip {
-				rect_cut_from_flag(last_cut, &panel.bounds, gap_size, gap_size)
-			}
-		}
-
-		res := rect_cut_from_flag(flag, &panel.bounds, w, h)
-		real_res := res
-		last_cut = flag
-
-		// if not fill apply normal size to other boundary
-		if .CF not_in child.flags {
-			if (.CL in child.flags) || (.CR in child.flags) {
-				real_res.t = real_res.t + rect_height(real_res) / 2 - h / 2
-				real_res.b = real_res.t + h
-				real_res = rect_intersection(res, real_res)
-				// log.info("try left / right")
-			}
-
-			if (.CT in child.flags) || (.CB in child.flags) {
-				real_res.l = real_res.l + rect_width(real_res) / 2 - w / 2
-				real_res.r = real_res.l + w
-				real_res = rect_intersection(res, real_res)
-				// log.info("try top / bottom")
-			}
-		}
-
-		// move child to location
-		if !measure {
-			element_move(child, real_res)
+		temp_size := Element_Flags { .HF, .VF } <= child.flags ? per_fill : 0
+		child_size := element_message(child, horizontal ? .Get_Height : .Get_Width, temp_size)
+		if child_size > size {
+			size = child_size
 		}
 	}
 
-	output_w = rect_width(original)
-	output_h = panel.bounds.t - original.t
-	panel.bounds = original
-	
-	// set props of scrollbar
-	if panel.scrollbar != nil {
-		output_h += math.round(panel.scrollbar.position)
+	return size + int(panel.margin * SCALE * 2)
+}
 
-		scroll_bounds := panel.bounds
-		scroll_bounds.l = scroll_bounds.r - scrollbar_size
-		panel.scrollbar.maximum = output_h // maximum size
-		// panel.scrollbar.maximum = int(rect_height(panel.bounds) + 100) // actual size
-		panel.scrollbar.page = rect_height(panel.bounds) // actual size
-		element_move(panel.scrollbar, scroll_bounds)
+panel_layout :: proc(panel: ^Panel, bounds: Rect, measure: bool) -> f32 {
+	horizontal := .Panel_Horizontal in panel.flags
+	scaled_margin := math.round(panel.margin * SCALE)
+	position := scaled_margin
+	// TODO THIS
+	// if panel.scrollbar != nil && !measure {
+	// 	position -= panel.scrollbar.position
+	// }
+	hspace := rect_width(bounds) - scaled_margin * 2
+	vspace := rect_height(bounds) - scaled_margin * 2
+	per_fill, count := panel_calculate_per_fill(panel, int(hspace), int(vspace))
+	expand := .Panel_Expand in panel.flags
+	// floaty := .Panel_Floaty in panel.flags
+
+	// // floaty
+	// if floaty {
+	// 	if horizontal {
+	// 		for child in panel.children {
+	// 			element_move()
+	// 		}
+
+	// 		return panel.float_width
+	// 	} else {
+
+	// 		return panel.float_height
+	// 	}
+	// }
+
+	for child, i in panel.children {
+		if .Hide in child.flags {
+			continue
+		}
+
+		if horizontal {
+			height := (.VF in child.flags) || expand ? vspace : f32(element_message(child, .Get_Height, (.HF in child.flags) ? per_fill : 0))
+			width := (.HF in child.flags) ? per_fill : element_message(child, .Get_Width, int(height))
+
+			relative := Rect {
+				position,
+				position + f32(width),
+				scaled_margin + (vspace - height) / 2,
+				scaled_margin + (vspace + height) / 2,
+			}
+
+			if !measure {
+				element_move(child, rect_translate(relative, bounds))
+			}
+
+			position += f32(width) + panel.gap * SCALE
+		} else {
+			width := (.HF in child.flags) || expand ? hspace : f32(element_message(child, .Get_Width, (.VF in child.flags) ? per_fill : 0))
+			height := (.VF in child.flags) ? per_fill : element_message(child, .Get_Height, int(width))
+
+			relative := Rect {
+				scaled_margin + (hspace - width) / 2,
+				scaled_margin + (hspace + width) / 2,
+				position,
+				position + f32(height),
+			}
+
+			if !measure {
+				element_move(child, rect_translate(relative, bounds))
+			}
+
+			position += f32(height) + panel.gap * SCALE
+		}
 	}
 
-	return
+	return position - (count != 0 ? panel.gap : 0) * SCALE + scaled_margin
 }
 
 panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Panel) element
 	panable := (.Panel_Panable in element.flags)
-	floaty := (.Panel_Floaty in element.flags)
-	// disallow both at the same time
-	// assert(!(scrollable && floaty))
 
 	#partial switch msg {
 		case .Custom_Clip: {
@@ -1321,7 +1190,9 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Layout: {
-			panel_layout(panel, false)
+			bounds := element.bounds
+			// // TODO modify for scrollbar
+			panel_layout(panel, bounds, false)
 		}
 
 		case .Update: {
@@ -1345,28 +1216,20 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				element_repaint(element)
 			}
 
-			if floaty && element.window.pressed_button == MOUSE_MIDDLE {
-				diff_x := element.window.cursor_x - mouse.x
-				diff_y := element.window.cursor_y - mouse.y
+			// if floaty && element.window.pressed_button == MOUSE_MIDDLE {
+			// 	diff_x := element.window.cursor_x - mouse.x
+			// 	diff_y := element.window.cursor_y - mouse.y
 
-				panel.float_x = panel.drag_x + diff_x
-				panel.float_y = panel.drag_y + diff_y
+			// 	panel.float_x = panel.drag_x + diff_x
+			// 	panel.float_y = panel.drag_y + diff_y
 
-				window_set_cursor(element.window, .Crosshair)
-				element_repaint(element)				
-			}
+			// 	window_set_cursor(element.window, .Crosshair)
+			// 	element_repaint(element)				
+			// }
 		}
 
-		case .Find_By_Point_Recursive: {
-			p := cast(^Find_By_Point) dp
-
-			// // ignore find by point when floaty or scrollable
-			// if (scrollable || floaty) && element.window.pressed_button == MOUSE_MIDDLE {
-			// 	p.res = element
-			// 	return 1
-			// }
-
-			return 0
+		case .Left_Down: {
+			element_reset_focus(element.window)
 		}
 
 		case .Middle_Down: {
@@ -1376,10 +1239,10 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				panel.drag_y = panel.offset_y
 			}
 
-			if floaty {
-				panel.drag_x = panel.float_x
-				panel.drag_y = panel.float_y
-			}
+			// if floaty {
+			// 	panel.drag_x = panel.float_x
+			// 	panel.drag_y = panel.float_y
+			// }
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -1408,21 +1271,21 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Get_Width: {
-			if di == LAYOUT_FULL {
-				return 0
+			if .Panel_Horizontal in element.flags {
+				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true))
+			} else {
+				return panel_measure(panel, di)
 			}
-
-			// TODO width? with layout
-			return int(rect_width(element.bounds))
 		}
 
 		case .Get_Height: {
-			if di == LAYOUT_FULL {
-				return 0
+			if .Panel_Horizontal in element.flags {
+				return panel_measure(panel, di)
+			} else {
+				// SCROLLBAR
+				width := f32(di)
+				return int(panel_layout(panel, { 0, width, 0, 0 }, true))
 			}
-
-			// TODO height? with layout
-			return int(rect_height(element.bounds))
 		}
 
 		case .Panel_Color: {
@@ -1441,12 +1304,15 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		case .Paint_Recursive: {
 			color: Color
 			element_message(element, .Panel_Color, 0, &color)
+			target := element.window.target
 
 			if color == {} {
+				when DEBUG_PANEL {
+					render_rect_outline(target, rect_margin(element.bounds, 0), BLUE)
+				}
 				return 0
 			}
 
-			target := element.window.target
 			bounds := element.bounds
 
 			if panable {
@@ -1459,6 +1325,10 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			} else {
 				render_rect(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
 			}
+
+			when DEBUG_PANEL {
+				render_rect_outline(target, rect_margin(element.bounds, 0), GREEN)
+			}
 		}
 	}
 
@@ -1468,13 +1338,11 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 panel_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
-	cut_amount: f32 = 0,
 	margin: f32 = 0,
 	gap: f32 = 0,
 	color: Color = TRANSPARENT,
 ) -> (res: ^Panel) {
 	res = element_init(Panel, parent, flags, panel_message)
-	res.cut_amount = cut_amount
 	res.margin = margin
 	res.color = color
 	res.gap = gap
@@ -1483,6 +1351,53 @@ panel_init :: proc(
 		res.scrollbar = scrollbar_init(res, { .Layout_Ignore })
 	}
 
+	return
+}
+
+//////////////////////////////////////////////
+// panel floaty
+//////////////////////////////////////////////
+
+Panel_Floaty :: struct {
+	using element: Element,
+	panel: ^Panel,
+
+	x, y: f32,
+	width, height: f32,
+}
+
+panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	floaty := cast(^Panel_Floaty) element
+	panel := floaty.panel
+
+	#partial switch msg {
+		case .Layout: {
+			rect := rect_wh(floaty.x, floaty.y, floaty.width, floaty.height)
+			element_move(panel, rect)
+		}
+
+		// case .Paint_Recursive: {
+		// 	target := element.window.target
+		// 	render_element_clipped(target, panel)
+		// 	return 1
+		// }
+	}
+
+	return 0
+}
+
+panel_floaty_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+) -> (res: ^Panel_Floaty) {
+	res	= element_init(Panel_Floaty, parent, flags, panel_floaty_message)
+	res.z_index = 255
+	
+	p := panel_init(res, { .Panel_Default_Background })
+	res.panel = p
+	p.margin = math.round(4 * SCALE)
+	// p.shadow = true
+	p.rounded = true
 	return
 }
 
@@ -2197,6 +2112,235 @@ toggle_selector_init :: proc(
 	res.names = names
 	res.cells = make([]Rect, count)
 	return 
+}
+
+//////////////////////////////////////////////
+// split pane
+//////////////////////////////////////////////
+
+// v / h split 2 panels with a controlable weight
+Split_Pane :: struct {
+	using element: Element,
+	pixel_based: bool,
+
+	weight: f32,
+	weight_origin: f32,
+	weight_lowest: f32,
+	weight_reset: f32,
+}
+
+split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	split := cast(^Split_Pane) element
+	vertical := .Split_Pane_Vertical in element.flags
+	hideable := .Split_Pane_Hidable in split.flags
+
+	#partial switch msg {
+		case .Layout: {
+			splitter := element.children[0]
+			left := element.children[1]
+			right := element.children[2]
+
+			// reset to hideable 
+			if hideable {
+				if .Hide in left.flags {
+					if split.weight != 0 {
+						split.weight_reset = split.weight
+						split.weight = 0
+					}
+				} else {
+					if split.weight == 0 {
+						split.weight = split.weight_reset
+					}
+				}
+			}
+
+			splitter_size := math.round(SPLITTER_SIZE * SCALE)
+			space := (vertical ? rect_height(element.bounds) : rect_width(element.bounds)) - splitter_size
+			left_size, right_size: f32
+			b := element.bounds
+			
+			if split.pixel_based {
+				// weight is the value to split at
+				left_size = split.weight
+				right_size = space - split.weight
+			} else {
+				// unit weight based
+				left_size = space * split.weight
+				right_size = space - left_size
+			}
+			
+			if vertical {
+				element_move(left, { b.l, b.r, b.t, b.t + left_size })
+				element_move(splitter, { b.l, b.r, b.t + left_size, b.t + left_size + splitter_size })
+				element_move(right, { b.l, b.r, b.b - right_size, b.b })
+			} else {
+				element_move(left, { b.l, b.l + left_size, b.t, b.b })
+				element_move(splitter, { b.l + left_size, b.l + left_size + splitter_size, b.t, b.b })
+				element_move(right, { b.r - right_size, b.r, b.t, b.b })
+			}
+		}
+	}
+
+	return 0 
+}
+
+splitter_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	split := cast(^Split_Pane) element.parent
+	vertical := .Split_Pane_Vertical in split.flags
+	hideable := .Split_Pane_Hidable in split.flags
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			render_rect(target, element.bounds, theme.text_default)
+		}
+
+		case .Get_Cursor: {
+			return int(vertical ? Cursor.Resize_Vertical : Cursor.Resize_Horizontal)
+		}
+
+		case .Left_Down: {
+			click_count := di
+
+			// double click reset to origin
+			if click_count != 0 {
+				if split.weight != split.weight_origin {
+					split.weight = split.weight_origin
+					element_repaint(split)
+				}
+			}
+		}
+
+		case .Mouse_Drag: {
+			cursor := vertical ? element.window.cursor_y : element.window.cursor_x
+			splitter_size := math.round(SPLITTER_SIZE * SCALE)
+			space := (vertical ? rect_height(split.bounds) : rect_width(split.bounds)) - splitter_size
+			old_weight := split.weight
+			
+			if split.pixel_based {
+				unit := (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l))
+				split.weight = unit
+			} else {
+				split.weight = (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l)) / space
+			}
+
+			if !hideable {
+				if split.weight < 0.05 {
+					split.weight = 0.05
+				}
+
+				if split.weight > 0.95 {
+					split.weight = 0.95
+				}
+			} else {
+				if split.weight_lowest != -1 {
+					left := split.children[1]
+
+					if split.weight > split.weight_lowest / 2 {
+						element_hide(left, false)
+					}
+					
+					// keep below half lowest, or hide away
+					if split.weight < split.weight_lowest {
+						if split.weight < split.weight_lowest / 2 {
+							split.weight = 0
+							element_hide(left, true)
+						} else {
+							split.weight = split.weight_lowest
+							// element_hide(left, true)
+						}
+					}
+				}
+			}
+
+			// TODO NESTING
+			// if (splitPane->e.children[2]->messageClass == _UISplitPaneMessage 
+			// 		&& (splitPane->e.children[2]->flags & UI_SPLIT_PANE_VERTICAL) == (splitPane->e.flags & UI_SPLIT_PANE_VERTICAL)) {
+			// 	UISplitPane *subSplitPane = (UISplitPane *) splitPane->e.children[2];
+			// 	subSplitPane->weight = (splitPane->weight - oldWeight - subSplitPane->weight + oldWeight * subSplitPane->weight) / (-1 + splitPane->weight);
+			// 	if (subSplitPane->weight < 0.05f) subSplitPane->weight = 0.05f;
+			// 	if (subSplitPane->weight > 0.95f) subSplitPane->weight = 0.95f;
+			// }
+
+			element_repaint(split)
+		}
+	}
+
+	return 0
+}
+
+split_pane_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	weight: f32,
+	weight_lowest: f32 = -1,
+) -> (res: ^Split_Pane) {
+	res = element_init(Split_Pane, parent, flags, split_pane_message)
+	res.weight = weight
+	res.weight_origin = weight
+	res.weight_lowest = weight
+	element_init(Element, res, {}, splitter_message)
+	return
+}
+
+//////////////////////////////////////////////
+// enum based panel
+//////////////////////////////////////////////
+
+// only renders a specific panel
+// NOTE: assumes mode == 0 is None state
+Enum_Panel :: struct {
+	using element: Element,
+	mode: ^int,
+	count: int,
+}
+
+// NOTE only layouts the chosen element
+enum_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	panel := cast(^Enum_Panel) element 
+	assert(panel.mode != nil)
+	assert(len(element.children) == panel.count)
+	chosen := element.children[panel.mode^]
+
+	#partial switch msg {
+		case .Layout: {
+			for child in element.children {
+				child.clip = {}
+			}
+
+			element_move(chosen, element.bounds)
+		}
+
+		case .Update: {
+			element_message(chosen, msg, di, dp)
+		}
+
+		case .Find_By_Point_Recursive: {
+			point := cast(^Find_By_Point) dp
+			element_find_by_point_custom(chosen, point)	
+			return 1
+		}
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			render_element_clipped(target, chosen)
+			return 1
+		}
+	}
+
+	return 0
+}
+
+enum_panel_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags,
+	mode: ^int,
+	count: int,
+) -> (res: ^Enum_Panel) {
+	res = element_init(Enum_Panel, parent, flags, enum_panel_message)
+	res.mode = mode
+	res.count = count
+	return
 }
 
 //////////////////////////////////////////////

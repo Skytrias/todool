@@ -18,7 +18,7 @@ mode_panel: ^Mode_Panel
 window_main: ^Window
 
 // goto state
-panel_goto: ^Panel
+panel_goto: ^Panel_Floaty
 goto_saved_task_head: int
 goto_saved_task_tail: int
 goto_transition_animating: bool
@@ -78,7 +78,7 @@ bookmark_index := -1
 bookmarks: [dynamic]int
 
 drag_init :: proc(window: ^Window) {
-	p := panel_init(&window.element, { .Panel_Floaty, .Panel_Default_Background })
+	p := panel_init(&window.element, { .Panel_Default_Background })
 	p.margin = 10
 	p.background_index = 2
 	p.float_x = 0
@@ -105,7 +105,7 @@ drag_init :: proc(window: ^Window) {
 		return 0
 	}
 	
-	drag_label = label_init(p, { .CT, .CF, .Label_Center }, "3x")
+	drag_label = label_init(p, { .Label_Center }, "3x")
 	drag_panel = p
 
 	element_hide(p, true)
@@ -776,7 +776,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 
 				if element_message(task, .Find_By_Point_Recursive, 0, dp) == 1 {
-					// return p.res != nil ? p.res : element
 					return 1
 				}
 			}
@@ -786,8 +785,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		// NOTE custom layout based on mode
 		case .Layout: {
-			element.bounds = element.window.modifiable_bounds
-			element.clip = element.bounds
+			// element.bounds = window_rect(window)
+			// element.clip = element.bounds
 			
 			bounds := element.bounds
 			bounds.l += drag.offset_x
@@ -995,6 +994,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			for child in element.children {
 				element_message(child, .Update, di, dp)
 			}
+		}
+
+		case .Left_Down: {
+			element_reset_focus(element.window)
 		}
 	}
 
@@ -1352,22 +1355,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
-
-			// NOTE we ignore the line intersection here
-			for i := len(element.children) - 1; i >= 0; i -= 1 {
-				child := element.children[i]
-
-				if child.bounds == {} {
-					continue
-				}
-
-				if (.Hide not_in child.flags) && rect_contains(child.bounds, p.x, p.y) {
-					p.res = child
-					return 1
-				}
-			}
-
-			return 0
+			element_find_by_point_custom(element, p)
 		}
 
 		case .Animate: {
@@ -1403,19 +1391,15 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 }
 
 goto_init :: proc(window: ^Window) {
-	panel_goto = panel_init(&window.element, { .Panel_Floaty, .Panel_Default_Background })
-	MARGIN :: 4
-	margin_scaled := MARGIN * SCALE
-	panel_goto.margin = margin_scaled
-	panel_goto.background_index = 2
-	panel_goto.z_index = 255
-	panel_goto.rounded = true
-	panel_goto.shadow = true
-	panel_goto.float_width = 200
-	panel_goto.float_height = DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
-	
-	panel_goto.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		panel := cast(^Panel) element
+	p := panel_floaty_init(&window.element, {})
+	panel_goto = p
+	p.panel.background_index = 2
+	p.width = 200
+	p.height = DEFAULT_FONT_SIZE * SCALE + p.panel.margin * 2
+	p.panel.flags |= { .Panel_Expand }
+
+	p.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		floaty := cast(^Panel_Floaty) element
 
 		#partial switch msg {
 			case .Animate: {
@@ -1428,19 +1412,19 @@ goto_init :: proc(window: ^Window) {
 				)
 
 				if !handled && goto_transition_hide {
-					element_hide(panel, true)
+					element_hide(floaty, true)
 				}
 
 				return int(handled)
 			}
 
 			case .Layout: {
-				panel.float_x = 
-					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - panel.float_width / 2
+				floaty.x = 
+					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - floaty.width / 2
 				
 				off := math.round(10 * SCALE)
-				panel.float_y = 
-					(mode_panel.bounds.t + off) + (goto_transition_unit * -(panel.float_height + off))
+				floaty.y = 
+					(mode_panel.bounds.t + off) + (goto_transition_unit * -(floaty.height + off))
 			}
 
 			case .Key_Combination: {
@@ -1452,7 +1436,7 @@ goto_init :: proc(window: ^Window) {
 						goto_transition_unit = 0
 						goto_transition_hide = true
 						goto_transition_animating = true
-						element_animation_start(panel)
+						element_animation_start(floaty)
 
 						// reset to origin 
 						task_head = goto_saved_task_head
@@ -1463,7 +1447,7 @@ goto_init :: proc(window: ^Window) {
 						goto_transition_unit = 0
 						goto_transition_hide = true
 						goto_transition_animating = true
-						element_animation_start(panel)
+						element_animation_start(floaty)
 					}
 
 					case: {
@@ -1478,7 +1462,7 @@ goto_init :: proc(window: ^Window) {
 		return 0
 	}
 
-	box := text_box_init(panel_goto, { .CT })
+	box := text_box_init(p.panel, {})
 	box.codepoint_numbers_only = true
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
@@ -1495,28 +1479,28 @@ goto_init :: proc(window: ^Window) {
 		return 0
 	}
 
-	element_hide(panel_goto, true)
+	element_hide(p, true)
 }
 
 search_init :: proc(window: ^Window) {
 	MARGIN :: 5
 	margin_scaled := math.round(MARGIN * SCALE)
 	height := DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
-	p := panel_init(&window.element, { .CB, .Panel_Default_Background }, height, margin_scaled, 5)
+	p := panel_init(&window.element, { .Panel_Default_Background }, margin_scaled, 5)
 	p.background_index = 2
 	p.shadow = true
 	p.z_index = 2
 
-	b1 := button_init(p, { .CR, .CF }, "Find Next")
+	b1 := button_init(p, {}, "Find Next")
 	b1.invoke = proc(data: rawptr) {
 		search_find_next()
 	}
-	b2 := button_init(p, { .CR, .CF }, "Find Prev")
+	b2 := button_init(p, {}, "Find Prev")
 	b2.invoke = proc(data: rawptr) {
 		search_find_prev()
 	}
 
-	box := text_box_init(p, { .CF })
+	box := text_box_init(p, {})
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
 

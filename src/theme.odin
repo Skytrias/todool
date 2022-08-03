@@ -168,15 +168,15 @@ theme_editor_spawn :: proc() {
 	}
 	theme_editor.window = window
 
-	panel := panel_init(&window.element, { .CF, .Panel_Scrollable, .Panel_Default_Background })
+	panel := panel_init(&window.element, {.Panel_Scrollable, .Panel_Default_Background })
 	panel.margin = 10
 	
-	label := label_init(panel, { .CT }, "Theme Editor")
+	label := label_init(panel, {}, "Theme Editor")
 	label.font_options = &font_options_header
 
 	SPACER_WIDTH :: 20
 	PANEL_HEIGHT :: 40
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
 	
 	Color_Pair :: struct {
 		color: ^Color,
@@ -184,7 +184,7 @@ theme_editor_spawn :: proc() {
 	}
 
 	color_slider :: proc(parent: ^Element, color_mod: ^Color, name: string) {
-		slider_panel := panel_init(parent, { .CT }, PANEL_HEIGHT * SCALE, 5, 5)
+		slider_panel := panel_init(parent, {}, PANEL_HEIGHT * SCALE, 5, 5)
 		slider_panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			panel := cast(^Panel) element
 			
@@ -202,11 +202,11 @@ theme_editor_spawn :: proc() {
 		slider_panel.data = color_mod
 		theme_editor.panel_list[theme_editor.panel_list_index] = slider_panel
 		theme_editor.panel_list_index += 1
-		label_init(slider_panel, { .CL }, name)
+		label_init(slider_panel, {}, name)
 
 		for i in 0..<4 {
 			value := &color_mod[3 - i]
-			s := slider_init(slider_panel, { .CR }, f32(value^) / 255)
+			s := slider_init(slider_panel, {}, f32(value^) / 255)
 			s.data = value
 			
 			s.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -248,21 +248,21 @@ theme_editor_spawn :: proc() {
 	color_slider(panel, &theme.background[1], "background 1")
 	color_slider(panel, &theme.background[2], "background 2")
 	color_slider(panel, &theme.shadow, "shadow")
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
 	color_slider(panel, &theme.text_default, "text default")
 	color_slider(panel, &theme.text_blank, "text blank")
 	color_slider(panel, &theme.text_good, "text good")
 	color_slider(panel, &theme.text_bad, "text bad")
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
 	color_slider(panel, &theme.caret, "caret")
 	color_slider(panel, &theme.caret_highlight, "caret highlight")
 	color_slider(panel, &theme.caret_selection, "caret selection")
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
 	color_slider(panel, &theme.panel_back, "panel back")
 	color_slider(panel, &theme.panel_front, "panel front")
 
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
-	picker := color_picker_init(panel, { .CT }, 0)
+	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
+	picker := color_picker_init(panel, {}, 0)
 	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		sv := cast(^Color_Picker_SV) element
 		hue := cast(^Color_Picker_HUE) element.parent.children[1]
@@ -284,14 +284,14 @@ theme_editor_spawn :: proc() {
 	panel.data = picker
 	window.element.data = picker
 
-	spacer_init(panel, { .CT, .CF }, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
 
 	{
-		button_panel := panel_init(panel, { .CT, .CF, .Panel_Default_Background }, PANEL_HEIGHT * SCALE, 5, 0)
+		button_panel := panel_init(panel, { .Panel_Default_Background }, PANEL_HEIGHT * SCALE, 5, 0)
 		button_panel.background_index = 1
 		button_panel.rounded = true
 
-		b1 := button_init(button_panel, { .CL, .CF }, "Randomize Simple")
+		b1 := button_init(button_panel, {}, "Randomize Simple")
 		b1.invoke = proc(data: rawptr) {
 			total_size := size_of(Theme) / size_of(Color)
 			
@@ -309,7 +309,7 @@ theme_editor_spawn :: proc() {
 			}
 			gs_update_all_windows()
 		}		
-		b2 := button_init(button_panel, { .CR, .CF }, "Randomize HSV")
+		b2 := button_init(button_panel, {}, "Randomize HSV")
 		b2.invoke = proc(data: rawptr) {
 			total_size := size_of(Theme) / size_of(Color)
 		
@@ -337,19 +337,19 @@ theme_editor_spawn :: proc() {
 			gs_update_all_windows()
 		}		
 
-		p1 := panel_init(panel, { .CT, .CF }, PANEL_HEIGHT * SCALE, 5, 0)
-		theme_editor.checkbox_hue = checkbox_init(p1, { .CL, .CF }, "Randomize Hue", true)
-		theme_editor.slider_hue = slider_init(p1, { .CR, .CF }, 0)
+		p1 := panel_init(panel, {}, PANEL_HEIGHT * SCALE, 5, 0)
+		theme_editor.checkbox_hue = checkbox_init(p1, {}, "Randomize Hue", true)
+		theme_editor.slider_hue = slider_init(p1, {}, 0)
 		theme_editor.slider_hue.format = "Hue: %f"
 		
-		p2 := panel_init(panel, { .CT, .CF }, PANEL_HEIGHT * SCALE, 5, 0)
-		theme_editor.checkbox_sat = checkbox_init(p2, { .CL, .CF }, "Randomize Saturation", false)
-		theme_editor.slider_sat = slider_init(p2, { .CR, .CF }, 1)
+		p2 := panel_init(panel, {}, PANEL_HEIGHT * SCALE, 5, 0)
+		theme_editor.checkbox_sat = checkbox_init(p2, {}, "Randomize Saturation", false)
+		theme_editor.slider_sat = slider_init(p2, {}, 1)
 		theme_editor.slider_sat.format = "Sat: %f"
 		
-		p3 := panel_init(panel, { .CT, .CF }, PANEL_HEIGHT * SCALE, 5, 0)
-		theme_editor.checkbox_value = checkbox_init(p3, { .CL, .CF }, "Randomize Value", false)
-		theme_editor.slider_value = slider_init(p3, { .CR, .CF }, 1)
+		p3 := panel_init(panel, {}, PANEL_HEIGHT * SCALE, 5, 0)
+		theme_editor.checkbox_value = checkbox_init(p3, {}, "Randomize Value", false)
+		theme_editor.slider_value = slider_init(p3, {}, 1)
 		theme_editor.slider_value.format = "Value: %f"
 	}
 }

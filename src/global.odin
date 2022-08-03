@@ -10,8 +10,9 @@ import "core:unicode/utf8"
 import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "../fontstash"
+import "../cutf8"
 
-SCALE := f32(1.5)
+SCALE := f32(1)
 LINE_WIDTH := f32(int(2.0 * SCALE))
 ROUNDNESS := f32(int(5.0 * SCALE))
 
@@ -40,11 +41,9 @@ MOUSE_LEFT :: 1
 MOUSE_MIDDLE :: 2
 MOUSE_RIGHT :: 3
 Mouse_Coordinates :: [2]f32
-LAYOUT_FULL :: 1
 
 Window :: struct {
 	element: Element,
-	modifiable_bounds: Rect,
 	
 	// interactable elements
 	hovered: ^Element,
@@ -161,13 +160,11 @@ window_init :: proc(
 
 		#partial switch msg {
 			case .Layout: {
-				// log.info("relayout all")
-				window.modifiable_bounds = window_rect(window)
-
 				for child in element.children {
-					if .Hide not_in child.flags {
-						element_message(child, .Layout, LAYOUT_FULL)
-					}
+					element_move(child, element.bounds)
+					// if window.dialog != nil {
+					// 	element_move(window.dialog, element.bounds)
+					// }
 				}
 			}
 
@@ -185,7 +182,7 @@ window_init :: proc(
 		return 0
 	}
 
-	res = cast(^Window) element_init(Window, nil, {}, _window_message)
+	res = cast(^Window) element_init(Window, nil, { .Tab_Movement_Allowed }, _window_message)
 	res.w = window
 	res.w_id = window_id
 	res.hovered = &res.element
@@ -218,18 +215,18 @@ window_init :: proc(
 
 	res.hover_timer = sdl.AddTimer(250, window_timer_callback, res)
 
-	// set hovered panel
-	panel := panel_init(&res.element, { .Panel_Floaty, .Panel_Default_Background })
-	panel.float_x = 0
-	panel.float_y = 0
-	panel.float_width = 200 * SCALE
-	panel.float_height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
-	panel.shadow = true
-	panel.rounded = true
-	panel.z_index = 255
-	label_init(panel, { .CF, .Label_Center })
-	res.hovered_panel = panel
-	element_hide(panel, true)
+	// // set hovered panel
+	// panel := panel_init(&res.element, { .Panel_Floaty, .Panel_Default_Background })
+	// panel.float_x = 0
+	// panel.float_y = 0
+	// panel.float_width = 200 * SCALE
+	// panel.float_height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+	// panel.shadow = true
+	// panel.rounded = true
+	// panel.z_index = 255
+	// label_init(panel, { .Label_Center })
+	// res.hovered_panel = panel
+	// element_hide(panel, true)
 
 	return
 }
@@ -365,6 +362,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 	} else {
 		// no element is currently pressed
 		// find the element we're hovering over
+		// p := Find_By_Point { window.cursor_x, window.cursor_y, nil }
 		hovered := element_find_by_point(&window.element, window.cursor_x, window.cursor_y)
 
 		#partial switch msg {
@@ -397,8 +395,9 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			}
 
 			case .Key_Combination: {
-				handled := window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
-				res = handled
+				handled := false
+
+				handled = window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
 
 				if !handled && !window.ctrl && !window.alt {
 					combo := (cast(^string) dp)^
@@ -407,20 +406,35 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 					if match {
 						start := window.focused != nil ? window.focused : &window.element
 						element := start
-						// check :: proc(element, start: ^Element) -> bool {
+						first := true
+						
+						cond :: proc(element, start: ^Element, first: ^bool) -> bool {
+							if first^ {
+								first^ = false
+								return true
+							}
 
-						// }
+							return element != start && (
+								(.Tab_Stop not_in element.flags) ||
+								(.Hide in element.flags)
+							)
+						}
 
-						next_search: for {
+						// simulate do while
+						next_search: for cond(element, start, &first) {
 							// set to first child?
-							if len(element.children) != 0 && (.Hide not_in element.flags) {
+							if 
+								(.Tab_Movement_Allowed in element.flags) &&
+								len(element.children) != 0 && 
+								(.Hide not_in element.flags) && 
+								element.clip != {} 
+							{
 								if window.shift {
 									element = element.children[len(element.children) - 1]
 								} else {
 									element = element.children[0]
 								}
 
-								log.info("set first child")
 								continue
 							}
 
@@ -430,7 +444,6 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 
 								if sibling != nil {
 									element = sibling
-									log.info("found sibling")
 									break
 								}
 
@@ -439,28 +452,21 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 
 							// set to window element
 							if element == nil {
-								log.info("element was nil, set to window")
 								element = &window.element
-							}
-
-							if 
-								element != start && (
-									(.Tab_Stop in element.flags) &&
-									(.Hide not_in element.flags)
-								) {
-								break
 							}
 						}
 
-						// log.info("try", element)
 						element_focus(element)
 						element_repaint(element)
-						res = true
+						handled = true
 					}
+				} 
 
-				}
-
-				// NOTE could add tab movement on "tab" or "shift tab"
+				// if !handled {
+				// 	handled = window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
+				// }
+				
+				res = handled
 			}
 
 			case .Unicode_Insertion: {
@@ -519,7 +525,7 @@ element_next_or_previous_sibling :: proc(element: ^Element, shift: bool) -> ^Ele
 window_hovered_check :: proc(window: ^Window) -> bool {
 	// same hovered, do diff check
 	e := window.hovered
-	if e == nil {
+	if e == nil || window.hovered_panel == nil {
 		return false
 	}
 
@@ -622,7 +628,6 @@ window_destroy :: proc(window: ^Window) {
 window_layout_update :: proc(window: ^Window) {
 	window.element.bounds = { 0, window.widthf, 0, window.heightf }
 	window.element.clip = window.element.bounds
-	window.modifiable_bounds = window.element.bounds
 	window.update_next = true
 }
 
@@ -979,7 +984,7 @@ gs_draw_and_cleanup :: proc() {
 			}
 
 			render_target_begin(window.target, theme.shadow)
-			element_message(&window.element, .Layout, LAYOUT_FULL)
+			element_message(&window.element, .Layout)
 			render_element_clipped(window.target, &window.element)
 			render_target_end(window.target, window.w, i32(window.width), i32(window.height))
 
@@ -1000,21 +1005,18 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			assert(len(element.children) != 0)
 			
 			// TODO poll max necessary width
-			width := 300 * SCALE
-			height := 100 * SCALE
-
-			// set dialog size
-			element.bounds = rect_wh(
-				w.widthf / 2 - width / 2, 
-				w.heightf / 2 - height / 2, 
-				width,
-				height,
-			)
-			element.clip = element.bounds
-			
-			// set panel bounds
-			panel := element.children[0]
-			element_message(panel, .Layout, di, dp)
+			panel := cast(^Panel) element.children[0]
+			width := f32(element_message(panel, .Get_Width, 0))
+			height := f32(element_message(panel, .Get_Height, int(width)))
+			cx := (element.bounds.l + element.bounds.r) / 2
+			cy := (element.bounds.t + element.bounds.b) / 2
+			bounds := Rect {
+				cx - (width + 1) / 2,
+				cx + width / 2, 
+				cy - (height + 1),
+				cy + height / 2,
+			}
+			element_move(panel, bounds)
 		}
 
 		case .Update: {
@@ -1026,67 +1028,115 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 	return 0
 }
 
+dialog_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button) element
+
+	if msg == .Clicked {
+		output := cast(^string) element.data
+		window := element.window
+		output^ = strings.clone(strings.to_string(button.builder), context.temp_allocator)
+		window.dialog_finished = true
+	}
+
+	return 0
+}
+
 dialog_spawn :: proc(
 	window: ^Window,
-	text_arguments: ..string,
+	format: string,
+	args: ..string,
 ) -> string {
 	if window.dialog != nil {
 		return ""
 	}
 
 	window.dialog = element_init(Element, &window.element, {}, dialog_message)
-	panel := panel_init(window.dialog, { .CF, .Panel_Default_Background })
+	panel := panel_init(window.dialog, { .Panel_Default_Background }, 5, 5)
 	panel.background_index = 2
-	panel.margin = 10
-	panel.gap = 5
 	panel.shadow = true
 	panel.rounded = true
 	window.dialog.z_index = 255
 
 	dialog_output: string
-
-	label_init(panel, { .CT, .CF }, text_arguments[0])
 	focus_next: ^Element
 
-	for i in 1..<len(text_arguments) {
-		word := text_arguments[i]
-		assert(len(word) >= 2)
+	// label_init(panel, {}, text_arguments[0])
 
-		// get text arguments
-		format := word[:2]
-		text := word[2:]
+	arg_index: int
+	row: ^Panel = nil
+	ds: cutf8.Decode_State
 
-		// TODO add more element options
-		switch format {
-			case "%b": {
-				b := button_init(panel, { .CR }, text)
-				b.data = &dialog_output
+	for codepoint, i in cutf8.ds_iter(&ds, format) {
+		codepoint := codepoint
+		i := i
 
-				if focus_next == nil {
-					// incl(&b.flags, Element_Flag.Button_Can_Focus)
-					focus_next = b
-				}
-			
-				b.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-					window := element.window
-					button := cast(^Button) element
-					output := cast(^string) element.data
+		if i == 0 || codepoint == '\n' {
+			row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)
+		}
 
-					if msg == .Clicked {
-						output^ = strings.clone(strings.to_string(button.builder), context.temp_allocator)
-						window.dialog_finished = true
+		if codepoint == ' ' || codepoint == '\n' {
+			continue
+		}
+
+		if codepoint == '%' {
+			// next
+			codepoint, i, _ = cutf8.ds_iter(&ds, format)
+
+			switch codepoint {
+				case 'b': {
+					// log.info("button")
+					text := args[arg_index]
+					arg_index += 1
+					b := button_init(row, {}, text)
+					b.data = &dialog_output
+					b.message_user = dialog_button_message
+
+					if focus_next == nil {
+						focus_next = b
 					}
-
-					return 0
 				}
+
+				case 'f': {
+					spacer_init(row, { .HF }, 0, 2, .Empty)
+				}
+
+				case 'l': {
+					spacer_init(row, { .HF }, 0, 2, .Thin)
+				}
+
+				case 's': {
+					text := args[arg_index]
+					arg_index += 1
+					label_init(row, {}, text)
+				}
+			}
+		} else {
+			byte_start := ds.byte_offset_old
+			byte_end := ds.byte_offset
+			end_early: bool
+
+			// advance till empty
+			for other_codepoint in cutf8.ds_iter(&ds, format) {
+				byte_end = ds.byte_offset
+
+				if other_codepoint == '%' || other_codepoint == '\n' {
+					end_early = true
+					break
+				}
+			}
+
+			text := format[byte_start:byte_end - (end_early ? 1 : 0)]
+			label_init(row, {}, text)
+
+			if end_early {
+				row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)
 			}
 		}
 	}
 
 	window.dialog_finished = false
 	old_focus := window.focused
-	assert(focus_next != nil)
-	element_focus(focus_next)
+	element_focus(focus_next == nil ? window.dialog : focus_next)
 	defer {
 		if old_focus != nil {
 			element_focus(old_focus)

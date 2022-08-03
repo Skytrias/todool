@@ -3,13 +3,15 @@ package src
 import "core:strings"
 
 Sidebar_Mode :: enum {
-	None,	
 	Options,
 	Tags,
 	// Sorting
 }
 
 Sidebar :: struct {
+	split: ^Split_Pane,
+	enum_panel: ^Enum_Panel,
+	
 	mode: Sidebar_Mode,
 	options: Sidebar_Options,
 	tags: Sidebar_Tags,
@@ -62,37 +64,22 @@ Sidebar_Tags :: struct {
 
 sb: Sidebar
 
-sidebar_mode_panel :: proc() -> ^Panel {
-	switch sb.mode {
-		case .None: return nil
-		case .Options: return sb.options.panel
-		case .Tags: return sb.tags.panel
-		// case .Sorting: return sb.sorting.panel
-	}
+// sidebar_mode_panel :: proc() -> ^Panel {
+// 	switch sb.mode {
+// 		case .Options: return sb.options.panel
+// 		case .Tags: return sb.tags.panel
+// 		// case .Sorting: return sb.sorting.panel
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 sidebar_mode_toggle :: proc(to: Sidebar_Mode) {
-	if to != sb.mode {
-		// hide the current one
-		if panel := sidebar_mode_panel(); panel != nil {
-			element_hide(panel, true)
-		}
-
+	if (.Hide in sb.enum_panel.flags) || to != sb.mode {
 		sb.mode = to
-		
-		// unhide the current one
-		if panel := sidebar_mode_panel(); panel != nil {
-			element_hide(panel, false)
-		}
+		element_hide(sb.enum_panel, false)
 	} else {
-		// hide the last one
-		if panel := sidebar_mode_panel(); panel != nil {
-			element_hide(panel, true)
-		}
-		
-		sb.mode = .None
+		element_hide(sb.enum_panel, true)
 	}
 }
 
@@ -103,7 +90,7 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 	#partial switch msg {
 		case .Button_Highlight: {
 			color := cast(^Color) dp
-			selected := sb.mode == mode^
+			selected := (.Hide not_in sb.enum_panel.flags) && sb.mode == mode^
 			color^ = selected ? theme.text_default : theme.text_blank
 			return selected ? 1 : 2
 
@@ -122,26 +109,42 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 	return 0
 }
 
-sidebar_init :: proc(window: ^Window) {
+sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 	// left panel
 	{
-		panel_info = panel_init(&window.element, { .CL, .Panel_Default_Background }, 35, 0, 5)
+		panel_info = panel_init(parent, { .Panel_Default_Background, .VF, .Tab_Movement_Allowed }, 0, 5)
 		panel_info.background_index = 2
 		panel_info.z_index = 3
 
-		b1 := button_init(panel_info, { .CB, .CF }, "L")
+		i1 := icon_button_init(panel_info, { .HF }, .Cog)
+		i1.message_user = sidebar_button_message
+		i1.data = new_clone(Sidebar_Mode.Options)
+		i1.hover_info = "Options"
+		
+		i2 := icon_button_init(panel_info, { .HF }, .Tag)
+		i2.data = new_clone(Sidebar_Mode.Tags)
+		i2.hover_info = "Tags"
+		i2.message_user = sidebar_button_message
+
+		// i3 := icon_button_init(panel_info, {}, .Sort)
+		// i3.data = new_clone(Sidebar_Mode.Sorting)
+		// i3.hover_info = "Sorting"
+		// i3.message_user = sidebar_button_message
+		
+		spacer_init(panel_info, { .VF, }, 0, 20, .Thin)
+		icon_button_init(panel_info, { .HF }, .Stopwatch)
+		icon_button_init(panel_info, { .HF }, .Clock)
+		icon_button_init(panel_info, { .HF }, .Tomato)
+
+		spacer_init(panel_info, { }, 0, 20, .Thin)
+		b1 := button_init(panel_info, { .HF }, "L")
 		b1.message_user = mode_based_button_message
 		b1.data = new_clone(Mode_Based_Button { 0 })
 		b1.hover_info = "List Mode"
-		b2 := button_init(panel_info, { .CB, .CF }, "K")
+		b2 := button_init(panel_info, { .HF }, "K")
 		b2.message_user = mode_based_button_message
 		b2.data = new_clone(Mode_Based_Button { 1 })
 		b2.hover_info = "Kanban Mode"
-		spacer_init(panel_info, { .CB, .CF }, 0, 20, .Thin)
-		icon_button_init(panel_info, { .CB, .CF }, .Stopwatch)
-		icon_button_init(panel_info, { .CB, .CF }, .Clock)
-		icon_button_init(panel_info, { .CB, .CF }, .Tomato)
-		spacer_init(panel_info, { .CB, .CF }, 0, 20, .Thin)
 
 		// b := button_init(panel_info, { .CT, .Hover_Has_Info }, "b")
 		// b.invoke = proc(data: rawptr) {
@@ -151,43 +154,36 @@ sidebar_init :: proc(window: ^Window) {
 		// }
 		// b.hover_info = "border"
 
-		i1 := icon_button_init(panel_info, { .CT, .CF }, .Cog)
-		i1.message_user = sidebar_button_message
-		i1.data = new_clone(Sidebar_Mode.Options)
-		i1.hover_info = "Options"
-		
-		i2 := icon_button_init(panel_info, { .CT, .CF }, .Tag)
-		i2.data = new_clone(Sidebar_Mode.Tags)
-		i2.hover_info = "Tags"
-		i2.message_user = sidebar_button_message
-
-		// i3 := icon_button_init(panel_info, { .CT, .CF }, .Sort)
-		// i3.data = new_clone(Sidebar_Mode.Sorting)
-		// i3.hover_info = "Sorting"
-		// i3.message_user = sidebar_button_message
 	}
 
+	split = split_pane_init(parent, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 200, 200)
+	sb.split = split
+	sb.split.pixel_based = true
+
 	shared_panel :: proc(element: ^Element, title: string) -> ^Panel {
-		panel := panel_init(element, { .CL, .Panel_Default_Background }, 300, 5, 5)
+		panel := panel_init(element, { .Panel_Default_Background, .Tab_Movement_Allowed }, 5, 5)
 		panel.background_index = 1
 		panel.z_index = 2
-		element_hide(panel, true)
 
-		header := label_init(panel, { .CT, .CF, .Label_Center }, title)
+		header := label_init(panel, { .Label_Center }, title)
 		header.font_options = &font_options_header
-		spacer_init(panel, { .CT, .CF }, 0, 5, .Thin)
+		spacer_init(panel, {}, 0, 5, .Thin)
 
 		return panel
 	}
 
 	// init all sidebar panels
 
+	enum_panel := enum_panel_init(split, { .Tab_Movement_Allowed }, cast(^int) &sb.mode, len(Sidebar_Mode))
+	sb.enum_panel = enum_panel
+	element_hide(sb.enum_panel, true)
+
 	{
 		temp := &sb.options
 		using temp
-		flags := Element_Flags { .CT, .CF }
+		flags := Element_Flags { .HF }
 
-		panel = shared_panel(&window.element, "Options")
+		panel = shared_panel(enum_panel, "Options")
 
 		slider_tab = slider_init(panel, flags, 0.5)
 		slider_tab.format = "Tab: %f"
@@ -203,13 +199,13 @@ sidebar_init :: proc(window: ^Window) {
 
 	{
 		temp := &sb.tags
-		temp.panel = shared_panel(&window.element, "Tags")
+		temp.panel = shared_panel(enum_panel, "Tags")
 
 		shared_box :: proc(
 			panel: ^Panel, 
 			text: string,
 		) {
-			b := text_box_init(panel, { .CT, .CF }, text)
+			b := text_box_init(panel, { .HF }, text)
 			tag := &sb.tags.tag_data[sb.tags.temp_index]	
 			tag.builder = &b.builder
 			color := color_hsv_to_rgb(f32(sb.tags.temp_index) / 8, 1, 1)
@@ -217,7 +213,7 @@ sidebar_init :: proc(window: ^Window) {
 			sb.tags.temp_index += 1
 		}
 
-		label_init(temp.panel, { .CT, .CF, .Label_Center }, "Tags 1-8")
+		label_init(temp.panel, { .Label_Center }, "Tags 1-8")
 		shared_box(temp.panel, "one")
 		shared_box(temp.panel, "two")
 		shared_box(temp.panel, "three")
@@ -227,38 +223,18 @@ sidebar_init :: proc(window: ^Window) {
 		shared_box(temp.panel, "seven")
 		shared_box(temp.panel, "eight")
 
-		spacer_init(temp.panel, { .CT, .CF }, 0, SPACER_HEIGHT, .Empty)
-		label_init(temp.panel, { .CT, .CF, .Label_Center }, "Tag Showcase")
+		spacer_init(temp.panel, { .HF }, 0, SPACER_HEIGHT, .Empty)
+		label_init(temp.panel, { .HF, .Label_Center }, "Tag Showcase")
 		temp.toggle_selector_tag = toggle_selector_init(
 			temp.panel,
-			{ .CT, .CF },
+			{ .HF },
 			&sb.tags.tag_show_mode,
 			TAG_SHOW_COUNT,
 			tag_show_text[:],
 		)
 	}
 
-	// {
-	// 	temp := &sb.sorting
-	// 	using temp
-		
-	// 	flags := Element_Flags { .CT, .CF }
-	// 	panel = shared_panel(&window.element, "Sorting")
-
-	// 	label_init(panel, { .CT, .CF, .Label_Center }, "General")
-	// 	checkbox_enabled = checkbox_init(panel, flags, "Turn On / Off", true)
-	// 	checkbox_ignore_parent = checkbox_init(panel, flags, "Ignore Inside Current Parent", false)
-		
-	// 	spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
-	// 	label_init(panel, { .CT, .CF, .Label_Center }, "State based")
-	// 	checkbox_low_state_first = checkbox_init(panel, flags, "Low First", false)
-	// 	checkbox_invert_state = checkbox_init(panel, flags, "Inverted State", false)
-		
-	// 	spacer_init(panel, flags, 0, SPACER_HEIGHT, .Empty)
-	// 	label_init(panel, { .CT, .CF, .Label_Center }, "Child Count based")
-	// 	checkbox_sort_children = checkbox_init(panel, flags, "Turn On / Off", false)
-	// 	checkbox_low_children_first = checkbox_init(panel, flags, "Low Count First", false)
-	// }
+	return
 }
 
 options_tab :: #force_inline proc() -> f32 {

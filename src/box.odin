@@ -416,10 +416,10 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			render_rect_outline(target, old_bounds, color)
 
-			if element.window.focused == element {
-				// log.info("rendering outline")
-				render_rect_outline(target, old_bounds, RED)
-			}
+			// if element.window.focused == element {
+			// 	// log.info("rendering outline")
+			// 	render_rect_outline(target, old_bounds, RED)
+			// }
 
 
 			// draw each wrapped line

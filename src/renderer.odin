@@ -719,25 +719,6 @@ string_align_xy :: proc(
 	return
 }
 
-// // render element background dropshadow or rect
-// render_element_background :: proc(
-// 	target: ^Render_Target,
-// 	rect: Rect,
-
-// 	rect_color: Color,
-// 	text_color: ^Color,
-
-// 	hovered, pressed: bool,
-// ) {
-// 	if hovered || pressed {
-// 		render_drop_shadow(target, rect, text_color^, style.roundness)
-// 		text_color^ = rect_color
-// 	} else {
-// 		render_rect(target, rect, rect_color, style.roundness)
-// 		render_rect_outline(target, rect, text_color^, style.roundness)
-// 	}
-// }
-
 // paint children, dont use this yourself
 render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 	// skip hidden element
@@ -774,5 +755,9 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 
 	for child in temp {
 		render_element_clipped(target, child)
+		
+		if child.window.focused == child {
+			render_rect_outline(target, child.bounds, theme.text_good)
+		}
 	}
 }

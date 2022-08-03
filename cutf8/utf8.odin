@@ -54,6 +54,7 @@ count :: proc(text: string) -> (count: int) {
 Decode_State :: struct {
 	state: rune,
 	byte_offset: int,
+	byte_offset_old: int,
 	codepoint_count: int,
 }
 
@@ -63,6 +64,9 @@ ds_iter :: proc(using ds: ^Decode_State, text: string) -> (
 	codepoint_index: int, 
 	ok: bool,
 ) {
+	byte_offset_old = byte_offset
+
+	// advance till the next codepoint is done
 	for byte_offset < len(text) {
 		byte_offset += 1
 
