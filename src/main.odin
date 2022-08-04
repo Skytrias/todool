@@ -118,30 +118,24 @@ main :: proc() {
 				if dirty != dirty_saved {
 					res := dialog_spawn(
 						window, 
-						"Leave without saving progress?\n%l\n%f%b%b%b",
-						"Save",
-						"Cancel",
+						"Leave without saving progress?\n%l\n%f%b%C%B",
 						"Close Without Saving",
+						"Cancel",
+						"Save",
 					)
 					
 					switch res {
 						case "Save": {
-							log.info("saved")
 							editor_save("save.bin")
 						}
 
 						case "Cancel": {
-							log.info("canceled")
 							return 1
 						}
 
-						case "Close Without Saving": {
-							log.info("close without saving")
-						}
+						case "Close Without Saving": {}
 					}
 				}
-
-				log.info("close window", dirty != dirty_saved)
 			}
 		}
 

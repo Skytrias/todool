@@ -6,6 +6,7 @@ import "core:mem"
 import "core:log"
 import "core:strings"
 import "core:runtime"
+import "core:unicode"
 import "core:unicode/utf8"
 import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
@@ -91,6 +92,7 @@ Window :: struct {
 	// wether a dialog is currently showing
 	dialog: ^Element,
 	dialog_finished: bool,
+	dialog_builder: strings.Builder,
 
 	// proc that gets called before layout & draw
 	update: proc(window: ^Window),
@@ -188,6 +190,7 @@ window_init :: proc(
 	res.hovered = &res.element
 	res.combo_builder = strings.builder_make(0, 32)
 	res.title_builder = strings.builder_make(0, 64)
+	res.dialog_builder = strings.builder_make(0, 64)
 	res.shortcuts = make(map[string]Shortcut_Proc, 32)
 	res.target = render_target_init(window)
 	res.update_next = true
@@ -649,6 +652,7 @@ window_destroy :: proc(window: ^Window) {
 	element_deallocate(&window.element)
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
+	delete(window.dialog_builder.buf)
 	sdl.DestroyWindow(window.w)
 }
 
@@ -1049,6 +1053,67 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			panel := element.children[0]
 			element_message(panel, .Update, di, dp)
 		}
+
+		case .Key_Combination: {
+			combo := (cast(^string) dp)^
+			w := element.window
+			b := &w.dialog_builder
+
+			if combo == "escape" {
+				strings.builder_reset(b)
+				strings.write_string(b, "_C") // canceled
+				w.dialog_finished = true
+				return 1
+			} else if combo == "return" {
+				strings.builder_reset(b)
+				strings.write_string(b, "_D") // default 
+				w.dialog_finished = true
+				return 1
+			}
+		}
+
+		// select the element with the starting character
+		case .Unicode_Insertion: {
+			codepoint := (cast(^rune) dp)^
+			codepoint = unicode.to_upper(codepoint)
+
+			// panel
+			row_container := element.children[0]
+			duplicate: bool
+			target: ^Element
+
+			for i in 0..<len(row_container.children) {
+				row := row_container.children[i]
+
+				for j in 0..<len(row.children) {
+					item := row.children[j]
+
+					// matching to button
+					if item.message_class == button_message {
+						button := cast(^Button) item
+						text := strings.to_string(button.builder)
+						// NOTE dangerous due to unicode
+						first := rune(text[0])
+
+						if first == codepoint {
+							if target == nil {
+								target = item
+							} else {
+								duplicate = true
+							}
+						}
+					}
+				}
+			}
+
+			if target != nil {
+				if duplicate {
+					element_focus(target)
+				} else {
+					element_message(target, .Clicked)
+				}
+			}
+		}
 	}
 
 	return 0
@@ -1058,9 +1123,10 @@ dialog_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 	button := cast(^Button) element
 
 	if msg == .Clicked {
-		output := cast(^string) element.data
 		window := element.window
-		output^ = strings.clone(strings.to_string(button.builder), context.temp_allocator)
+		builder := &window.dialog_builder
+		strings.builder_reset(builder)
+		strings.write_string(builder, strings.to_string(button.builder))
 		window.dialog_finished = true
 	}
 
@@ -1083,8 +1149,11 @@ dialog_spawn :: proc(
 	panel.rounded = true
 	window.dialog.z_index = 255
 
-	dialog_output: string
+	// state to be retrieved from iter
 	focus_next: ^Element
+	cancel_button: ^Button
+	default_button: ^Button
+	button_count: int
 
 	arg_index: int
 	row: ^Panel = nil
@@ -1107,17 +1176,28 @@ dialog_spawn :: proc(
 			codepoint, i, _ = cutf8.ds_iter(&ds, format)
 
 			switch codepoint {
-				case 'b': {
-					// log.info("button")
+				case 'b', 'B', 'C': {
 					text := args[arg_index]
 					arg_index += 1
 					b := button_init(row, {}, text)
-					b.data = &dialog_output
 					b.message_user = dialog_button_message
 
+					// default
+					if codepoint == 'B' {
+						default_button = b
+					}
+
+					// canceled
+					if codepoint == 'C' {
+						cancel_button = b
+					}
+
+					// set first focused
 					if focus_next == nil {
 						focus_next = b
 					}
+
+					button_count += 1
 				}
 
 				case 'f': {
@@ -1188,6 +1268,24 @@ dialog_spawn :: proc(
 		gs_draw_and_cleanup()
 	}
 
+	// check keyboard set
+	output := strings.to_string(window.dialog_builder)
+
+	// cancel set to default at 1
+	if button_count == 1 && default_button != nil && cancel_button == nil {
+		cancel_button = default_button
+	}
+
+	if output == "_C" && cancel_button != nil {
+		element_message(cancel_button, .Clicked)
+		output = strings.to_string(window.dialog_builder)
+	} 
+
+	if output == "_D" && default_button != nil {
+		element_message(default_button, .Clicked)
+		output = strings.to_string(window.dialog_builder)
+	}
+
 	// gs_flush_events()
 	window_flush_mouse_state(window)
 	window.pressed = nil
@@ -1199,7 +1297,7 @@ dialog_spawn :: proc(
 
 	element_destroy(window.dialog)
 	window.dialog = nil
-	return dialog_output 
+	return output
 }
 
 // sdl helpers
