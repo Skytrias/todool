@@ -969,7 +969,7 @@ box_render_caret :: proc(
 	font: ^Font,
 	scaled_size: f32,
 	x, y: f32,
-) {
+) -> Rect {
 	// wrapped line based caret
 	wanted_line, index_start := fontstash.codepoint_index_to_line(
 		box.wrapped_lines[:], 
@@ -1000,6 +1000,7 @@ box_render_caret :: proc(
 	)
 
 	render_rect(target, caret_rect, theme.caret, 0)
+	return caret_rect
 }
 
 Wrap_State :: struct {

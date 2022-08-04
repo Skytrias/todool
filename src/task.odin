@@ -17,6 +17,9 @@ panel_info: ^Panel
 mode_panel: ^Mode_Panel
 mode_panel_split: ^Split_Pane
 window_main: ^Window
+caret_rect: Rect
+caret_lerp_speed_y := f32(1)
+caret_lerp_speed_x := f32(1)
 
 // goto state
 panel_goto: ^Panel_Floaty
@@ -341,6 +344,9 @@ Task :: struct {
 	state_count: [Task_State]int,
 	search_results: [dynamic]Search_Result,
 
+	// visible kanban outline - used for bounds check by kanban 
+	kanban_rect: Rect,
+
 	// wether we want to be able to jump to this task
 	bookmarked: bool,
 }
@@ -353,11 +359,156 @@ Mode :: enum {
 KANBAN_WIDTH :: 300
 KANBAN_MARGIN :: 10
 
-Drag_Panning :: struct {
-	start_x: f32,
-	start_y: f32,
-	offset_x: f32,
-	offset_y: f32,
+cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
+	a := x ? &cam.ax : &cam.ay
+	off := x ? &cam.offset_x : &cam.offset_y
+	lerp := x ? &caret_lerp_speed_x : &caret_lerp_speed_y
+	using a
+
+	if animating && !cam.freehand {
+		if options_use_animations() {
+			off^ += gs.dt * 1000 * f32(direction) * lerp^
+			lerp^ += 0.1
+		} else {
+			off^ += f32(direction) * goal
+		}
+	} else {
+		lerp^ = 1
+		return false
+	}
+
+	return true
+}
+
+Pan_Camera_Animation :: struct {
+	animating: bool,
+	direction: int,
+	goal: f32,
+}
+
+Pan_Camera :: struct {
+	start_x, start_y: f32, // start of drag
+	offset_x, offset_y: f32,
+	margin_x, margin_y: f32,
+
+	freehand: bool, // disables auto centering while panning
+
+	ay: Pan_Camera_Animation,
+	ax: Pan_Camera_Animation,
+}
+
+cam_init :: proc(cam: ^Pan_Camera, margin_x, margin_y: f32) {
+	cam.offset_x = margin_x
+	cam.margin_x = margin_x
+	cam.offset_y = margin_y
+	cam.margin_y = margin_y
+}
+
+// returns the wanted goal + direction if y is out of bounds of focus rect
+cam_bounds_check_y :: proc(
+	cam: ^Pan_Camera,
+	focus: Rect,
+	to_top: f32,
+	to_bottom: f32,
+) -> (goal: f32, direction: int) {
+	if to_top <= focus.t + cam.margin_y {
+		goal = focus.t - to_top + cam.margin_y
+		direction = 1
+		return
+	} 
+
+	if to_bottom > focus.b - cam.margin_y {
+		goal = to_bottom - focus.b + cam.margin_y
+		direction = -1
+		return
+	}
+
+	return
+}
+
+cam_bounds_check_x :: proc(
+	cam: ^Pan_Camera,
+	focus: Rect,
+	to_left: f32,
+	to_right: f32,
+) -> (goal: f32, direction: int) {
+	if to_left <= focus.l + cam.margin_x {
+		goal = focus.l - to_left + cam.margin_x
+		direction = 1
+		return
+	} 
+
+	if to_right > focus.r - cam.margin_x {
+		goal = to_right - focus.r + cam.margin_x
+		direction = -1
+		return
+	}
+
+	return
+}
+
+// return the cam per mode
+mode_panel_cam :: proc() -> ^Pan_Camera {
+	return &mode_panel.cam[mode_panel.mode]
+}
+
+// check animation on caret bounds
+mode_panel_cam_bounds_check_y :: proc(to_top, to_bottom: f32) {
+	cam := mode_panel_cam()
+
+	if cam.freehand {
+		return
+	}
+
+	goal, direction := cam_bounds_check_y(cam, mode_panel.bounds, to_top, to_bottom)
+
+	cam.ay.animating = direction != 0
+	if cam.ay.animating {
+		element_animation_start(mode_panel)
+	}
+
+	cam.ay.direction = direction
+	cam.ay.goal = goal
+}
+
+// check animation on caret bounds
+mode_panel_cam_bounds_check_x :: proc(to_left, to_right: f32) {
+	cam := mode_panel_cam()
+
+	if cam.freehand {
+		return
+	}
+
+	goal: f32
+	direction: int
+
+	switch mode_panel.mode {
+		case .List: {
+			goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
+		}
+
+		case .Kanban: {
+			index := task_head
+			t: ^Task
+			for t == nil || (t.indentation != 0 && index >= 0) {
+				t = tasks_visible[index]
+				index -= 1
+			}
+
+			if t.kanban_rect != {} {
+				goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, t.kanban_rect.l, t.kanban_rect.r)
+			}
+		}
+	} 
+
+
+	cam.ax.animating = direction != 0
+	if cam.ax.animating {
+		element_animation_start(mode_panel)
+	}
+
+	cam.ax.direction = direction
+	cam.ax.goal = goal
 }
 
 // element to custom layout based on internal mode
@@ -369,7 +520,7 @@ Mode_Panel :: struct {
 	gap_vertical: f32,
 	gap_horizontal: f32,
 
-	drag: [Mode]Drag_Panning,
+	cam: [Mode]Pan_Camera,
 	kanban_outlines: [dynamic]Rect,
 }
 
@@ -567,17 +718,8 @@ mode_panel_init :: proc(parent: ^Element, flags: Element_Flags) -> (res: ^Mode_P
 	res = element_init(Mode_Panel, parent, flags, mode_panel_message)
 	res.kanban_outlines = make([dynamic]Rect, 0, 64)
 
-	res.drag = {
-		.List = {
-			offset_x = 100,	
-			offset_y = 100,	
-		},
-
-		.Kanban = {
-			offset_x = 100,	
-			offset_y = 100,	
-		},
-	}
+	cam_init(&res.cam[.List], 100, 100)
+	cam_init(&res.cam[.Kanban], 100, 100)
 
 	return
 }
@@ -763,7 +905,7 @@ task_gather_children_strict :: proc(
 
 mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Mode_Panel) element
-	drag := &panel.drag[panel.mode]
+	cam := &panel.cam[panel.mode]
 
 	#partial switch msg {
 		case .Find_By_Point_Recursive: {
@@ -790,8 +932,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// element.clip = element.bounds
 			
 			bounds := element.bounds
-			bounds.l += drag.offset_x
-			bounds.t += drag.offset_y
+			bounds.l += cam.offset_x
+			bounds.t += cam.offset_y
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
 
 			switch panel.mode {
@@ -809,7 +951,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * SCALE
 						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
 						width_limit := rect_width(element.bounds) - tab_size - fold_size
-						width_limit -= drag.offset_x
+						width_limit -= cam.offset_x
 						task_box_format_to_lines(task.box, width_limit)
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&cut, f32(h))
@@ -825,6 +967,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					kanban_current: Rect
 					kanban_children_count: int
 					kanban_children_start: int
+					root: ^Task
 
 					for child, i in element.children {
 						task := cast(^Task) child
@@ -865,6 +1008,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							kanban_width := KANBAN_WIDTH * SCALE
 							kanban_width += f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE
 							kanban_current = rect_cut_left(&cut, kanban_width)
+							
+							if task.visible_index == 0 {
+								log.info(task.visible_index, kanban_current)
+							}
+
+							task.kanban_rect = kanban_current
 							cut.l += panel.gap_horizontal * SCALE + KANBAN_MARGIN * 2 * SCALE
 						}
 
@@ -896,8 +1045,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			bounds := element.bounds
 			render_rect(target, bounds, theme.background[0], 0)
-			bounds.l -= drag.offset_x
-			bounds.t -= drag.offset_y
+			bounds.l -= cam.offset_x
+			bounds.t -= cam.offset_y
 
 			search_draw_index = 0
 
@@ -959,8 +1108,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Middle_Down: {
-			drag.start_x = drag.offset_x
-			drag.start_y = drag.offset_y
+			cam.start_x = cam.offset_x
+			cam.start_y = cam.offset_y
 		}
 
 		case .Mouse_Drag: {
@@ -970,8 +1119,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				diff_x := element.window.cursor_x - mouse.x
 				diff_y := element.window.cursor_y - mouse.y
 
-				drag.offset_x = drag.start_x + diff_x
-				drag.offset_y = drag.start_y + diff_y
+				cam.offset_x = cam.start_x + diff_x
+				cam.offset_y = cam.start_y + diff_y
+				cam.freehand = true
 
 				window_set_cursor(element.window, .Crosshair)
 				element_repaint(element)
@@ -980,13 +1130,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Mouse_Scroll_Y: {
-			drag.offset_y += f32(di) * 20
+			cam.offset_y += f32(di) * 20
+			cam.freehand = true
 			element_repaint(element)
 			return 1
 		}
 
 		case .Mouse_Scroll_X: {
-			drag.offset_x += f32(di) * 20
+			cam.freehand = true
+			cam.offset_x += f32(di) * 20
 			element_repaint(element)
 			return 1
 		}
@@ -999,6 +1151,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Left_Down: {
 			element_reset_focus(element.window)
+		}
+
+		case .Animate: {
+			handled := true
+			handled |= cam_animate(cam, false)
+			handled |= cam_animate(cam, true)
+
+			// log.info("animating!", handled, cam.offset_y, cam.animation_y_goal, cam.animation_y_direction)
+			return int(handled)
 		}
 	}
 
@@ -1060,7 +1221,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				y := box.bounds.t
 				low, high := box_low_and_high(box)
 				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
-				box_render_caret(target, box, font, scaled_size, x, y)
+				caret := box_render_caret(target, box, font, scaled_size, x, y)
+				caret_rect = caret
 			}
 		}
 
@@ -1701,6 +1863,39 @@ task_panel_init :: proc(split: ^Split_Pane) {
 	task_push(1, "long word to test out mouse selection")
 	task_push(0, "long  word to test out word wrapping on this word particular piece of text even longer to test out moreeeeeeeeeeeee")
 	task_push(0, "five")
-	task_head = 4
-	task_tail = 4
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_push(0, "five")
+	task_head = 20
+	task_tail = 20
 }

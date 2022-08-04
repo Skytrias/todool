@@ -960,6 +960,7 @@ gs_message_loop :: proc() {
 		// repaint all of the window
 		gs_draw_and_cleanup()
 
+		// TODO could be bad cuz this is for multiple windows?
 		// TODO maybe time the section of time that was waited on?
 		// update frame counter
 		{

@@ -40,6 +40,7 @@ import "../fontstash"
 // changed layouting to nakst one Row / Column
 // nfd showcase
 // dragging
+// dialog polish
 
 // REST
 // SHOCO string compression option
@@ -167,6 +168,11 @@ main :: proc() {
 			}
 		}
 
+		if task_head != -1 {
+			mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r)
+			mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b)
+		}
+
 		// log.info("dirty", dirty, dirty_saved)
 		window_title_build(window, dirty != dirty_saved ? "Todool*" : "Todool")
 
@@ -178,6 +184,9 @@ main :: proc() {
 		if old_task_head != task_head || old_task_tail != task_tail {
 			// call box changes immediatly when leaving task head / tail 
 			if len(tasks_visible) != 0 && old_task_head != -1 && old_task_head < len(tasks_visible) {
+				cam := mode_panel_cam()
+				cam.freehand = false
+
 				task := tasks_visible[old_task_head]
 				manager := mode_panel_manager_begin()
 				box_force_changes(manager, task.box)
