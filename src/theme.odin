@@ -27,6 +27,8 @@ theme_editor: Theme_Editor
 
 Theme :: struct {
 	background: [3]Color, // 3 variants, lowest to highest
+	panel: [3]Color, // 3 variants, back - parent - front
+
 	text_default: Color,
 	text_good: Color,
 	text_bad: Color,
@@ -37,9 +39,16 @@ Theme :: struct {
 	caret: Color,
 	caret_highlight: Color,
 	caret_selection: Color,
+}
 
-	panel_back: Color,
-	panel_front: Color,
+Theme_Panel :: enum {
+	Back,
+	Parent,
+	Front,
+}
+
+theme_panel :: #force_inline proc(panel: Theme_Panel) -> Color #no_bounds_check {
+	return theme.panel[panel]
 }
 
 theme := Theme {
@@ -60,8 +69,11 @@ theme := Theme {
 	caret_highlight = RED,
 	caret_selection = GREEN,
 
-	panel_back = { 230, 230, 230, 255 },
-	panel_front = { 255, 255, 255, 255 },
+	panel = { 
+		0 = { 230, 230, 230, 255 },
+		1 = { 255, 100, 100, 255 },
+		2 = { 255, 255, 255, 255 },
+	},
 }
 
 theme_task_text :: #force_inline proc(state: Task_State) -> Color {
@@ -81,11 +93,16 @@ theme_selected_panel :: proc() -> ^Panel {
 theme_reformat_panel_sliders :: proc(panel: ^Panel) {
 	// reformat sliders		
 	for i in 0..<4 {
-		slider := cast(^Slider) panel.children[1 + i]
+		slider := cast(^Slider) panel.children[2 + i]
 		value := cast(^u8) slider.data
 		slider.position = f32(value^) / 255
 		element_message(slider, .Reformat)
 	}
+}
+
+theme_panel_locked :: proc(panel: ^Panel) -> bool {
+	checkbox := cast(^Checkbox) panel.children[1]
+	return checkbox.state
 }
 
 theme_editor_spawn :: proc() {
@@ -96,11 +113,12 @@ theme_editor_spawn :: proc() {
 		return
 	}
 
-	window := window_init("Todool Theme Editor", 600, 900)
+	window := window_init("Todool Theme Editor", 700, 900)
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		#partial switch msg {
 			case .Key_Combination: {
 				combo := (cast(^string) dp)^
+				handled := true
 
 				switch combo {
 					case "ctrl+c": {
@@ -120,6 +138,7 @@ theme_editor_spawn :: proc() {
 
 							if ok {
 								p := theme_selected_panel()
+
 								color_mod := cast(^Color) p.data
 								color_mod^ = color
 
@@ -156,7 +175,19 @@ theme_editor_spawn :: proc() {
 							window.update_next = true
 						}
 					}
+
+					case "space": {
+						p := theme_selected_panel()
+						element_message(p.children[1], .Clicked)
+						element_repaint(p)
+					}
+
+					case: {
+						handled = false
+					}
 				}
+
+				return int(handled)
 			}
 
 			case .Destroy: {
@@ -175,8 +206,7 @@ theme_editor_spawn :: proc() {
 	label.font_options = &font_options_header
 
 	SPACER_WIDTH :: 20
-	PANEL_HEIGHT :: 40
-	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	
 	Color_Pair :: struct {
 		color: ^Color,
@@ -184,7 +214,7 @@ theme_editor_spawn :: proc() {
 	}
 
 	color_slider :: proc(parent: ^Element, color_mod: ^Color, name: string) {
-		slider_panel := panel_init(parent, {}, PANEL_HEIGHT * SCALE, 5, 5)
+		slider_panel := panel_init(parent, { .Panel_Horizontal, .HF }, 5, 5)
 		slider_panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			panel := cast(^Panel) element
 			
@@ -202,10 +232,12 @@ theme_editor_spawn :: proc() {
 		slider_panel.data = color_mod
 		theme_editor.panel_list[theme_editor.panel_list_index] = slider_panel
 		theme_editor.panel_list_index += 1
-		label_init(slider_panel, {}, name)
+		label_init(slider_panel, { .HF }, name)
+
+		checkbox_init(slider_panel, {}, "Lock", false)
 
 		for i in 0..<4 {
-			value := &color_mod[3 - i]
+			value := &color_mod[i]
 			s := slider_init(slider_panel, {}, f32(value^) / 255)
 			s.data = value
 			
@@ -247,22 +279,25 @@ theme_editor_spawn :: proc() {
 	color_slider(panel, &theme.background[0], "background 0")
 	color_slider(panel, &theme.background[1], "background 1")
 	color_slider(panel, &theme.background[2], "background 2")
+	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	color_slider(panel, &theme.panel[0], "panel back")
+	color_slider(panel, &theme.panel[1], "panel parent")
+	color_slider(panel, &theme.panel[2], "panel front")
 	color_slider(panel, &theme.shadow, "shadow")
-	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	color_slider(panel, &theme.text_default, "text default")
 	color_slider(panel, &theme.text_blank, "text blank")
 	color_slider(panel, &theme.text_good, "text good")
 	color_slider(panel, &theme.text_bad, "text bad")
-	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
+	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	color_slider(panel, &theme.caret, "caret")
 	color_slider(panel, &theme.caret_highlight, "caret highlight")
 	color_slider(panel, &theme.caret_selection, "caret selection")
-	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.panel_back, "panel back")
-	color_slider(panel, &theme.panel_front, "panel front")
 
-	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
-	picker := color_picker_init(panel, {}, 0)
+	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	bot_panel := panel_init(panel, { .Panel_Horizontal, .HF })
+
+	picker := color_picker_init(bot_panel, {}, 0)
 	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		sv := cast(^Color_Picker_SV) element
 		hue := cast(^Color_Picker_HUE) element.parent.children[1]
@@ -284,29 +319,28 @@ theme_editor_spawn :: proc() {
 	panel.data = picker
 	window.element.data = picker
 
-	spacer_init(panel, {}, 0, SPACER_WIDTH, .Thin)
-
 	{
-		button_panel := panel_init(panel, { .Panel_Default_Background }, PANEL_HEIGHT * SCALE, 5, 0)
+		right_panel := panel_init(bot_panel, { .HF })
+
+		button_panel := panel_init(right_panel, { .Panel_Default_Background, .Panel_Horizontal }, 5, 0)
 		button_panel.background_index = 1
 		button_panel.rounded = true
 
 		b1 := button_init(button_panel, {}, "Randomize Simple")
 		b1.invoke = proc(data: rawptr) {
-			total_size := size_of(Theme) / size_of(Color)
-			
-			for i in 0..<total_size {
-				root := uintptr(&theme) + uintptr(i * size_of(Color))
-				color := cast(^Color) root
-				color.r = u8(rand.float32() * 255)
-				color.g = u8(rand.float32() * 255)
-				color.b = u8(rand.float32() * 255)
-			}
-
 			for i in 0..<theme_editor.panel_list_index {
 				p := theme_editor.panel_list[i]
-				theme_reformat_panel_sliders(p)
+				locked := theme_panel_locked(p)
+
+				if !locked {
+					color := cast(^Color) p.data
+					color.r = u8(rand.float32() * 255)
+					color.g = u8(rand.float32() * 255)
+					color.b = u8(rand.float32() * 255)
+					theme_reformat_panel_sliders(p)
+				}
 			}
+	
 			gs_update_all_windows()
 		}		
 		b2 := button_init(button_panel, {}, "Randomize HSV")
@@ -335,22 +369,30 @@ theme_editor_spawn :: proc() {
 				theme_reformat_panel_sliders(p)
 			}
 			gs_update_all_windows()
-		}		
+		}	
 
-		p1 := panel_init(panel, {}, PANEL_HEIGHT * SCALE, 5, 0)
-		theme_editor.checkbox_hue = checkbox_init(p1, {}, "Randomize Hue", true)
+		LABEL_WIDTH :: 100
+
+		p1 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
+		label_init(p1, {}, "Hue", LABEL_WIDTH)
+		theme_editor.checkbox_hue = checkbox_init(p1, {}, "USE", true)
+		spacer_init(p1, { .HF }, 0, 0, .Empty)
 		theme_editor.slider_hue = slider_init(p1, {}, 0)
-		theme_editor.slider_hue.format = "Hue: %f"
+		// theme_editor.slider_hue.format = "Hue: %f"
 		
-		p2 := panel_init(panel, {}, PANEL_HEIGHT * SCALE, 5, 0)
-		theme_editor.checkbox_sat = checkbox_init(p2, {}, "Randomize Saturation", false)
+		p2 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
+		label_init(p2, {}, "Saturation", LABEL_WIDTH)
+		theme_editor.checkbox_sat = checkbox_init(p2, {}, "USE", false)
+		// spacer_init(p2, { .HF }, 0, 0, .Empty)
 		theme_editor.slider_sat = slider_init(p2, {}, 1)
-		theme_editor.slider_sat.format = "Sat: %f"
+		// theme_editor.slider_sat.format = "Sat: %f"
 		
-		p3 := panel_init(panel, {}, PANEL_HEIGHT * SCALE, 5, 0)
-		theme_editor.checkbox_value = checkbox_init(p3, {}, "Randomize Value", false)
+		p3 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
+		label_init(p3, {}, "Value", LABEL_WIDTH)
+		theme_editor.checkbox_value = checkbox_init(p3, {}, "USE", false)
+		// spacer_init(p3, { .HF }, 0, 0, .Empty)
 		theme_editor.slider_value = slider_init(p3, {}, 1)
-		theme_editor.slider_value.format = "Value: %f"
+		// theme_editor.slider_value.format = "Value: %f"
 	}
 }
 

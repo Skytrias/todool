@@ -404,7 +404,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			// selection & caret
 			if focused {
-				render_rect(target, old_bounds, theme.panel_front, ROUNDNESS)
+				render_rect(target, old_bounds, theme_panel(.Front), ROUNDNESS)
 				font, size := element_retrieve_font_options(box)
 				scaled_size := size * SCALE
 				x := box.bounds.l - box.scroll

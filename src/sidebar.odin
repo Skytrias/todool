@@ -156,7 +156,7 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 
 	}
 
-	split = split_pane_init(parent, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 200, 200)
+	split = split_pane_init(parent, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)
 	sb.split = split
 	sb.split.pixel_based = true
 

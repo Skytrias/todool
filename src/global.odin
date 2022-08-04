@@ -53,7 +53,7 @@ Window :: struct {
 
 	// hovered info 
 	hovered_start: time.Tick, // when the element was first hovered
-	hovered_panel: ^Panel, // set in init, but hidden
+	hovered_panel: ^Panel_Floaty, // set in init, but hidden
 	hover_timer: sdl.TimerID, // sdl based timer to check hover on a different thread 
 
 	// click counting
@@ -215,26 +215,32 @@ window_init :: proc(
 
 	res.hover_timer = sdl.AddTimer(250, window_timer_callback, res)
 
-	// // set hovered panel
-	// panel := panel_init(&res.element, { .Panel_Floaty, .Panel_Default_Background })
-	// panel.float_x = 0
-	// panel.float_y = 0
-	// panel.float_width = 200 * SCALE
-	// panel.float_height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
-	// panel.shadow = true
-	// panel.rounded = true
-	// panel.z_index = 255
-	// label_init(panel, { .Label_Center })
-	// res.hovered_panel = panel
-	// element_hide(panel, true)
+	{
+		// set hovered panel
+		floaty := panel_floaty_init(&res.element, {})
+		floaty.x = 0
+		floaty.y = 0
+		floaty.width = 200 * SCALE
+		floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+		floaty.z_index = 255
+		p := floaty.panel
+		p.flags |= { .Panel_Expand }
+		p.shadow = true
+		p.rounded = true
+		label_init(p, { .Label_Center })
+		res.hovered_panel = floaty
+		element_hide(floaty, true)
+	}
 
 	return
 }
 
 window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: string) {
-	p := window.hovered_panel
-	element_hide(p, false)
-	p.float_x = window.cursor_x
+	floaty := window.hovered_panel
+	element_hide(floaty, false)
+	
+	p := floaty.panel
+	floaty.x = window.cursor_x
 
 	// NOTE static
 	label := cast(^Label) p.children[0]
@@ -244,11 +250,11 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 	goal_y := element.bounds.b + 5
 
 	// bounds check
-	if goal_y + p.float_height > window.heightf {
-		goal_y = element.bounds.t - p.float_height
+	if goal_y + floaty.height > window.heightf {
+		goal_y = element.bounds.t - floaty.height
 	}
 
-	p.float_y = goal_y
+	floaty.y = goal_y
 }
 
 window_poll_size :: proc(window: ^Window) {
@@ -272,6 +278,10 @@ window_send_msg_to_focused_or_parents :: proc(window: ^Window, msg: Message, di:
 		for e != nil {
 			if element_message(e, msg, di, dp) == 1 {
 				handled = true
+				break
+			}
+			
+			if window.dialog != nil && e == window.dialog {
 				break
 			}
 
@@ -320,10 +330,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				coords = &window.down_right
 			}
 
-			if window.pressed_button == MOUSE_MIDDLE {
-				sdl.CaptureMouse(true)
-			}
-
+			sdl.CaptureMouse(true)
 			element_send_msg_until_received(window.pressed, .Mouse_Drag, window.click_count, coords)
 		} else if msg == .Left_Up && window.pressed_button == MOUSE_LEFT {
 			// if the left mouse button was released - and this button that was pressed to begin with
@@ -334,6 +341,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			// stop pressing the element
 			element_message(window.pressed, .Left_Up, di, dp)
 			window_set_pressed(window, nil, MOUSE_LEFT)
+			sdl.CaptureMouse(false)
 		} else if msg == .Middle_Up && window.pressed_button == MOUSE_MIDDLE {
 			element_message(window.pressed, .Middle_Up, di, dp)
 			window_set_pressed(window, nil, MOUSE_MIDDLE)
@@ -341,6 +349,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 		} else if msg == .Right_Up && window.pressed_button == MOUSE_RIGHT {
 			element_message(window.pressed, .Right_Up, di, dp)
 			window_set_pressed(window, nil, MOUSE_RIGHT)
+			sdl.CaptureMouse(false)
 		}
 	}
 
@@ -397,11 +406,23 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			case .Key_Combination: {
 				handled := false
 
-				handled = window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
+				// quick ask window element
+				if window.focused == nil {
+					if element_message(&window.element, msg, di, dp) == 1 {
+						handled = true
+					}
+				}
 
 				if !handled && !window.ctrl && !window.alt {
 					combo := (cast(^string) dp)^
 					match := combo == "tab" || combo == "shift+tab"
+					backwards := window.shift
+
+					// NOTE allows arrow based movement on dialog
+					if window.dialog != nil {
+						match |= combo == "up" || combo == "down" || combo == "left" || combo == "right"
+						backwards |= combo == "up" || combo == "left" 
+					}
 
 					if match {
 						start := window.focused != nil ? window.focused : &window.element
@@ -429,7 +450,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 								(.Hide not_in element.flags) && 
 								element.clip != {} 
 							{
-								if window.shift {
+								if backwards {
 									element = element.children[len(element.children) - 1]
 								} else {
 									element = element.children[0]
@@ -440,14 +461,20 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 
 							// set sibling
 							for element != nil {
-								sibling := element_next_or_previous_sibling(element, window.shift)
+								sibling := element_next_or_previous_sibling(element, backwards)
 
 								if sibling != nil {
 									element = sibling
 									break
 								}
 
-								element = element.parent
+								if window.dialog == nil {
+									element = element.parent
+								} else {
+									// skip dialog element setting
+									element = start
+									break next_search
+								}
 							}
 
 							// set to window element
@@ -462,10 +489,10 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 					}
 				} 
 
-				// if !handled {
-				// 	handled = window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
-				// }
-				
+				if !handled {
+					handled = window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
+				}
+
 				res = handled
 			}
 
@@ -1004,10 +1031,9 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			w := element.window
 			assert(len(element.children) != 0)
 			
-			// TODO poll max necessary width
 			panel := cast(^Panel) element.children[0]
 			width := f32(element_message(panel, .Get_Width, 0))
-			height := f32(element_message(panel, .Get_Height, int(width)))
+			height := f32(element_message(panel, .Get_Height, 0))
 			cx := (element.bounds.l + element.bounds.r) / 2
 			cy := (element.bounds.t + element.bounds.b) / 2
 			bounds := Rect {
@@ -1051,7 +1077,7 @@ dialog_spawn :: proc(
 	}
 
 	window.dialog = element_init(Element, &window.element, {}, dialog_message)
-	panel := panel_init(window.dialog, { .Panel_Default_Background }, 5, 5)
+	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
 	panel.background_index = 2
 	panel.shadow = true
 	panel.rounded = true
@@ -1059,8 +1085,6 @@ dialog_spawn :: proc(
 
 	dialog_output: string
 	focus_next: ^Element
-
-	// label_init(panel, {}, text_arguments[0])
 
 	arg_index: int
 	row: ^Panel = nil
@@ -1097,11 +1121,11 @@ dialog_spawn :: proc(
 				}
 
 				case 'f': {
-					spacer_init(row, { .HF }, 0, 2, .Empty)
+					spacer_init(row, { .HF }, 0, LINE_WIDTH, .Empty)
 				}
 
 				case 'l': {
-					spacer_init(row, { .HF }, 0, 2, .Thin)
+					spacer_init(row, { .HF }, 0, LINE_WIDTH, .Thin)
 				}
 
 				case 's': {
@@ -1126,7 +1150,7 @@ dialog_spawn :: proc(
 			}
 
 			text := format[byte_start:byte_end - (end_early ? 1 : 0)]
-			label_init(row, {}, text)
+			label_init(row, { .Label_Center, .HF }, text)
 
 			if end_early {
 				row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)

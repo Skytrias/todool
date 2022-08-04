@@ -492,10 +492,17 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 
 add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "escape", proc() -> bool {
-		// if sb.mode != .None {
-		// 	// sidebar_mode_toggle(.None)
-		// 	element_repaint(mode_panel)
-		// }
+		if .Hide not_in panel_search.flags {
+			element_hide(panel_search, true)
+			element_repaint(mode_panel)
+			return true
+		}
+
+		if .Hide not_in sb.enum_panel.flags {
+			element_hide(sb.enum_panel, true)
+			element_repaint(mode_panel)
+			return true
+		}
 
 		return true
 	})
@@ -882,7 +889,7 @@ add_shortcuts :: proc(window: ^Window) {
 		search_saved_task_head = task_head
 		search_saved_task_tail = task_tail
 	
-		box := cast(^Text_Box) p.children[2]
+		box := cast(^Text_Box) p.children[0]
 		element_focus(box)
 
 		if task_head != -1 {

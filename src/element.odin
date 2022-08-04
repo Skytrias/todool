@@ -492,7 +492,7 @@ element_focus :: proc(element: ^Element) -> bool {
 
 // true if the given element is 
 window_focused_shown :: proc(window: ^Window) -> bool {
-	if window.focused == nil {
+	if window.focused == nil || window.focused == &window.element {
 		return false
 	}
 
@@ -671,6 +671,7 @@ icon_button_init :: proc(parent: ^Element, flags: Element_Flags, icon: Icon) -> 
 Label :: struct {
 	using element: Element,
 	builder: strings.Builder,
+	custom_width: f32,
 }
 
 label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -697,8 +698,12 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Get_Width: {
-			text := strings.to_string(label.builder)
-			return int(estring_width(element, text))
+			if label.custom_width != -1 {
+				return int(label.custom_width * SCALE)
+			} else {
+				text := strings.to_string(label.builder)
+				return int(estring_width(element, text))
+			}
 		}
 
 		case .Get_Height: {
@@ -709,9 +714,15 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 	return 0
 }
 
-label_init :: proc(parent: ^Element, flags: Element_Flags, text := "") -> (res: ^Label) {
+label_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	text := "",
+	custom_width: f32 = -1,
+) -> (res: ^Label) {
 	res = element_init(Label, parent, flags, label_message)
 	res.builder = strings.builder_make(0, 32)
+	res.custom_width = custom_width
 	strings.write_string(&res.builder, text)
 	return
 }
@@ -1025,7 +1036,6 @@ Panel :: struct {
 	margin: f32,
 	color: Color,
 	gap: f32,
-	rounded: bool,
 
 	// offset if panel is scrollable
 	drag_x: f32,
@@ -1035,13 +1045,7 @@ Panel :: struct {
 
 	// shadow + roundness
 	shadow: bool,
-
-	// floaty property
-	float_x: f32,
-	float_y: f32,
-	float_width: f32,
-	float_height: f32,
-	float_transparency: f32,
+	rounded: bool,
 
 	scrollbar: ^Scrollbar,
 	background_index: int,
@@ -1095,7 +1099,7 @@ panel_measure :: proc(panel: ^Panel, di: int) -> int {
 			continue
 		}
 
-		temp_size := Element_Flags { .HF, .VF } <= child.flags ? per_fill : 0
+		temp_size := ((horizontal ? .HF : .VF) in child.flags) ? per_fill : 0
 		child_size := element_message(child, horizontal ? .Get_Height : .Get_Width, temp_size)
 		if child_size > size {
 			size = child_size
@@ -1117,21 +1121,6 @@ panel_layout :: proc(panel: ^Panel, bounds: Rect, measure: bool) -> f32 {
 	vspace := rect_height(bounds) - scaled_margin * 2
 	per_fill, count := panel_calculate_per_fill(panel, int(hspace), int(vspace))
 	expand := .Panel_Expand in panel.flags
-	// floaty := .Panel_Floaty in panel.flags
-
-	// // floaty
-	// if floaty {
-	// 	if horizontal {
-	// 		for child in panel.children {
-	// 			element_move()
-	// 		}
-
-	// 		return panel.float_width
-	// 	} else {
-
-	// 		return panel.float_height
-	// 	}
-	// }
 
 	for child, i in panel.children {
 		if .Hide in child.flags {
@@ -1215,17 +1204,6 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				window_set_cursor(element.window, .Crosshair)
 				element_repaint(element)
 			}
-
-			// if floaty && element.window.pressed_button == MOUSE_MIDDLE {
-			// 	diff_x := element.window.cursor_x - mouse.x
-			// 	diff_y := element.window.cursor_y - mouse.y
-
-			// 	panel.float_x = panel.drag_x + diff_x
-			// 	panel.float_y = panel.drag_y + diff_y
-
-			// 	window_set_cursor(element.window, .Crosshair)
-			// 	element_repaint(element)				
-			// }
 		}
 
 		case .Left_Down: {
@@ -1238,11 +1216,6 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				panel.drag_x = panel.offset_x
 				panel.drag_y = panel.offset_y
 			}
-
-			// if floaty {
-			// 	panel.drag_x = panel.float_x
-			// 	panel.drag_y = panel.float_y
-			// }
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -1358,6 +1331,7 @@ panel_init :: proc(
 // panel floaty
 //////////////////////////////////////////////
 
+// nice to have a panel with static size or changable size 
 Panel_Floaty :: struct {
 	using element: Element,
 	panel: ^Panel,
@@ -1375,12 +1349,6 @@ panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			rect := rect_wh(floaty.x, floaty.y, floaty.width, floaty.height)
 			element_move(panel, rect)
 		}
-
-		// case .Paint_Recursive: {
-		// 	target := element.window.target
-		// 	render_element_clipped(target, panel)
-		// 	return 1
-		// }
 	}
 
 	return 0
@@ -2161,8 +2129,8 @@ split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			
 			if split.pixel_based {
 				// weight is the value to split at
-				left_size = split.weight
-				right_size = space - split.weight
+				left_size = split.weight * SCALE
+				right_size = space - split.weight * SCALE
 			} else {
 				// unit weight based
 				left_size = space * split.weight
@@ -2219,7 +2187,8 @@ splitter_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			
 			if split.pixel_based {
 				unit := (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l))
-				split.weight = unit
+				// split.weight = unit * SCALE
+				split.weight = unit / SCALE
 			} else {
 				split.weight = (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l)) / space
 			}

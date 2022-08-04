@@ -21,19 +21,6 @@ import "../fontstash"
 // font size for tasks specifically so you could zoom in / out
 // add autosave timer & exit scheme
 
-// ADDED
-// line selection now head + tail based, similar to text box selections
-// all actions should work with line selections
-// up / down shift dont change indentation
-// indentation highlights
-// mouse selection with shift is only moving head now
-// mouse click counts in software per element, not native
-
-// CHANGED
-// popup windows to change settings or toggle things
-// popup windows for options or show / render inline?
-// reworked UNDO / REDO internals - more memory efficient
-
 // WEBSITE 
 // work on a proper website
 
@@ -50,19 +37,18 @@ import "../fontstash"
 // mouse dragging tasks
 
 // SHOWCASE TODO 
-// search prompt
+// changed layouting to nakst one Row / Column
 // nfd showcase
+// dragging
 
 // REST
 // SHOCO string compression option
 // Changelog options?
 // indentation focus prompt?
 // timers functionality
-// save leaving prompt
 // progress bar on kanban?
 // camera
 // text box copy & paste
-// Tab based movement & left / right in dialog panel
 
 // IDEAS
 // change alpha of lesser indentations
@@ -130,29 +116,29 @@ main :: proc() {
 
 			case .Window_Close: {
 				if dirty != dirty_saved {
-					// res := dialog_spawn(
-					// 	window, 
-					// 	"Leave without saving progress?",
-					// 	"%bSave",
-					// 	"%bCancel",
-					// 	"%bClose Without Saving",
-					// )
+					res := dialog_spawn(
+						window, 
+						"Leave without saving progress?\n%l\n%f%b%b%b",
+						"Save",
+						"Cancel",
+						"Close Without Saving",
+					)
 					
-					// switch res {
-					// 	case "Save": {
-					// 		log.info("saved")
-					// 		editor_save("save.bin")
-					// 	}
+					switch res {
+						case "Save": {
+							log.info("saved")
+							editor_save("save.bin")
+						}
 
-					// 	case "Cancel": {
-					// 		log.info("canceled")
-					// 		return 1
-					// 	}
+						case "Cancel": {
+							log.info("canceled")
+							return 1
+						}
 
-					// 	case "Close Without Saving": {
-					// 		log.info("close without saving")
-					// 	}
-					// }
+						case "Close Without Saving": {
+							log.info("close without saving")
+						}
+					}
 				}
 
 				log.info("close window", dirty != dirty_saved)
@@ -211,28 +197,8 @@ main :: proc() {
 	add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
 	split := sidebar_init(panel)
-	search_init(window)
 
-	mode_panel = mode_panel_init(split, {})
-	mode_panel.gap_vertical = 5
-	mode_panel.gap_horizontal = 10
-
-	{
-		// task_push(0, "one")
-		task_push(0, "two")
-		task_push(1, "three")
-		// task_push(2, "four")
-		// task_push(2, "four")
-		// task_push(2, "four")
-		task_push(1, "four")
-		task_push(1, "five")
-		task_push(2, "six")
-		task_push(1, "long word to test out mouse selection")
-		task_push(0, "long  word to test out word wrapping on this word particular piece of text even longer to test out moreeeeeeeeeeeee")
-		task_push(0, "five")
-		task_head = 4
-		task_tail = 4
-	}
+	task_panel_init(split)
 
 	goto_init(window) 
 	drag_init(window)

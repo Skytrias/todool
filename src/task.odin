@@ -15,6 +15,7 @@ import "../fontstash"
 
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
+mode_panel_split: ^Split_Pane
 window_main: ^Window
 
 // goto state
@@ -64,7 +65,7 @@ task_parent_stack: [128]^Task
 
 // drag state
 drag_list: [dynamic]^Task
-drag_panel: ^Panel
+drag_panel: ^Panel_Floaty
 drag_label: ^Label
 dragging: bool
 drag_index_at: int
@@ -78,23 +79,25 @@ bookmark_index := -1
 bookmarks: [dynamic]int
 
 drag_init :: proc(window: ^Window) {
-	p := panel_init(&window.element, { .Panel_Default_Background })
+	floaty := panel_floaty_init(&window.element, { .Panel_Default_Background })
+	floaty.x = 0
+	floaty.y = 0
+	floaty.width = 50
+	floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+	floaty.z_index = 200
+	p := floaty.panel
+	p.flags |= { .Panel_Expand }
 	p.margin = 10
 	p.background_index = 2
-	p.float_x = 0
-	p.float_y = 0
-	p.float_width = 50
-	p.float_height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 	p.rounded = true
 	p.shadow = true
-	p.z_index = 200
-	p.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		panel := cast(^Panel) element
+	floaty.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		floaty := cast(^Panel_Floaty) element
 
 		#partial switch msg {
 			case .Layout: {
-				panel.float_x = element.window.cursor_x - 10
-				panel.float_y = element.window.cursor_y - 10
+				floaty.x = element.window.cursor_x - 10
+				floaty.y = element.window.cursor_y - 10
 			}
 
 			case .Animate: {
@@ -106,10 +109,8 @@ drag_init :: proc(window: ^Window) {
 	}
 	
 	drag_label = label_init(p, { .Label_Center }, "3x")
-	drag_panel = p
-
-	element_hide(p, true)
-	// element_animation_start(p)
+	drag_panel = floaty
+	element_hide(floaty, true)
 }
 
 task_head_tail_call_all :: proc(
@@ -907,7 +908,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				case .Kanban: {
 					// draw outlines
-					color := theme.panel_back
+					color := theme_panel(.Back)
 					// color := color_blend(mix, BLACK, 0.9, false)
 					for outline in panel.kanban_outlines {
 						rect := rect_margin(outline, -KANBAN_MARGIN * SCALE)
@@ -947,7 +948,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 				
 				drag_task := tasks_visible[drag_index_at]
-				render_underline(target, drag_task.bounds, GREEN)
+				render_underline(target, drag_task.bounds, theme.text_good)
 			}
 
 			return 1
@@ -1036,7 +1037,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				y := box.bounds.t
 
 				for res in task.search_results {
-					color := search_index == search_draw_index ? GREEN : RED
+					color := search_index == search_draw_index ? theme.text_good : theme.text_bad
 					state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
 
 					for wrap_state_iter(&state, int(res.low), int(res.high)) {
@@ -1270,7 +1271,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			// render panel front color
 			{
 				rect := task.box.bounds
-				color := color_blend_amount(GREEN, theme.panel_front, task.has_children ? 0.05 : 0)
+				color := theme_panel(task.has_children ? .Parent : .Front)
 				render_rect(target, rect, color, ROUNDNESS)
 			}
 
@@ -1327,7 +1328,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 								if rect_valid(r) {
 									render_rect(target, r, tag.color, ROUNDNESS)
-									render_string_aligned(target, font, text, r, theme.panel_front, .Middle, .Middle, scaled_size)
+									render_string_aligned(target, font, text, r, theme_panel(.Front), .Middle, .Middle, scaled_size)
 								}
 							}
 
@@ -1389,6 +1390,10 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 	return 0
 }
+
+//////////////////////////////////////////////
+// init calls
+//////////////////////////////////////////////
 
 goto_init :: proc(window: ^Window) {
 	p := panel_floaty_init(&window.element, {})
@@ -1482,25 +1487,16 @@ goto_init :: proc(window: ^Window) {
 	element_hide(p, true)
 }
 
-search_init :: proc(window: ^Window) {
+search_init :: proc(parent: ^Element) {
 	MARGIN :: 5
 	margin_scaled := math.round(MARGIN * SCALE)
 	height := DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
-	p := panel_init(&window.element, { .Panel_Default_Background }, margin_scaled, 5)
+	p := panel_init(parent, { .Panel_Default_Background, .Panel_Horizontal }, margin_scaled, 5)
 	p.background_index = 2
-	p.shadow = true
+	// p.shadow = true
 	p.z_index = 2
 
-	b1 := button_init(p, {}, "Find Next")
-	b1.invoke = proc(data: rawptr) {
-		search_find_next()
-	}
-	b2 := button_init(p, {}, "Find Prev")
-	b2.invoke = proc(data: rawptr) {
-		search_find_prev()
-	}
-
-	box := text_box_init(p, {})
+	box := text_box_init(p, { .HF })
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
 
@@ -1547,6 +1543,15 @@ search_init :: proc(window: ^Window) {
 		}
 
 		return 0
+	}
+
+	b1 := button_init(p, {}, "Find Next")
+	b1.invoke = proc(data: rawptr) {
+		search_find_next()
+	}
+	b2 := button_init(p, {}, "Find Prev")
+	b2.invoke = proc(data: rawptr) {
+		search_find_prev()
 	}
 
 	element_hide(p, true)
@@ -1672,4 +1677,30 @@ contains_multiple_iterator :: proc(s, substr: string, index: ^int) -> (rune_star
 
 	ok = false
 	return
+}
+
+task_panel_init :: proc(split: ^Split_Pane) {
+	mode_panel_split = split_pane_init(split, { .Split_Pane_Hidable, .Split_Pane_Vertical }, 50, 50)
+	mode_panel_split.pixel_based = true
+
+	search_init(mode_panel_split)
+
+	mode_panel = mode_panel_init(mode_panel_split, {})
+	mode_panel.gap_vertical = 5
+	mode_panel.gap_horizontal = 10
+	
+	// task_push(0, "one")
+	task_push(0, "two")
+	task_push(1, "three")
+	// task_push(2, "four")
+	// task_push(2, "four")
+	// task_push(2, "four")
+	task_push(1, "four")
+	task_push(1, "five")
+	task_push(2, "six")
+	task_push(1, "long word to test out mouse selection")
+	task_push(0, "long  word to test out word wrapping on this word particular piece of text even longer to test out moreeeeeeeeeeeee")
+	task_push(0, "five")
+	task_head = 4
+	task_tail = 4
 }
