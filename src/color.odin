@@ -1,5 +1,13 @@
 package src
 
+Color :: [4]u8
+RED :: Color { 255, 0, 0, 255 }
+GREEN :: Color { 0, 255, 0, 255 }
+BLUE :: Color { 0, 0, 255, 255 }
+BLACK :: Color { 0, 0, 0, 255 }
+WHITE :: Color { 255, 255, 255, 255 }
+TRANSPARENT :: Color { }
+
 color_alpha :: proc(color: Color, alpha: f32) -> (res: Color) {
 	res = color
 	res.a = u8(alpha * 255)
@@ -35,6 +43,10 @@ color_from_f32 :: #force_inline proc(r, g, b, a: f32) -> Color {
 		u8(b * 255),
 		u8(a * 255),
 	}
+}
+
+color_to_bw :: proc(a: Color) -> Color {
+	return max(a.r, a.g, a.b) < 125 ? WHITE : BLACK
 }
 
 color_hsv_to_rgb :: proc(h, s, v: f32) -> (res: Color) {

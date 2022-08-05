@@ -1,6 +1,9 @@
 package src
 
+import "core:log"
+import "core:os"
 import "core:strings"
+import "core:encoding/json"
 
 Sidebar_Mode :: enum {
 	Options,
@@ -65,15 +68,70 @@ Sidebar_Tags :: struct {
 
 sb: Sidebar
 
-// sidebar_mode_panel :: proc() -> ^Panel {
-// 	switch sb.mode {
-// 		case .Options: return sb.options.panel
-// 		case .Tags: return sb.tags.panel
-// 		// case .Sorting: return sb.sorting.panel
-// 	}
+Sidebar_Save_Load :: struct {
+	options: struct {
+		tab: f32,
+		autosave: bool,
+		invert_x: bool,
+		invert_y: bool,
+		uppercase_word: bool,
+		use_animations: bool,
+		wrapping: bool,
+	},
 
-// 	return nil
-// }
+	tags: struct {
+		names: [8]string,
+		colors: [8]u32,
+		tag_mode: int,
+	},
+}
+
+json_save_sidebar :: proc(path: string) -> bool{
+	// set tag data
+	tag_colors: [8]u32
+	tag_names: [8]string
+	for i in 0..<8 {
+		tag := sb.tags.tag_data[i]
+		tag_colors[i] = transmute(u32) tag.color
+		tag_names[i] = strings.to_string(tag.builder^)
+	}
+
+	value := Sidebar_Save_Load {
+		options = {
+			options_tab(),
+			options_autosave(),
+			sb.options.checkbox_invert_x.state,
+			sb.options.checkbox_invert_y.state,
+			options_uppercase_word(),
+			options_use_animations(),
+			options_wrapping(),
+		},
+
+		tags = {
+			tag_names,
+			tag_colors,
+			options_tag_mode(),
+		},
+	}
+
+	result, err := json.marshal(
+		value, {
+			spec = .MJSON,
+			pretty = true,
+			mjson_keys_use_equal_sign = true,
+		},
+		context.temp_allocator,
+	)
+	log.info("json marshal: err =", err)
+
+	if err == nil {
+		ok := os.write_entire_file(path, result[:])
+		// ok := core_write_bpath_file(path, result[:])
+		return ok
+	}
+
+	return false
+}
 
 sidebar_mode_toggle :: proc(to: Sidebar_Mode) {
 	if (.Hide in sb.enum_panel.flags) || to != sb.mode {
@@ -237,6 +295,10 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 	}
 
 	return
+}
+
+options_autosave :: #force_inline proc() -> bool {
+	return sb.options.checkbox_autosave.state
 }
 
 options_wrapping :: #force_inline proc() -> bool {

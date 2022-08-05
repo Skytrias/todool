@@ -217,13 +217,37 @@ theme_editor_spawn :: proc() {
 		slider_panel := panel_init(parent, { .Panel_Horizontal, .HF }, 5, 5)
 		slider_panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			panel := cast(^Panel) element
-			
-			if msg == .Paint_Recursive {
-				target := element.window.target
 
-				panel_selected := theme_selected_panel()
-				if panel == panel_selected {
-					render_rect(target, element.bounds, theme.background[2], ROUNDNESS)
+			#partial switch msg {
+				case .Paint_Recursive: {
+					target := element.window.target
+					hovered := element.window.hovered == element
+
+					panel_selected := theme_selected_panel()
+					if panel == panel_selected {
+						render_rect(target, element.bounds, theme.background[2], ROUNDNESS)
+					} else if hovered {
+						render_rect(target, element.bounds, color_alpha(theme.background[2], 0.5), ROUNDNESS)
+					}
+				}
+
+				case .Left_Down: {
+					for i in 0..<theme_editor.panel_list_index {
+						p := theme_editor.panel_list[i]
+
+						if p == panel {
+							if i != theme_editor.panel_selected_index {
+								element_repaint(panel)
+							}
+
+							theme_editor.panel_selected_index = i
+							break
+						}
+					}
+				}
+
+				case .Get_Cursor: {
+					return int(Cursor.Hand)
 				}
 			}
 
@@ -345,8 +369,6 @@ theme_editor_spawn :: proc() {
 		}		
 		b2 := button_init(button_panel, {}, "Randomize HSV")
 		b2.invoke = proc(data: rawptr) {
-			total_size := size_of(Theme) / size_of(Color)
-		
 			rand_hue := theme_editor.checkbox_hue.state
 			rand_sat := theme_editor.checkbox_sat.state
 			rand_value := theme_editor.checkbox_value.state
@@ -355,19 +377,20 @@ theme_editor_spawn :: proc() {
 			sat := theme_editor.slider_sat.position
 			value := theme_editor.slider_value.position
 
-			for i in 0..<total_size {
-				root := uintptr(&theme) + uintptr(i * size_of(Color))
-				color := cast(^Color) root
-				h := rand_hue ? rand.float32() : hue
-				s := rand_sat ? rand.float32() : sat
-				v := rand_value ? rand.float32() : value
-				color^ = color_hsv_to_rgb(h, s, v)
-			}
-
 			for i in 0..<theme_editor.panel_list_index {
 				p := theme_editor.panel_list[i]
-				theme_reformat_panel_sliders(p)
+				locked := theme_panel_locked(p)
+
+				if !locked {
+					color := cast(^Color) p.data
+					h := rand_hue ? rand.float32() : hue
+					s := rand_sat ? rand.float32() : sat
+					v := rand_value ? rand.float32() : value
+					color^ = color_hsv_to_rgb(h, s, v)
+					theme_reformat_panel_sliders(p)
+				}
 			}
+
 			gs_update_all_windows()
 		}	
 

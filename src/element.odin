@@ -11,8 +11,10 @@ import "../fontstash"
 
 DEBUG_PANEL :: false
 UPDATE_HOVERED :: 1
-UPDATE_PRESSED :: 2
-UPDATE_FOCUSED :: 3
+UPDATE_HOVERED_LEAVE :: 2
+UPDATE_PRESSED :: 3
+UPDATE_PRESSED_LEAVE :: 4
+UPDATE_FOCUSED :: 5
 
 SCROLLBAR_SIZE :: 15
 TEXT_MARGIN_VERTICAL :: 10
@@ -20,14 +22,6 @@ TEXT_MARGIN_HORIZONTAL :: 10
 DEFAULT_FONT_SIZE :: 20
 DEFAULT_ICON_SIZE :: 18
 SPLITTER_SIZE :: 4
-
-Color :: [4]u8
-RED :: Color { 255, 0, 0, 255 }
-GREEN :: Color { 0, 255, 0, 255 }
-BLUE :: Color { 0, 0, 255, 255 }
-BLACK :: Color { 0, 0, 0, 255 }
-WHITE :: Color { 255, 255, 255, 255 }
-TRANSPARENT :: Color { }
 
 Message :: enum {
 	Invalid,
@@ -708,6 +702,13 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Get_Height: {
 			return int(efont_size(element))
+		}
+
+		// disables label intersection, sets to parent result
+		case .Find_By_Point_Recursive: {
+			point := cast(^Find_By_Point) dp
+			point.res = element.parent
+			return 1
 		}
 	}
 
@@ -1818,11 +1819,19 @@ Color_Picker_SV :: struct {
 	using element: Element,
 	x, y: f32,
 	output: Color,
+
+	animating: bool,
+	animating_unit: f32,
+	animating_goal: f32,
 }
 
 Color_Picker_HUE :: struct {
 	using element: Element,
 	y: f32,
+
+	animating: bool,
+	animating_unit: f32,
+	animating_goal: f32,
 }
 
 color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1852,11 +1861,6 @@ color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			element_move(hue, cut)
 		}
 
-		// case .Custom_Clip: {
-		// 	clip := cast(^Rect) dp
-		// 	clip^ = rect_margin(clip^, -sv_out_size)
-		// }
-
 		case .Paint_Recursive: {
 			target := element.window.target
 			render_rect(target, element.bounds, theme.background[0], 0)
@@ -1875,7 +1879,7 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 		case .Paint_Recursive: {
 			target := element.window.target
 			render_texture(target, .HUE, element.bounds)
-			render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
+			defer render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			OUT_SIZE :: 10
 			out_size := math.round(OUT_SIZE * SCALE)
@@ -1883,12 +1887,43 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			hue_out := element.bounds
 			hue_out.t += hue.y * rect_height(element.bounds) - out_size / 2
 			hue_out.b = hue_out.t + out_size
+			hue_out = rect_margin(hue_out, math.round(-hue.animating_unit * 5))
 
+			out_color := color_hsv_to_rgb(hue.y, 1, 1)
+			render_rect(target, hue_out, out_color)
 			render_rect_outline(target, hue_out, theme.text_default, 0, LINE_WIDTH)
 		}
 
 		case .Get_Cursor: {
 			return int(Cursor.Resize_Vertical)
+		}
+
+		// on update hovering do an animation
+		case .Update: {
+			switch di {
+				case UPDATE_PRESSED: {
+					hue.animating = true
+					hue.animating_goal = 1
+					element_animation_start(element)
+				}
+
+				case UPDATE_PRESSED_LEAVE: {
+					hue.animating = true
+					hue.animating_goal = 0
+					element_animation_start(element)
+				}
+			}
+		}
+
+		case .Animate: {
+			handled := false
+			handled |= animate_to(
+				&hue.animating,
+				&hue.animating_unit,
+				hue.animating_goal,
+				1,
+			)
+			return int(handled)
 		}
 	}
 
@@ -1913,7 +1948,7 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			target := element.window.target
 			color := color_hsv_to_rgb(hue.y, 1, 1)
 			render_texture(target, .SV, element.bounds, color)
-			render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
+			defer render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			sv_out := rect_wh(
 				element.bounds.l + sv.x * rect_width(element.bounds) - sv_out_size / 2, 
@@ -1921,7 +1956,10 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				sv_out_size,
 				sv_out_size,
 			)
-			render_rect_outline(target, sv_out, theme.text_default, 0, LINE_WIDTH)
+			sv_out = rect_margin(sv_out, math.round(-sv.animating_unit * 5))
+			color = color_to_bw(sv.output)
+			render_rect(target, sv_out, sv.output)
+			render_rect_outline(target, sv_out, color, 0, LINE_WIDTH)
 		}
 
 		case .Get_Cursor: {
@@ -1930,11 +1968,39 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Value_Changed: {
 			picker := cast(^Color_Picker) sv.parent
+			sv.output = color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
 
 			if picker.color_mod != nil {
-				output := color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
-				picker.color_mod^ = output
+				picker.color_mod^ = sv.output
 			}
+		}
+
+		// on update hovering do an animation
+		case .Update: {
+			switch di {
+				case UPDATE_PRESSED: {
+					sv.animating = true
+					sv.animating_goal = 1
+					element_animation_start(element)
+				}
+
+				case UPDATE_PRESSED_LEAVE: {
+					sv.animating = true
+					sv.animating_goal = 0
+					element_animation_start(element)
+				}
+			}
+		}
+
+		case .Animate: {
+			handled := false
+			handled |= animate_to(
+				&sv.animating,
+				&sv.animating_unit,
+				sv.animating_goal,
+				1,
+			)
+			return int(handled)
 		}
 	}
 

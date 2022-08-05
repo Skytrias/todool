@@ -522,7 +522,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			window.hovered_start = time.tick_now()
 			window.pressed_last = nil
 
-			element_message(previous, .Update, UPDATE_HOVERED)
+			element_message(previous, .Update, UPDATE_HOVERED_LEAVE)
 			element_message(window.hovered, .Update, UPDATE_HOVERED)
 		} else {
 			window_hovered_check(window)
@@ -595,7 +595,7 @@ window_set_pressed :: proc(window: ^Window, element: ^Element, button: int) {
 	window.pressed_button = button
 
 	if previous != nil {
-		element_message(previous, .Update, UPDATE_PRESSED)
+		element_message(previous, .Update, UPDATE_PRESSED_LEAVE)
 	}
 
 	if element != nil {

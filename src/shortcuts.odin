@@ -813,6 +813,7 @@ add_shortcuts :: proc(window: ^Window) {
 			dirty_saved = dirty
 		}
 	
+		json_save_sidebar("test.json")
 		element_repaint(mode_panel)
 		// log.info("saved")
 		return true

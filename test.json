@@ -1,0 +1,32 @@
+options = {
+	tab = 0.78965515
+	autosave = true
+	invert_x = false
+	invert_y = false
+	uppercase_word = true
+	use_animations = true
+	wrapping = true
+}
+tags = {
+	names = [
+		"oneqwe"
+		"two"
+		"three"
+		"four"
+		"five"
+		"six"
+		"seven"
+		"eight"
+	]
+	colors = [
+		4278190335
+		4278239231
+		4278255487
+		4282384128
+		4294967040
+		4294917888
+		4294901887
+		4290707711
+	]
+	tag_mode = 0
+}

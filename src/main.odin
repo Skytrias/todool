@@ -1,5 +1,6 @@
 package src
 
+import "core:encoding/json"
 import "core:mem"
 import "core:math"
 import "core:time"
@@ -33,15 +34,15 @@ import "../fontstash"
 
 // TODAY
 // nice copy & paste
-// theme editor copy & paste
+// theme editor copy & past
 // mouse dragging tasks
 
 // SHOWCASE TODO 
 // changed layouting to nakst one Row / Column
-// nfd showcase
 // dragging
-// dialog polish
 // camera bound checked
+
+// nfd showcase
 
 // REST
 // SHOCO string compression option
@@ -55,17 +56,76 @@ import "../fontstash"
 // IDEAS
 // change alpha of lesser indentations
 
-// import "../nfd"
+import "../nfd"
+main2 :: proc() {
+	fmt.eprintln("start")
+	defer fmt.eprintln("end")
+
+	out_path: cstring = "*.c"
+	res := nfd.OpenDialog("", "", &out_path)
+	fmt.eprintln(res, out_path)
+
+	// res := nfd.SaveDialog("", "", &out_path)
+	// fmt.eprintln(res, out_path)
+}
+
 // main :: proc() {
-// 	fmt.eprintln("start")
-// 	defer fmt.eprintln("end")
+// 	Some_Data :: struct {
+// 		text: string,
+// 		value1: int,
+// 		value2: int,
+// 		value3: int,
+// 		another: struct {
+// 			wow: u8,
+// 			value: int,
+// 			another2: struct {
+// 				wow: u8,
+// 				value: int,
+// 			},
+// 		},
+// 		test_map1: map[string]int,
+// 		values: [8]int,
+// 		// test_map2: map[int]int,
+// 	}
 
-// 	out_path: cstring = "*.c"
-// 	// res := nfd.OpenDialog("", "", &out_path)
-// 	// fmt.eprintln(res, out_path)
+// 	out_data := Some_Data {
+// 		text = "testing",
+// 		value1 = 10,
+// 		value2 = 20,
+// 		value3 = 30,
+// 		test_map1 = {
+// 			"abc test" = 1,
+// 			"def" = 2,
+// 			"ghi" = 3,
+// 		},
+// 		// test_map2 = {
+// 		// 	12 = 0,
+// 		// 	14 = 0,
+// 		// },
+// 	}
 
-// 	res := nfd.SaveDialog("", "", &out_path)
-// 	fmt.eprintln(res, out_path)
+// 	result, err1 := json.marshal(
+// 		out_data, 
+// 		{ 
+// 			spec = .MJSON,
+// 			pretty = true,
+// 			use_spaces = true,
+// 			spaces = 4,
+// 			mjson_keys_use_equal_sign = true,
+// 		}, 
+// 		context.temp_allocator,
+// 	)
+
+// 	fmt.eprintln("err =", err1)
+// 	fmt.eprintln(string(result))
+
+// 	fmt.eprintln("--------------------------------------")
+
+// 	in_data: Some_Data
+// 	err2 := json.unmarshal(result, &in_data, .MJSON)
+
+// 	fmt.eprintln("err =", err2)
+// 	fmt.eprintln(in_data)
 // }
 
 main :: proc() {
@@ -200,6 +260,8 @@ main :: proc() {
 
 	goto_init(window) 
 	drag_init(window)
+
+	json_save_sidebar("test.json")
 
 	gs_message_loop()
 }
