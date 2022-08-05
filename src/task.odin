@@ -359,158 +359,6 @@ Mode :: enum {
 KANBAN_WIDTH :: 300
 KANBAN_MARGIN :: 10
 
-cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
-	a := x ? &cam.ax : &cam.ay
-	off := x ? &cam.offset_x : &cam.offset_y
-	lerp := x ? &caret_lerp_speed_x : &caret_lerp_speed_y
-	using a
-
-	if animating && !cam.freehand {
-		if options_use_animations() {
-			off^ += gs.dt * 1000 * f32(direction) * lerp^
-			lerp^ += 0.1
-		} else {
-			off^ += f32(direction) * goal
-		}
-	} else {
-		lerp^ = 1
-		return false
-	}
-
-	return true
-}
-
-Pan_Camera_Animation :: struct {
-	animating: bool,
-	direction: int,
-	goal: f32,
-}
-
-Pan_Camera :: struct {
-	start_x, start_y: f32, // start of drag
-	offset_x, offset_y: f32,
-	margin_x, margin_y: f32,
-
-	freehand: bool, // disables auto centering while panning
-
-	ay: Pan_Camera_Animation,
-	ax: Pan_Camera_Animation,
-}
-
-cam_init :: proc(cam: ^Pan_Camera, margin_x, margin_y: f32) {
-	cam.offset_x = margin_x
-	cam.margin_x = margin_x
-	cam.offset_y = margin_y
-	cam.margin_y = margin_y
-}
-
-// returns the wanted goal + direction if y is out of bounds of focus rect
-cam_bounds_check_y :: proc(
-	cam: ^Pan_Camera,
-	focus: Rect,
-	to_top: f32,
-	to_bottom: f32,
-) -> (goal: f32, direction: int) {
-	if to_top <= focus.t + cam.margin_y {
-		goal = focus.t - to_top + cam.margin_y
-		direction = 1
-		return
-	} 
-
-	if to_bottom > focus.b - cam.margin_y {
-		goal = to_bottom - focus.b + cam.margin_y
-		direction = -1
-		return
-	}
-
-	return
-}
-
-cam_bounds_check_x :: proc(
-	cam: ^Pan_Camera,
-	focus: Rect,
-	to_left: f32,
-	to_right: f32,
-) -> (goal: f32, direction: int) {
-	if to_left <= focus.l + cam.margin_x {
-		goal = focus.l - to_left + cam.margin_x
-		direction = 1
-		return
-	} 
-
-	if to_right > focus.r - cam.margin_x {
-		goal = to_right - focus.r + cam.margin_x
-		direction = -1
-		return
-	}
-
-	return
-}
-
-// return the cam per mode
-mode_panel_cam :: proc() -> ^Pan_Camera {
-	return &mode_panel.cam[mode_panel.mode]
-}
-
-// check animation on caret bounds
-mode_panel_cam_bounds_check_y :: proc(to_top, to_bottom: f32) {
-	cam := mode_panel_cam()
-
-	if cam.freehand {
-		return
-	}
-
-	goal, direction := cam_bounds_check_y(cam, mode_panel.bounds, to_top, to_bottom)
-
-	cam.ay.animating = direction != 0
-	if cam.ay.animating {
-		element_animation_start(mode_panel)
-	}
-
-	cam.ay.direction = direction
-	cam.ay.goal = goal
-}
-
-// check animation on caret bounds
-mode_panel_cam_bounds_check_x :: proc(to_left, to_right: f32) {
-	cam := mode_panel_cam()
-
-	if cam.freehand {
-		return
-	}
-
-	goal: f32
-	direction: int
-
-	switch mode_panel.mode {
-		case .List: {
-			goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
-		}
-
-		case .Kanban: {
-			index := task_head
-			t: ^Task
-			for t == nil || (t.indentation != 0 && index >= 0) {
-				t = tasks_visible[index]
-				index -= 1
-			}
-
-			if t.kanban_rect != {} {
-				goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, t.kanban_rect.l, t.kanban_rect.r)
-			}
-		}
-	} 
-
-
-	cam.ax.animating = direction != 0
-	if cam.ax.animating {
-		element_animation_start(mode_panel)
-	}
-
-	cam.ax.direction = direction
-	cam.ax.goal = goal
-}
-
 // element to custom layout based on internal mode
 Mode_Panel :: struct {
 	using element: Element,
@@ -952,6 +800,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
 						width_limit := rect_width(element.bounds) - tab_size - fold_size
 						width_limit -= cam.offset_x
+						
+						// disable wrap limit
+						if !options_wrapping() {
+							width_limit = max(f32)
+						}
+
 						task_box_format_to_lines(task.box, width_limit)
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&cut, f32(h))
@@ -1008,11 +862,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							kanban_width := KANBAN_WIDTH * SCALE
 							kanban_width += f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE
 							kanban_current = rect_cut_left(&cut, kanban_width)
-							
-							if task.visible_index == 0 {
-								log.info(task.visible_index, kanban_current)
-							}
-
 							task.kanban_rect = kanban_current
 							cut.l += panel.gap_horizontal * SCALE + KANBAN_MARGIN * 2 * SCALE
 						}
@@ -1035,8 +884,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						rect.b = rect.t
 						rect.t = bounds.t
 						append(&panel.kanban_outlines, rect)
+						// TODO maybe need to append this to the last 0 indentation?
 					}
 				}
+			}
+
+			// check on change
+			if task_head != -1 {
+				mode_panel_cam_bounds_check_x(false)
+				mode_panel_cam_bounds_check_y()
 			}
 		}
 
@@ -1154,9 +1010,31 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Animate: {
-			handled := true
-			handled |= cam_animate(cam, false)
-			handled |= cam_animate(cam, true)
+			handled := false
+
+			y_handled := cam_animate(cam, false)
+			handled |= y_handled
+
+			// check y afterwards
+			if y_handled {
+				goal_y, direction_y := cam_bounds_check_y(cam, mode_panel.bounds, caret_rect.t, caret_rect.b)
+
+				if cam.ay.direction != CAM_CENTER && direction_y == 0 {
+					cam.ay.animating = false
+				}
+			}
+
+			x_handled := cam_animate(cam, true)
+			handled |= x_handled
+
+			// check x afterwards
+			if x_handled {
+				mode_panel_cam_bounds_check_x(true)
+			}
+
+			// if !handled {
+			// 	log.info("-----------------------")
+			// }
 
 			// log.info("animating!", handled, cam.offset_y, cam.animation_y_goal, cam.animation_y_direction)
 			return int(handled)

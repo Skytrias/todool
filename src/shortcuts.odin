@@ -686,10 +686,11 @@ add_shortcuts :: proc(window: ^Window) {
 		if task_head != -1 {
 			current_task := tasks_visible[task_head]
 			indentation = current_task.indentation + 1
+			builder := &current_task.box.builder
 
 			// uppercase word
-			if !current_task.has_children && options_uppercase_word() {
-				item := Undo_Builder_Uppercased_Content { &current_task.box.builder }
+			if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
+				item := Undo_Builder_Uppercased_Content { builder }
 				undo_box_uppercased_content(manager, &item)
 			}
 		}
@@ -940,6 +941,15 @@ add_shortcuts :: proc(window: ^Window) {
 		element_repaint(mode_panel)
 
 		return true	
+	})
+
+	window_add_shortcut(window, "ctrl+e", proc() -> bool {
+		if task_head != -1 {
+			cam := mode_panel_cam()
+			cam_center_by_height_state(cam, mode_panel.bounds, caret_rect.t)
+		}
+
+		return true
 	})
 
 	window_add_shortcut(window, "ctrl+v", proc() -> bool {

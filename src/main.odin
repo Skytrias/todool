@@ -41,6 +41,7 @@ import "../fontstash"
 // nfd showcase
 // dragging
 // dialog polish
+// camera bound checked
 
 // REST
 // SHOCO string compression option
@@ -55,7 +56,6 @@ import "../fontstash"
 // change alpha of lesser indentations
 
 // import "../nfd"
-
 // main :: proc() {
 // 	fmt.eprintln("start")
 // 	defer fmt.eprintln("end")
@@ -166,11 +166,6 @@ main :: proc() {
 					append(&bookmarks, i)
 				}
 			}
-		}
-
-		if task_head != -1 {
-			mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r)
-			mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b)
 		}
 
 		// log.info("dirty", dirty, dirty_saved)
