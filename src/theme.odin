@@ -39,6 +39,24 @@ Theme :: struct {
 	caret: Color,
 	caret_highlight: Color,
 	caret_selection: Color,
+
+	// tag_colors: [8]Color,
+}
+
+Theme_Save_Load :: struct {
+	background: [3]u32, // 3 variants, lowest to highest
+	panel: [3]u32, // 3 variants, back - parent - front
+
+	text_default: u32,
+	text_good: u32,
+	text_bad: u32,
+	text_blank: u32,
+
+	shadow: u32,
+	
+	caret: u32,
+	caret_highlight: u32,
+	caret_selection: u32,	
 }
 
 Theme_Panel :: enum {
@@ -121,6 +139,10 @@ theme_editor_spawn :: proc() {
 				handled := true
 
 				switch combo {
+					case "ctrl+s": {
+						json_save_misc("save.sjson")
+					}
+
 					case "ctrl+c": {
 						p := theme_selected_panel()
 						color_mod := cast(^Color) p.data
@@ -199,7 +221,7 @@ theme_editor_spawn :: proc() {
 	}
 	theme_editor.window = window
 
-	panel := panel_init(&window.element, {.Panel_Scrollable, .Panel_Default_Background })
+	panel := panel_init(&window.element, { .Panel_Scrollable, .Panel_Default_Background })
 	panel.margin = 10
 	
 	label := label_init(panel, {}, "Theme Editor")
@@ -342,7 +364,7 @@ theme_editor_spawn :: proc() {
 	theme_editor.picker = picker
 	panel.data = picker
 	window.element.data = picker
-
+	
 	{
 		right_panel := panel_init(bot_panel, { .HF })
 

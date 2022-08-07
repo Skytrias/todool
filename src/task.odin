@@ -949,11 +949,26 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				})
 			}
 
+			// visual line for dragging
 			if task_head != -1 && dragging && drag_index_at != -1 {
 				render_push_clip(target, panel.clip)
 				
 				drag_task := tasks_visible[drag_index_at]
 				render_underline(target, drag_task.bounds, theme.text_good)
+			}
+
+			if task_head != -1 && task_head != task_tail {
+				render_push_clip(target, panel.clip)
+				a := tasks_visible[task_head]
+				b := tasks_visible[task_tail]
+				bounds := rect_bounding(a.bounds, b.bounds)
+
+				rects := rect_cut_out_rect(panel.bounds, bounds)
+				color := color_alpha(theme.background[0], 0.75)
+				render_rect(target, rects[0], color)
+				render_rect(target, rects[1], color)
+				render_rect(target, rects[2], color)
+				render_rect(target, rects[3], color)
 			}
 
 			return 1
@@ -1048,6 +1063,21 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	box := cast(^Task_Box) element
 	task := cast(^Task) element.parent
 
+	// x offset of the task box
+	x_offset :: proc(task: ^Task, box: ^Task_Box) -> (res: f32) {
+		res += TASK_TEXT_OFFSET
+
+		if task.bookmarked {
+			res += math.round(TASK_BOOKMARK_WIDTH * SCALE)
+		}
+		
+		if task.has_children {
+			res += math.round(DEFAULT_FONT_SIZE * SCALE)
+		}
+
+		return
+	}
+
 	#partial switch msg {
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
@@ -1055,23 +1085,27 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			return 1
 		}
 
+		case .Layout: {
+			if task_head == task_tail && task.visible_index == task_head {
+				offset := x_offset(task, box)
+				font, size := element_retrieve_font_options(box)
+				scaled_size := size * SCALE
+				x := box.bounds.l + offset
+				y := box.bounds.t
+				caret_rect = box_layout_caret(box, font, scaled_size, x, y)
+			}
+		}
+
 		case .Paint_Recursive: {
 			target := element.window.target
 			draw_search_results := (.Hide not_in panel_search.flags)
-			box.bounds.l += TASK_TEXT_OFFSET
 
-			if task.bookmarked {
-				box.bounds.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
-			}
-			
-			if task.has_children {
-				box.bounds.l += math.round(DEFAULT_FONT_SIZE * SCALE)
-			}
+			box.bounds.l += x_offset(task, box)
+			font, size := element_retrieve_font_options(box)
+			scaled_size := size * SCALE
 
 			// draw the search results outline
 			if draw_search_results && len(task.search_results) != 0 {
-				font, size := element_retrieve_font_options(box)
-				scaled_size := size * SCALE
 				x := box.bounds.l
 				y := box.bounds.t
 
@@ -1091,16 +1125,27 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				}
 			}
 
+			if task.state == .Canceled {
+				state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
+				font_ascent_scaled := fontstash.ascent_pixel_size(font, scaled_size)
+				
+				x := box.bounds.l
+				y := box.bounds.t
+				for wrap_line, i in box.wrapped_lines {
+					width := fontstash.string_width(font, scaled_size, wrap_line)
+					rect := rect_wh(x, y, width, scaled_size)
+					render_text_strike_through(target, font_ascent_scaled, rect, theme.text_bad)
+					y += scaled_size
+				}
+			}
+
 			// outline visible selected one
 			if task_head == task_tail && task.visible_index == task_head {
-				font, size := element_retrieve_font_options(box)
-				scaled_size := size * SCALE
 				x := box.bounds.l
 				y := box.bounds.t
 				low, high := box_low_and_high(box)
 				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
-				caret := box_render_caret(target, box, font, scaled_size, x, y)
-				caret_rect = caret
+				render_rect(target, caret_rect, theme.caret, 0)
 			}
 		}
 
@@ -1728,7 +1773,27 @@ task_panel_init :: proc(split: ^Split_Pane) {
 	mode_panel = mode_panel_init(mode_panel_split, {})
 	mode_panel.gap_vertical = 5
 	mode_panel.gap_horizontal = 10
+}
+
+
+tasks_load_file :: proc() {
+	err := editor_load("save.todool")
 	
+	// on error reset and load default
+	if err != nil {
+		tasks_load_reset()
+		tasks_load_default()
+	}
+}
+
+tasks_load_reset :: proc() {
+	// NOTE TEMP
+	// TODO need to cleanup node data
+	clear(&mode_panel.children)
+	undo_manager_reset(&mode_panel.window.manager)
+}
+
+tasks_load_default :: proc() {
 	// task_push(0, "one")
 	task_push(0, "two")
 	task_push(1, "three")

@@ -1,5 +1,7 @@
 package src
 
+import "core:fmt"
+import "core:os"
 import "core:time"
 import "core:math"
 import "core:mem"
@@ -14,8 +16,8 @@ import "../fontstash"
 import "../cutf8"
 
 SCALE := f32(1)
-LINE_WIDTH := f32(int(2.0 * SCALE))
-ROUNDNESS := f32(int(5.0 * SCALE))
+LINE_WIDTH := max(2, 2 * SCALE)
+ROUNDNESS := 5.0 * SCALE
 
 Font :: fontstash.Font
 font_regular: ^Font
@@ -743,6 +745,11 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					window_poll_size(window)
 					window_layout_update(window)
 				}
+
+				case .FOCUS_GAINED: {
+					// flush key event when gained
+					sdl.FlushEvent(.KEYDOWN)
+				}
 			}
 		}
 
@@ -881,6 +888,21 @@ gs_init :: proc() {
 
 	fontstash.init(1000, 1000)
 	fonts_init()
+
+	// base path
+	path := sdl.GetPrefPath("skytrias", "todool")
+	if path != nil {
+		default_base_path = strings.clone_from_cstring(path)
+		sdl.free(rawptr(path))
+	} else {
+		when os.OS == .Linux {
+			default_base_path = ".\\"
+		} 
+
+		when os.OS == .Windows {
+			default_base_path = "./"
+		}
+	}
 }
 
 gs_destroy :: proc() {
@@ -1315,4 +1337,23 @@ clipboard_get_string :: proc(allocator := context.allocator) -> string {
 	result := strings.clone(string(text), allocator)
 	sdl.free(cast(rawptr) text)
 	return result
+}
+
+default_save_name := "save"
+default_base_path: string
+
+//////////////////////////////////////////////
+// bpath, initialized once
+//////////////////////////////////////////////
+
+bpath_temp :: proc(path: string) -> string {
+	return fmt.tprintf("%s%s", default_base_path, path)
+}
+
+bpath_file_write :: proc(path: string, content: []byte) -> bool {
+	return os.write_entire_file(bpath_temp(path), content)
+}
+
+bpath_file_read :: proc(path: string, allocator := context.allocator) -> ([]byte, bool) {
+	return os.read_entire_file(bpath_temp(path), allocator)
 }

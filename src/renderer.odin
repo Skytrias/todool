@@ -336,7 +336,7 @@ render_underline :: proc(
 	target: ^Render_Target,
 	r: Rect,
 	color: Color,
-	line_width: f32 = 2,
+	line_width: f32 = LINE_WIDTH,
 ) {
 	r := r
 	r.t = r.b - line_width
@@ -572,7 +572,7 @@ render_text_strike_through :: proc(
 	ascent: f32, 
 	r: Rect, 
 	color: Color, 
-	line_width: f32 = 1,
+	line_width := LINE_WIDTH,
 ) {
 	r := r
 	r.t = r.b - ascent / 2 - line_width

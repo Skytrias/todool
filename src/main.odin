@@ -16,7 +16,6 @@ import "../fontstash"
 // element allow custom allocator
 
 // TODO
-// save file -> export to json too, TRY ONE SAVE FILE FOR ALL
 // images on top of cards
 // breadcrumbs? could do a prompt
 // font size for tasks specifically so you could zoom in / out
@@ -32,17 +31,13 @@ import "../fontstash"
 // bookmarks could be display differently as LINE HIGHLIGHT
 // recording this -> LINE HIGHLIGHT NOW
 
-// TODAY
-// nice copy & paste
-// theme editor copy & past
-// mouse dragging tasks
-
 // SHOWCASE TODO 
+// theme editor again
 // changed layouting to nakst one Row / Column
 // dragging
 // camera bound checked
-
 // nfd showcase
+// json pretty support - one safe file only
 
 // REST
 // SHOCO string compression option
@@ -128,6 +123,25 @@ main2 :: proc() {
 // 	fmt.eprintln(in_data)
 // }
 
+// main :: proc() {
+// 	Test :: enum {
+// 		None,
+// 		One,
+// 		Two,
+// 		Three,
+// 	}
+
+// 	Test_Set :: bit_set[Test]
+
+// 	a := Test_Set { .One, .Two }
+
+// 	if a > { .One, .Two } {
+// 		fmt.eprintln("YOOOOO", a)
+// 	} else {
+// 		fmt.eprintln("not found")
+// 	}
+// }
+
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -187,7 +201,7 @@ main :: proc() {
 					
 					switch res {
 						case "Save": {
-							editor_save("save.bin")
+							editor_save("save.todool")
 						}
 
 						case "Cancel": {
@@ -261,7 +275,8 @@ main :: proc() {
 	goto_init(window) 
 	drag_init(window)
 
-	json_save_sidebar("test.json")
+	tasks_load_file()
+	json_load_misc("save.sjson")
 
 	gs_message_loop()
 }

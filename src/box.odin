@@ -411,7 +411,9 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				y := box.bounds.t
 				low, high := box_low_and_high(box)
 				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
-				box_render_caret(target, box, font, scaled_size, x, y)
+
+				caret := box_layout_caret(box, font, scaled_size, x, y)
+				render_rect(target, caret, theme.caret, 0)
 			}
 
 			render_rect_outline(target, old_bounds, color)
@@ -963,8 +965,8 @@ box_low_and_high :: proc(box: ^Box) -> (low, high: int) {
 // Box render
 //////////////////////////////////////////////
 
-box_render_caret :: proc(
-	target: ^Render_Target, 
+// layout textual caret
+box_layout_caret :: proc(
 	box: ^Box,
 	font: ^Font,
 	scaled_size: f32,
@@ -999,7 +1001,6 @@ box_render_caret :: proc(
 		scaled_size,
 	)
 
-	render_rect(target, caret_rect, theme.caret, 0)
 	return caret_rect
 }
 

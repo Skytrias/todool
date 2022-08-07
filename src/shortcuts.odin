@@ -635,7 +635,6 @@ add_shortcuts :: proc(window: ^Window) {
 	}
 
 	window_add_shortcut(window, "tab", proc() -> bool {
-		log.info("try")
 		return task_indentation_move(1)
 	})
 
@@ -803,7 +802,7 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "ctrl+s", proc() -> bool {
-		err := editor_save("save.bin")
+		err := editor_save("save.todool")
 		if err != .None {
 			log.info("SAVE: FAILED =", err)
 		}
@@ -813,34 +812,34 @@ add_shortcuts :: proc(window: ^Window) {
 			dirty_saved = dirty
 		}
 	
-		json_save_sidebar("test.json")
+		json_save_misc("save.sjson")
 		element_repaint(mode_panel)
 		// log.info("saved")
 		return true
 	})
 
-	window_add_shortcut(window, "ctrl+o", proc() -> bool {
-		err := editor_load("save.bin")
+	// window_add_shortcut(window, "ctrl+o", proc() -> bool {
+	// 	err := editor_load("save.bin")
 
-		if err != .None {
-			log.info("LOAD: FAILED =", err)
-		}
+	// 	if err != .None {
+	// 		log.info("LOAD: FAILED =", err)
+	// 	}
 
-		// out_path: cstring
-		// res := nfd.OpenDialog("", "", &out_path)
-		// log.info(res, out_path)
+	// 	// out_path: cstring
+	// 	// res := nfd.OpenDialog("", "", &out_path)
+	// 	// log.info(res, out_path)
 
-		// if res == .OKAY {
-		// 	err := editor_load("save.bin")
+	// 	// if res == .OKAY {
+	// 	// 	err := editor_load("save.bin")
 
-		// 	if err != .None {
-		// 		log.info("LOAD: FAILED =", err)
-		// 	}
-		// }
+	// 	// 	if err != .None {
+	// 	// 		log.info("LOAD: FAILED =", err)
+	// 	// 	}
+	// 	// }
 
-		element_repaint(mode_panel)
-		return true
-	})
+	// 	element_repaint(mode_panel)
+	// 	return true
+	// })
 
 	// set tags to selected lines
 	window_add_shortcut(window, "ctrl+b", proc() -> bool {
@@ -947,6 +946,7 @@ add_shortcuts :: proc(window: ^Window) {
 	window_add_shortcut(window, "ctrl+e", proc() -> bool {
 		if task_head != -1 {
 			cam := mode_panel_cam()
+			cam.freehand = false
 			cam_center_by_height_state(cam, mode_panel.bounds, caret_rect.t)
 		}
 

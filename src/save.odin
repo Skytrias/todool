@@ -6,6 +6,7 @@ import "core:mem"
 import "core:bytes"
 import "core:log"
 import "core:os"
+import "core:encoding/json"
 
 /* 
 TODOOL SAVE FILE FORMAT - currently *uncompressed*
@@ -157,7 +158,11 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 		}
 	}
 
-	os.write_entire_file(file_name, buffer.buf[:])
+	ok := bpath_file_write(file_name, buffer.buf[:])
+	if !ok {
+		log.error("SAVE: File write failed")
+	}
+	
 	return
 }
 
@@ -222,11 +227,12 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 }
 
 editor_load :: proc(file_name: string) -> (err: io.Error) {
-	file_data, ok := os.read_entire_file(file_name)
+	file_data, ok := bpath_file_read(file_name)
 	defer delete(file_data)
 
 	if !ok {
-		log.error("LOAD: File not found = ")
+		log.error("LOAD: File not found")
+		err = .Unknown
 		return
 	}
 
@@ -239,9 +245,7 @@ editor_load :: proc(file_name: string) -> (err: io.Error) {
 		return
 	} 
 
-	// NOTE TEMP
-	clear(&mode_panel.children)
-	undo_manager_reset(&mode_panel.window.manager)
+	tasks_load_reset()
 
 	// header block
 	block_size := reader_read_type(&reader, u32be) or_return
@@ -272,4 +276,140 @@ reader_read_bytes_out :: proc(r: ^bytes.Reader, size: int) -> (output: []byte, e
 	output = r.s[r.i:r.i + i64(size)]
 	r.i += i64(size)
 	return
+}
+
+//////////////////////////////////////////////
+// json save file
+//////////////////////////////////////////////
+
+Misc_Save_Load :: struct {
+	scale: f32,
+
+	options: struct {
+		tab: f32,
+		autosave: bool,
+		invert_x: bool,
+		invert_y: bool,
+		uppercase_word: bool,
+		use_animations: bool,
+		wrapping: bool,
+	},
+
+	tags: struct {
+		names: [8]string,
+		colors: [8]u32,
+		tag_mode: int,
+	},
+
+	theme: Theme_Save_Load,
+}
+
+json_save_misc :: proc(path: string) -> bool {
+	// set tag data
+	tag_colors: [8]u32
+	tag_names: [8]string
+	for i in 0..<8 {
+		tag := sb.tags.tag_data[i]
+		tag_colors[i] = transmute(u32) tag.color
+		tag_names[i] = strings.to_string(tag.builder^)
+	}
+
+	// create theme save data
+	theme_save: Theme_Save_Load
+	{
+		count := size_of(Theme) / size_of(Color)
+		for i in 0..<count {
+			from := mem.ptr_offset(cast(^Color) &theme, i)
+			to := mem.ptr_offset(cast(^u32) &theme_save, i)
+			to^ = transmute(u32) from^
+		}
+	}
+
+	value := Misc_Save_Load {
+		scale =  SCALE,
+
+		options = {
+			options_tab(),
+			options_autosave(),
+			sb.options.checkbox_invert_x.state,
+			sb.options.checkbox_invert_y.state,
+			options_uppercase_word(),
+			options_use_animations(),
+			options_wrapping(),
+		},
+
+		tags = {
+			tag_names,
+			tag_colors,
+			options_tag_mode(),
+		},
+
+		theme = theme_save,
+	}
+
+	result, err := json.marshal(
+		value, 
+		{
+			spec = .MJSON,
+			pretty = true,
+			write_uint_as_hex = true,
+			mjson_keys_use_equal_sign = true,
+		},
+		context.temp_allocator,
+	)
+	// log.info("json marshal: err =", err)
+
+	if err == nil {
+		ok := bpath_file_write(path, result[:])
+		return ok
+	}
+
+	return false
+}
+
+json_load_misc :: proc(path: string) -> bool{
+	bytes := bpath_file_read(path) or_return
+	defer delete(bytes)
+
+	misc: Misc_Save_Load
+	err := json.unmarshal(bytes, &misc, .MJSON, context.temp_allocator)
+
+	if err != nil {
+		return false
+	}
+
+	SCALE = misc.scale
+	LINE_WIDTH = max(2, 2 * SCALE)
+	ROUNDNESS = 5 * SCALE
+
+	// tag data
+	sb.tags.tag_show_mode = misc.tags.tag_mode
+	for i in 0..<8 {
+		tag := &sb.tags.tag_data[i]
+		strings.builder_reset(tag.builder)
+		strings.write_string(tag.builder, misc.tags.names[i])
+		tag.color = transmute(Color) misc.tags.colors[i]
+	}	
+
+	// options
+	sb.options.slider_tab.position = misc.options.tab
+	checkbox_set(sb.options.checkbox_autosave, misc.options.autosave)
+	checkbox_set(sb.options.checkbox_invert_x, misc.options.invert_x)
+	checkbox_set(sb.options.checkbox_invert_y, misc.options.invert_y)
+	checkbox_set(sb.options.checkbox_uppercase_word, misc.options.uppercase_word)
+	checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
+	checkbox_set(sb.options.checkbox_wrapping, misc.options.wrapping)
+
+	// theme
+	{
+		count := size_of(Theme) / size_of(Color)
+		for i in 0..<count {
+			from := mem.ptr_offset(cast(^u32) &misc.theme, i)
+			to := mem.ptr_offset(cast(^Color) &theme, i)
+			to^ = transmute(Color) from^
+		}
+	}
+
+	// log.info(misc)
+	return true
 }

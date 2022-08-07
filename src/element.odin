@@ -842,8 +842,13 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 	box_icon_rect :: proc(box: ^Checkbox) -> (res: Rect) {
 		res = rect_margin(box.bounds, BOX_MARGIN * SCALE)
-		res.r = res.l + (rect_height(box.bounds) + TEXT_MARGIN_VERTICAL) * SCALE
+		res.r = res.l + box_width(box)
 		return
+	}
+
+	box_width :: proc(box: ^Checkbox) -> f32 {
+		height := element_message(box, .Get_Height)
+		return f32(height) + TEXT_MARGIN_VERTICAL * SCALE
 	}
 
 	#partial switch msg {
@@ -854,9 +859,9 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			
 			margin := BOX_MARGIN * SCALE
 			gap := BOX_GAP * SCALE
-			box_rect := box_icon_rect(box) 
+			box_width := box_width(box)
 
-			return int(text_width + margin * 2 + rect_width(box_rect) + gap)
+			return int(text_width + margin * 2 + box_width + gap)
 		}
 
 		case .Get_Height: {
@@ -939,11 +944,15 @@ checkbox_init :: proc(
 	state: bool,
 ) -> (res: ^Checkbox) {
 	res = element_init(Checkbox, parent, flags | { .Tab_Stop }, checkbox_message)
-	res.state = state
-	res.state_unit = f32(state ? 1 : 0)
+	checkbox_set(res, state)
 	res.builder = strings.builder_make(0, 32)
 	strings.write_string(&res.builder, text)
 	return
+}
+
+checkbox_set :: proc(box: ^Checkbox, to: bool) {
+	box.state = to
+	box.state_unit = f32(to ? 1 : 0)
 }
 
 //////////////////////////////////////////////
@@ -1058,7 +1067,7 @@ panel_calculate_per_fill :: proc(panel: ^Panel, hspace, vspace: int) -> (per_fil
 	fill: int
 
 	for child in panel.children {
-		if .Hide in child.flags {
+		if (.Hide in child.flags) || (.Layout_Ignore) in child.flags {
 			continue;
 		}
 
@@ -1096,7 +1105,7 @@ panel_measure :: proc(panel: ^Panel, di: int) -> int {
 	size := 0
 
 	for child, i in panel.children {
-		if .Hide in child.flags {
+		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
 			continue
 		}
 
@@ -1114,17 +1123,16 @@ panel_layout :: proc(panel: ^Panel, bounds: Rect, measure: bool) -> f32 {
 	horizontal := .Panel_Horizontal in panel.flags
 	scaled_margin := math.round(panel.margin * SCALE)
 	position := scaled_margin
-	// TODO THIS
-	// if panel.scrollbar != nil && !measure {
-	// 	position -= panel.scrollbar.position
-	// }
+	if panel.scrollbar != nil && !measure {
+		position -= panel.scrollbar.position
+	}
 	hspace := rect_width(bounds) - scaled_margin * 2
 	vspace := rect_height(bounds) - scaled_margin * 2
 	per_fill, count := panel_calculate_per_fill(panel, int(hspace), int(vspace))
 	expand := .Panel_Expand in panel.flags
 
 	for child, i in panel.children {
-		if .Hide in child.flags {
+		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
 			continue
 		}
 
@@ -1180,8 +1188,18 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Layout: {
+			scrollbar_width := panel.scrollbar != nil ? SCROLLBAR_SIZE * SCALE : 0
 			bounds := element.bounds
-			// // TODO modify for scrollbar
+			bounds.r -= scrollbar_width
+
+			if panel.scrollbar != nil {
+				scrollbar_bounds := element.bounds
+				scrollbar_bounds.l = scrollbar_bounds.r - scrollbar_width
+				panel.scrollbar.maximum = panel_layout(panel, bounds, true)
+				panel.scrollbar.page = rect_height(element.bounds)
+				element_move(panel.scrollbar, scrollbar_bounds)
+			}
+
 			panel_layout(panel, bounds, false)
 		}
 
@@ -1256,8 +1274,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if .Panel_Horizontal in element.flags {
 				return panel_measure(panel, di)
 			} else {
-				// SCROLLBAR
-				width := f32(di)
+				width := di != 0 && panel.scrollbar != nil ? (f32(di) - SCROLLBAR_SIZE * SCALE) : f32(di)
 				return int(panel_layout(panel, { 0, width, 0, 0 }, true))
 			}
 		}
@@ -1284,6 +1301,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				when DEBUG_PANEL {
 					render_rect_outline(target, rect_margin(element.bounds, 0), BLUE)
 				}
+				
 				return 0
 			}
 
@@ -1418,14 +1436,11 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			thumb := element.children[1]
 			down := element.children[2]
 
-			// log.info(scrollbar.maximum, scrollbar.page, scrollbar.maximum - scrollbar.page)
-
 			if scrollbar.page >= scrollbar.maximum || scrollbar.maximum <= 0 || scrollbar.page == 0 {
 				incl(&up.flags, Element_Flag.Hide)
 				incl(&thumb.flags, Element_Flag.Hide)
 				incl(&down.flags, Element_Flag.Hide)
 				scrollbar.position = 0
-				// log.info("hidden")
 			} else {
 				excl(&up.flags, Element_Flag.Hide)
 				excl(&thumb.flags, Element_Flag.Hide)
@@ -1461,7 +1476,6 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				r.t = r.b
 				r.b = element.bounds.b
 				element_move(down, r)
-				// log.info("un")
 			}
 		}
 	}
@@ -1485,11 +1499,11 @@ scroll_up_down_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 		// }
 
 		case .Left_Down: {
-			element_animation_start(element)
+			// element_animation_start(element)
 		}
 
 		case .Left_Up: {
-			element_animation_stop(element)
+			// element_animation_stop(element)
 		}
 
 		case .Animate: {

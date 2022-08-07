@@ -173,3 +173,26 @@ rect_translate :: proc(a, b: Rect) -> Rect {
 	a.b += b.t
 	return a
 }
+
+// cuts out rect b from a and returns the left regions
+rect_cut_out_rect :: proc(a, b: Rect) -> (res: [4]Rect) {
+	// top
+	res[0] = a
+	res[0].b = b.t
+
+	// bottom
+	res[1] = a
+	res[1].t = b.b
+
+	// middle
+	last := rect_intersection(res[0], res[1])
+	
+	// left
+	res[2] = last
+	res[2].r = b.l
+	
+	// right
+	res[3] = last
+	res[3].l = b.r
+	return
+}
