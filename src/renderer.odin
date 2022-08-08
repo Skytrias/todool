@@ -3,7 +3,7 @@ package src
 import "core:strings"
 import "core:log"
 import "core:mem"
-import "core:math/linalg"
+import glm "core:math/linalg/glsl"
 import "core:runtime"
 import "core:math"
 import "core:image"
@@ -220,7 +220,7 @@ render_target_end :: proc(
 	gl.VertexAttribIPointer(attribute_kind, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, kind))
 
 	if fontstash_update {
-		log.info("RENDERER: fontstash atlas updated")
+		// log.info("RENDERER: fontstash atlas updated")
 		texture_update(&textures[.Fonts])
 		fontstash_update = false
 	}
@@ -239,7 +239,9 @@ render_target_end :: proc(
 			gl.BufferData(gl.ARRAY_BUFFER, vertice_count * size_of(Render_Vertex), root, gl.STREAM_DRAW)
 
 			// update uniforms
-			projection := linalg.matrix_ortho3d(0, f32(width), f32(height), 0, -1, 1)
+			// projection := linalg.matrix_ortho3d(0, f32(width), f32(height), 0, -1, 1)
+			projection := glm.mat4Ortho3d(0, f32(width), f32(height), 0, -1, 1)
+			// projection *= rot
 			gl.UniformMatrix4fv(uniform_projection, 1, false, &projection[0][0])
 			gl.Uniform4f(
 				uniform_shadow_color, 
@@ -284,7 +286,7 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
 		clip = clip_goal,
 		vertex_start = vertex_index,	
 		vertex_end = vertex_index,
-	}) 
+	})
 }
 
 //////////////////////////////////////////////

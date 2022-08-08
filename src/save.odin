@@ -297,7 +297,6 @@ Misc_Save_Load :: struct {
 
 	tags: struct {
 		names: [8]string,
-		colors: [8]u32,
 		tag_mode: int,
 	},
 
@@ -309,9 +308,8 @@ json_save_misc :: proc(path: string) -> bool {
 	tag_colors: [8]u32
 	tag_names: [8]string
 	for i in 0..<8 {
-		tag := sb.tags.tag_data[i]
-		tag_colors[i] = transmute(u32) tag.color
-		tag_names[i] = strings.to_string(tag.builder^)
+		tag := sb.tags.names[i]
+		tag_names[i] = strings.to_string(tag^)
 	}
 
 	// create theme save data
@@ -340,7 +338,6 @@ json_save_misc :: proc(path: string) -> bool {
 
 		tags = {
 			tag_names,
-			tag_colors,
 			options_tag_mode(),
 		},
 
@@ -385,10 +382,10 @@ json_load_misc :: proc(path: string) -> bool{
 	// tag data
 	sb.tags.tag_show_mode = misc.tags.tag_mode
 	for i in 0..<8 {
-		tag := &sb.tags.tag_data[i]
-		strings.builder_reset(tag.builder)
-		strings.write_string(tag.builder, misc.tags.names[i])
-		tag.color = transmute(Color) misc.tags.colors[i]
+		tag := sb.tags.names[i]
+		strings.builder_reset(tag)
+		strings.write_string(tag, misc.tags.names[i])
+		// tag.color = transmute(Color) misc.tags.colors[i]
 	}	
 
 	// options

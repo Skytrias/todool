@@ -585,6 +585,70 @@ button_init :: proc(parent: ^Element, flags: Element_Flags, text: string) -> (re
 }
 
 //////////////////////////////////////////////
+// color button
+//////////////////////////////////////////////
+
+Color_Button :: struct {
+	using element: Element,
+	invoke: proc(data: rawptr),
+	color: ^Color,
+}
+
+color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Color_Button) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			target := element.window.target
+
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+			render_rect(target, element.bounds, button.color^)
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, text_color)
+			}
+		}
+
+		case .Update: {
+			// element_repaint(element)
+		}
+
+		case .Clicked: {
+			if button.invoke != nil {
+				button.invoke(button.data)
+			}
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Get_Width: {
+			return int(50 * SCALE)
+		}
+
+		case .Get_Height: {
+			return int(50 * SCALE)
+		}
+
+		case .Key_Combination: {
+			key_combination_check_click(element, dp)
+		}
+	}
+
+	return 0
+}
+
+color_button_init :: proc(parent: ^Element, flags: Element_Flags, color: ^Color) -> (res: ^Color_Button) {
+	res = element_init(Color_Button, parent, flags, button_message)
+	res.color = color
+	res.data = res
+	return
+}
+
+//////////////////////////////////////////////
 // icon button
 //////////////////////////////////////////////
 

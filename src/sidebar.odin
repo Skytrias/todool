@@ -44,14 +44,9 @@ tag_show_text := [TAG_SHOW_COUNT]string {
 	"None",
 }
 
-Tag_Data :: struct {
-	builder: ^strings.Builder,
-	color: Color,
-}
-
 Sidebar_Tags :: struct {
 	panel: ^Panel,
-	tag_data: [8]Tag_Data,
+	names: [8]^strings.Builder,
 	temp_index: int,
 	tag_show_mode: int,
 	toggle_selector_tag: ^Toggle_Selector,
@@ -78,7 +73,6 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			selected := (.Hide not_in sb.enum_panel.flags) && sb.mode == mode^
 			color^ = selected ? theme.text_default : theme.text_blank
 			return selected ? 1 : 2
-
 		}
 
 		case .Clicked: {
@@ -192,10 +186,7 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			text: string,
 		) {
 			b := text_box_init(panel, { .HF }, text)
-			tag := &sb.tags.tag_data[sb.tags.temp_index]	
-			tag.builder = &b.builder
-			color := color_hsv_to_rgb(f32(sb.tags.temp_index) / 8, 1, 1)
-			tag.color = color
+			sb.tags.names[sb.tags.temp_index]	= &b.builder
 			sb.tags.temp_index += 1
 		}
 

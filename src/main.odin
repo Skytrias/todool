@@ -28,16 +28,7 @@ import "../fontstash"
 // folding: bool -> as icon button
 // duration spent: time.Duration -> as string
 // assigned date: time.Time -> as string
-// bookmarks could be display differently as LINE HIGHLIGHT
 // recording this -> LINE HIGHLIGHT NOW
-
-// SHOWCASE TODO 
-// theme editor again
-// changed layouting to nakst one Row / Column
-// dragging
-// camera bound checked
-// nfd showcase
-// json pretty support - one safe file only
 
 // REST
 // SHOCO string compression option
@@ -45,11 +36,7 @@ import "../fontstash"
 // indentation focus prompt?
 // timers functionality
 // progress bar on kanban?
-// camera
 // text box copy & paste
-
-// IDEAS
-// change alpha of lesser indentations
 
 import "../nfd"
 main2 :: proc() {
@@ -121,25 +108,6 @@ main2 :: proc() {
 
 // 	fmt.eprintln("err =", err2)
 // 	fmt.eprintln(in_data)
-// }
-
-// main :: proc() {
-// 	Test :: enum {
-// 		None,
-// 		One,
-// 		Two,
-// 		Three,
-// 	}
-
-// 	Test_Set :: bit_set[Test]
-
-// 	a := Test_Set { .One, .Two }
-
-// 	if a > { .One, .Two } {
-// 		fmt.eprintln("YOOOOO", a)
-// 	} else {
-// 		fmt.eprintln("not found")
-// 	}
 // }
 
 main :: proc() {

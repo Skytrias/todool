@@ -40,7 +40,7 @@ Theme :: struct {
 	caret_highlight: Color,
 	caret_selection: Color,
 
-	// tag_colors: [8]Color,
+	tags: [8]Color,
 }
 
 Theme_Save_Load :: struct {
@@ -91,6 +91,17 @@ theme := Theme {
 		0 = { 230, 230, 230, 255 },
 		1 = { 255, 100, 100, 255 },
 		2 = { 255, 255, 255, 255 },
+	},
+
+	tags = {
+		{ 255, 0, 0, 255 },
+		{ 255, 191, 0, 255 },
+		{ 127, 255, 0, 255 },
+		{ 0, 255, 35, 255 },
+		{ 0, 255, 255, 255 },
+		{ 255, 0, 191, 255 },
+		{ 199, 99, 0, 255 },
+		{ 199, 99, 0, 255 },
 	},
 }
 
@@ -281,6 +292,7 @@ theme_editor_spawn :: proc() {
 		label_init(slider_panel, { .HF }, name)
 
 		checkbox_init(slider_panel, {}, "Lock", false)
+		color_button_init(slider_panel, {}, color_mod)
 
 		for i in 0..<4 {
 			value := &color_mod[i]
@@ -339,6 +351,11 @@ theme_editor_spawn :: proc() {
 	color_slider(panel, &theme.caret, "caret")
 	color_slider(panel, &theme.caret_highlight, "caret highlight")
 	color_slider(panel, &theme.caret_selection, "caret selection")
+	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	
+	for i in 0..<8 {
+		color_slider(panel, &theme.tags[i], fmt.tprintf("tag %d", i))
+	}
 
 	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	bot_panel := panel_init(panel, { .Panel_Horizontal, .HF })
@@ -423,21 +440,16 @@ theme_editor_spawn :: proc() {
 		theme_editor.checkbox_hue = checkbox_init(p1, {}, "USE", true)
 		spacer_init(p1, { .HF }, 0, 0, .Empty)
 		theme_editor.slider_hue = slider_init(p1, {}, 0)
-		// theme_editor.slider_hue.format = "Hue: %f"
 		
 		p2 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p2, {}, "Saturation", LABEL_WIDTH)
 		theme_editor.checkbox_sat = checkbox_init(p2, {}, "USE", false)
-		// spacer_init(p2, { .HF }, 0, 0, .Empty)
 		theme_editor.slider_sat = slider_init(p2, {}, 1)
-		// theme_editor.slider_sat.format = "Sat: %f"
 		
 		p3 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p3, {}, "Value", LABEL_WIDTH)
 		theme_editor.checkbox_value = checkbox_init(p3, {}, "USE", false)
-		// spacer_init(p3, { .HF }, 0, 0, .Empty)
 		theme_editor.slider_value = slider_init(p3, {}, 1)
-		// theme_editor.slider_value.format = "Value: %f"
 	}
 }
 

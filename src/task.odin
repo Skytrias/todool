@@ -957,6 +957,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_underline(target, drag_task.bounds, theme.text_good)
 			}
 
+			// highlight selection
 			if task_head != -1 && task_head != task_tail {
 				render_push_clip(target, panel.clip)
 				a := tasks_visible[task_head]
@@ -964,7 +965,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				bounds := rect_bounding(a.bounds, b.bounds)
 
 				rects := rect_cut_out_rect(panel.bounds, bounds)
-				color := color_alpha(theme.background[0], 0.75)
+				color := color_alpha(theme.background[0], 0.5)
 				render_rect(target, rects[0], color)
 				render_rect(target, rects[1], color)
 				render_rect(target, rects[2], color)
@@ -1403,16 +1404,17 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					value := u8(1 << i)
 
 					if task.tags & value == value {
-						tag := &sb.tags.tag_data[i]
+						tag := sb.tags.names[i]
+						tag_color := theme.tags[0]
 
 						switch tag_mode {
 							case TAG_SHOW_TEXT_AND_COLOR: {
-								text := strings.to_string(tag.builder^)
+								text := strings.to_string(tag^)
 								width := fontstash.string_width(font, scaled_size, text)
 								r := rect_cut_left_hard(&rect, width + text_margin)
 
 								if rect_valid(r) {
-									render_rect(target, r, tag.color, ROUNDNESS)
+									render_rect(target, r, tag_color, ROUNDNESS)
 									render_string_aligned(target, font, text, r, theme_panel(.Front), .Middle, .Middle, scaled_size)
 								}
 							}
@@ -1420,7 +1422,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 							case TAG_SHOW_COLOR: {
 								r := rect_cut_left_hard(&rect, 50 * SCALE)
 								if rect_valid(r) {
-									render_rect(target, r, tag.color, ROUNDNESS)
+									render_rect(target, r, tag_color, ROUNDNESS)
 								}
 							}
 
