@@ -50,6 +50,7 @@ Render_Target :: struct {
 	attribute_uv: u32,
 	attribute_color: u32,
 	attribute_roundness_and_thickness: u32,
+	attribute_additional: u32,
 	attribute_kind: u32,
 
 	// texture atlas
@@ -90,7 +91,8 @@ Render_Kind :: enum u32 {
 	Drop_Shadow,
 	SV,
 	HUE,
-	TEST,
+	Texture,
+	Arc,
 }
 
 Render_Vertex :: struct #packed {
@@ -101,6 +103,9 @@ Render_Vertex :: struct #packed {
 	// split for u32
 	roundness: u16,
 	thickness: u16,
+
+	// zzz bad
+	additional: [2]f32,
 
 	// render kind
 	kind: Render_Kind,
@@ -132,6 +137,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	attribute_uv = u32(gl.GetAttribLocation(shader_program, "i_uv"))
 	attribute_color = u32(gl.GetAttribLocation(shader_program, "i_color"))
 	attribute_roundness_and_thickness = u32(gl.GetAttribLocation(shader_program, "i_roundness_and_thickness"))
+	attribute_additional = u32(gl.GetAttribLocation(shader_program, "i_additional"))
 	attribute_kind = u32(gl.GetAttribLocation(shader_program, "i_kind"))
 
 	gl.GenVertexArrays(1, &vao)
@@ -211,12 +217,14 @@ render_target_end :: proc(
 	gl.EnableVertexAttribArray(attribute_uv)
 	gl.EnableVertexAttribArray(attribute_color)
 	gl.EnableVertexAttribArray(attribute_roundness_and_thickness)
+	gl.EnableVertexAttribArray(attribute_additional)
 	gl.EnableVertexAttribArray(attribute_kind)
 	size := i32(size_of(Render_Vertex))
 	gl.VertexAttribPointer(attribute_position, 2, gl.FLOAT, true, size, 0)
 	gl.VertexAttribPointer(attribute_uv, 2, gl.FLOAT, true, size, offset_of(Render_Vertex, uv_xy))
 	gl.VertexAttribIPointer(attribute_color, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, color))
 	gl.VertexAttribIPointer(attribute_roundness_and_thickness, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, roundness))
+	gl.VertexAttribPointer(attribute_additional, 2, gl.FLOAT, true, size, offset_of(Render_Vertex, additional))
 	gl.VertexAttribIPointer(attribute_kind, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, kind))
 
 	if fontstash_update {
@@ -292,6 +300,40 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
 //////////////////////////////////////////////
 // RENDER PRIMITIVES
 //////////////////////////////////////////////
+
+render_arc :: proc(
+	target: ^Render_Target,
+	rect: Rect, 
+	color: Color,
+	thickness: f32,
+
+	radians: f32, // 0-PI
+	rotation: f32, // 0-PI,
+) {
+	group := &target.groups[len(target.groups) - 1]
+	vertices := render_target_push_vertices(target, group, 6)
+	
+	vertices[0].pos_xy = { rect.l, rect.t }
+	vertices[1].pos_xy = { rect.r, rect.t }
+	vertices[2].pos_xy = { rect.l, rect.b }
+	
+	vertices[3].pos_xy = { rect.r, rect.t }
+	vertices[4].pos_xy = { rect.l, rect.b }
+	vertices[5].pos_xy = { rect.r, rect.b }
+
+	center_x, center_y := rect_center(rect)
+	// real_roundness := u16(roundness)
+	real_thickness := u16(thickness)
+	
+	// TODO: SPEED UP
+	for i in 0..<6 {
+		vertices[i].uv_xy = { center_x, center_y }
+		vertices[i].color = color
+		vertices[i].thickness = real_thickness
+		vertices[i].kind = .Arc
+		vertices[i].additional = { radians, rotation }
+	}
+}
 
 render_rect :: proc(
 	target: ^Render_Target,

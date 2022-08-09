@@ -300,6 +300,12 @@ Misc_Save_Load :: struct {
 		tag_mode: int,
 	},
 
+	pomodoro: struct {
+		work: int,
+		short_break: int,
+		long_break: int,
+	},
+
 	theme: Theme_Save_Load,
 }
 
@@ -339,6 +345,12 @@ json_save_misc :: proc(path: string) -> bool {
 		tags = {
 			tag_names,
 			options_tag_mode(),
+		},
+
+		pomodoro = {
+			int(pomodoro_time_index(0)),
+			int(pomodoro_time_index(1)),
+			int(pomodoro_time_index(2)),
 		},
 
 		theme = theme_save,
@@ -385,7 +397,6 @@ json_load_misc :: proc(path: string) -> bool{
 		tag := sb.tags.names[i]
 		strings.builder_reset(tag)
 		strings.write_string(tag, misc.tags.names[i])
-		// tag.color = transmute(Color) misc.tags.colors[i]
 	}	
 
 	// options
@@ -406,6 +417,11 @@ json_load_misc :: proc(path: string) -> bool{
 			to^ = transmute(Color) from^
 		}
 	}
+
+	// pomodoro
+	sb.options.slider_pomodoro_work.position = f32(misc.pomodoro.work) / 60
+	sb.options.slider_pomodoro_short_break.position = f32(misc.pomodoro.short_break) / 60
+	sb.options.slider_pomodoro_long_break.position = f32(misc.pomodoro.long_break) / 60
 
 	// log.info(misc)
 	return true

@@ -660,12 +660,49 @@ box_evaluate_combo :: proc(
 			box_select_all(box)
 		}
 
+		case "ctrl+c": {
+			box_copy_selection(element.window, box)
+		}
+
+		case "ctrl+v": {
+			box_paste(element, box)
+		}
+
 		case: {
 			handled = false
 		}
 	}
 
 	return
+}
+
+// copy selection to window storage
+box_copy_selection :: proc(window: ^Window, box: ^Box) {
+	if box.head == box.tail {
+		return
+	}
+
+	box.ds = {}
+	low, high := box_low_and_high(box)
+	selection, ok := cutf8.ds_string_selection(&box.ds, strings.to_string(box.builder), low, high)
+	
+	if ok {
+		b := &window.copy_builder
+		strings.builder_reset(b)
+		strings.write_string(b, selection)
+		log.info(selection)
+	}
+}
+
+box_paste :: proc(element: ^Element, box: ^Box) -> bool {
+	b := &element.window.copy_builder
+
+	if len(b.buf) == 0 {
+		return false
+	} else {
+		box_replace(element, box, strings.to_string(b^), 0, true)
+		return true
+	}
 }
 
 box_move_left :: proc(box: ^Box, ctrl, shift: bool) {
@@ -752,6 +789,7 @@ box_check_changes :: proc(manager: ^Undo_Manager, box: ^Box) {
 	box.change_start = time.tick_now()		
 }
 
+// insert a single rune with undoable
 box_insert :: proc(element: ^Element, box: ^Box, codepoint: rune) {
 	if box.head != box.tail {
 		box_replace(element, box, "", 0, true)
@@ -822,18 +860,26 @@ box_replace :: proc(
 		if send_changed_message {
 			element_message(element, .Value_Changed)
 		}
-	} else {
-		if len(text) != 0 {
-			log.info("INSERT RUNES")
-			// item := Undo_Item_Box_Insert_Runes {
-			// 	box = box,
-			// 	head = box.head,
-			// 	tail = box.head,
-			// 	rune_amount = len()
-			// }
-		} 
-	}
+	} 
 
+	if len(text) != 0 {
+		box.ds = {}
+		for codepoint, i in cutf8.ds_iter(&box.ds, text) {
+			builder_insert_rune_at(&box.builder, codepoint, box.head + i)
+		}
+
+		old_head := box.head
+		box.head += box.ds.codepoint_count
+		box.tail = box.head
+
+		item := Undo_Item_Box_Remove_Selection { 
+			box,
+			old_head,
+			old_head + box.ds.codepoint_count,
+			0,
+		}
+		undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
+	}
 }
 
 box_clear :: proc(box: ^Box, send_changed_message: bool) {
@@ -943,6 +989,7 @@ builder_write_uppercased_string :: proc(b: ^strings.Builder, s: string) {
 	}
 }
 
+// append a rune to a builder
 builder_append_rune :: proc(builder: ^strings.Builder, r: rune) {
 	bytes, size := utf8.encode_rune(r)
 	
@@ -951,6 +998,26 @@ builder_append_rune :: proc(builder: ^strings.Builder, r: rune) {
 	} else {
 		for i in 0..<size {
 			append(&builder.buf, bytes[i])
+		}
+	}
+}
+
+//
+builder_insert_rune_at :: proc(builder: ^strings.Builder, r: rune, rune_index: int) {
+	ds: cutf8.Decode_State
+	runes := cutf8.ds_to_runes(&ds, strings.to_string(builder^))
+
+	if rune_index == len(runes) {
+		builder_append_rune(builder, r)
+	} else {
+		strings.builder_reset(builder)
+		
+		for i in 0..<len(runes) {
+			if i == rune_index {
+				builder_append_rune(builder, r)
+			}
+
+			builder_append_rune(builder, runes[i])
 		}
 	}
 }

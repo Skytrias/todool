@@ -771,8 +771,23 @@ add_shortcuts :: proc(window: ^Window) {
 		return true
 	})
 
-	window_add_shortcut(window, "alt+1", proc() -> bool {
+	window_add_shortcut(window, "alt+e", proc() -> bool {
 		theme_editor_spawn()
+		return true
+	})
+
+	window_add_shortcut(window, "alt+1", proc() -> bool {
+		pomodoro_stopwatch_hot_toggle(0)
+		return true
+	})
+
+	window_add_shortcut(window, "alt+2", proc() -> bool {
+		pomodoro_stopwatch_hot_toggle(1)
+		return true
+	})
+
+	window_add_shortcut(window, "alt+3", proc() -> bool {
+		pomodoro_stopwatch_hot_toggle(2)
 		return true
 	})
 

@@ -7,6 +7,7 @@ in vec4 v_color;
 in vec2 v_adjusted_half_dimensions;
 in float v_roundness;
 in float v_thickness;
+in vec2 v_additional;
 flat in uint v_kind;
 
 // uniforms
@@ -22,9 +23,15 @@ out vec4 o_color;
 
 // distance from a rectangle 
 // doesnt do rounding
-float rectangle_sd(vec2 p, vec2 b) {
+float sdBox(vec2 p, vec2 b) {
 	vec2 d = abs(p) - b;
 	return(length(max(d, vec2(0.0, 0.0))) + min(max(d.x, d.y), 0.0));
+}
+
+float sdArc(in vec2 p, in vec2 sc, in float ra, float rb) {
+	p.x = abs(p.x);
+	// return ((sc.y*p.x>sc.x*p.y) ? length(p-sc*ra) : abs(length(p)-ra)) - rb;
+	return (sc.y*p.x > sc.x*p.y) ? length(p - ra*sc) - rb : abs(length(p) - ra) - rb;
 }
 
 float sigmoid(float t) {
@@ -37,7 +44,8 @@ float sigmoid(float t) {
 #define RK_Drop_Shadow uint(3)
 #define RK_SV uint(4)
 #define RK_HUE uint(5)
-#define RK_TEST uint(6)
+#define RK_TEXTURE uint(6)
+#define RK_ARC uint(7)
 
 void main(void) {
 	vec4 color_goal = v_color;
@@ -47,7 +55,7 @@ void main(void) {
 	} else if (v_kind == RK_Rect) {
 		// calculate distance from center and dimensions
 		vec2 center = v_uv;
-		float distance = rectangle_sd(v_pos - center, v_adjusted_half_dimensions);
+		float distance = sdBox(v_pos - center, v_adjusted_half_dimensions);
 		distance -= v_roundness;
 
 		// add thickness if exists	
@@ -64,12 +72,12 @@ void main(void) {
 		vec2 center = v_uv;
 		vec2 drop_size = vec2(20, 20);
 
-		float drop_distance = rectangle_sd(v_pos - center, v_adjusted_half_dimensions - drop_size);
+		float drop_distance = sdBox(v_pos - center, v_adjusted_half_dimensions - drop_size);
 		drop_distance -= v_roundness;
 		drop_distance = sigmoid(drop_distance * 0.25);
 		float drop_alpha = 1 - smoothstep(0, 1, drop_distance);
 
-		float rect_distance = rectangle_sd(v_pos - center, v_adjusted_half_dimensions - drop_size);
+		float rect_distance = sdBox(v_pos - center, v_adjusted_half_dimensions - drop_size);
 		rect_distance -= v_roundness;
 		float rect_alpha = 1 - smoothstep(-1, 1, rect_distance);
 
@@ -83,13 +91,34 @@ void main(void) {
 	} else if (v_kind == RK_HUE) {
 		vec4 texture_color = texture(u_sampler_hue, v_uv);
 		color_goal = texture_color;
-	} else if (v_kind == RK_TEST) {
+	} else if (v_kind == RK_TEXTURE) {
 		vec2 uv = v_uv;
 		vec2 texture_size = vec2(32, 32);
 		vec2 size = vec2(v_roundness, v_thickness);
 		uv *= (size / texture_size);
 		vec4 texture_color = texture(u_sampler_test, uv);
 		color_goal *= texture_color;
+	} else if (v_kind == RK_ARC) {
+		float tb = v_additional.x;
+		vec2 sc = vec2(sin(tb), cos(tb));
+		vec2 center = v_uv;
+		float thickness = v_thickness;
+		float size = v_adjusted_half_dimensions.x - thickness - 5;
+		
+		float rot = tb;
+    mat4 mat = mat4(
+        cos(rot), -sin(rot), 0, 0,
+        sin(rot), cos(rot), 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    );
+		vec2 p = v_pos - round(center);
+    vec4 res = (mat * vec4(p, 0, 0));
+    p = res.xy;
+
+		float distance = sdArc(p, sc, size, thickness);
+
+		color_goal = mix(vec4(1, 1, 1, 0), color_goal, 1 - smoothstep(-1, 0, distance));
 	}
 
 	o_color = color_goal;

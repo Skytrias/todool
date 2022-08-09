@@ -5,6 +5,7 @@ in vec2 i_pos;
 in vec2 i_uv;
 in uint i_color;
 in uint i_roundness_and_thickness;
+in vec2 i_additional;
 in uint i_kind;
 
 // uniforms
@@ -17,6 +18,7 @@ out vec4 v_color;
 out vec2 v_adjusted_half_dimensions;
 out float v_roundness;
 out float v_thickness;
+out vec2 v_additional;
 flat out uint v_kind;
 
 // get u16 information out
@@ -25,8 +27,8 @@ uint uint_get_upper(uint val) { return val >> 16 & uint(0xFFFF); }
 
 void main(void) {
 	gl_Position = u_projection * vec4(i_pos, 0, 1);
+	v_additional = i_additional;
 	v_pos = i_pos;
-	// v_pos = round(v_pos);
 	v_uv = i_uv;
 
 	// only available since glsl 4.0

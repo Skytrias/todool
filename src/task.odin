@@ -166,9 +166,12 @@ task_data_init :: proc() {
 	copy_task_data = make([dynamic]Copy_Task, 0, 128)
 
 	drag_list = make([dynamic]^Task, 0, 64)
+
+	pomodoro_init()
 }
 
 task_data_destroy :: proc() {
+	pomodoro_destroy()
 	delete(tasks_visible)
 	delete(bookmarks)
 	delete(search_results_mixed)
@@ -1370,7 +1373,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			// draw tags at an offset
 			if draw_tags {
-				rect := task.box.clip
+				rect := task.box.bounds
 
 				if task.bookmarked {
 					rect.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
@@ -1405,7 +1408,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 					if task.tags & value == value {
 						tag := sb.tags.names[i]
-						tag_color := theme.tags[0]
+						tag_color := theme.tags[i]
 
 						switch tag_mode {
 							case TAG_SHOW_TEXT_AND_COLOR: {

@@ -1,5 +1,9 @@
 package src
 
+import "core:time"
+import "core:runtime"
+import "core:math"
+import "core:fmt"
 import "core:mem"
 import "core:log"
 import "core:os"
@@ -19,7 +23,8 @@ Sidebar :: struct {
 	mode: Sidebar_Mode,
 	options: Sidebar_Options,
 	tags: Sidebar_Tags,
-	// sorting: Sidebar_Sorting,
+
+	pomodoro_label: ^Label,
 }
 
 Sidebar_Options :: struct {
@@ -31,6 +36,14 @@ Sidebar_Options :: struct {
 	checkbox_uppercase_word: ^Checkbox,
 	checkbox_use_animations: ^Checkbox,	
 	checkbox_wrapping: ^Checkbox,
+
+	slider_pomodoro_work: ^Slider,
+	slider_pomodoro_short_break: ^Slider,
+	slider_pomodoro_long_break: ^Slider,
+	button_pomodoro_reset: ^Icon_Button,
+
+	slider_work_today: ^Slider,
+	gauge_work_today: ^Linear_Gauge,
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -63,6 +76,7 @@ sidebar_mode_toggle :: proc(to: Sidebar_Mode) {
 	}
 }
 
+// button with highlight based on selected
 sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Icon_Button) element
 	mode := cast(^Sidebar_Mode) element.data
@@ -88,6 +102,7 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 	return 0
 }
 
+
 sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 	// left panel
 	{
@@ -95,36 +110,59 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		panel_info.background_index = 2
 		panel_info.z_index = 3
 
-		i1 := icon_button_init(panel_info, { .HF }, .Cog)
-		i1.message_user = sidebar_button_message
-		i1.data = new_clone(Sidebar_Mode.Options)
-		i1.hover_info = "Options"
-		
-		i2 := icon_button_init(panel_info, { .HF }, .Tag)
-		i2.data = new_clone(Sidebar_Mode.Tags)
-		i2.hover_info = "Tags"
-		i2.message_user = sidebar_button_message
+		// side options
+		{
+			i1 := icon_button_init(panel_info, { .HF }, .Cog, sidebar_button_message)
+			i1.data = new_clone(Sidebar_Mode.Options)
+			i1.hover_info = "Options"
+			
+			i2 := icon_button_init(panel_info, { .HF }, .Tag, sidebar_button_message)
+			i2.data = new_clone(Sidebar_Mode.Tags)
+			i2.hover_info = "Tags"
+		}
 
-		// i3 := icon_button_init(panel_info, {}, .Sort)
-		// i3.data = new_clone(Sidebar_Mode.Sorting)
-		// i3.hover_info = "Sorting"
-		// i3.message_user = sidebar_button_message
-		
-		spacer_init(panel_info, { .VF, }, 0, 20, .Thin)
-		icon_button_init(panel_info, { .HF }, .Stopwatch)
-		icon_button_init(panel_info, { .HF }, .Clock)
-		icon_button_init(panel_info, { .HF }, .Tomato)
+		// pomodoro
+		{
+			spacer_init(panel_info, { .VF, }, 0, 20, .Thin)
+			i1 := icon_button_init(panel_info, { .HF }, .Tomato)
+			i1.hover_info = "Start / Stop Pomodoro Time"
+			i1.invoke = proc(data: rawptr) {
+				element_hide(sb.options.button_pomodoro_reset, pomodoro_stopwatch.running)
+				pomodoro_stopwatch_toggle()
+			}
+			i2 := icon_button_init(panel_info, { .HF }, .Reply)
+			i2.invoke = proc(data: rawptr) {
+				element_hide(sb.options.button_pomodoro_reset, pomodoro_stopwatch.running)
+				pomodoro_stopwatch_reset()
+				pomodoro_label_format()
+				sound_play(.Timer_Stop)
+			}
+			i2.hover_info = "Reset Pomodoro Time"
+			sb.options.button_pomodoro_reset = i2
+			element_hide(i2, true)
 
-		spacer_init(panel_info, { }, 0, 20, .Thin)
-		b1 := button_init(panel_info, { .HF }, "L")
-		b1.message_user = mode_based_button_message
-		b1.data = new_clone(Mode_Based_Button { 0 })
-		b1.hover_info = "List Mode"
-		b2 := button_init(panel_info, { .HF }, "K")
-		b2.message_user = mode_based_button_message
-		b2.data = new_clone(Mode_Based_Button { 1 })
-		b2.hover_info = "Kanban Mode"
+			sb.pomodoro_label = label_init(panel_info, { .HF, .Label_Center }, "00:00")
 
+			b1 := button_init(panel_info, { .HF }, "1", pomodoro_button_message)
+			b1.hover_info = "Select Work Time"
+			b2 := button_init(panel_info, { .HF }, "2", pomodoro_button_message)
+			b2.hover_info = "Select Short Break Time"
+			b3 := button_init(panel_info, { .HF }, "3", pomodoro_button_message)
+			b3.hover_info = "Select Long Break Time"
+		}
+	
+		// mode		
+		{
+			spacer_init(panel_info, { }, 0, 20, .Thin)
+			b1 := button_init(panel_info, { .HF }, "L", mode_based_button_message)
+			b1.data = new_clone(Mode_Based_Button { 0 })
+			b1.hover_info = "List Mode"
+			b2 := button_init(panel_info, { .HF }, "K", mode_based_button_message)
+			b2.data = new_clone(Mode_Based_Button { 1 })
+			b2.hover_info = "Kanban Mode"
+		}
+
+		// TODO add border
 		// b := button_init(panel_info, { .CT, .Hover_Has_Info }, "b")
 		// b.invoke = proc(data: rawptr) {
 		// 	element := cast(^Element) data
@@ -157,6 +195,10 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 	sb.enum_panel = enum_panel
 	element_hide(sb.enum_panel, true)
 
+	SPACER_HEIGHT :: 10
+	spacer_scaled := SPACER_HEIGHT * SCALE
+
+	// options
 	{
 		temp := &sb.options
 		using temp
@@ -165,7 +207,9 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		panel = shared_panel(enum_panel, "Options")
 
 		slider_tab = slider_init(panel, flags, 0.5)
-		slider_tab.format = "Tab: %f"
+		slider_tab.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Tab: %.3f%%", position)
+		}
 
 		checkbox_autosave = checkbox_init(panel, flags, "Autosave", true)
 		checkbox_uppercase_word = checkbox_init(panel, flags, "Uppercase Parent Word", true)
@@ -173,10 +217,42 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 		checkbox_wrapping = checkbox_init(panel, flags, "Wrap in List Mode", true)
+
+		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
+		l1 := label_init(panel, { .HF, .Label_Center }, "Pomodoro")
+		l1.font_options = &font_options_header
+		
+		slider_pomodoro_work = slider_init(panel, flags, 50.0 / 60.0)
+		slider_pomodoro_work.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Work: %dmin", int(position * 60))
+		}
+		slider_pomodoro_short_break = slider_init(panel, flags, 10.0 / 60)
+		slider_pomodoro_short_break.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Short Break: %dmin", int(position * 60))
+		}
+		slider_pomodoro_long_break = slider_init(panel, flags, 30.0 / 60)
+		slider_pomodoro_long_break.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Long Break: %dmin", int(position * 60))
+		}
+
+		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
+		l2 := label_init(panel, { .HF, .Label_Center }, "Statistics")
+		l2.font_options = &font_options_header
+
+		slider_work_today = slider_init(panel, flags, 8.0 / 24)
+		slider_work_today.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Goal Today: %dh", int(position * 24))
+		}
+
+		{
+			sub := panel_init(panel, { .HF, .Panel_Expand, .Panel_Horizontal }, 0, 0)
+			button_init(sub, {}, "Reset acummulated")
+		}
+
+		gauge_work_today = linear_gauge_init(panel, flags, 0.5, "Done Today", "Working Overtime!")
 	}
 
-	SPACER_HEIGHT :: 10
-
+	// tags
 	{
 		temp := &sb.tags
 		temp.panel = shared_panel(enum_panel, "Tags")
@@ -200,7 +276,7 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		shared_box(temp.panel, "seven")
 		shared_box(temp.panel, "eight")
 
-		spacer_init(temp.panel, { .HF }, 0, SPACER_HEIGHT, .Empty)
+		spacer_init(temp.panel, { .HF }, 0, spacer_scaled, .Empty)
 		label_init(temp.panel, { .HF, .Label_Center }, "Tag Showcase")
 		temp.toggle_selector_tag = toggle_selector_init(
 			temp.panel,

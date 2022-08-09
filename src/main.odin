@@ -20,6 +20,10 @@ import "../fontstash"
 // breadcrumbs? could do a prompt
 // font size for tasks specifically so you could zoom in / out
 // add autosave timer & exit scheme
+// notifications
+// timer sounds
+// goal reached sound?
+// save time spen
 
 // WEBSITE 
 // work on a proper website
@@ -34,9 +38,12 @@ import "../fontstash"
 // SHOCO string compression option
 // Changelog options?
 // indentation focus prompt?
-// timers functionality
 // progress bar on kanban?
+
+// DONE
 // text box copy & paste
+// slider formatting better, shift for varying clamps
+// timers functionality
 
 import "../nfd"
 main2 :: proc() {
@@ -232,6 +239,8 @@ main :: proc() {
 
 		old_task_head = task_head
 		old_task_tail = task_tail
+
+		pomodoro_update()
 	}
 
 	add_shortcuts(window)

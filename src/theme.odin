@@ -14,12 +14,19 @@ Theme_Editor :: struct {
 	picker: ^Color_Picker,
 	window: ^Window,
 
+	// randomization
 	checkbox_hue: ^Checkbox,
 	checkbox_sat: ^Checkbox,
 	checkbox_value: ^Checkbox,
-	slider_hue: ^Slider,
-	slider_sat: ^Slider,
-	slider_value: ^Slider,
+	slider_hue_static: ^Slider,
+	slider_hue_low: ^Slider,
+	slider_hue_high: ^Slider,
+	slider_sat_static: ^Slider,
+	slider_sat_low: ^Slider,
+	slider_sat_high: ^Slider,
+	slider_value_static: ^Slider,
+	slider_value_low: ^Slider,
+	slider_value_high: ^Slider,
 
 	color_copy: Color,
 }
@@ -57,6 +64,8 @@ Theme_Save_Load :: struct {
 	caret: u32,
 	caret_highlight: u32,
 	caret_selection: u32,	
+	
+	tags: [8]u32,
 }
 
 Theme_Panel :: enum {
@@ -125,7 +134,6 @@ theme_reformat_panel_sliders :: proc(panel: ^Panel) {
 		slider := cast(^Slider) panel.children[2 + i]
 		value := cast(^u8) slider.data
 		slider.position = f32(value^) / 255
-		element_message(slider, .Reformat)
 	}
 }
 
@@ -292,12 +300,15 @@ theme_editor_spawn :: proc() {
 		label_init(slider_panel, { .HF }, name)
 
 		checkbox_init(slider_panel, {}, "Lock", false)
-		color_button_init(slider_panel, {}, color_mod)
+		color_button_init(slider_panel, { .VF }, color_mod)
 
 		for i in 0..<4 {
 			value := &color_mod[i]
 			s := slider_init(slider_panel, {}, f32(value^) / 255)
 			s.data = value
+			s.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "%d", u8(position * 255))
+			}
 			
 			s.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 				slider := cast(^Slider) element
@@ -316,16 +327,6 @@ theme_editor_spawn :: proc() {
 						}
 
 						gs_update_all_windows()
-					}
-
-					case .Reformat: {
-						strings.builder_reset(&slider.builder)
-						fmt.sbprintf(&slider.builder, "%d", u8(slider.position * 255))
-						return 1
-					}
-
-					case .Deallocate_Recursive: {
-						free(slider.data)
 					}
 				} 
 
@@ -412,9 +413,21 @@ theme_editor_spawn :: proc() {
 			rand_sat := theme_editor.checkbox_sat.state
 			rand_value := theme_editor.checkbox_value.state
 
-			hue := theme_editor.slider_hue.position
-			sat := theme_editor.slider_sat.position
-			value := theme_editor.slider_value.position
+			hue_static := theme_editor.slider_hue_static.position
+			hue_low := theme_editor.slider_hue_low.position
+			hue_high := theme_editor.slider_hue_high.position
+			sat_static := theme_editor.slider_sat_static.position
+			sat_low := theme_editor.slider_sat_low.position
+			sat_high := theme_editor.slider_sat_high.position
+			value_static := theme_editor.slider_value_static.position
+			value_low := theme_editor.slider_value_low.position
+			value_high := theme_editor.slider_value_high.position
+
+			gen :: proc(low, high: f32) -> f32 {
+				low := clamp(low, 0, high)
+				high := clamp(high, low, 1)
+				return rand.float32() * (high - low) + low
+			}
 
 			for i in 0..<theme_editor.panel_list_index {
 				p := theme_editor.panel_list[i]
@@ -422,9 +435,9 @@ theme_editor_spawn :: proc() {
 
 				if !locked {
 					color := cast(^Color) p.data
-					h := rand_hue ? rand.float32() : hue
-					s := rand_sat ? rand.float32() : sat
-					v := rand_value ? rand.float32() : value
+					h := rand_hue ? gen(hue_low, hue_high) : hue_static
+					s := rand_sat ? gen(sat_low, sat_high) : sat_static
+					v := rand_value ? gen(value_low, value_high) : value_static
 					color^ = color_hsv_to_rgb(h, s, v)
 					theme_reformat_panel_sliders(p)
 				}
@@ -435,21 +448,36 @@ theme_editor_spawn :: proc() {
 
 		LABEL_WIDTH :: 100
 
+		push_sliders :: proc(parent: ^Element, a, b, c: ^^Slider, static: f32) {
+			a^ = slider_init(parent, {}, static)
+			a^.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "Static %.3f", position)
+			}
+			b^ = slider_init(parent, {}, 0)
+			b^.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "Low %.3f", position)
+			}
+			c^ = slider_init(parent, {}, 1)
+			c^.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "High %.3f", position)
+			}
+		}
+		using theme_editor
+
 		p1 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p1, {}, "Hue", LABEL_WIDTH)
-		theme_editor.checkbox_hue = checkbox_init(p1, {}, "USE", true)
-		spacer_init(p1, { .HF }, 0, 0, .Empty)
-		theme_editor.slider_hue = slider_init(p1, {}, 0)
+		checkbox_hue = checkbox_init(p1, {}, "USE", true)
+		push_sliders(p1, &slider_hue_static, &slider_hue_low, &slider_hue_high, 0)
 		
 		p2 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p2, {}, "Saturation", LABEL_WIDTH)
-		theme_editor.checkbox_sat = checkbox_init(p2, {}, "USE", false)
-		theme_editor.slider_sat = slider_init(p2, {}, 1)
+		checkbox_sat = checkbox_init(p2, {}, "USE", false)
+		push_sliders(p2, &slider_sat_static, &slider_sat_low, &slider_sat_high, 1)
 		
 		p3 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p3, {}, "Value", LABEL_WIDTH)
-		theme_editor.checkbox_value = checkbox_init(p3, {}, "USE", false)
-		theme_editor.slider_value = slider_init(p3, {}, 1)
+		checkbox_value = checkbox_init(p3, {}, "USE", false)
+		push_sliders(p3, &slider_value_static, &slider_value_low, &slider_value_high, 1)
 	}
 }
 

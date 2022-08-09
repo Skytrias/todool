@@ -11,6 +11,7 @@ import "core:runtime"
 import "core:unicode"
 import "core:unicode/utf8"
 import sdl "vendor:sdl2"
+import mix "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
 import "../fontstash"
 import "../cutf8"
@@ -18,6 +19,7 @@ import "../cutf8"
 SCALE := f32(1)
 LINE_WIDTH := max(2, 2 * SCALE)
 ROUNDNESS := 5.0 * SCALE
+HOVER_WIDTH :: 100
 
 Font :: fontstash.Font
 font_regular: ^Font
@@ -104,6 +106,9 @@ Window :: struct {
 
 	// title
 	title_builder: strings.Builder,
+
+	// copy from text boxes
+	copy_builder: strings.Builder,
 }
 
 Cursor :: enum {
@@ -129,8 +134,21 @@ Global_State :: struct {
 
 	// event intercepting
 	ignore_quit: bool,
+
+	sounds: [Sound_Index]^mix.Chunk,
 }
 gs: Global_State
+
+Sound_Index :: enum {
+	Timer_Start,
+	Timer_Stop,
+	Timer_Resume,
+	Timer_Ended,
+}
+
+sound_play :: proc(index: Sound_Index) {	
+	mix.PlayChannel(0, gs.sounds[index], 0)
+}
 
 // add shortcut to map
 window_add_shortcut :: proc(
@@ -193,6 +211,7 @@ window_init :: proc(
 	res.combo_builder = strings.builder_make(0, 32)
 	res.title_builder = strings.builder_make(0, 64)
 	res.dialog_builder = strings.builder_make(0, 64)
+	res.copy_builder = strings.builder_make(0, 256)
 	res.shortcuts = make(map[string]Shortcut_Proc, 32)
 	res.target = render_target_init(window)
 	res.update_next = true
@@ -210,9 +229,7 @@ window_init :: proc(
 
 		window := cast(^Window) data
 		if window_hovered_check(window) {
-			custom_event: sdl.Event
-			sdl.PushEvent(&custom_event)
-			// empty event to update message loop
+			sdl_push_empty_event()
 		}
 
 		return interval
@@ -225,7 +242,7 @@ window_init :: proc(
 		floaty := panel_floaty_init(&res.element, {})
 		floaty.x = 0
 		floaty.y = 0
-		floaty.width = 200 * SCALE
+		floaty.width = HOVER_WIDTH * SCALE
 		floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 		floaty.z_index = 255
 		p := floaty.panel
@@ -260,6 +277,9 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 	}
 
 	floaty.y = goal_y
+	scaled_size := math.round(DEFAULT_FONT_SIZE * SCALE)
+	text_width := fontstash.string_width(font_regular, scaled_size, text)
+	floaty.width = max(HOVER_WIDTH * SCALE, text_width + TEXT_MARGIN_HORIZONTAL * SCALE)
 }
 
 window_poll_size :: proc(window: ^Window) {
@@ -655,6 +675,7 @@ window_destroy :: proc(window: ^Window) {
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
 	delete(window.dialog_builder.buf)
+	delete(window.copy_builder.buf)
 	sdl.DestroyWindow(window.w)
 }
 
@@ -869,7 +890,7 @@ gs_init :: proc() {
 	windows = make([dynamic]^Window, 0, 8)
 	running = true
 
-	err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS)
+	err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO)
 	if err != 0 {
 		log.panicf("SDL2: failed to initialize %d", err)
 	}
@@ -901,6 +922,27 @@ gs_init :: proc() {
 
 		when os.OS == .Windows {
 			default_base_path = "./"
+		}
+	}
+
+	// audio
+	{
+		// audio support
+		wanted_flags := mix.InitFlags {}
+		init_flags := transmute(mix.InitFlags) mix.Init(wanted_flags)
+		if wanted_flags != init_flags {
+			log.panic("MIXER: couldnt load audio format")
+		}
+
+		if mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 2, 1024) == -1 {
+			log.panic("MIXER: failed loading")
+		}
+	
+		sounds = {
+			.Timer_Start = mix.LoadWAV("sounds/timer_start.wav"),
+			.Timer_Stop = mix.LoadWAV("sounds/timer_stop.wav"),
+			.Timer_Resume = mix.LoadWAV("sounds/timer_resume.wav"),
+			.Timer_Ended = mix.LoadWAV("sounds/timer_ended.wav"),
 		}
 	}
 }
@@ -1323,7 +1365,9 @@ dialog_spawn :: proc(
 	return output
 }
 
+//////////////////////////////////////////////
 // sdl helpers
+//////////////////////////////////////////////
 
 window_border_toggle :: proc(window: ^Window) {
 	sdl.SetWindowBordered(window.w, cast(sdl.bool) window.bordered)
@@ -1339,12 +1383,18 @@ clipboard_get_string :: proc(allocator := context.allocator) -> string {
 	return result
 }
 
-default_save_name := "save"
-default_base_path: string
+// empty event to update message loop
+sdl_push_empty_event :: #force_inline proc() {
+	custom_event: sdl.Event
+	sdl.PushEvent(&custom_event)
+}
 
 //////////////////////////////////////////////
 // bpath, initialized once
 //////////////////////////////////////////////
+
+default_save_name := "save"
+default_base_path: string
 
 bpath_temp :: proc(path: string) -> string {
 	return fmt.tprintf("%s%s", default_base_path, path)

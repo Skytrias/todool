@@ -67,7 +67,6 @@ Message :: enum {
 	Box_Set_Caret, // di = const start / end, dp = ^int index to set
 	Box_Text_Color,
 	Table_Get_Item, // dp = Table_Get_Item
-	Reformat,
 	Button_Highlight, // di = 1 use, dp = optional color
 	Panel_Color,
 
@@ -576,11 +575,17 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 	return 0
 }
 
-button_init :: proc(parent: ^Element, flags: Element_Flags, text: string) -> (res: ^Button) {
+button_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	text: string,
+	message_user: Message_Proc = nil,
+) -> (res: ^Button) {
 	res = element_init(Button, parent, flags | { .Tab_Stop }, button_message)
 	res.builder = strings.builder_make(0, 32)
 	res.data = res
 	strings.write_string(&res.builder, text)
+	res.message_user = message_user
 	return
 }
 
@@ -626,11 +631,11 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Get_Width: {
-			return int(50 * SCALE)
+			return int(DEFAULT_FONT_SIZE * SCALE)
 		}
 
 		case .Get_Height: {
-			return int(50 * SCALE)
+			return int(DEFAULT_FONT_SIZE * SCALE)
 		}
 
 		case .Key_Combination: {
@@ -642,7 +647,7 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 }
 
 color_button_init :: proc(parent: ^Element, flags: Element_Flags, color: ^Color) -> (res: ^Color_Button) {
-	res = element_init(Color_Button, parent, flags, button_message)
+	res = element_init(Color_Button, parent, flags, color_button_message)
 	res.color = color
 	res.data = res
 	return
@@ -715,10 +720,16 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 	return 0
 }
 
-icon_button_init :: proc(parent: ^Element, flags: Element_Flags, icon: Icon) -> (res: ^Icon_Button) {
+icon_button_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	icon: Icon,
+	message_user: Message_Proc = nil,
+) -> (res: ^Icon_Button) {
 	res = element_init(Icon_Button, parent, flags | { .Tab_Stop }, icon_button_message)
 	res.icon = icon
 	res.data = res
+	res.message_user = message_user
 	return
 }
 
@@ -796,11 +807,21 @@ label_init :: proc(
 // slider
 //////////////////////////////////////////////
 
+Slider_Format_Proc :: proc(builder: ^strings.Builder, position: f32)
+
 Slider :: struct {
 	using element: Element,
 	position: f32,
-	format: string,
 	builder: strings.Builder,
+	formatting: Slider_Format_Proc,
+}
+
+slider_default_formatting :: proc(
+	builder: ^strings.Builder, 
+	position: f32,
+) {
+	strings.builder_reset(builder)
+	fmt.sbprintf(builder, "%.1f", position)
 }
 
 slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -821,7 +842,8 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			slide.r = slide.l + slider.position	* f32(rect_width(slide))
 			render_rect(target, slide, text_color, 0)
 
-			element_message(slider, .Reformat)
+			strings.builder_reset(&slider.builder)
+			slider.formatting(&slider.builder, slider.position)
 
 			text := strings.to_string(slider.builder)
 			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
@@ -843,26 +865,23 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
-		case .Reformat: {
-			strings.builder_reset(&slider.builder)
-			fmt.sbprintf(&slider.builder, slider.format, slider.position)
-		}
-
 		case .Deallocate_Recursive: {
 			delete(slider.builder.buf)
-		}
-
-		case .Left_Up: {
-			// element_repaint(element)
 		}
 	}
 
 	// change slider position and cause repaint
 	if msg == .Left_Down || (msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT) {
 		old := slider.position
+		unit := f32(element.window.cursor_x - element.bounds.l) / f32(rect_width(element.bounds))
+
+		if element.window.shift || element.window.ctrl || element.window.alt {
+			unit = math.round(unit * 10) / 10
+		}
+
 		slider.position = 
 			clamp(
-				f32(element.window.cursor_x - element.bounds.l) / f32(rect_width(element.bounds)),
+				unit,
 				0,
 				1,
 			)
@@ -876,12 +895,16 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 	return 0
 }
 
-slider_init :: proc(parent: ^Element, flags: Element_Flags, position: f32 = 0) -> (res: ^Slider) {
+slider_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	position: f32 = 0,
+	formatting: Slider_Format_Proc = slider_default_formatting,
+) -> (res: ^Slider) {
 	res = element_init(Slider, parent, flags, slider_message)
 	res.builder = strings.builder_make(0, 32)
 	res.position = clamp(position, 0, 1)
-	res.format = "%.1f"
-	fmt.sbprintf(&res.builder, res.format, res.position)
+	res.formatting = formatting
 	return
 }
 
@@ -1563,22 +1586,21 @@ scroll_up_down_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 		// }
 
 		case .Left_Down: {
-			// element_animation_start(element)
+			element_animation_start(element)
 		}
 
 		case .Left_Up: {
-			// element_animation_stop(element)
+			element_animation_stop(element)
 		}
 
 		case .Animate: {
-			// TODO investigate
-			// // log.info("animating")
-			// direction: f32 = is_down ? 1 : -1
+			direction: f32 = is_down ? 1 : -1
 			// goal := scrollbar.position + direction * 0.1 * scrollbar.page
+			scrollbar.position += direction * 0.01 * scrollbar.page
 			// animate_to(&scrollbar.position, goal, 1, 1)
-			// element_repaint(scrollbar)
+			element_repaint(scrollbar)
 
-			// return 1
+			return 1
 		}
 	}
 
@@ -2454,6 +2476,126 @@ enum_panel_init :: proc(
 	res.mode = mode
 	res.count = count
 	return
+}
+
+//////////////////////////////////////////////
+// Linear Gauge
+//////////////////////////////////////////////
+
+Linear_Gauge :: struct {
+	using element: Element,
+	position: f32,
+	builder: strings.Builder,
+	text_below: string, // below 1
+	text_above: string, // above 1
+}
+
+linear_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	gauge := cast(^Linear_Gauge) element
+
+	gauge_text :: proc(gauge: ^Linear_Gauge) -> string {
+		text := gauge.position >= 1.0 ? gauge.text_above : gauge.text_below
+		strings.builder_reset(&gauge.builder)
+		return fmt.sbprintf(&gauge.builder, "%s: %d%%", text, int(gauge.position * 100))
+	}
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			text_color := theme.text_default
+
+			render_rect(target, element.bounds, theme.text_bad, ROUNDNESS)
+			slide := element.bounds
+			// slide.t = slide.b - math.round(5 * SCALE)
+			// slide.b = slide.t + math.round(3 * SCALE)
+			slide.r = slide.l + gauge.position	* f32(rect_width(slide))
+			render_rect(target, slide, theme.text_good, ROUNDNESS)
+			render_rect_outline(target, element.bounds, text_color)
+
+			output := gauge_text(gauge)
+			erender_string_aligned(element, output, element.bounds, text_color, .Middle, .Middle)
+		}
+
+		case .Get_Width: {
+			output := gauge_text(gauge)
+			width := max(150 * SCALE, estring_width(element, output) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			return int(width)
+		}
+
+		case .Get_Height: {
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+		}
+	}
+
+	return 0
+}
+
+linear_gauge_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	position: f32,
+	text_below: string,
+	text_above: string,
+) -> (res: ^Linear_Gauge) {
+	res = element_init(Linear_Gauge, parent, flags, linear_gauge_message)
+	res.text_below = text_below
+	res.text_above = text_above
+	res.position = position
+	return 
+}
+
+//////////////////////////////////////////////
+// Radial Gauge
+//////////////////////////////////////////////
+
+Radial_Gauge :: struct {
+	using element: Element,
+	position: f32,
+	text: string,
+}
+
+radial_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	gauge := cast(^Radial_Gauge) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			text_color := theme.text_default
+			// render_rect_outline(target, element.bounds, theme.text_default)
+
+			render_arc(target, element.bounds, BLACK, 13 * SCALE, 3.14, 0)
+			render_arc(target, rect_margin(element.bounds, 2 * SCALE), GREEN, 10 * SCALE, gauge.position * math.PI, 0)
+
+			text := fmt.tprintf("%s: %d%%", gauge.text, int(gauge.position * 100))
+
+			// text := strings.to_string(gauge.builder)
+			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
+		}
+
+		case .Get_Width: {
+			return int(200 * SCALE)
+		}
+
+		case .Get_Height: {
+			return int(200 * SCALE)
+		}
+
+	}
+
+	return 0
+}
+
+radial_gauge_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	position: f32,
+	text: string,
+) -> (res: ^Radial_Gauge) {
+	res = element_init(Radial_Gauge, parent, flags, radial_gauge_message)
+	res.text = text
+	res.position = position
+	res.font_options = &font_options_bold
+	return 
 }
 
 //////////////////////////////////////////////
