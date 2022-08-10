@@ -72,7 +72,56 @@ import "../fontstash"
 // 	// fmt.eprintln(res, out_path)
 // }
 
+// T_Event :: struct {
+// 	data: rawptr,
+// }
+
+import "core:intrinsics"
+
+// rawptr should be enough since you know what you'll pass to the procedures
+// entry = proc(data: rawptr) {
+//   your_data := cast(^Your_Data_Type) data	
+// }
+Finite_State_Calls :: struct {
+	entry: proc(data: rawptr),
+	exit: proc(data: rawptr),
+	remain: proc(data: rawptr),
+
+	data: rawptr, // passed to calls?
+}
+
+Finite_State :: enum {
+	One,
+	Two,
+	Three,
+}
+
+Finite_State_Machine :: struct($A: typeid, $B: typeid) 
+	where intrinsics.type_is_enum(A), intrinsics.type_is_enum(B)
+{
+	name: string,
+	// transition_table: [A][B]A, // whats this?
+	call_table: [A]Finite_State_Calls,
+	current_state: A,
+}
+
+Test_A :: enum {
+	One,
+	Two,
+	Three,
+}
+
+Test_B :: enum {
+	One,
+	Two,
+	Three,
+}
+
 main :: proc() {
+	fsm: Finite_State_Machine(Test_A, Test_B) 
+}
+
+main2 :: proc() {
 	gs_init()
 	context.logger = gs.logger
 

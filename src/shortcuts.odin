@@ -553,9 +553,8 @@ add_shortcuts :: proc(window: ^Window) {
 			}
 		}
 
-		// fmt.eprint(strings.to_string(b))
-
 		if removed_count != 0 {
+			clipboard_set_with_builder(&b)
 			element_repaint(mode_panel)
 		}
 
