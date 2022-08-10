@@ -65,7 +65,6 @@ task_tail := 0
 old_task_head := 0
 old_task_tail := 0
 tasks_visible: [dynamic]^Task
-task_parent_stack: [128]^Task
 
 // drag state
 drag_list: [dynamic]^Task
@@ -613,30 +612,43 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 // set has children, index, and visible parent per each task
 task_set_children_info :: proc() {
-	// reset all stack
-	for p in &task_parent_stack {
-		p = nil
-	}
-
-	// set parental info
-	prev: ^Task
+	// reset
 	for child, i in mode_panel.children {
 		task := cast(^Task) child
 		task.index = i
 		task.has_children = false
+	}
 
-		if prev != nil {
-			if prev.indentation < task.indentation {
-				prev.has_children = true
-				task_parent_stack[task.indentation] = prev
-			} 
+	// simple check for indentation
+	for i := len(mode_panel.children) - 1; i > 0; i -= 1 {
+		a := cast(^Task) mode_panel.children[i - 1]
+		b := cast(^Task) mode_panel.children[i]
+
+		if a.indentation < b.indentation {
+			a.has_children = true
 		}
+	}
 
-		prev = task
-		task.visible_parent = task_parent_stack[task.indentation]
+	// dumb set visible parent to everything coming after
+	// each upcoming has_children will set correctly
+	for i in 0..<len(mode_panel.children) {
+		a := cast(^Task) mode_panel.children[i]
+
+		if a.has_children {
+			for j in i + 1..<len(mode_panel.children) {
+				b := cast(^Task) mode_panel.children[j]
+
+				if a.indentation < b.indentation {
+					b.visible_parent = a
+				} else {
+					break
+				}
+			}
+		}
 	}
 }
 
+// set visible flags on task based on folding
 task_set_visible_tasks :: proc() {
 	clear(&tasks_visible)
 
