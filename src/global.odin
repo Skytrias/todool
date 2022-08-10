@@ -4,6 +4,7 @@ import "core:fmt"
 import "core:os"
 import "core:time"
 import "core:math"
+import "core:math/ease"
 import "core:mem"
 import "core:log"
 import "core:strings"
@@ -136,6 +137,7 @@ Global_State :: struct {
 	ignore_quit: bool,
 
 	sounds: [Sound_Index]^mix.Chunk,
+	flux: ease.Flux_Map(f32),
 }
 gs: Global_State
 
@@ -945,11 +947,14 @@ gs_init :: proc() {
 			.Timer_Ended = mix.LoadWAV("sounds/timer_ended.wav"),
 		}
 	}
+
+	flux = ease.flux_init(f32, 128)
 }
 
 gs_destroy :: proc() {
 	using gs
 
+	ease.flux_destroy(flux)
 	fontstash.destroy()
 	fonts_destroy()
 	log.destroy_console_logger(&logger)
@@ -1009,10 +1014,17 @@ gs_message_loop :: proc() {
 	
 	for gs.running {
 		// when animating
-		if len(gs.animating) != 0 {
+		if len(gs.animating) != 0 || len(gs.flux.values) != 0 {
+			
 			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_animations()
 			gs_process_events()
+			
+			if len(gs.flux.values) != 0 {
+				for w in gs.windows {
+					w.update_next = true
+				}
+			}	
 		} else {
 			// wait for event to arive
 			available := sdl.WaitEvent(nil)
@@ -1031,6 +1043,10 @@ gs_message_loop :: proc() {
 			frame_end := sdl.GetPerformanceCounter()
 			elapsed_ms := f64(frame_end - gs.frame_start) / f64(sdl.GetPerformanceFrequency())
 			gs.dt = f32(elapsed_ms)
+		}
+
+		if len(gs.flux.values) != 0 {
+			ease.flux_update(&gs.flux, f64(gs.dt))
 		}
 	}
 

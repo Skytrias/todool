@@ -1,5 +1,7 @@
 package src
 
+import "core:math/rand"
+
 Color :: [4]u8
 RED :: Color { 255, 0, 0, 255 }
 GREEN :: Color { 0, 255, 0, 255 }
@@ -7,6 +9,15 @@ BLUE :: Color { 0, 0, 255, 255 }
 BLACK :: Color { 0, 0, 0, 255 }
 WHITE :: Color { 255, 255, 255, 255 }
 TRANSPARENT :: Color { }
+
+color_rand_non_alpha :: proc(gen: ^rand.Rand = nil) -> Color {
+	return {
+		u8(rand.float32() * 255),
+		u8(rand.float32() * 255),
+		u8(rand.float32() * 255),
+		255,
+	}
+}
 
 color_alpha :: proc(color: Color, alpha: f32) -> (res: Color) {
 	res = color

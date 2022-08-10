@@ -44,6 +44,7 @@ Sidebar_Options :: struct {
 
 	slider_work_today: ^Slider,
 	gauge_work_today: ^Linear_Gauge,
+	label_time_accumulated: ^Label,
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -127,12 +128,12 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			i1 := icon_button_init(panel_info, { .HF }, .Tomato)
 			i1.hover_info = "Start / Stop Pomodoro Time"
 			i1.invoke = proc(data: rawptr) {
-				element_hide(sb.options.button_pomodoro_reset, pomodoro_stopwatch.running)
+				element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
 				pomodoro_stopwatch_toggle()
 			}
 			i2 := icon_button_init(panel_info, { .HF }, .Reply)
 			i2.invoke = proc(data: rawptr) {
-				element_hide(sb.options.button_pomodoro_reset, pomodoro_stopwatch.running)
+				element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
 				pomodoro_stopwatch_reset()
 				pomodoro_label_format()
 				sound_play(.Timer_Stop)
@@ -218,6 +219,7 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 		checkbox_wrapping = checkbox_init(panel, flags, "Wrap in List Mode", true)
 
+		// pomodoro
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
 		l1 := label_init(panel, { .HF, .Label_Center }, "Pomodoro")
 		l1.font_options = &font_options_header
@@ -235,21 +237,34 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			fmt.sbprintf(builder, "Long Break: %dmin", int(position * 60))
 		}
 
+		// statistics
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
 		l2 := label_init(panel, { .HF, .Label_Center }, "Statistics")
 		l2.font_options = &font_options_header
+
+		label_time_accumulated = label_init(panel, { .HF, .Label_Center })
+		b := button_init(panel, flags, "Reset acummulated")
+		b.invoke = proc(data: rawptr) {
+			pomodoro.accumulated = {}
+		}
 
 		slider_work_today = slider_init(panel, flags, 8.0 / 24)
 		slider_work_today.formatting = proc(builder: ^strings.Builder, position: f32) {
 			fmt.sbprintf(builder, "Goal Today: %dh", int(position * 24))
 		}
 
-		{
-			sub := panel_init(panel, { .HF, .Panel_Expand, .Panel_Horizontal }, 0, 0)
-			button_init(sub, {}, "Reset acummulated")
-		}
+		gauge_work_today = linear_gauge_init(panel, flags, 0.5, "Done Today", "Working Overtime")
+		gauge_work_today.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			if msg == .Paint_Recursive {
+				if pomodoro.celebrating {
+					target := element.window.target
+					render_push_clip(target, element.parent.bounds)
+					pomodoro_celebration_render(target)
+				}
+			}
 
-		gauge_work_today = linear_gauge_init(panel, flags, 0.5, "Done Today", "Working Overtime!")
+			return 0
+		}
 	}
 
 	// tags

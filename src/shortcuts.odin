@@ -939,6 +939,7 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "ctrl+c", proc() -> bool {
+		last_was_task_copy = true
 		copy_selection()
 		return true
 	})

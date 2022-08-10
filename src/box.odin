@@ -661,11 +661,16 @@ box_evaluate_combo :: proc(
 		}
 
 		case "ctrl+c": {
-			box_copy_selection(element.window, box)
+			handled = box_copy_selection(element.window, box)
+			last_was_task_copy = false
 		}
 
 		case "ctrl+v": {
-			box_paste(element, box)
+			if !last_was_task_copy {
+				handled = box_paste(element, box)
+			} else {
+				handled = false
+			}
 		}
 
 		case: {
@@ -677,7 +682,7 @@ box_evaluate_combo :: proc(
 }
 
 // copy selection to window storage
-box_copy_selection :: proc(window: ^Window, box: ^Box) {
+box_copy_selection :: proc(window: ^Window, box: ^Box) -> (found: bool) {
 	if box.head == box.tail {
 		return
 	}
@@ -690,19 +695,21 @@ box_copy_selection :: proc(window: ^Window, box: ^Box) {
 		b := &window.copy_builder
 		strings.builder_reset(b)
 		strings.write_string(b, selection)
-		log.info(selection)
+		found = true
 	}
+
+	return
 }
 
-box_paste :: proc(element: ^Element, box: ^Box) -> bool {
+box_paste :: proc(element: ^Element, box: ^Box) -> (found: bool) {
 	b := &element.window.copy_builder
 
-	if len(b.buf) == 0 {
-		return false
-	} else {
+	if len(b.buf) != 0 {
 		box_replace(element, box, strings.to_string(b^), 0, true)
-		return true
+		found = true
 	}
+
+	return
 }
 
 box_move_left :: proc(box: ^Box, ctrl, shift: bool) {

@@ -20,6 +20,7 @@ window_main: ^Window
 caret_rect: Rect
 caret_lerp_speed_y := f32(1)
 caret_lerp_speed_x := f32(1)
+last_was_task_copy := false
 
 // goto state
 panel_goto: ^Panel_Floaty

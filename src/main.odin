@@ -21,9 +21,6 @@ import "../fontstash"
 // font size for tasks specifically so you could zoom in / out
 // add autosave timer & exit scheme
 // notifications
-// timer sounds
-// goal reached sound?
-// save time spen
 
 // WEBSITE 
 // work on a proper website
@@ -44,6 +41,17 @@ import "../fontstash"
 // text box copy & paste
 // slider formatting better, shift for varying clamps
 // timers functionality
+// statistics
+// timer sounds
+
+// import "../notify"
+
+// main :: proc() {
+// 	notify.init("todool")
+// 	defer notify.uninit()
+
+// 	notify.run("Todool Pomodoro Timer Finished", "", "dialog-information")
+// }
 
 import "../nfd"
 main2 :: proc() {
@@ -165,7 +173,9 @@ main :: proc() {
 			}
 
 			case .Window_Close: {
-				if dirty != dirty_saved {
+				if options_autosave() {
+					editor_save("save.todool")
+				} else if dirty != dirty_saved {
 					res := dialog_spawn(
 						window, 
 						"Leave without saving progress?\n%l\n%f%b%C%B",

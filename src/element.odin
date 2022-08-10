@@ -1261,6 +1261,37 @@ panel_layout :: proc(panel: ^Panel, bounds: Rect, measure: bool) -> f32 {
 	return position - (count != 0 ? panel.gap : 0) * SCALE + scaled_margin
 }
 
+panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
+	panable := (.Panel_Panable in panel.flags)
+	color: Color
+	element_message(panel, .Panel_Color, 0, &color)
+
+	if color == {} {
+		when DEBUG_PANEL {
+			render_rect_outline(target, rect_margin(element.bounds, 0), BLUE)
+		}
+		
+		return
+	}
+
+	bounds := panel.bounds
+
+	if panable {
+		bounds.l -= panel.offset_x
+		bounds.t -= panel.offset_y
+	}
+
+	if panel.shadow {
+		render_drop_shadow(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
+	} else {
+		render_rect(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
+	}
+
+	when DEBUG_PANEL {
+		render_rect_outline(target, rect_margin(element.bounds, 0), GREEN)
+	}
+}
+
 panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Panel) element
 	panable := (.Panel_Panable in element.flags)
@@ -1380,34 +1411,8 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Paint_Recursive: {
-			color: Color
-			element_message(element, .Panel_Color, 0, &color)
 			target := element.window.target
-
-			if color == {} {
-				when DEBUG_PANEL {
-					render_rect_outline(target, rect_margin(element.bounds, 0), BLUE)
-				}
-				
-				return 0
-			}
-
-			bounds := element.bounds
-
-			if panable {
-				bounds.l -= panel.offset_x
-				bounds.t -= panel.offset_y
-			}
-
-			if panel.shadow {
-				render_drop_shadow(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
-			} else {
-				render_rect(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
-			}
-
-			when DEBUG_PANEL {
-				render_rect_outline(target, rect_margin(element.bounds, 0), GREEN)
-			}
+			panel_render_default(target, panel)
 		}
 	}
 
@@ -2502,15 +2507,15 @@ linear_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
-			text_color := theme.text_default
+			text_color := theme.background[1]
 
 			render_rect(target, element.bounds, theme.text_bad, ROUNDNESS)
 			slide := element.bounds
 			// slide.t = slide.b - math.round(5 * SCALE)
 			// slide.b = slide.t + math.round(3 * SCALE)
-			slide.r = slide.l + gauge.position	* f32(rect_width(slide))
+			slide.r = slide.l + min(gauge.position, 1) * f32(rect_width(slide))
 			render_rect(target, slide, theme.text_good, ROUNDNESS)
-			render_rect_outline(target, element.bounds, text_color)
+			// render_rect_outline(target, element.bounds, text_color)
 
 			output := gauge_text(gauge)
 			erender_string_aligned(element, output, element.bounds, text_color, .Middle, .Middle)

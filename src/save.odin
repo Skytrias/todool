@@ -1,5 +1,6 @@
 package src
 
+import "core:time"
 import "core:io"
 import "core:strings"
 import "core:mem"
@@ -306,6 +307,11 @@ Misc_Save_Load :: struct {
 		long_break: int,
 	},
 
+	statistics: struct {
+		accumulated: int, // time.Duration
+		work_goal: int,
+	},
+
 	theme: Theme_Save_Load,
 }
 
@@ -351,6 +357,11 @@ json_save_misc :: proc(path: string) -> bool {
 			int(pomodoro_time_index(0)),
 			int(pomodoro_time_index(1)),
 			int(pomodoro_time_index(2)),
+		},
+
+		statistics = {
+			int(pomodoro.accumulated),
+			int(sb.options.slider_work_today.position * 24),
 		},
 
 		theme = theme_save,
@@ -423,6 +434,10 @@ json_load_misc :: proc(path: string) -> bool{
 	sb.options.slider_pomodoro_short_break.position = f32(misc.pomodoro.short_break) / 60
 	sb.options.slider_pomodoro_long_break.position = f32(misc.pomodoro.long_break) / 60
 
-	// log.info(misc)
+	// statistics
+	goal := clamp(misc.statistics.work_goal, 1, 24)
+	sb.options.slider_work_today.position = f32(goal) / 24.0
+	pomodoro.accumulated = time.Duration(misc.statistics.accumulated)
+
 	return true
 }

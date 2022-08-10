@@ -1,6 +1,6 @@
 package nfd
 
-import c "core:c"
+import "core:c"
 
 // when ODIN_OS == .Windows { foreign import stbtt "../lib/stb_truetype.lib" }
 when ODIN_OS == .Linux { 
