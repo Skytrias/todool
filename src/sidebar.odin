@@ -219,6 +219,21 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 		checkbox_wrapping = checkbox_init(panel, flags, "Wrap in List Mode", true)
 
+		slider_volume := slider_init(panel, flags, 1)
+		slider_volume.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			slider := cast(^Slider) element
+
+			if msg == .Value_Changed {
+				value := i32(slider.position * 128)
+				mix_volume_set(value)
+			}
+
+			return 0
+		}
+		slider_volume.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Volume: %d%%", int(position * 100))
+		}
+
 		// pomodoro
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
 		l1 := label_init(panel, { .HF, .Label_Center }, "Pomodoro")

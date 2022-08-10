@@ -411,7 +411,7 @@ json_load_misc :: proc(path: string) -> bool{
 	}	
 
 	// options
-	sb.options.slider_tab.position = misc.options.tab
+	slider_set(sb.options.slider_tab, misc.options.tab)
 	checkbox_set(sb.options.checkbox_autosave, misc.options.autosave)
 	checkbox_set(sb.options.checkbox_invert_x, misc.options.invert_x)
 	checkbox_set(sb.options.checkbox_invert_y, misc.options.invert_y)
@@ -430,9 +430,9 @@ json_load_misc :: proc(path: string) -> bool{
 	}
 
 	// pomodoro
-	sb.options.slider_pomodoro_work.position = f32(misc.pomodoro.work) / 60
-	sb.options.slider_pomodoro_short_break.position = f32(misc.pomodoro.short_break) / 60
-	sb.options.slider_pomodoro_long_break.position = f32(misc.pomodoro.long_break) / 60
+	slider_set(sb.options.slider_pomodoro_work, f32(misc.pomodoro.work) / 60)
+	slider_set(sb.options.slider_pomodoro_short_break, f32(misc.pomodoro.short_break) / 60)
+	slider_set(sb.options.slider_pomodoro_long_break, f32(misc.pomodoro.long_break) / 60)
 
 	// statistics
 	goal := clamp(misc.statistics.work_goal, 1, 24)

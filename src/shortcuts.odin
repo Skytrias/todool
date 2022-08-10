@@ -1,5 +1,6 @@
 package src
 
+import "core:fmt"
 import "core:strings"
 import "core:log"
 import "core:mem"
@@ -482,6 +483,35 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 			element_repaint(mode_panel)
 		}
 
+		// raw copy task to clipboard
+		case "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c": {
+			if task_head == -1 {
+				return
+			}
+
+			b := strings.builder_make(0, mem.Kilobyte * 10)
+			defer delete(b.buf)
+
+			low, high := task_low_and_high()
+
+			// get lowest
+			lowest_indentation := 255
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+				lowest_indentation = min(lowest_indentation, task.indentation)
+			}
+
+			// write text into buffer
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+				relative_indentation := task.indentation - lowest_indentation
+				task_write_text_indentation(&b, task, relative_indentation)
+			}
+
+			clipboard_set_with_builder(&b)
+			// fmt.eprint(strings.to_string(b))
+		}
+
 		case: {
 			handled = false
 		}
@@ -491,6 +521,47 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 }
 
 add_shortcuts :: proc(window: ^Window) {
+	// changelog gen
+	window_add_shortcut(window, "alt+x", proc() -> bool {
+		if task_head == -1 {
+			return false
+		}
+
+		b := strings.builder_make(0, mem.Kilobyte * 10)
+		defer delete(b.buf)
+		removed_count: int
+		
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+
+		// write tasks out 
+		for i := 0; i < len(mode_panel.children); i += 1 {
+			task := cast(^Task) mode_panel.children[i]
+
+			if task.state != .Normal {
+				task_write_text_indentation(&b, task, task.indentation)
+
+				item := Undo_Item_Task_Remove_At { i }
+				undo_task_remove_at(manager, &item)
+				
+				i -= 1
+				removed_count += 1
+			} else if task.has_children {
+				if task.state_count[.Done] != 0 || task.state_count[.Canceled] != 0 {
+					task_write_text_indentation(&b, task, task.indentation)
+				}
+			}
+		}
+
+		// fmt.eprint(strings.to_string(b))
+
+		if removed_count != 0 {
+			element_repaint(mode_panel)
+		}
+
+		return true
+	})
+
 	window_add_shortcut(window, "escape", proc() -> bool {
 		if .Hide not_in panel_search.flags {
 			element_hide(panel_search, true)
@@ -938,6 +1009,7 @@ add_shortcuts :: proc(window: ^Window) {
 		return true
 	})
 
+	// copy task/s
 	window_add_shortcut(window, "ctrl+c", proc() -> bool {
 		last_was_task_copy = true
 		copy_selection()

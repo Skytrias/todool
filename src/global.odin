@@ -152,6 +152,16 @@ sound_play :: proc(index: Sound_Index) {
 	mix.PlayChannel(0, gs.sounds[index], 0)
 }
 
+// get volume at 0-128
+mix_volume_get :: proc() -> i32 {
+	return mix.Volume(0, -1)
+}
+
+// set to 0-128
+mix_volume_set :: proc(to: i32) {
+	mix.Volume(0, to)
+}
+
 // add shortcut to map
 window_add_shortcut :: proc(
 	window: ^Window,
@@ -1397,6 +1407,13 @@ clipboard_get_string :: proc(allocator := context.allocator) -> string {
 	result := strings.clone(string(text), allocator)
 	sdl.free(cast(rawptr) text)
 	return result
+}
+
+// set the clipboard content, use builder to append nul byte
+clipboard_set_with_builder :: proc(builder: ^strings.Builder) -> i32 {
+	strings.write_byte(builder, 0)
+	ctext := strings.unsafe_string_to_cstring(strings.to_string(builder^))
+	return sdl.SetClipboardText(ctext)
 }
 
 // empty event to update message loop

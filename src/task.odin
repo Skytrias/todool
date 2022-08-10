@@ -116,6 +116,16 @@ drag_init :: proc(window: ^Window) {
 	element_hide(floaty, true)
 }
 
+// simply write task text with indentation into a builder
+task_write_text_indentation :: proc(b: ^strings.Builder, task: ^Task, indentation: int) {
+	for i in 0..<indentation {
+		strings.write_byte(b, '\t')
+	}
+
+	strings.write_string(b, strings.to_string(task.box.builder))
+	strings.write_byte(b, '\n')
+}
+
 task_head_tail_call_all :: proc(
 	data: rawptr,
 	call: proc(task: ^Task, data: rawptr), 

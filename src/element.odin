@@ -908,6 +908,12 @@ slider_init :: proc(
 	return
 }
 
+// use this in case procedures have a value changed call!
+slider_set :: proc(slider: ^Slider, goal: f32) {
+	slider.position = goal
+	element_message(slider, .Value_Changed)
+}
+
 //////////////////////////////////////////////
 // checkbox
 //////////////////////////////////////////////

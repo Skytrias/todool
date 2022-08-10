@@ -19,8 +19,11 @@ import "../fontstash"
 // images on top of cards
 // breadcrumbs? could do a prompt
 // font size for tasks specifically so you could zoom in / out
-// add autosave timer & exit scheme
-// notifications
+// notifications -> libnotify on linux works, winrt on windows?
+
+// major
+// changelog gen
+// import from files
 
 // WEBSITE 
 // work on a proper website
@@ -43,6 +46,9 @@ import "../fontstash"
 // timers functionality
 // statistics
 // timer sounds
+// volume slider
+// add autosave timer & exit scheme
+// copy tree as raw text
 
 // import "../notify"
 
@@ -53,76 +59,17 @@ import "../fontstash"
 // 	notify.run("Todool Pomodoro Timer Finished", "", "dialog-information")
 // }
 
-import "../nfd"
-main2 :: proc() {
-	fmt.eprintln("start")
-	defer fmt.eprintln("end")
+// import "../nfd"
+// main2 :: proc() {
+// 	fmt.eprintln("start")
+// 	defer fmt.eprintln("end")
 
-	out_path: cstring = "*.c"
-	res := nfd.OpenDialog("", "", &out_path)
-	fmt.eprintln(res, out_path)
+// 	out_path: cstring = "*.c"
+// 	res := nfd.OpenDialog("", "", &out_path)
+// 	fmt.eprintln(res, out_path)
 
-	// res := nfd.SaveDialog("", "", &out_path)
-	// fmt.eprintln(res, out_path)
-}
-
-// main :: proc() {
-// 	Some_Data :: struct {
-// 		text: string,
-// 		value1: int,
-// 		value2: int,
-// 		value3: int,
-// 		another: struct {
-// 			wow: u8,
-// 			value: int,
-// 			another2: struct {
-// 				wow: u8,
-// 				value: int,
-// 			},
-// 		},
-// 		test_map1: map[string]int,
-// 		values: [8]int,
-// 		// test_map2: map[int]int,
-// 	}
-
-// 	out_data := Some_Data {
-// 		text = "testing",
-// 		value1 = 10,
-// 		value2 = 20,
-// 		value3 = 30,
-// 		test_map1 = {
-// 			"abc test" = 1,
-// 			"def" = 2,
-// 			"ghi" = 3,
-// 		},
-// 		// test_map2 = {
-// 		// 	12 = 0,
-// 		// 	14 = 0,
-// 		// },
-// 	}
-
-// 	result, err1 := json.marshal(
-// 		out_data, 
-// 		{ 
-// 			spec = .MJSON,
-// 			pretty = true,
-// 			use_spaces = true,
-// 			spaces = 4,
-// 			mjson_keys_use_equal_sign = true,
-// 		}, 
-// 		context.temp_allocator,
-// 	)
-
-// 	fmt.eprintln("err =", err1)
-// 	fmt.eprintln(string(result))
-
-// 	fmt.eprintln("--------------------------------------")
-
-// 	in_data: Some_Data
-// 	err2 := json.unmarshal(result, &in_data, .MJSON)
-
-// 	fmt.eprintln("err =", err2)
-// 	fmt.eprintln(in_data)
+// 	// res := nfd.SaveDialog("", "", &out_path)
+// 	// fmt.eprintln(res, out_path)
 // }
 
 main :: proc() {
