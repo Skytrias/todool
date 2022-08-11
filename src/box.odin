@@ -531,6 +531,32 @@ text_box_init :: proc(
 // Task Box
 //////////////////////////////////////////////
 
+// just paints the text based on text color
+task_box_paint_default :: proc(box: ^Task_Box) {
+	focused := box.window.focused == box
+	target := box.window.target
+	font, size := element_retrieve_font_options(box)
+	scaled_size := size * SCALE
+
+	color: Color
+	element_message(box, .Box_Text_Color, 0, &color)
+
+	// draw each wrapped line
+	y: f32
+	for wrap_line, i in box.wrapped_lines {
+		render_string(
+			target,
+			font,
+			wrap_line,
+			box.bounds.l,
+			box.bounds.t + y,
+			color,
+			scaled_size,
+		)
+		y += scaled_size
+	}
+}
+
 task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task_box := cast(^Task_Box) element
 
@@ -545,28 +571,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Paint_Recursive: {
-			focused := element.window.focused == element
-			target := element.window.target
-			font, size := element_retrieve_font_options(element)
-			scaled_size := size * SCALE
-
-			color: Color
-			element_message(element, .Box_Text_Color, 0, &color)
-
-			// draw each wrapped line
-			y: f32
-			for wrap_line, i in task_box.wrapped_lines {
-				render_string(
-					target,
-					font,
-					wrap_line,
-					element.bounds.l,
-					element.bounds.t + y,
-					color,
-					scaled_size,
-				)
-				y += scaled_size
-			}
+			task_box_paint_default(task_box)
 		}
 
 		case .Key_Combination: {

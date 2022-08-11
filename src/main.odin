@@ -31,7 +31,7 @@ import "../fontstash"
 // work on a proper website
 
 // elements that can appear as task data
-// folding: bool -> as icon button
+// folding: bool -> as icon buqtton
 // duration spent: time.Duration -> as string
 // assigned date: time.Time -> as string
 // recording this -> LINE HIGHLIGHT NOW
@@ -159,7 +159,7 @@ main :: proc() {
 
 					old_indice = indice
 				}
-				
+
 				element_repaint(mode_panel)
 			}
 		}

@@ -1166,14 +1166,22 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				}
 			}
 
-			// outline visible selected one
+ 			// paint selection before text
 			if task_head == task_tail && task.visible_index == task_head {
 				x := box.bounds.l
 				y := box.bounds.t
 				low, high := box_low_and_high(box)
 				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
+			}
+
+			task_box_paint_default(box)
+
+			// outline visible selected one
+			if task_head == task_tail && task.visible_index == task_head {
 				render_rect(target, caret_rect, theme.caret, 0)
 			}
+
+			return 1
 		}
 
 		case .Left_Down: {

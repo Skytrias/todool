@@ -233,6 +233,8 @@ window_init :: proc(
 	res.update_next = true
 	res.cursor_x = -100
 	res.cursor_y = -100
+	res.drop_file_name_builder = strings.builder_make(0, mem.Kilobyte * 2)
+	res.drop_indices = make([dynamic]int, 0, 128)
 	undo_manager_init(&res.manager)
 	append(&gs.windows, res)
 
@@ -920,7 +922,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 			} else if e.type == .DROPFILE {
 				text := string(e.drop.file)
 				strings.write_string(b, text)
-				append(indices, len(text))
+				append(indices, len(b.buf))
 			}
 		}
 	}

@@ -302,9 +302,14 @@ Misc_Save_Load :: struct {
 	},
 
 	pomodoro: struct {
+		index: int,
+
 		work: int,
 		short_break: int,
 		long_break: int,
+
+		stopwatch_running: bool,
+		stopwatch_acuumulation: int, // time.Duration 
 	},
 
 	statistics: struct {
@@ -354,9 +359,14 @@ json_save_misc :: proc(path: string) -> bool {
 		},
 
 		pomodoro = {
+			pomodoro.index,
+
 			int(pomodoro_time_index(0)),
 			int(pomodoro_time_index(1)),
 			int(pomodoro_time_index(2)),
+
+			pomodoro.stopwatch.running,
+			int(time.tick_diff(pomodoro.stopwatch._start_time, time.tick_now())),
 		},
 
 		statistics = {
@@ -430,9 +440,16 @@ json_load_misc :: proc(path: string) -> bool{
 	}
 
 	// pomodoro
+	pomodoro.index = misc.pomodoro.index
 	slider_set(sb.options.slider_pomodoro_work, f32(misc.pomodoro.work) / 60)
 	slider_set(sb.options.slider_pomodoro_short_break, f32(misc.pomodoro.short_break) / 60)
 	slider_set(sb.options.slider_pomodoro_long_break, f32(misc.pomodoro.long_break) / 60)
+	pomodoro.stopwatch.running = misc.pomodoro.stopwatch_running
+	pomodoro.stopwatch._accumulation = time.Duration(misc.pomodoro.stopwatch_acuumulation)
+	if pomodoro.stopwatch.running {
+		pomodoro.stopwatch._start_time = time.tick_now()
+		element_hide(sb.options.button_pomodoro_reset, false)
+	}
 
 	// statistics
 	goal := clamp(misc.statistics.work_goal, 1, 24)

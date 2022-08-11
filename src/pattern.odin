@@ -185,7 +185,7 @@ pattern_scan :: proc(s: ^Pattern_Scanner, last_was_comment := false) -> (tok: ru
 				case EOF: {
 					break
 				}
-
+				
 				case '*': {
 					ch = pattern_advance(s)
 
@@ -274,7 +274,7 @@ pattern_token_string :: proc(tok: rune, allocator := context.temp_allocator) -> 
 }
 
 pattern_load_content :: proc(manager: ^Undo_Manager, content: string) {
-  scanner := pattern_scanner_init(content)
+	scanner := pattern_scanner_init(content)
 	defer pattern_scanner_destroy(scanner)
 	
 	scanner.tags = {
@@ -293,11 +293,9 @@ pattern_load_content :: proc(manager: ^Undo_Manager, content: string) {
 			break
 		} else if tok == STRING_END {
 			text := pattern_token_text(&scanner)
-		// 	log.info("found:", text)
 
 			task_current := tasks_visible[task_head]
 			index_at := task_current.index + inject_count + 1
-
 			task_push_undoable(manager, task_current.indentation, text, index_at)
 		} else if tok == MULTILINE_COMMENT_START { 
 			multiline_count += 1
