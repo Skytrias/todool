@@ -1,5 +1,6 @@
 package src
 
+import "core:os"
 import "core:encoding/json"
 import "core:mem"
 import "core:math"
@@ -20,10 +21,11 @@ import "../fontstash"
 // breadcrumbs? could do a prompt
 // font size for tasks specifically so you could zoom in / out
 // notifications -> libnotify on linux works, winrt on windows?
-
-// major
-// changelog gen
-// import from files
+// SHOCO string compression option
+// Changelog options?
+// indentation focus prompt?
+// progress bar on kanban?
+// import from files with regex
 
 // WEBSITE 
 // work on a proper website
@@ -34,12 +36,6 @@ import "../fontstash"
 // assigned date: time.Time -> as string
 // recording this -> LINE HIGHLIGHT NOW
 
-// REST
-// SHOCO string compression option
-// Changelog options?
-// indentation focus prompt?
-// progress bar on kanban?
-
 // DONE
 // text box copy & paste
 // slider formatting better, shift for varying clamps
@@ -49,6 +45,7 @@ import "../fontstash"
 // volume slider
 // add autosave timer & exit scheme
 // copy tree as raw text
+// changelog gen
 
 // import "../notify"
 
@@ -72,56 +69,7 @@ import "../fontstash"
 // 	// fmt.eprintln(res, out_path)
 // }
 
-// T_Event :: struct {
-// 	data: rawptr,
-// }
-
-import "core:intrinsics"
-
-// rawptr should be enough since you know what you'll pass to the procedures
-// entry = proc(data: rawptr) {
-//   your_data := cast(^Your_Data_Type) data	
-// }
-Finite_State_Calls :: struct {
-	entry: proc(data: rawptr),
-	exit: proc(data: rawptr),
-	remain: proc(data: rawptr),
-
-	data: rawptr, // passed to calls?
-}
-
-Finite_State :: enum {
-	One,
-	Two,
-	Three,
-}
-
-Finite_State_Machine :: struct($A: typeid, $B: typeid) 
-	where intrinsics.type_is_enum(A), intrinsics.type_is_enum(B)
-{
-	name: string,
-	// transition_table: [A][B]A, // whats this?
-	call_table: [A]Finite_State_Calls,
-	current_state: A,
-}
-
-Test_A :: enum {
-	One,
-	Two,
-	Three,
-}
-
-Test_B :: enum {
-	One,
-	Two,
-	Three,
-}
-
 main :: proc() {
-	fsm: Finite_State_Machine(Test_A, Test_B) 
-}
-
-main2 :: proc() {
 	gs_init()
 	context.logger = gs.logger
 
@@ -192,6 +140,27 @@ main2 :: proc() {
 						case "Close Without Saving": {}
 					}
 				}
+			}
+
+			case .Dropped_Files: {
+				manager := mode_panel_manager_scoped()
+				task_head_tail_push(manager)
+
+				old_indice: int
+				for indice in element.window.drop_indices {
+					file_name := string(element.window.drop_file_name_builder.buf[old_indice:indice])
+
+					content, ok := os.read_entire_file(file_name)
+					defer delete(content)
+
+					if ok {
+						pattern_load_content(manager, string(content))
+					}
+
+					old_indice = indice
+				}
+				
+				element_repaint(mode_panel)
 			}
 		}
 

@@ -1,5 +1,6 @@
 package src
 
+import "core:os"
 import "core:fmt"
 import "core:strings"
 import "core:log"
@@ -521,6 +522,19 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 }
 
 add_shortcuts :: proc(window: ^Window) {
+	// window_add_shortcut(window, "alt+y", proc() -> bool {
+	// 	if task_head == -1 {
+	// 		return false
+	// 	}
+
+	// 	content := os.read_entire_file("src/box.odin") or_return
+	// 	defer delete(content)
+
+	// 	pattern_load_content(string(content))
+
+	// 	return true
+	// })
+
 	// changelog gen
 	window_add_shortcut(window, "alt+x", proc() -> bool {
 		if task_head == -1 {

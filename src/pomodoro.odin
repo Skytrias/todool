@@ -36,6 +36,7 @@ pomodoro_destroy :: proc() {
 	sdl.RemoveTimer(pomodoro.timer_id)
 }
 
+// spawn & move particles down
 pomodoro_celebration_spawn :: proc(x, y: f32) {
 	if !pomodoro.celebrating {
 		pomodoro.celebrating = true
@@ -56,6 +57,7 @@ pomodoro_celebration_spawn :: proc(x, y: f32) {
 	}
 }
 
+// render particles as circles
 pomodoro_celebration_render :: proc(target: ^Render_Target) {
 	if pomodoro.celebrating {
 		draw_count := 0

@@ -56,6 +56,7 @@ Message :: enum {
 	// get wanted hover cursor
 	Get_Cursor,
 	Scrolled, // wether the element has scrolled
+	Dropped_Files, // dp = ^string continuos
 
 	Key_Combination, // dp = ^string, return 1 if handled
 	Unicode_Insertion, // dp = ^rune, return 1 if handled

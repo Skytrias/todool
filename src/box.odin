@@ -1193,7 +1193,7 @@ element_box_mouse_selection :: proc(
 	b: ^Box,
 	clicks: int,
 	dragging: bool,
-) -> (res: int) {
+) -> (found: bool) {
 	// log.info("relative clicks", clicks)
 	text := strings.to_string(b.builder)
 	font, size := element_retrieve_font_options(element)

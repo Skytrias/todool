@@ -110,6 +110,10 @@ Window :: struct {
 
 	// copy from text boxes
 	copy_builder: strings.Builder,
+
+	// drop handling
+	drop_indices: [dynamic]int, // indices into the file name builder
+	drop_file_name_builder: strings.Builder,
 }
 
 Cursor :: enum {
@@ -353,6 +357,12 @@ window_set_cursor :: proc(window: ^Window, cursor: Cursor) {
 
 // handle all os input events
 window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawptr = nil) -> (res: bool) {
+	if msg == .Dropped_Files {
+		to := window.hovered == nil ? &window.element : window.hovered
+		element_send_msg_until_received(to, msg, di, dp)
+		return
+	}
+
 	if window.pressed != nil {
 		if msg == .Mouse_Move {
 			// mouse move events become mouse drag messages
@@ -890,6 +900,27 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				window_input_event(window, .Middle_Up)
 			} else if e.button.button == sdl.BUTTON_RIGHT {
 				window_input_event(window, .Right_Up)
+			}
+		}
+
+		// write indices & text content linearly, not send over message!
+		case .DROPBEGIN, .DROPCOMPLETE, .DROPFILE, .DROPTEXT: {
+			if e.drop.windowID != window.w_id {
+				return
+			}
+
+			b := &window.drop_file_name_builder
+			indices := &window.drop_indices
+
+			if e.type == .DROPBEGIN {
+				clear(indices)
+				clear(&b.buf)
+			} else if e.type == .DROPCOMPLETE {
+				window_input_event(window, .Dropped_Files)
+			} else if e.type == .DROPFILE {
+				text := string(e.drop.file)
+				strings.write_string(b, text)
+				append(indices, len(text))
 			}
 		}
 	}
