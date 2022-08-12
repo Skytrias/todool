@@ -285,6 +285,7 @@ reader_read_bytes_out :: proc(r: ^bytes.Reader, size: int) -> (output: []byte, e
 
 Misc_Save_Load :: struct {
 	scale: f32,
+	mode_index: int,
 
 	options: struct {
 		tab: f32,
@@ -342,6 +343,7 @@ json_save_misc :: proc(path: string) -> bool {
 
 	value := Misc_Save_Load {
 		scale =  SCALE,
+		mode_index = int(mode_panel.mode),
 
 		options = {
 			options_tab(),
@@ -408,9 +410,13 @@ json_load_misc :: proc(path: string) -> bool{
 		return false
 	}
 
+	// general
+	// TODO hook this up properly?
 	SCALE = misc.scale
 	LINE_WIDTH = max(2, 2 * SCALE)
 	ROUNDNESS = 5 * SCALE
+
+	mode_panel.mode = Mode(clamp(misc.mode_index, 0, len(Mode)))
 
 	// tag data
 	sb.tags.tag_show_mode = misc.tags.tag_mode
@@ -446,15 +452,20 @@ json_load_misc :: proc(path: string) -> bool{
 	slider_set(sb.options.slider_pomodoro_long_break, f32(misc.pomodoro.long_break) / 60)
 	pomodoro.stopwatch.running = misc.pomodoro.stopwatch_running
 	pomodoro.stopwatch._accumulation = time.Duration(misc.pomodoro.stopwatch_acuumulation)
-	if pomodoro.stopwatch.running {
-		pomodoro.stopwatch._start_time = time.tick_now()
-		element_hide(sb.options.button_pomodoro_reset, false)
-	}
-
+	
 	// statistics
 	goal := clamp(misc.statistics.work_goal, 1, 24)
 	sb.options.slider_work_today.position = f32(goal) / 24.0
 	pomodoro.accumulated = time.Duration(misc.statistics.accumulated)
+	
+	// run everything
+	if pomodoro.stopwatch.running {
+		pomodoro.stopwatch._start_time = time.tick_now()
+		element_hide(sb.options.button_pomodoro_reset, false)
+		pomodoro_label_format()
+	} else if pomodoro.stopwatch._accumulation != {} {
+		pomodoro_label_format()
+	}
 
 	return true
 }

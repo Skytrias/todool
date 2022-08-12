@@ -104,7 +104,6 @@ Render_Vertex :: struct #packed {
 	roundness: u16,
 	thickness: u16,
 
-	// zzz bad
 	additional: [2]f32,
 
 	// render kind
@@ -196,7 +195,7 @@ rect_scissor :: proc(target_height: i32, r: Rect) {
 render_target_end :: proc(
 	using target: ^Render_Target, 
 	window: ^sdl.Window, 
-	width, height: i32,
+	width, height: int,
 ) {
 	sdl.GL_MakeCurrent(window, target.opengl_context)
 
@@ -207,8 +206,8 @@ render_target_end :: proc(
 	gl.Disable(gl.DEPTH_TEST)
 	gl.BlendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO)
 	
-	gl.Viewport(0, 0, width, height)
-	gl.Scissor(0, 0, width, height)
+	gl.Viewport(0, 0, i32(width), i32(height))
+	gl.Scissor(0, 0, i32(width), i32(height))
 	gl.ClearColor(1, 1, 1, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
@@ -238,12 +237,14 @@ render_target_end :: proc(
 	}
 
 	for group in &groups {
-		rect_scissor(height, group.clip)
+		rect_scissor(i32(height), group.clip)
 		vertice_count := group.vertex_end - group.vertex_start
 
 		// skip empty group
 		if vertice_count != 0 {
-			root := mem.ptr_offset(raw_data(target.vertices), group.vertex_start)
+			// TODO use raw_data again on new master
+			base := &target.vertices[0]
+			root := mem.ptr_offset(base, group.vertex_start)
 			gl.BufferData(gl.ARRAY_BUFFER, vertice_count * size_of(Render_Vertex), root, gl.STREAM_DRAW)
 
 			// update uniforms

@@ -517,10 +517,11 @@ text_box_init :: proc(
 	flags: Element_Flags, 
 	text := "",
 	index_at := -1,
+	allocator := context.allocator,
 ) -> (res: ^Text_Box) {
 	flags := flags
 	flags |= { .Tab_Stop }
-	res = element_init(Text_Box, parent, flags, text_box_message, index_at)
+	res = element_init(Text_Box, parent, flags, text_box_message, allocator, index_at)
 	res.builder = strings.builder_make(0, 32)
 	strings.write_string(&res.builder, text)
 	box_move_end(&res.box, false)
@@ -614,9 +615,10 @@ task_box_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
 	text := "", 
+	allocator := context.allocator,
 	index_at := -1,
 ) -> (res: ^Task_Box) {
-	res = element_init(Task_Box, parent, flags, task_box_message, index_at)
+	res = element_init(Task_Box, parent, flags, task_box_message, allocator, index_at)
 	res.builder = strings.builder_make(0, 32)
 	strings.write_string(&res.builder, text)
 	box_move_end(&res.box, false)

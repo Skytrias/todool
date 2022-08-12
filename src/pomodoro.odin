@@ -1,9 +1,10 @@
 package  src
 
+import "core:log"
+import "core:fmt"
 import "core:math/rand"
 import "core:math/ease"
 import "core:runtime"
-import "core:fmt"
 import "core:strings"
 import "core:time"
 import sdl "vendor:sdl2"
@@ -40,6 +41,7 @@ pomodoro_destroy :: proc() {
 pomodoro_celebration_spawn :: proc(x, y: f32) {
 	if !pomodoro.celebrating {
 		pomodoro.celebrating = true
+		fmt.eprintln("called", mode_panel.bounds)
 		
 		for c in &pomodoro.celebration {
 			c.skip = false
@@ -51,7 +53,7 @@ pomodoro_celebration_spawn :: proc(x, y: f32) {
 			x_goal := x + rand.float32() * WIDTH - WIDTH / 2 
 			anim_duration := time.Millisecond * time.Duration(rand.float32() * 4000 + 500)
 			anim_wait := rand.float64() * 2
-			ease.flux_to(&gs.flux, &c.y, y + mode_panel.bounds.b, .Quadratic_In_Out, anim_duration, anim_wait)
+			ease.flux_to(&gs.flux, &c.y, mode_panel.bounds.b + 50, .Quadratic_In_Out, anim_duration, anim_wait)
 			ease.flux_to(&gs.flux, &c.x, x_goal, .Quadratic_Out, anim_duration, anim_wait)
 		}
 	}
@@ -103,8 +105,8 @@ duration_clock :: proc(duration: time.Duration) -> (hours, minutes, seconds: int
 
 pomodoro_stopwatch_stop_add :: proc() {
 	diff := time_stop_stopwatch(&pomodoro.stopwatch)
-	// pomodoro_accumulated += diff
-	pomodoro.accumulated += time.Minute * 61		
+	pomodoro.accumulated += diff
+	// pomodoro.accumulated += time.Minute * 61		
 }
 
 pomodoro_stopwatch_toggle :: proc() {
@@ -234,10 +236,13 @@ pomodoro_button_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 pomodoro_update :: proc() {
 	// check for duration diff > 0
 	{
-		diff := pomodoro_stopwatch_diff()
-		if diff < 0 {
-			pomodoro_stopwatch_reset()
-			sound_play(.Timer_Ended)
+		if pomodoro.stopwatch.running {
+			diff := pomodoro_stopwatch_diff()
+
+			if diff < 0 {
+				pomodoro_stopwatch_reset()
+				sound_play(.Timer_Ended)
+			}
 		}
 	}
 
@@ -256,7 +261,11 @@ pomodoro_update :: proc() {
 	}
 
 	{
-		if sb.options.gauge_work_today.position > 1.0 && !pomodoro.celebration_goal_reached {
+		if 
+			sb.options.gauge_work_today.position > 1.0 && 
+			!pomodoro.celebration_goal_reached && 
+			sb.options.gauge_work_today.bounds != {} && 
+			(.Hide not_in sb.enum_panel.flags) {
 			pomodoro.celebration_goal_reached = true
 			x := sb.options.gauge_work_today.bounds.l + rect_width_halfed(sb.options.gauge_work_today.bounds)
 			y := sb.options.gauge_work_today.bounds.t

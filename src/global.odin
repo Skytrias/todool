@@ -114,6 +114,9 @@ Window :: struct {
 	// drop handling
 	drop_indices: [dynamic]int, // indices into the file name builder
 	drop_file_name_builder: strings.Builder,
+
+	element_arena: mem.Arena,
+	element_arena_backing: []byte,
 }
 
 Cursor :: enum {
@@ -178,6 +181,7 @@ window_add_shortcut :: proc(
 window_init :: proc(
 	title: cstring, 
 	w, h: i32,
+	arena_cap: int,
 ) -> (res: ^Window) {
 	window := sdl.CreateWindow(
 		title, 
@@ -220,7 +224,17 @@ window_init :: proc(
 		return 0
 	}
 
-	res = cast(^Window) element_init(Window, nil, { .Tab_Movement_Allowed }, _window_message)
+	arena_backing := make([]byte, arena_cap)
+	arena: mem.Arena
+	mem.arena_init(&arena, arena_backing)
+
+	res = cast(^Window) element_init(
+		Window, 
+		nil, 
+		{ .Tab_Movement_Allowed }, 
+		_window_message,
+		mem.arena_allocator(&arena),
+	)
 	res.w = window
 	res.w_id = window_id
 	res.hovered = &res.element
@@ -235,6 +249,8 @@ window_init :: proc(
 	res.cursor_y = -100
 	res.drop_file_name_builder = strings.builder_make(0, mem.Kilobyte * 2)
 	res.drop_indices = make([dynamic]int, 0, 128)
+	res.element_arena = arena
+	res.element_arena_backing = arena_backing
 	undo_manager_init(&res.manager)
 	append(&gs.windows, res)
 
@@ -691,6 +707,8 @@ window_title_build :: proc(window: ^Window, text: string) {
 window_destroy :: proc(window: ^Window) {
 	sdl.RemoveTimer(window.hover_timer)
 
+	delete(window.element_arena_backing)
+
 	undo_manager_destroy(window.manager)
 	render_target_destroy(window.target)
 	delete(window.shortcuts)
@@ -1000,7 +1018,7 @@ gs_destroy :: proc() {
 	ease.flux_destroy(flux)
 	fontstash.destroy()
 	fonts_destroy()
-	log.destroy_console_logger(&logger)
+	log.destroy_console_logger(logger)
 
 	for cursor in cursors {
 		sdl.FreeCursor(cursor)
@@ -1141,7 +1159,7 @@ gs_draw_and_cleanup :: proc() {
 			render_target_begin(window.target, theme.shadow)
 			element_message(&window.element, .Layout)
 			render_element_clipped(window.target, &window.element)
-			render_target_end(window.target, window.w, i32(window.width), i32(window.height))
+			render_target_end(window.target, window.w, window.width, window.height)
 
 			// TODO could use specific update region only
 			window.update_next = false
@@ -1266,7 +1284,7 @@ dialog_spawn :: proc(
 		return ""
 	}
 
-	window.dialog = element_init(Element, &window.element, {}, dialog_message)
+	window.dialog = element_init(Element, &window.element, {}, dialog_message, mem.arena_allocator(&window.element_arena))
 	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
 	panel.background_index = 2
 	panel.shadow = true

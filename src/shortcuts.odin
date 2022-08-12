@@ -513,6 +513,85 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 			// fmt.eprint(strings.to_string(b))
 		}
 
+		case "ctrl+m", "ctrl+shift+m": {
+			if task_head == -1 {
+				return
+			}
+
+			task_current := tasks_visible[task_head]
+			defer element_repaint(mode_panel)
+
+			// skip indent search at higher levels, just check for 0
+			if task_current.indentation == 0 {
+				// search for first indent 0 at end
+				for i := len(tasks_visible) - 1; i >= 0; i -= 1 {
+					current := tasks_visible[i]
+
+					if current.indentation == 0 {
+						if i == task_head {
+							break
+						}
+
+						task_head_tail_check_begin()
+						task_head = i
+						task_head_tail_check_end()
+						return
+					}
+				}
+
+				// search for first indent at 0 
+				for i in 0..<len(tasks_visible) {
+					current := tasks_visible[i]
+
+					if current.indentation == 0 {
+						task_head_tail_check_begin()
+						task_head = i
+						task_head_tail_check_end()
+						break
+					}
+				}
+			} else {
+				// check for end first
+				last_good := task_head
+				for i in task_head + 1..<len(tasks_visible) {
+					next := tasks_visible[i]
+
+					if next.indentation == task_current.indentation {
+						last_good = i
+					}
+
+					if next.indentation < task_current.indentation || i + 1 == len(tasks_visible) {
+						if last_good == task_head {
+							break
+						}
+
+						task_head_tail_check_begin()
+						task_head = last_good
+						task_head_tail_check_end()
+						return
+					}
+				}
+
+				// move backwards
+				last_good = -1
+				for i := task_head - 1; i >= 0; i -= 1 {
+					prev := tasks_visible[i]
+
+					if prev.indentation == task_current.indentation {
+						last_good = i
+					}
+
+					if prev.indentation < task_current.indentation {
+						task_head_tail_check_begin()
+						task_head = last_good
+						task_head_tail_check_end()
+						break
+					}
+				}
+			}
+
+		}
+
 		case: {
 			handled = false
 		}
@@ -912,8 +991,6 @@ add_shortcuts :: proc(window: ^Window) {
 		}
 	
 		json_save_misc("save.sjson")
-		element_repaint(mode_panel)
-		// log.info("saved")
 		return true
 	})
 

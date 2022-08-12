@@ -76,7 +76,7 @@ main :: proc() {
 	task_data_init()
 	defer task_data_destroy()
 
-	window := window_init("Todool", 900, 900)
+	window := window_init("Todool", 900, 900, mem.Megabyte * 10)
 	window_main = window
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element

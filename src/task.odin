@@ -411,13 +411,6 @@ task_low_and_high :: #force_inline proc() -> (low, high: int) {
 	return
 }
 
-// set line selection to head when no shift
-task_head_tail_check_end :: proc() {
-	if !mode_panel.window.shift {
-		task_tail = task_head
-	}
-}
-
 task_head_tail_check_begin :: proc() ->  bool {
 	if !mode_panel.window.shift && task_head != task_tail {
 		task_tail = task_head
@@ -426,6 +419,13 @@ task_head_tail_check_begin :: proc() ->  bool {
 	}
 
 	return true
+}
+
+// set line selection to head when no shift
+task_head_tail_check_end :: proc() {
+	if !mode_panel.window.shift {
+		task_tail = task_head
+	}
 }
 
 // find a line linearly in the panel children
@@ -450,9 +450,11 @@ task_init :: proc(
 	indentation: int,
 	text: string,
 ) -> (res: ^Task) { 
-	res = new(Task)
+	allocator := mem.arena_allocator(&window_main.element_arena)
+	res = new(Task, allocator)
 	element := cast(^Element) res
 	element.message_class = task_message
+	element.allocator = allocator
 
 	// just assign parent already
 	parent := mode_panel	
@@ -463,7 +465,7 @@ task_init :: proc(
 	res.indentation = indentation
 	res.indentation_smooth = f32(indentation)
 	
-	res.button_fold = icon_button_init(res, {}, .Simple_Down)
+	res.button_fold = icon_button_init(res, {}, .Simple_Down, nil, allocator)
 	res.button_fold.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		button := cast(^Icon_Button) element
 		task := cast(^Task) button.parent
@@ -485,7 +487,7 @@ task_init :: proc(
 		return 0
 	}
 
-	res.box = task_box_init(res, {}, text)
+	res.box = task_box_init(res, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
 	res.search_results = make([dynamic]Search_Result, 0, 8)
 
@@ -575,8 +577,12 @@ task_visible_children_iter :: proc(
 }
 
 // init panel with data
-mode_panel_init :: proc(parent: ^Element, flags: Element_Flags) -> (res: ^Mode_Panel) {
-	res = element_init(Mode_Panel, parent, flags, mode_panel_message)
+mode_panel_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags,
+	allocator := context.allocator,
+) -> (res: ^Mode_Panel) {
+	res = element_init(Mode_Panel, parent, flags, mode_panel_message, allocator)
 	res.kanban_outlines = make([dynamic]Rect, 0, 64)
 
 	cam_init(&res.cam[.List], 100, 100)
@@ -630,9 +636,9 @@ task_set_children_info :: proc() {
 	}
 
 	// simple check for indentation
-	for i := len(mode_panel.children) - 1; i > 0; i -= 1 {
-		a := cast(^Task) mode_panel.children[i - 1]
-		b := cast(^Task) mode_panel.children[i]
+	for i := 0; i < len(mode_panel.children) - 1; i += 1 {
+		a := cast(^Task) mode_panel.children[i]
+		b := cast(^Task) mode_panel.children[i + 1]
 
 		if a.indentation < b.indentation {
 			a.has_children = true
@@ -1349,8 +1355,9 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			line_size := efont_size(element) * f32(len(task.box.wrapped_lines))
 
 			line_size_addition := additional_size(task, draw_tags)
-
 			line_size += line_size_addition
+			// line_size += 2
+
 			return int(line_size)
 		}
 
@@ -1807,10 +1814,9 @@ task_panel_init :: proc(split: ^Split_Pane) {
 	search_init(mode_panel_split)
 
 	mode_panel = mode_panel_init(mode_panel_split, {})
-	mode_panel.gap_vertical = 5
+	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
 }
-
 
 tasks_load_file :: proc() {
 	err := editor_load("save.todool")

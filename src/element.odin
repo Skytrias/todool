@@ -141,6 +141,7 @@ Element :: struct {
 
 	// optional data that can be set andd used
 	data: rawptr,
+	allocator: mem.Allocator,
 }
 
 // default way to call clicked event on tab stop element
@@ -268,10 +269,13 @@ element_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
 	messaging: Message_Proc,
+	allocator: mem.Allocator,
 	index_at := -1,
 ) -> (res: ^T) {
-	res = new(T)
+	res = new(T, allocator)
 	element := cast(^Element) res
+	element.allocator = allocator
+	element.children = make([dynamic]^Element, allocator)
 	element.flags = flags
 	element.message_class = messaging
 
@@ -445,7 +449,7 @@ element_deallocate :: proc(element: ^Element) -> bool {
 		// free data
 		delete(element.children)
 		// TODO is everything freed here? even higher memory?
-		free(element)
+		free(element, element.allocator)
 		return true
 	} else {
 		// wasnt destroyed
@@ -581,8 +585,9 @@ button_init :: proc(
 	flags: Element_Flags, 
 	text: string,
 	message_user: Message_Proc = nil,
+	allocator := context.allocator,
 ) -> (res: ^Button) {
-	res = element_init(Button, parent, flags | { .Tab_Stop }, button_message)
+	res = element_init(Button, parent, flags | { .Tab_Stop }, button_message, allocator)
 	res.builder = strings.builder_make(0, 32)
 	res.data = res
 	strings.write_string(&res.builder, text)
@@ -647,8 +652,13 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 	return 0
 }
 
-color_button_init :: proc(parent: ^Element, flags: Element_Flags, color: ^Color) -> (res: ^Color_Button) {
-	res = element_init(Color_Button, parent, flags, color_button_message)
+color_button_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	color: ^Color,
+	allocator := context.allocator,
+) -> (res: ^Color_Button) {
+	res = element_init(Color_Button, parent, flags, color_button_message, allocator)
 	res.color = color
 	res.data = res
 	return
@@ -726,8 +736,9 @@ icon_button_init :: proc(
 	flags: Element_Flags, 
 	icon: Icon,
 	message_user: Message_Proc = nil,
+	allocator := context.allocator,
 ) -> (res: ^Icon_Button) {
-	res = element_init(Icon_Button, parent, flags | { .Tab_Stop }, icon_button_message)
+	res = element_init(Icon_Button, parent, flags | { .Tab_Stop }, icon_button_message, allocator)
 	res.icon = icon
 	res.data = res
 	res.message_user = message_user
@@ -796,8 +807,9 @@ label_init :: proc(
 	flags: Element_Flags, 
 	text := "",
 	custom_width: f32 = -1,
+	allocator := context.allocator,
 ) -> (res: ^Label) {
-	res = element_init(Label, parent, flags, label_message)
+	res = element_init(Label, parent, flags, label_message, allocator)
 	res.builder = strings.builder_make(0, 32)
 	res.custom_width = custom_width
 	strings.write_string(&res.builder, text)
@@ -901,8 +913,9 @@ slider_init :: proc(
 	flags: Element_Flags, 
 	position: f32 = 0,
 	formatting: Slider_Format_Proc = slider_default_formatting,
+	allocator := context.allocator,
 ) -> (res: ^Slider) {
-	res = element_init(Slider, parent, flags, slider_message)
+	res = element_init(Slider, parent, flags, slider_message, allocator)
 	res.builder = strings.builder_make(0, 32)
 	res.position = clamp(position, 0, 1)
 	res.formatting = formatting
@@ -1036,8 +1049,9 @@ checkbox_init :: proc(
 	flags: Element_Flags, 
 	text: string,
 	state: bool,
+	allocator := context.allocator,
 ) -> (res: ^Checkbox) {
-	res = element_init(Checkbox, parent, flags | { .Tab_Stop }, checkbox_message)
+	res = element_init(Checkbox, parent, flags | { .Tab_Stop }, checkbox_message, allocator)
 	checkbox_set(res, state)
 	res.builder = strings.builder_make(0, 32)
 	strings.write_string(&res.builder, text)
@@ -1120,8 +1134,9 @@ spacer_init :: proc(
 	w, h: f32,
 	style: Spacer_Style,
 	vertical := false,
+	allocator := context.allocator,
 ) -> (res: ^Spacer) {
-	res = element_init(Spacer, parent, flags, spacer_message)
+	res = element_init(Spacer, parent, flags, spacer_message, allocator)
 	res.width = w
 	res.height = h
 	res.vertical = vertical
@@ -1432,8 +1447,9 @@ panel_init :: proc(
 	margin: f32 = 0,
 	gap: f32 = 0,
 	color: Color = TRANSPARENT,
+	allocator := context.allocator,
 ) -> (res: ^Panel) {
-	res = element_init(Panel, parent, flags, panel_message)
+	res = element_init(Panel, parent, flags, panel_message, allocator)
 	res.margin = margin
 	res.color = color
 	res.gap = gap
@@ -1475,8 +1491,9 @@ panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 panel_floaty_init :: proc(
 	parent: ^Element,
 	flags: Element_Flags,
+	allocator := context.allocator,
 ) -> (res: ^Panel_Floaty) {
-	res	= element_init(Panel_Floaty, parent, flags, panel_floaty_message)
+	res	= element_init(Panel_Floaty, parent, flags, panel_floaty_message, allocator)
 	res.z_index = 255
 	
 	p := panel_init(res, { .Panel_Default_Background })
@@ -1666,11 +1683,15 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 SCROLLBAR_UP :: uintptr(0)
 SCROLLBAR_DOWN :: uintptr(1)
 
-scrollbar_init :: proc(parent: ^Element, flags: Element_Flags) -> (res: ^Scrollbar) {
-	res = element_init(Scrollbar, parent, flags, scrollbar_message)		
-	element_init(Element, res, flags, scroll_up_down_message).data = rawptr(SCROLLBAR_UP)
-	element_init(Element, res, flags, scroll_thumb_message)
-	element_init(Element, res, flags, scroll_up_down_message).data = rawptr(SCROLLBAR_DOWN)
+scrollbar_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags,
+	allocator := context.allocator,
+) -> (res: ^Scrollbar) {
+	res = element_init(Scrollbar, parent, flags, scrollbar_message, allocator)
+	element_init(Element, res, flags, scroll_up_down_message, allocator).data = rawptr(SCROLLBAR_UP)
+	element_init(Element, res, flags, scroll_thumb_message, allocator)
+	element_init(Element, res, flags, scroll_up_down_message, allocator).data = rawptr(SCROLLBAR_DOWN)
 	return
 }
 
@@ -1807,8 +1828,13 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 	return 0
 }
 
-table_init :: proc(parent: ^Element, flags: Element_Flags, columns := "") -> (res: ^Table) {
-	res = element_init(Table, parent, flags, table_message)	
+table_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	columns := "",
+	allocator := context.allocator,
+) -> (res: ^Table) {
+	res = element_init(Table, parent, flags, table_message, allocator)	
 	res.scrollbar = scrollbar_init(res, {})
 	res.columns = strings.clone(columns)
 	return
@@ -2128,10 +2154,15 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	return 0
 }
 
-color_picker_init :: proc(parent: ^Element, flags: Element_Flags, hue: f32) -> (res: ^Color_Picker) {
-	res = element_init(Color_Picker, parent, flags, color_picker_message)
-	res.sv = element_init(Color_Picker_SV, res, flags, color_picker_sv_message)
-	res.hue = element_init(Color_Picker_HUE, res, flags, color_picker_hue_message)
+color_picker_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	hue: f32,
+	allocator := context.allocator,
+) -> (res: ^Color_Picker) {
+	res = element_init(Color_Picker, parent, flags, color_picker_message, allocator)
+	res.sv = element_init(Color_Picker_SV, res, flags, color_picker_sv_message, allocator)
+	res.hue = element_init(Color_Picker_HUE, res, flags, color_picker_hue_message, allocator)
 	return 
 }
 
@@ -2251,8 +2282,9 @@ toggle_selector_init :: proc(
 	value: ^int,
 	count: int,
 	names: []string,
+	allocator := context.allocator,
 ) -> (res: ^Toggle_Selector) {
-	res = element_init(Toggle_Selector, parent, flags, toggle_selector_message)
+	res = element_init(Toggle_Selector, parent, flags, toggle_selector_message, allocator)
 	res.value = value
 	res.count = count
 	res.names = names
@@ -2421,12 +2453,13 @@ split_pane_init :: proc(
 	flags: Element_Flags, 
 	weight: f32,
 	weight_lowest: f32 = -1,
+	allocator := context.allocator,
 ) -> (res: ^Split_Pane) {
-	res = element_init(Split_Pane, parent, flags, split_pane_message)
+	res = element_init(Split_Pane, parent, flags, split_pane_message, allocator)
 	res.weight = weight
 	res.weight_origin = weight
 	res.weight_lowest = weight
-	element_init(Element, res, {}, splitter_message)
+	element_init(Element, res, {}, splitter_message, allocator)
 	return
 }
 
@@ -2483,8 +2516,9 @@ enum_panel_init :: proc(
 	flags: Element_Flags,
 	mode: ^int,
 	count: int,
+	allocator := context.allocator,
 ) -> (res: ^Enum_Panel) {
-	res = element_init(Enum_Panel, parent, flags, enum_panel_message)
+	res = element_init(Enum_Panel, parent, flags, enum_panel_message, allocator)
 	res.mode = mode
 	res.count = count
 	return
@@ -2548,8 +2582,9 @@ linear_gauge_init :: proc(
 	position: f32,
 	text_below: string,
 	text_above: string,
+	allocator := context.allocator,
 ) -> (res: ^Linear_Gauge) {
-	res = element_init(Linear_Gauge, parent, flags, linear_gauge_message)
+	res = element_init(Linear_Gauge, parent, flags, linear_gauge_message, allocator)
 	res.text_below = text_below
 	res.text_above = text_above
 	res.position = position
@@ -2602,8 +2637,9 @@ radial_gauge_init :: proc(
 	flags: Element_Flags,
 	position: f32,
 	text: string,
+	allocator := context.allocator,
 ) -> (res: ^Radial_Gauge) {
-	res = element_init(Radial_Gauge, parent, flags, radial_gauge_message)
+	res = element_init(Radial_Gauge, parent, flags, radial_gauge_message, allocator)
 	res.text = text
 	res.position = position
 	res.font_options = &font_options_bold
