@@ -674,29 +674,33 @@ Icon_Button :: struct {
 	invoke: proc(data: rawptr),
 }
 
+icon_button_render_default :: proc(button: ^Icon_Button) {
+	pressed := button.window.pressed == button
+	hovered := button.window.hovered == button
+	target := button.window.target
+
+	text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+	if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
+		rect := button.bounds
+		rect.r = rect.l + 4
+		render_rect(target, rect, text_color, 0)
+	}
+
+	if hovered || pressed {
+		render_rect_outline(target, button.bounds, text_color)
+	}
+
+	icon_size := DEFAULT_ICON_SIZE * SCALE
+	render_icon_aligned(target, font_icon, button.icon, button.bounds, text_color, .Middle, .Middle, icon_size)
+}
+
 icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Icon_Button) element
 
 	#partial switch msg {
 		case .Paint_Recursive: {
-			pressed := element.window.pressed == element
-			hovered := element.window.hovered == element
-			target := element.window.target
-
-			text_color := hovered || pressed ? theme.text_default : theme.text_blank
-
-			if element_message(element, .Button_Highlight, 0, &text_color) == 1 {
-				rect := element.bounds
-				rect.r = rect.l + 4
-				render_rect(target, rect, text_color, 0)
-			}
-
-			if hovered || pressed {
-				render_rect_outline(target, element.bounds, text_color)
-			}
-
-			icon_size := DEFAULT_ICON_SIZE * SCALE
-			render_icon_aligned(target, font_icon, button.icon, element.bounds, text_color, .Middle, .Middle, icon_size)
+			icon_button_render_default(button)
 		}
 
 		case .Update: {

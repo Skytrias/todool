@@ -71,25 +71,31 @@ undo_push :: proc(
 }
 
 // set group_end to true
-undo_group_end :: proc(manager: ^Undo_Manager) {
+undo_group_end :: proc(manager: ^Undo_Manager) -> bool {
 	assert(manager.state == .Normal)
 	stack := &manager.undo
+	
 	if len(stack) == 0 {
-		return
+		return false
 	}
+	
 	footer := cast(^Undo_Item_Footer) &stack[len(stack) - size_of(Undo_Item_Footer)]
 	footer.group_end = true
+	return true
 }
 
 // set group_end to false
-undo_group_continue :: proc(manager: ^Undo_Manager) {
+undo_group_continue :: proc(manager: ^Undo_Manager) -> bool {
 	assert(manager.state == .Normal)
 	stack := &manager.undo
+	
 	if len(stack) == 0 {
-		return
+		return false
 	}
+	
 	footer := cast(^Undo_Item_Footer) &stack[len(stack) - size_of(Undo_Item_Footer)]
 	footer.group_end = false
+	return true
 }
 
 // check if undo / redo is empty

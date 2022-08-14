@@ -152,6 +152,7 @@ theme_editor_spawn :: proc() {
 	}
 
 	window := window_init("Todool Theme Editor", 700, 900, mem.Megabyte)
+	window.name = "theme"
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		#partial switch msg {
 			case .Key_Combination: {

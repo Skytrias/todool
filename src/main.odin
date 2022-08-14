@@ -12,41 +12,6 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
-// TODO UI
-// scrollbar horizontal
-// element allow custom allocator
-
-// TODO
-// images on top of cards
-// breadcrumbs? could do a prompt
-// font size for tasks specifically so you could zoom in / out
-// notifications -> libnotify on linux works, winrt on windows?
-// SHOCO string compression option
-// Changelog options?
-// indentation focus prompt?
-// progress bar on kanban?
-// import from files with regex
-
-// WEBSITE 
-// work on a proper website
-
-// elements that can appear as task data
-// folding: bool -> as icon buqtton
-// duration spent: time.Duration -> as string
-// assigned date: time.Time -> as string
-// recording this -> LINE HIGHLIGHT NOW
-
-// DONE
-// text box copy & paste
-// slider formatting better, shift for varying clamps
-// timers functionality
-// statistics
-// timer sounds
-// volume slider
-// add autosave timer & exit scheme
-// copy tree as raw text
-// changelog gen
-
 // import "../notify"
 
 // main :: proc() {
@@ -77,6 +42,7 @@ main :: proc() {
 	defer task_data_destroy()
 
 	window := window_init("Todool", 900, 900, mem.Megabyte * 10)
+	window.name = "main"
 	window_main = window
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element
@@ -127,6 +93,7 @@ main :: proc() {
 						"Cancel",
 						"Save",
 					)
+					log.info("res", res)
 					
 					switch res {
 						case "Save": {
@@ -198,6 +165,29 @@ main :: proc() {
 		// just clamp for safety here instead of everywhere
 		task_head = clamp(task_head, 0, len(tasks_visible) - 1)
 		task_tail = clamp(task_tail, 0, len(tasks_visible) - 1)
+		
+		// NOTE forces the first task to indentation == 0
+		{
+			if len(tasks_visible) != 0 {
+				task := tasks_visible[0]
+
+				if task.indentation != 0 {
+					manager := mode_panel_manager_scoped()
+					// NOTE continue the first group
+					undo_group_continue(manager) 
+
+					item := Undo_Item_Task_Indentation_Set {
+						task = task,
+						set = task.indentation,
+					}	
+					undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+
+					task.indentation = 0
+					task.indentation_animating = true
+					element_animation_start(task)
+				}
+			}
+		}
 
 		// line changed
 		if old_task_head != task_head || old_task_tail != task_tail {

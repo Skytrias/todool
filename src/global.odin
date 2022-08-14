@@ -50,6 +50,8 @@ Mouse_Coordinates :: [2]f32
 
 Window :: struct {
 	element: Element,
+
+	name: string,
 	
 	// interactable elements
 	hovered: ^Element,
@@ -115,8 +117,12 @@ Window :: struct {
 	drop_indices: [dynamic]int, // indices into the file name builder
 	drop_file_name_builder: strings.Builder,
 
+	// arena
 	element_arena: mem.Arena,
 	element_arena_backing: []byte,
+
+	// next window
+	window_next: ^Window,
 }
 
 Cursor :: enum {
@@ -129,7 +135,9 @@ Cursor :: enum {
 }
 
 Global_State :: struct {
-	windows: [dynamic]^Window,
+	// windows: [dynamic]^Window,
+	windows: ^Window,
+
 	logger: log.Logger,
 	running: bool,
 	cursors: [Cursor]^sdl.Cursor,
@@ -204,9 +212,6 @@ window_init :: proc(
 			case .Layout: {
 				for child in element.children {
 					element_move(child, element.bounds)
-					// if window.dialog != nil {
-					// 	element_move(window.dialog, element.bounds)
-					// }
 				}
 			}
 
@@ -219,11 +224,16 @@ window_init :: proc(
 					}
 				}
 			}
+
+			case .Deallocate_Recursive: {
+				window_destroy(window)
+			}
 		}
 
 		return 0
 	}
 
+	// spawn an arena
 	arena_backing := make([]byte, arena_cap)
 	arena: mem.Arena
 	mem.arena_init(&arena, arena_backing)
@@ -252,10 +262,14 @@ window_init :: proc(
 	res.element_arena = arena
 	res.element_arena_backing = arena_backing
 	undo_manager_init(&res.manager)
-	append(&gs.windows, res)
 
-	window_ptr := gs.windows[len(gs.windows) - 1]
-	res.element.window = window_ptr
+	res.element.window = res
+	res.window_next = gs.windows
+	gs.windows = res
+
+	// append(&gs.windows, res)
+	// window_ptr := gs.windows[len(gs.windows) - 1]
+	// res.element.window = window_ptr
 
 	window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
 		context = runtime.default_context()
@@ -775,18 +789,9 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					gs.ignore_quit = true
 						
 					if element_message(&window.element, .Window_Close) == 0 {
-						// log.info("hide window")
-						element_destroy(&window.element)
 						sdl.HideWindow(window.w)
-	
-						// post another quit message in case its flushed by dialog
-						if len(gs.windows) == 1 {
-							// log.info("send quit event")
-							custom_event: sdl.Event
-							custom_event.type = .QUIT
-							sdl.PushEvent(&custom_event)
-						}
-
+						element_destroy(&window.element)
+						sdl_push_empty_event()
 						gs.ignore_quit = false
 					}
 				}
@@ -813,18 +818,6 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					// flush key event when gained
 					sdl.FlushEvent(.KEYDOWN)
 				}
-			}
-		}
-
-		case .QUIT: {
-			if gs.ignore_quit {
-				return
-			}
-
-			gs.running = false
-
-			for w in gs.windows {
-				w.dialog_finished = true
 			}
 		}
 
@@ -950,7 +943,7 @@ gs_init :: proc() {
 	using gs
 	logger = log.create_console_logger()
 	context.logger = logger
-	windows = make([dynamic]^Window, 0, 8)
+	// windows = make([dynamic]^Window, 0, 8)
 	running = true
 
 	err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO)
@@ -1015,6 +1008,12 @@ gs_init :: proc() {
 gs_destroy :: proc() {
 	using gs
 
+	for sound in sounds {
+		mix.FreeChunk(sound)
+	}
+
+	mix.Quit()
+
 	ease.flux_destroy(flux)
 	fontstash.destroy()
 	fonts_destroy()
@@ -1024,11 +1023,6 @@ gs_destroy :: proc() {
 		sdl.FreeCursor(cursor)
 	}
 
-	for window in windows {
-		window_destroy(window)
-	}
-
-	delete(windows)
 	sdl.Quit()
 }
 
@@ -1054,18 +1048,41 @@ gs_process_events :: proc() {
 	alt = state[sdl.SCANCODE_LALT] == 1 || state[sdl.SCANCODE_RALT] == 1
 
 	// prep window state once
-	for window in &gs.windows {
-		window.ctrl = ctrl
-		window.shift = shift
-		window.alt = alt
-		window.ignore_text_input = false
-	}	  	
+	{
+		window := gs.windows
+		for window != nil {
+			next := window.window_next
+			window.ctrl = ctrl
+			window.shift = shift
+			window.alt = alt
+			window.ignore_text_input = false
+			window = next
+		}
+	}
 
 	// iterate events
 	event: sdl.Event
 	for sdl.PollEvent(&event) {
-		for window in &gs.windows {
+		
+		if event.type == .QUIT && !gs.ignore_quit {
+			gs.running = false
+			// log.info("QUIT CALLED")
+
+			// TODO
+			window := gs.windows
+			for window != nil {
+				window.dialog_finished = true
+				window = window.window_next
+			}
+
+			break
+		}
+
+		window := gs.windows
+		for window != nil {
+			next := window.window_next
 			window_handle_event(window, &event)
+			window = next
 		}
 	}
 }
@@ -1076,19 +1093,22 @@ gs_message_loop :: proc() {
 	for gs.running {
 		// when animating
 		if len(gs.animating) != 0 || len(gs.flux.values) != 0 {
-			
 			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_animations()
 			gs_process_events()
 			
 			if len(gs.flux.values) != 0 {
-				for w in gs.windows {
-					w.update_next = true
+				window := gs.windows
+				for window != nil {
+					next := window.window_next
+					window.update_next = true
+					window = next
 				}
 			}	
 		} else {
 			// wait for event to arive
 			available := sdl.WaitEvent(nil)
+			// sdl.PollEvent()
 			// set frame start after waiting
 			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_events()
@@ -1115,8 +1135,11 @@ gs_message_loop :: proc() {
 }
 
 gs_update_all_windows :: proc() {
-	for window in &gs.windows {
+	window := gs.windows
+	for window != nil {
+		next := window.window_next
 		window.update_next = true
+		window = next
 	}
 }
 
@@ -1136,15 +1159,20 @@ gs_process_animations :: proc() {
 gs_draw_and_cleanup :: proc() {
 	context.logger = gs.logger 
 
-	// for window in &gs.windows {
-	for i := len(gs.windows) - 1; i >= 0; i -= 1 {
-		window := gs.windows[i]
+	link := &gs.windows
+	window := gs.windows
+	window_count: int
+
+	for window != nil {
+		next := window.window_next
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
-			unordered_remove(&gs.windows, i)
-			// log.info("dealloc window")
+			window_count -= 1
+			link^ = next
 		} else if window.update_next {
+			link = &window.window_next
+
 			// reset focuse on hidden
 			if window.focused != nil {
 				if !window_focused_shown(window) {
@@ -1164,7 +1192,30 @@ gs_draw_and_cleanup :: proc() {
 			// TODO could use specific update region only
 			window.update_next = false
 		}
+		
+		window_count += 1
+		// log.info("W COUNT", window_count, window.name)
+		window = next
 	}
+
+	if window_count == 0 {
+		gs.running = false
+		// custom_event: sdl.Event
+		// custom_event.type = .QUIT
+		// sdl.PushEvent(&custom_event)
+		// log.info("SHOULD QUIT")
+	}
+}
+
+gs_window_count :: proc() -> (res: int) {
+	window := gs.windows
+
+	for window != nil {
+		res += 1
+		window = window.window_next
+	}
+
+	return
 }
 
 //////////////////////////////////////////////

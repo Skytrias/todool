@@ -380,6 +380,7 @@ Mode_Panel :: struct {
 	kanban_left: f32, // layout seperation
 	gap_vertical: f32,
 	gap_horizontal: f32,
+	margin_vertical: f32, // task text spacing
 
 	cam: [Mode]Pan_Camera,
 	kanban_outlines: [dynamic]Rect,
@@ -476,6 +477,10 @@ task_init :: proc(
 				task_head_tail_push(manager)
 				item := Undo_Item_Bool_Toggle { &task.folded }
 				undo_bool_toggle(manager, &item)
+
+				task_head = task.index
+				task_tail = task.index
+
 				element_message(element, .Update)
 			}
 
@@ -849,6 +854,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				case .Kanban: {
 					cut := bounds
 					clear(&panel.kanban_outlines)
+					
 					// cutoff a rect left
 					kanban_current: Rect
 					kanban_children_count: int
@@ -949,7 +955,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					// color := color_blend(mix, BLACK, 0.9, false)
 					for outline in panel.kanban_outlines {
 						rect := rect_margin(outline, -KANBAN_MARGIN * SCALE)
-						render_rect(target, rect, color, ROUNDNESS)
+						// render_rect(target, rect, color, ROUNDNESS)
+						render_rect_outline(target, rect, color, ROUNDNESS)
 					}
 				}
 			}
@@ -1124,7 +1131,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				font, size := element_retrieve_font_options(box)
 				scaled_size := size * SCALE
 				x := box.bounds.l + offset
-				y := box.bounds.t
+				y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
 				caret_rect = box_layout_caret(box, font, scaled_size, x, y)
 			}
 		}
@@ -1133,6 +1140,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			target := element.window.target
 			draw_search_results := (.Hide not_in panel_search.flags)
 
+			box.bounds.t += math.round(mode_panel.margin_vertical / 2 * SCALE)
 			box.bounds.l += x_offset(task, box)
 			font, size := element_retrieve_font_options(box)
 			scaled_size := size * SCALE
@@ -1356,7 +1364,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			line_size_addition := additional_size(task, draw_tags)
 			line_size += line_size_addition
-			// line_size += 2
+			line_size += math.round(mode_panel.margin_vertical * SCALE)
 
 			return int(line_size)
 		}
@@ -1385,6 +1393,9 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				left.r = left.l + math.round(DEFAULT_FONT_SIZE * SCALE)
 				scaled_size := task.font_options.size * SCALE
 				left.b = left.t + scaled_size
+				off := math.round(mode_panel.margin_vertical / 2 * SCALE)
+				left.t += off
+				left.b += off
 				element_move(task.button_fold, left)
 			}
 			
@@ -1816,6 +1827,7 @@ task_panel_init :: proc(split: ^Split_Pane) {
 	mode_panel = mode_panel_init(mode_panel_split, {})
 	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
+	mode_panel.margin_vertical = 10
 }
 
 tasks_load_file :: proc() {

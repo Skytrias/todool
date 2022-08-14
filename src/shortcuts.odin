@@ -513,6 +513,39 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 			// fmt.eprint(strings.to_string(b))
 		}
 
+			// task state change
+		case "ctrl+q", "ctrl+shift+q": {
+			if task_head == -1 {
+				return
+			}
+
+			manager := mode_panel_manager_scoped()
+			task_head_tail_push(manager)
+				
+			selection := task_has_selection()
+			low, high := task_low_and_high()
+
+			// modify all states
+			backwards := mode_panel.window.shift
+			index: int
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+
+				if task.has_children {
+					continue
+				}
+
+				index = int(task.state)
+				range_advance_index(&index, len(Task_State) - 1, backwards)
+
+				// save old set
+				task_set_state_undoable(manager, task, Task_State(index))
+			}
+
+			element_repaint(mode_panel)
+		}
+
+		// jump indentation range like scopes
 		case "ctrl+m", "ctrl+shift+m": {
 			if task_head == -1 {
 				return
@@ -589,7 +622,6 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 					}
 				}
 			}
-
 		}
 
 		case: {
@@ -729,52 +761,26 @@ add_shortcuts :: proc(window: ^Window) {
 		return true
 	})
 
-	// task state change
-	window_add_shortcut(window, "ctrl+q", proc() -> bool {
-		if task_head == -1 {
-			return true
-		}
-
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-			
-		selection := task_has_selection()
-		low, high := task_low_and_high()
-
-		// modify all states
-		for i in low..<high + 1 {
-			task := tasks_visible[i]
-
-			if task.has_children {
-				continue
-			}
-
-			goal := u8(task.state)
-			if goal < len(Task_State) - 1 {
-				goal += 1
-			} else {
-				goal = 0
-			}
-
-			// save old set
-			task_set_state_undoable(manager, task, Task_State(goal))
-		}
-
-		element_repaint(mode_panel)
-		return true
-	})
-
 	task_indentation_move :: proc(amt: int) -> bool {
 		if task_head == -1 {
 			return false
 		}
 
+		// skip first
+		if task_head == task_tail && task_head == 0 {
+			return true
+		}
+
 		low, high := task_low_and_high()
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
 
 		for i in low..<high + 1 {
 			task := tasks_visible[i]
+
+			if i == 0 {
+				continue
+			}
 
 			if task.indentation + amt >= 0 {
 				item := Undo_Item_Task_Indentation_Set {
@@ -991,6 +997,7 @@ add_shortcuts :: proc(window: ^Window) {
 		}
 	
 		json_save_misc("save.sjson")
+		element_repaint(mode_panel)
 		return true
 	})
 

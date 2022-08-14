@@ -197,7 +197,15 @@ render_target_end :: proc(
 	window: ^sdl.Window, 
 	width, height: int,
 ) {
-	sdl.GL_MakeCurrent(window, target.opengl_context)
+	err := sdl.GL_MakeCurrent(window, target.opengl_context)
+	if err < 0 {
+		log.panic("GL: MakeCurrent failed!")
+	}
+
+	w := sdl.GL_GetCurrentWindow()
+	if w != window {
+		log.panic("GL: unmatched window")
+	}
 
 	gl.Enable(gl.SCISSOR_TEST)
 	gl.Enable(gl.BLEND)
@@ -236,7 +244,7 @@ render_target_end :: proc(
 		texture_bind(target, kind)
 	}
 
-	for group in &groups {
+	for group, group_index in &groups {
 		rect_scissor(i32(height), group.clip)
 		vertice_count := group.vertex_end - group.vertex_start
 
