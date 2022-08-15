@@ -1,5 +1,7 @@
 package src
 
+import "core:image"
+import "core:image/png"
 import "core:mem"
 import "core:log"
 import "core:fmt"
@@ -2648,6 +2650,52 @@ radial_gauge_init :: proc(
 	res.position = position
 	res.font_options = &font_options_bold
 	return 
+}
+
+//////////////////////////////////////////////
+// image display
+//////////////////////////////////////////////
+
+Image_Display :: struct {
+	element: Element,
+	img: ^image.Image,
+}
+
+image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	display := cast(^Image_Display) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			// render_rect(target, element.bounds, RED)
+			render_texture(target, .CUSTOM, element.bounds, WHITE)
+		}
+
+		case .Layout: {
+
+		}
+
+		case .Get_Width: {
+			return 100;
+		}
+
+		case .Get_Height: {
+			return 100;
+		}
+	}
+
+	return 0
+}
+
+image_display_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	img: ^image.Image,
+	allocator := context.allocator,
+) -> (res: ^Image_Display) {
+	res = element_init(Image_Display, parent, flags, image_display_message, allocator)
+	res.img = img
+	return
 }
 
 //////////////////////////////////////////////

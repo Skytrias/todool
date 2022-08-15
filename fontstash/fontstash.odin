@@ -47,6 +47,7 @@ Icon :: enum {
 	Cog = 0xefb0,
 	Sort = 0xefee,
 	Reply = 0xec7f,
+	Notebook = 0xefaa,
 }
 
 LUT_SIZE :: 256

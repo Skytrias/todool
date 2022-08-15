@@ -638,6 +638,7 @@ task_set_children_info :: proc() {
 		task := cast(^Task) child
 		task.index = i
 		task.has_children = false
+		task.visible_parent = nil
 	}
 
 	// simple check for indentation
@@ -672,6 +673,7 @@ task_set_children_info :: proc() {
 // set visible flags on task based on folding
 task_set_visible_tasks :: proc() {
 	clear(&tasks_visible)
+	manager := mode_panel_manager_begin()
 
 	// set visible lines based on fold of parents
 	for child in mode_panel.children {
@@ -680,8 +682,16 @@ task_set_visible_tasks :: proc() {
 		task.visible = true
 
 		// unset folded 
-		if !task.has_children {
-			task.folded = false
+		if !task.has_children && task.folded {
+			item := Undo_Item_U8_Set {
+				cast(^u8) (&task.folded),
+				0,
+			}
+
+			// continue last undo because this happens manually
+			undo_group_continue(manager)
+			undo_u8_set(manager, &item)
+			undo_group_end(manager)
 		}
 
 		// recurse up 

@@ -19,7 +19,6 @@ shader_vert := #load("../assets/vert.glsl")
 shader_frag := #load("../assets/frag.glsl")
 png_sv := #load("../assets/sv.png")
 png_hue := #load("../assets/hue.png")
-png_test := #load("../assets/test.png")
 Align_Horizontal :: fontstash.Align_Horizontal
 Align_Vertical :: fontstash.Align_Vertical
 DROP_SHADOW :: 20
@@ -59,6 +58,10 @@ Render_Target :: struct {
 
 	// context thats needed to be switched to
 	opengl_context: sdl.GLContext,
+
+	// shared shallow texture
+	shallow_uniform_sampler: i32,
+	shallow_handle: u32,
 }
 
 Render_Group :: struct {
@@ -70,7 +73,7 @@ Texture_Kind :: enum {
 	Fonts,
 	SV,
 	HUE,
-	TEST,
+	CUSTOM,
 }
 
 Render_Texture :: struct {
@@ -161,7 +164,9 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 
 	texture_generate_from_png(res, .SV, png_sv, "_sv")
 	texture_generate_from_png(res, .HUE, png_hue, "_hue")
-	texture_generate_from_png(res, .TEST, png_test, "_test", i32(gl.REPEAT))
+
+	shallow_texture_init(res)
+
 	return
 }
 
@@ -437,8 +442,9 @@ texture_generate_from_png :: proc(
 	data: []byte, 
 	text: string,
 	mode := i32(gl.CLAMP_TO_EDGE),
-) {
-	image, err := png.load_from_bytes(data)
+) -> (res: ^image.Image) {
+	err: image.Error
+	res, err = png.load_from_bytes(data)
 	
 	if err != nil {
 		log.error("RENDERER: image loading failed for", kind)
@@ -452,16 +458,17 @@ texture_generate_from_png :: proc(
 	location := gl.GetUniformLocation(target.shader_program, combined_name)
 
 	target.textures[kind] = Render_Texture {
-		data = image.pixels.buf[:],
-		width = i32(image.width),
-		height = i32(image.height),
+		data = res.pixels.buf[:],
+		width = i32(res.width),
+		height = i32(res.height),
 		format_a = gl.RGBA8,
 		format_b = gl.RGBA,
-		image = image,
+		image = res,
 		uniform_sampler = location,
 	}
 
 	texture_generate(target, kind, mode)
+	return
 }
 
 @(private)
@@ -532,6 +539,51 @@ texture_destroy :: proc(using texture: ^Render_Texture) {
 		png.destroy(image)
 	}
 }
+
+//////////////////////////////////////////////
+// Shallow Texture
+//////////////////////////////////////////////
+
+shallow_texture_init :: proc(target: ^Render_Target) {
+	gl.GenTextures(1, &target.shallow_handle)
+	gl.BindTexture(gl.TEXTURE_2D, target.shallow_handle)
+	defer gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	mode := i32(gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, mode)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, mode)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+}
+
+shallow_texture_bind :: proc(target: ^Render_Target, img: ^image.Image) {
+	// builder := strings.builder_make(0, 32, context.temp_allocator)
+	// strings.write_string(&builder, "u_sampler_custom")
+	// strings.write_string(&builder, text)
+	// strings.write_byte(&builder, '\x00')
+	// combined_name := strings.unsafe_string_to_cstring(strings.to_string(builder))
+	// location := gl.GetUniformLocation(target.shader_program, combined_name)
+
+	// target.textures[kind] = Render_Texture {
+	// 	data = res.pixels.buf[:],
+	// 	width = i32(res.width),
+	// 	height = i32(res.height),
+	// 	format_a = gl.RGBA8,
+	// 	format_b = gl.RGBA,
+	// 	image = res,
+	// 	uniform_sampler = location,
+	// }
+
+	kind := Texture_Kind.CUSTOM
+	gl.Uniform1i(target.shallow_uniform_sampler, i32(kind))
+	gl.ActiveTexture(gl.TEXTURE0 + u32(kind))
+	gl.BindTexture(gl.TEXTURE_2D, target.shallow_handle)
+
+
+	// texture_generate(target, kind, mode)
+	return
+}
+
 
 //////////////////////////////////////////////
 // GLYPH

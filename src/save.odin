@@ -341,6 +341,8 @@ json_save_misc :: proc(path: string) -> bool {
 		}
 	}
 
+	pomodoro_diff := time.stopwatch_duration(pomodoro.stopwatch)
+
 	value := Misc_Save_Load {
 		scale =  SCALE,
 		mode_index = int(mode_panel.mode),
@@ -368,7 +370,7 @@ json_save_misc :: proc(path: string) -> bool {
 			int(pomodoro_time_index(2)),
 
 			pomodoro.stopwatch.running,
-			int(time.tick_diff(pomodoro.stopwatch._start_time, time.tick_now())),
+			int(pomodoro_diff),
 		},
 
 		statistics = {
@@ -457,15 +459,16 @@ json_load_misc :: proc(path: string) -> bool{
 	goal := clamp(misc.statistics.work_goal, 1, 24)
 	sb.options.slider_work_today.position = f32(goal) / 24.0
 	pomodoro.accumulated = time.Duration(misc.statistics.accumulated)
+
+	pomodoro.stopwatch._start_time = time.tick_now()
 	
 	// run everything
 	if pomodoro.stopwatch.running {
-		pomodoro.stopwatch._start_time = time.tick_now()
 		element_hide(sb.options.button_pomodoro_reset, false)
-		pomodoro_label_format()
-	} else if pomodoro.stopwatch._accumulation != {} {
-		pomodoro_label_format()
 	}
+
+	pomodoro_label_format()
+	element_repaint(mode_panel)
 
 	return true
 }

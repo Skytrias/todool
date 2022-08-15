@@ -13,7 +13,6 @@ import "core:encoding/json"
 Sidebar_Mode :: enum {
 	Options,
 	Tags,
-	// Sorting
 }
 
 Sidebar :: struct {
@@ -26,6 +25,7 @@ Sidebar :: struct {
 
 	pomodoro_label: ^Label,
 }
+sb: Sidebar
 
 Sidebar_Options :: struct {
 	panel: ^Panel,
@@ -66,7 +66,9 @@ Sidebar_Tags :: struct {
 	toggle_selector_tag: ^Toggle_Selector,
 }
 
-sb: Sidebar
+Sidebar_Activity :: struct {
+	panel: ^Panel,
+}
 
 sidebar_mode_toggle :: proc(to: Sidebar_Mode) {
 	if (.Hide in sb.enum_panel.flags) || to != sb.mode {
@@ -285,7 +287,8 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 	// tags
 	{
 		temp := &sb.tags
-		temp.panel = shared_panel(enum_panel, "Tags")
+		using temp
+		panel = shared_panel(enum_panel, "Tags")
 
 		shared_box :: proc(
 			panel: ^Panel, 
@@ -296,25 +299,28 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			sb.tags.temp_index += 1
 		}
 
-		label_init(temp.panel, { .Label_Center }, "Tags 1-8")
-		shared_box(temp.panel, "one")
-		shared_box(temp.panel, "two")
-		shared_box(temp.panel, "three")
-		shared_box(temp.panel, "four")
-		shared_box(temp.panel, "five")
-		shared_box(temp.panel, "six")
-		shared_box(temp.panel, "seven")
-		shared_box(temp.panel, "eight")
+		label_init(panel, { .Label_Center }, "Tags 1-8")
+		shared_box(panel, "one")
+		shared_box(panel, "two")
+		shared_box(panel, "three")
+		shared_box(panel, "four")
+		shared_box(panel, "five")
+		shared_box(panel, "six")
+		shared_box(panel, "seven")
+		shared_box(panel, "eight")
 
-		spacer_init(temp.panel, { .HF }, 0, spacer_scaled, .Empty)
-		label_init(temp.panel, { .HF, .Label_Center }, "Tag Showcase")
-		temp.toggle_selector_tag = toggle_selector_init(
-			temp.panel,
+		spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
+		label_init(panel, { .HF, .Label_Center }, "Tag Showcase")
+		toggle_selector_tag = toggle_selector_init(
+			panel,
 			{ .HF },
 			&sb.tags.tag_show_mode,
 			TAG_SHOW_COUNT,
 			tag_show_text[:],
 		)
+
+		image_display_init(panel, { .HF }, test_image1)
+		image_display_init(panel, { .HF }, test_image2)
 	}
 
 	return

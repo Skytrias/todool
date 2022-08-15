@@ -15,7 +15,7 @@ uniform mat4 u_projection;
 uniform sampler2D u_sampler_font;
 uniform sampler2D u_sampler_sv;
 uniform sampler2D u_sampler_hue;
-uniform sampler2D u_sampler_test;
+uniform sampler2D u_sampler_custom;
 uniform vec4 u_shadow_color;
 
 // output
@@ -93,11 +93,13 @@ void main(void) {
 		color_goal = texture_color;
 	} else if (v_kind == RK_TEXTURE) {
 		vec2 uv = v_uv;
-		vec2 texture_size = vec2(32, 32);
-		vec2 size = vec2(v_roundness, v_thickness);
-		uv *= (size / texture_size);
-		vec4 texture_color = texture(u_sampler_test, uv);
-		color_goal *= texture_color;
+		// vec2 texture_size = vec2(32, 32);
+		// vec2 size = vec2(v_roundness, v_thickness);
+		// uv *= (size / texture_size);
+		vec4 texture_color = texture(u_sampler_custom, uv);
+		// color_goal *= texture_color;
+		color_goal = texture_color;
+		// color_goal = vec4(0, 1, 0, 1);
 	} else if (v_kind == RK_ARC) {
 		float tb = v_additional.x;
 		vec2 sc = vec2(sin(tb), cos(tb));

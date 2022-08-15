@@ -1,5 +1,7 @@
 package src
 
+import "core:image"
+import "core:image/png"
 import "core:fmt"
 import "core:os"
 import "core:time"
@@ -153,8 +155,16 @@ Global_State :: struct {
 
 	sounds: [Sound_Index]^mix.Chunk,
 	flux: ease.Flux_Map(f32),
+
+	// stores multiple png images
+	stored_images: [dynamic]Stored_Image,
 }
 gs: Global_State
+
+Stored_Image :: struct {
+	img: ^image.Image,
+	texture: Render_Texture,
+}
 
 Sound_Index :: enum {
 	Timer_Start,
@@ -1203,7 +1213,7 @@ gs_draw_and_cleanup :: proc() {
 		// custom_event: sdl.Event
 		// custom_event.type = .QUIT
 		// sdl.PushEvent(&custom_event)
-		// log.info("SHOULD QUIT")
+		log.info("SHOULD QUIT")
 	}
 }
 

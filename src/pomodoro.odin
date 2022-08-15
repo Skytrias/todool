@@ -158,6 +158,7 @@ pomodoro_stopwatch_hot_toggle :: proc(index: int) {
 pomodoro_stopwatch_diff :: proc() -> time.Duration {
 	accumulated := time.stopwatch_duration(pomodoro.stopwatch)
 	wanted_minutes := pomodoro_time_index(pomodoro.index)
+	// log.info("WANTED", wanted_minutes, accumulated)
 	return (time.Minute * time.Duration(wanted_minutes)) - accumulated
 }
 
@@ -169,8 +170,9 @@ pomodoro_label_format :: proc() {
 	// TODO could check for diff and only repaint then!
 	b := &sb.pomodoro_label.builder
 	strings.builder_reset(b)
-	fmt.sbprintf(b, "%2d:%2d", int(minutes), int(seconds))
+	text := fmt.sbprintf(b, "%2d:%2d", int(minutes), int(seconds))
 	element_repaint(sb.pomodoro_label)
+	// log.info("PRINTED", text, duration)
 }		
 
 // on interval update the pomodoro label

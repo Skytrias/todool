@@ -1,5 +1,6 @@
 package src
 
+import "core:image"
 import "core:os"
 import "core:encoding/json"
 import "core:mem"
@@ -33,6 +34,9 @@ import "../fontstash"
 // 	// res := nfd.SaveDialog("", "", &out_path)
 // 	// fmt.eprintln(res, out_path)
 // }
+
+test_image1: ^image.Image
+test_image2: ^image.Image
 
 main :: proc() {
 	gs_init()
@@ -93,7 +97,6 @@ main :: proc() {
 						"Cancel",
 						"Save",
 					)
-					log.info("res", res)
 					
 					switch res {
 						case "Save": {
@@ -206,6 +209,21 @@ main :: proc() {
 		old_task_tail = task_tail
 
 		pomodoro_update()
+	}
+
+	{
+		content, ok := os.read_entire_file("july_next.png")
+		if !ok {
+			panic("image not found")
+		}
+		test_image1 = texture_generate_from_png(window.target, .CUSTOM, content, "_custom")
+	}
+	{
+		content, ok := os.read_entire_file("august_one.png")
+		if !ok {
+			panic("image not found")
+		}
+		test_image2 = texture_generate_from_png(window.target, .CUSTOM, content, "_custom")
 	}
 
 	add_shortcuts(window)
