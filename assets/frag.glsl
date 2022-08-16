@@ -92,14 +92,8 @@ void main(void) {
 		vec4 texture_color = texture(u_sampler_hue, v_uv);
 		color_goal = texture_color;
 	} else if (v_kind == RK_TEXTURE) {
-		vec2 uv = v_uv;
-		// vec2 texture_size = vec2(32, 32);
-		// vec2 size = vec2(v_roundness, v_thickness);
-		// uv *= (size / texture_size);
-		vec4 texture_color = texture(u_sampler_custom, uv);
-		// color_goal *= texture_color;
+		vec4 texture_color = texture(u_sampler_custom, v_uv);
 		color_goal = texture_color;
-		// color_goal = vec4(0, 1, 0, 1);
 	} else if (v_kind == RK_ARC) {
 		float tb = v_additional.x;
 		vec2 sc = vec2(sin(tb), cos(tb));

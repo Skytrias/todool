@@ -687,6 +687,12 @@ add_shortcuts :: proc(window: ^Window) {
 	})
 
 	window_add_shortcut(window, "escape", proc() -> bool {
+		if image_display_has_content(mode_panel.image_display) {
+			mode_panel.image_display.img = nil
+			element_repaint(mode_panel)
+			return true
+		}
+
 		if .Hide not_in panel_search.flags {
 			element_hide(panel_search, true)
 			element_repaint(mode_panel)

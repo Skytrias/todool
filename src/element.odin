@@ -25,6 +25,8 @@ DEFAULT_FONT_SIZE :: 20
 DEFAULT_ICON_SIZE :: 18
 SPLITTER_SIZE :: 4
 
+IMAGE_DISPLAY_HEIGHT :: 200
+
 Message :: enum {
 	Invalid,
 	Update,
@@ -108,6 +110,8 @@ Element_Flag :: enum {
 	Panel_Expand,
 	Tab_Movement_Allowed, // wether or not movement is allowed for the parent  
 	Tab_Stop, // wether the element acts as a tab stop
+
+	Sort_By_Z_Index, // sorts children by element.z_index
 
 	// element specific flags
 	Label_Center,
@@ -1535,7 +1539,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 		case .Mouse_Scroll_Y: {
 			if .Hide not_in element.children[0].flags {
-				scrollbar.position -= f32(di) * 10
+				scrollbar.position -= f32(di) * 20
 
 				// clamp position
 				diff := scrollbar.maximum - scrollbar.page
@@ -2022,7 +2026,7 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
-			render_texture(target, .HUE, element.bounds)
+			render_texture_from_kind(target, .HUE, element.bounds)
 			defer render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			OUT_SIZE :: 10
@@ -2091,7 +2095,7 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Paint_Recursive: {
 			target := element.window.target
 			color := color_hsv_to_rgb(hue.y, 1, 1)
-			render_texture(target, .SV, element.bounds, color)
+			render_texture_from_kind(target, .SV, element.bounds, color)
 			defer render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			sv_out := rect_wh(
@@ -2656,31 +2660,66 @@ radial_gauge_init :: proc(
 // image display
 //////////////////////////////////////////////
 
+Image_Aspect :: enum {
+	Height,
+	Width,
+	Mix,
+}
+
 Image_Display :: struct {
-	element: Element,
-	img: ^image.Image,
+	using element: Element,
+	img: ^Stored_Image,
+	aspect: Image_Aspect,
 }
 
 image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	display := cast(^Image_Display) element
+	has_content := image_display_has_content(display)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
-			// render_rect(target, element.bounds, RED)
-			render_texture(target, .CUSTOM, element.bounds, WHITE)
-		}
 
-		case .Layout: {
+			if has_content {
+				rect := element.bounds
+				
+				img_width := f32(element_message(element, .Get_Width))
+				img_height := f32(element_message(element, .Get_Height))
 
+				ratio_width := img_width / rect_width(rect)
+				ratio_height := img_height / rect_height(rect)
+				
+				ratio_aspect: f32
+				switch display.aspect {
+					case .Height: ratio_aspect = ratio_height
+					case .Width: ratio_aspect = ratio_width
+					case .Mix: ratio_aspect = ratio_width > 1 ? ratio_width : ratio_height > 1 ? ratio_height : 1
+				}
+
+				wanted_width := img_width / ratio_aspect
+				wanted_height := img_height / ratio_aspect
+
+				offset_x := rect_width_halfed(rect) - wanted_width / 2
+				offset_y := rect_height_halfed(rect) - wanted_height / 2
+
+				rect.l = rect.l + offset_x
+				rect.r = rect.l + wanted_width
+				rect.t = rect.t + offset_y
+				rect.b = rect.t + wanted_height
+
+				render_texture_from_handle(target, display.img.handle, rect, WHITE)
+			}
+			// } else {
+			// 	render_rect(target, element.bounds, GREEN)
+			// }
 		}
 
 		case .Get_Width: {
-			return 100;
+			return has_content ? display.img.width : 100;
 		}
 
 		case .Get_Height: {
-			return 100;
+			return has_content ? display.img.height : 100;
 		}
 	}
 
@@ -2690,12 +2729,16 @@ image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 image_display_init :: proc(
 	parent: ^Element,
 	flags: Element_Flags,
-	img: ^image.Image,
+	img: ^Stored_Image,
 	allocator := context.allocator,
 ) -> (res: ^Image_Display) {
 	res = element_init(Image_Display, parent, flags, image_display_message, allocator)
 	res.img = img
 	return
+}
+
+image_display_has_content :: #force_inline proc(display: ^Image_Display) -> bool {
+	return display.img != nil && display.img.loaded && display.img.handle_set
 }
 
 //////////////////////////////////////////////

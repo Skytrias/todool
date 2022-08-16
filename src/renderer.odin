@@ -61,19 +61,19 @@ Render_Target :: struct {
 
 	// shared shallow texture
 	shallow_uniform_sampler: i32,
-	shallow_handle: u32,
 }
 
 Render_Group :: struct {
 	clip: Rect,
 	vertex_start, vertex_end: int,
+	bind_handle: u32,
+	bind_slot: int,
 }
 
 Texture_Kind :: enum {
 	Fonts,
 	SV,
 	HUE,
-	CUSTOM,
 }
 
 Render_Texture :: struct {
@@ -165,7 +165,8 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	texture_generate_from_png(res, .SV, png_sv, "_sv")
 	texture_generate_from_png(res, .HUE, png_hue, "_hue")
 
-	shallow_texture_init(res)
+	res.shallow_uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_custom")
+	// log.info("bind slots", gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)
 
 	return
 }
@@ -253,6 +254,14 @@ render_target_end :: proc(
 		rect_scissor(i32(height), group.clip)
 		vertice_count := group.vertex_end - group.vertex_start
 
+		// custom bind texture
+		if group.bind_slot != -1 {
+			kind := 3
+			gl.Uniform1i(target.shallow_uniform_sampler, i32(kind))
+			gl.ActiveTexture(gl.TEXTURE0 + u32(kind))
+			gl.BindTexture(gl.TEXTURE_2D, group.bind_handle)
+		}
+
 		// skip empty group
 		if vertice_count != 0 {
 			// TODO use raw_data again on new master
@@ -308,6 +317,7 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
 		clip = clip_goal,
 		vertex_start = vertex_index,	
 		vertex_end = vertex_index,
+		bind_slot = -1,
 	})
 }
 
@@ -544,46 +554,34 @@ texture_destroy :: proc(using texture: ^Render_Texture) {
 // Shallow Texture
 //////////////////////////////////////////////
 
-shallow_texture_init :: proc(target: ^Render_Target) {
-	gl.GenTextures(1, &target.shallow_handle)
-	gl.BindTexture(gl.TEXTURE_2D, target.shallow_handle)
+shallow_texture_init :: proc(
+	target: ^Render_Target,
+	img: ^image.Image,
+) -> (handle: u32) {
+	gl.GenTextures(1, &handle)
+	gl.BindTexture(gl.TEXTURE_2D, handle)
 	defer gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	// gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1) 
+	gl.TexImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA8,
+		i32(img.width), 
+		i32(img.height), 
+		0, 
+		gl.RGBA, 
+		gl.UNSIGNED_BYTE, 
+		raw_data(img.pixels.buf),
+	)
 
 	mode := i32(gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, mode)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, mode)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-}
-
-shallow_texture_bind :: proc(target: ^Render_Target, img: ^image.Image) {
-	// builder := strings.builder_make(0, 32, context.temp_allocator)
-	// strings.write_string(&builder, "u_sampler_custom")
-	// strings.write_string(&builder, text)
-	// strings.write_byte(&builder, '\x00')
-	// combined_name := strings.unsafe_string_to_cstring(strings.to_string(builder))
-	// location := gl.GetUniformLocation(target.shader_program, combined_name)
-
-	// target.textures[kind] = Render_Texture {
-	// 	data = res.pixels.buf[:],
-	// 	width = i32(res.width),
-	// 	height = i32(res.height),
-	// 	format_a = gl.RGBA8,
-	// 	format_b = gl.RGBA,
-	// 	image = res,
-	// 	uniform_sampler = location,
-	// }
-
-	kind := Texture_Kind.CUSTOM
-	gl.Uniform1i(target.shallow_uniform_sampler, i32(kind))
-	gl.ActiveTexture(gl.TEXTURE0 + u32(kind))
-	gl.BindTexture(gl.TEXTURE_2D, target.shallow_handle)
-
-
-	// texture_generate(target, kind, mode)
 	return
 }
-
 
 //////////////////////////////////////////////
 // GLYPH
@@ -751,7 +749,7 @@ render_icon_aligned :: proc(
 	return render_icon(target, font, icon, x, y, color, pixel_size)
 }
 
-render_texture :: proc(
+render_texture_from_kind :: proc(
 	target: ^Render_Target,
 	kind: Texture_Kind,
 	r: Rect,
@@ -769,6 +767,38 @@ render_texture :: proc(
 	vertices[4] = vertices[2]
 
 	wanted_kind := Render_Kind(int(kind) - 1 + int(Render_Kind.SV))
+	width := u16(rect_width(r))
+	height := u16(rect_height(r))
+
+	for i in 0..<6 {
+		vertices[i].color = color
+		vertices[i].roundness = width
+		vertices[i].thickness = height
+		vertices[i].kind = wanted_kind
+	}
+}
+
+render_texture_from_handle :: proc(
+	target: ^Render_Target,
+	handle: u32,
+	r: Rect,
+	color := WHITE,
+) #no_bounds_check {
+	group := &target.groups[len(target.groups) - 1]	
+	group.bind_handle = handle
+	group.bind_slot = 0
+
+	vertices := render_target_push_vertices(target, group, 6)
+	
+	vertices[0] = { pos_xy = {r.l, r.t }, uv_xy = { 0, 0 }}
+	vertices[1] = { pos_xy = {r.r, r.t }, uv_xy = { 1, 0 }}
+	vertices[2] = { pos_xy = {r.l, r.b }, uv_xy = { 0, 1 }}
+	vertices[5] = { pos_xy = {r.r, r.b }, uv_xy = { 1, 1 }}
+
+	vertices[3] = vertices[1]
+	vertices[4] = vertices[2]
+
+	wanted_kind := Render_Kind.Texture
 	width := u16(rect_width(r))
 	height := u16(rect_height(r))
 
@@ -844,19 +874,24 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 		return
 	}
 
+	temp := element.children[:]
+
 	// clone and sort elements for z ordering
-	temp := slice.clone(element.children[:], context.temp_allocator)
-	sort.quick_sort_proc(temp, proc(a, b: ^Element) -> int {
-		if a.z_index < b.z_index {
-			return -1
-		}	
+	sort_children := .Sort_By_Z_Index in element.flags
+	if sort_children {
+		temp = slice.clone(element.children[:])
+		sort.quick_sort_proc(temp, proc(a, b: ^Element) -> int {
+			if a.z_index < b.z_index {
+				return -1
+			}	
 
-		if a.z_index > b.z_index {
-			return 1
-		}
+			if a.z_index > b.z_index {
+				return 1
+			}
 
-		return 0
-	})
+			return 0
+		})
+	}
 
 	for child in temp {
 		render_element_clipped(target, child)
@@ -864,5 +899,9 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 		if child.window.focused == child {
 			render_rect_outline(target, child.bounds, theme.text_good)
 		}
+	}
+
+	if sort_children {
+		delete(temp)
 	}
 }

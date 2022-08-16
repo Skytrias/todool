@@ -35,7 +35,7 @@ theme_editor: Theme_Editor
 
 Theme :: struct {
 	background: [3]Color, // 3 variants, lowest to highest
-	panel: [3]Color, // 3 variants, back - parent - front
+	panel: [2]Color, // 2 variants, parent - front
 
 	text_default: Color,
 	text_good: Color,
@@ -53,7 +53,7 @@ Theme :: struct {
 
 Theme_Save_Load :: struct {
 	background: [3]u32, // 3 variants, lowest to highest
-	panel: [3]u32, // 3 variants, back - parent - front
+	panel: [2]u32, // 2 variants, parent - front
 
 	text_default: u32,
 	text_good: u32,
@@ -70,7 +70,6 @@ Theme_Save_Load :: struct {
 }
 
 Theme_Panel :: enum {
-	Back,
 	Parent,
 	Front,
 }
@@ -100,7 +99,6 @@ theme := Theme {
 	panel = { 
 		0 = { 230, 230, 230, 255 },
 		1 = { 255, 100, 100, 255 },
-		2 = { 255, 255, 255, 255 },
 	},
 
 	tags = {
@@ -341,9 +339,8 @@ theme_editor_spawn :: proc() {
 	color_slider(panel, &theme.background[1], "background 1")
 	color_slider(panel, &theme.background[2], "background 2")
 	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.panel[0], "panel back")
-	color_slider(panel, &theme.panel[1], "panel parent")
-	color_slider(panel, &theme.panel[2], "panel front")
+	color_slider(panel, &theme.panel[0], "panel parent")
+	color_slider(panel, &theme.panel[1], "panel front")
 	color_slider(panel, &theme.shadow, "shadow")
 	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	color_slider(panel, &theme.text_default, "text default")

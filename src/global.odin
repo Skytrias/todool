@@ -1,5 +1,6 @@
 package src
 
+import "core:thread"
 import "core:image"
 import "core:image/png"
 import "core:fmt"
@@ -157,13 +158,82 @@ Global_State :: struct {
 	flux: ease.Flux_Map(f32),
 
 	// stores multiple png images
-	stored_images: [dynamic]Stored_Image,
+	stored_images: map[string]Stored_Image,
+	stored_image_thread: ^thread.Thread,
 }
 gs: Global_State
 
+Stored_Image_Load_Finished :: proc(img: ^Stored_Image, data: rawptr)
 Stored_Image :: struct {
-	img: ^image.Image,
-	texture: Render_Texture,
+	using backing: ^image.Image,
+	handle: u32,
+	handle_set: bool,
+	loaded: bool,
+	cloned_path: string, // removed automatically
+}
+
+// push a load command and create a thread if not existing yet
+image_load_push :: proc(path: string) -> (res: ^Stored_Image) {
+	out, ok := &gs.stored_images[path]
+
+	if !ok {
+		if gs.stored_image_thread == nil {
+			gs.stored_image_thread = thread.create_and_start(image_load_process_on_thread)
+		} 
+
+		cloned_path := strings.clone(path, context.allocator)
+		gs.stored_images[cloned_path] = { cloned_path = path }
+		out = &gs.stored_images[path]
+	} 
+
+	res = out
+	return
+}
+
+// loads an image from a file
+image_load_from_file :: proc(path: string) -> (res: ^image.Image) {
+	content, ok := os.read_entire_file(path)
+	
+	if !ok {
+		log.error("IMAGE: path not found", path)
+		return
+	}
+
+	err: image.Error
+	res, err = png.load_from_bytes(content)
+
+	if err != nil {
+		log.error("IMAGE: png load failed")
+		res = nil
+		return
+	}
+
+	return
+}
+
+// loads images on a seperate thread to the stored data
+image_load_process_on_thread :: proc(t: ^thread.Thread) {
+	for key, img in &gs.stored_images {
+		// loading needs to be done
+		if !img.loaded {
+			img.backing = image_load_from_file(key)
+			img.loaded = true
+			fmt.eprintln("image load finished", key, img.backing == nil)
+		}
+	}
+
+	gs.stored_image_thread = nil
+	thread.destroy(t)
+}
+
+image_load_process_texture_handles :: proc(window: ^Window) {
+	for key, img in &gs.stored_images {
+		if img.backing != nil && img.loaded && !img.handle_set {
+			fmt.eprintln("generated handle on main thread", img.handle)
+			img.handle = shallow_texture_init(window.target, img.backing)
+			img.handle_set = true
+		}
+	}
 }
 
 Sound_Index :: enum {
@@ -251,7 +321,7 @@ window_init :: proc(
 	res = cast(^Window) element_init(
 		Window, 
 		nil, 
-		{ .Tab_Movement_Allowed }, 
+		{ .Tab_Movement_Allowed, .Sort_By_Z_Index },
 		_window_message,
 		mem.arena_allocator(&arena),
 	)
@@ -1017,6 +1087,11 @@ gs_init :: proc() {
 
 gs_destroy :: proc() {
 	using gs
+
+	for key, value in gs.stored_images {
+		delete(key)
+	}
+	delete(gs.stored_images)
 
 	for sound in sounds {
 		mix.FreeChunk(sound)

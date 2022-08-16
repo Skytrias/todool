@@ -1,6 +1,7 @@
 package src
 
 import "core:image"
+import "core:image/png"
 import "core:os"
 import "core:encoding/json"
 import "core:mem"
@@ -34,9 +35,6 @@ import "../fontstash"
 // 	// res := nfd.SaveDialog("", "", &out_path)
 // 	// fmt.eprintln(res, out_path)
 // }
-
-test_image1: ^image.Image
-test_image2: ^image.Image
 
 main :: proc() {
 	gs_init()
@@ -113,24 +111,44 @@ main :: proc() {
 			}
 
 			case .Dropped_Files: {
-				manager := mode_panel_manager_scoped()
-				task_head_tail_push(manager)
-
 				old_indice: int
 				for indice in element.window.drop_indices {
-					file_name := string(element.window.drop_file_name_builder.buf[old_indice:indice])
+					file_path := string(element.window.drop_file_name_builder.buf[old_indice:indice])
 
-					content, ok := os.read_entire_file(file_name)
-					defer delete(content)
-
-					if ok {
-						pattern_load_content(manager, string(content))
+					if strings.has_suffix(file_path, ".png") {
+						if task_head != -1 {
+							task := tasks_visible[task_head]
+							handle := image_load_push(file_path)
+							task.image_display.img = handle
+						}
+						// p := sb.tags.panel
+						// handle := image_load_push(file_path)
+						// image_display_init(p, { .HF }, handle)
 					}
 
 					old_indice = indice
 				}
 
 				element_repaint(mode_panel)
+
+				// manager := mode_panel_manager_scoped()
+				// task_head_tail_push(manager)
+
+				// old_indice: int
+				// for indice in element.window.drop_indices {
+				// 	file_name := string(element.window.drop_file_name_builder.buf[old_indice:indice])
+
+				// 	content, ok := os.read_entire_file(file_name)
+				// 	defer delete(content)
+
+				// 	if ok {
+				// 		pattern_load_content(manager, string(content))
+				// 	}
+
+				// 	old_indice = indice
+				// }
+
+				// element_repaint(mode_panel)
 			}
 		}
 
@@ -209,21 +227,7 @@ main :: proc() {
 		old_task_tail = task_tail
 
 		pomodoro_update()
-	}
-
-	{
-		content, ok := os.read_entire_file("july_next.png")
-		if !ok {
-			panic("image not found")
-		}
-		test_image1 = texture_generate_from_png(window.target, .CUSTOM, content, "_custom")
-	}
-	{
-		content, ok := os.read_entire_file("august_one.png")
-		if !ok {
-			panic("image not found")
-		}
-		test_image2 = texture_generate_from_png(window.target, .CUSTOM, content, "_custom")
+		image_load_process_texture_handles(window)
 	}
 
 	add_shortcuts(window)

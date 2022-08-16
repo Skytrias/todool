@@ -319,8 +319,16 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			tag_show_text[:],
 		)
 
-		image_display_init(panel, { .HF }, test_image1)
-		image_display_init(panel, { .HF }, test_image2)
+		// duration: time.Duration
+		// {
+		// 	time.SCOPED_TICK_DURATION(&duration)
+
+		// 	handle0 := image_load_push("july_next.png")
+		// 	image_display_init(panel, { .HF }, handle0)
+		// 	handle1 := image_load_push("august_one.png")
+		// 	image_display_init(panel, { .HF }, handle1)
+		// }
+		// log.info("IMG LOADING TOOK", duration)
 	}
 
 	return

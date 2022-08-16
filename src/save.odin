@@ -65,8 +65,10 @@ V1_Save_Task :: struct {
 Save_Tag :: enum u8 {
 	None, // Empty flag
 	Finished, // Finished reading all tags + tag data
+	
 	Folded, // NO data included
 	Bookmark, // NO data included
+	Image_Path, // u16be string len + [N]u8 byte data
 }
 
 bytes_file_signature := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', 'F', 'F' }
@@ -83,6 +85,13 @@ buffer_write_builder :: proc(b: ^bytes.Buffer, builder: strings.Builder) -> (err
 	count := u16be(len(builder.buf))
 	buffer_write_type(b, count) or_return
 	bytes.buffer_write_string(b, strings.to_string(builder)) or_return
+	return
+}
+
+buffer_write_string :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error) {
+	count := u16be(len(text))
+	buffer_write_type(b, count) or_return
+	bytes.buffer_write_string(b, text) or_return
 	return
 }
 
@@ -153,6 +162,12 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 			opt_write_tag(&buffer, .Folded) or_return			
 		}
 
+		if image_display_has_content(task.image_display) {
+			opt_write_line(&buffer, &line_written, i) or_return
+			opt_write_tag(&buffer, .Image_Path) or_return
+			buffer_write_string(&buffer, task.image_display.img.cloned_path)
+		}
+
 		// write finish flag
 		if line_written {
 			opt_write_tag(&buffer, .Finished) or_return
@@ -217,9 +232,17 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 			tag = transmute(Save_Tag) bytes.reader_read_byte(reader) or_return
 
 			switch tag {
+				case .None, .Finished: {}
 				case .Bookmark: task.bookmarked = true
 				case .Folded: task.folded = true
-				case .None, .Finished: {}
+				case .Image_Path: {
+					length := reader_read_type(reader, u16be) or_return
+					byte_content := reader_read_bytes_out(reader, int(length)) or_return
+
+					path := string(byte_content[:])
+					handle := image_load_push(path)
+					task.image_display.img = handle
+				}
 			}
 		}
 	}
