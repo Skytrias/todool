@@ -394,12 +394,14 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		top.background_index = 2;
 
 		b1 := button_init(top, { .HF }, "Clear")
+		b1.hover_info = "Clear all archive entries"
 		b1.invoke = proc(data: rawptr) {
 			panel_clear_without_scrollbar(sb.archive.buttons)
 			sb.archive.head = -1
 			sb.archive.tail = -1
 		}
 		b2 := button_init(top, { .HF }, "Copy")
+		b2.hover_info = "Copy selected archive region for next task copy"
 		b2.invoke = proc(data: rawptr) {
 			if sb.archive.head == -1 {
 				return

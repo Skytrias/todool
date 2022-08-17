@@ -1088,6 +1088,9 @@ gs_init :: proc() {
 gs_destroy :: proc() {
 	using gs
 
+	if gs.stored_image_thread != nil {
+		thread.destroy(gs.stored_image_thread)
+	}
 	for key, value in gs.stored_images {
 		delete(key)
 	}

@@ -1269,8 +1269,8 @@ panel_layout :: proc(
 	expand := .Panel_Expand in panel.flags
 
 	for i in 0..<len(panel.children) {
-		// child := panel.children[panel.layout_elements_in_reverse ? len(panel.children) - 1 - i : i]
-		child := panel.children[i]
+		child := panel.children[panel.layout_elements_in_reverse ? len(panel.children) - 1 - i : i]
+		// child := panel.children[i]
 
 		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
 			continue
@@ -1548,6 +1548,19 @@ Scrollbar :: struct {
 	horizontal: bool,
 }
 
+// clamp position
+scrollbar_position_clamp :: proc(scrollbar: ^Scrollbar) -> (diff: f32) {
+	diff = scrollbar.maximum - scrollbar.page
+
+	if scrollbar.position < 0 {
+		scrollbar.position = 0
+	} else if scrollbar.position > diff {
+		scrollbar.position = diff
+	}
+
+	return
+}
+
 scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	scrollbar := cast(^Scrollbar) element
 
@@ -1561,14 +1574,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		case .Mouse_Scroll_Y: {
 			if .Hide not_in element.children[0].flags {
 				scrollbar.position -= f32(di) * 20
-
-				// clamp position
-				diff := scrollbar.maximum - scrollbar.page
-				if scrollbar.position < 0 {
-					scrollbar.position = 0
-				} else if scrollbar.position > diff {
-					scrollbar.position = diff
-				}
+				scrollbar_position_clamp(scrollbar)
 
 				element_repaint(scrollbar)
 				element_message(scrollbar.parent, .Scrolled)
@@ -1600,12 +1606,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				thumb_size = max(SCROLLBAR_SIZE / 2, thumb_size)
 
 				// clamp position
-				diff := scrollbar.maximum - scrollbar.page
-				if scrollbar.position < 0 {
-					scrollbar.position = 0
-				} else if scrollbar.position > diff {
-					scrollbar.position = diff
-				}
+				diff := scrollbar_position_clamp(scrollbar)
 
 				// clamp
 				thumb_position := scrollbar.position / diff * (scrollbar_size - thumb_size)
