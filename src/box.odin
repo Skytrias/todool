@@ -672,6 +672,16 @@ box_evaluate_combo :: proc(
 			last_was_task_copy = false
 		}
 
+		case "ctrl+x": {
+			if box.tail != box.head {
+				handled = box_copy_selection(element.window, box)
+				box_delete(element, box, ctrl, shift)
+				last_was_task_copy = false
+			} else {
+				handled = false
+			}
+		}
+
 		case "ctrl+v": {
 			if !last_was_task_copy {
 				handled = box_paste(element, box)

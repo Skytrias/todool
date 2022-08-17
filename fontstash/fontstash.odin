@@ -48,6 +48,8 @@ Icon :: enum {
 	Sort = 0xefee,
 	Reply = 0xec7f,
 	Notebook = 0xefaa,
+	Archive = 0xeea5,
+	Copy = 0xedea,
 }
 
 LUT_SIZE :: 256

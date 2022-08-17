@@ -13,6 +13,7 @@ import "core:encoding/json"
 Sidebar_Mode :: enum {
 	Options,
 	Tags,
+	Archive,
 }
 
 Sidebar :: struct {
@@ -22,6 +23,7 @@ Sidebar :: struct {
 	mode: Sidebar_Mode,
 	options: Sidebar_Options,
 	tags: Sidebar_Tags,
+	archive: Sidebar_Archive,
 
 	pomodoro_label: ^Label,
 }
@@ -66,8 +68,9 @@ Sidebar_Tags :: struct {
 	toggle_selector_tag: ^Toggle_Selector,
 }
 
-Sidebar_Activity :: struct {
+Sidebar_Archive :: struct {
 	panel: ^Panel,
+	buttons: ^Panel,
 }
 
 sidebar_mode_toggle :: proc(to: Sidebar_Mode) {
@@ -122,6 +125,10 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			i2 := icon_button_init(panel_info, { .HF }, .Tag, sidebar_button_message)
 			i2.data = new_clone(Sidebar_Mode.Tags)
 			i2.hover_info = "Tags"
+
+			i3 := icon_button_init(panel_info, { .HF }, .Archive, sidebar_button_message)
+			i3.data = new_clone(Sidebar_Mode.Archive)
+			i3.hover_info = "Archive"
 		}
 
 		// pomodoro
@@ -154,6 +161,34 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			b3.hover_info = "Select Long Break Time"
 		}
 	
+		// copy mode
+		{
+			copy_label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+				label := cast(^Label) element
+
+				if msg == .Paint_Recursive {
+					target := element.window.target
+					text := strings.to_string(label.builder)
+					rev := last_was_task_copy ~ (uintptr(label.data) == uintptr(0))
+					color := rev ? theme.text_default : theme.text_blank
+					erender_string_aligned(element, text, element.bounds, color, .Middle, .Middle)
+					return 1
+				}
+
+				return 0
+			}
+
+			spacer_init(panel_info, { }, 0, 20, .Thin)
+			l1 := label_init(panel_info, { .HF }, "TEXT")
+			l1.message_user = copy_label_message
+			l1.hover_info = "Next paste will insert raw text"
+			l1.data = rawptr(uintptr(0))
+			l2 := label_init(panel_info, { .HF }, "TASK")
+			l2.message_user = copy_label_message
+			l2.hover_info = "Next paste will insert a task"
+			l2.data = rawptr(uintptr(1))
+		}
+
 		// mode		
 		{
 			spacer_init(panel_info, { }, 0, 20, .Thin)
@@ -318,19 +353,100 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 			TAG_SHOW_COUNT,
 			tag_show_text[:],
 		)
-
-		// duration: time.Duration
-		// {
-		// 	time.SCOPED_TICK_DURATION(&duration)
-
-		// 	handle0 := image_load_push("july_next.png")
-		// 	image_display_init(panel, { .HF }, handle0)
-		// 	handle1 := image_load_push("august_one.png")
-		// 	image_display_init(panel, { .HF }, handle1)
-		// }
-		// log.info("IMG LOADING TOOK", duration)
 	}
 
+	// archive
+	{
+		temp := &sb.archive
+		using temp
+		panel = shared_panel(enum_panel, "Archive")
+
+		buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background }, 5, 1)
+		buttons.background_index = 2
+		buttons.rounded = true
+		buttons.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			panel := cast(^Panel) element
+
+			if msg == .Layout {
+				panel_layout(panel, element.bounds, false, true)
+				return 1
+			}
+
+			return 0
+		}
+		archive_button_init(buttons, { .HF }, "testing")
+	}
+
+	return
+}
+
+// cuts of text rendering at limit
+// on press inserts it back to the mode_panel
+// saved to save file!
+Archive_Button :: struct {
+	using element: Element,
+	builder: strings.Builder,
+}
+
+archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Archive_Button) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			target := element.window.target
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			text := strings.to_string(button.builder)
+			rect := element.bounds
+			rect.l += (5 * SCALE)
+			erender_string_aligned(element, text, rect, text_color, .Left, .Middle)
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, text_color)
+			}
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Clicked: {
+			// TODO pop the thing out
+		}
+
+		case .Get_Width: {
+			text := strings.to_string(button.builder)
+			width := max(50 * SCALE, estring_width(element, text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			return int(width)
+		}
+
+		case .Get_Height: {
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+		}
+
+		case .Deallocate_Recursive: {
+			delete(button.builder.buf)
+		}
+	}
+
+	return 0
+}
+
+archive_button_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	text: string,
+	allocator := context.allocator,
+) -> (res: ^Archive_Button) {
+	res = element_init(Archive_Button, parent, flags | { .Tab_Stop }, archive_button_message, allocator)
+	res.builder = strings.builder_make(0, len(text))
+	strings.write_string(&res.builder, text)
 	return
 }
 

@@ -228,6 +228,7 @@ main :: proc() {
 
 		pomodoro_update()
 		image_load_process_texture_handles(window)
+
 	}
 
 	add_shortcuts(window)

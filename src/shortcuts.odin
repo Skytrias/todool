@@ -261,12 +261,18 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 // 	undo_push(manager, undo_task_clear, item, size_of(Undo_Item_Task_Clear))
 // }
 
+// removes selected region and pushes them to the undo stack
 task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	low, high := task_low_and_high()
 	remove_count: int
 	for i := low; i < high + 1; i += 1 {
+		task := tasks_visible[i]
+		
+		panel := sb.archive.buttons
+		archive_button_init(panel, { .HF }, strings.to_string(task.box.builder))
+		
 		item := Undo_Item_Task_Remove_At {
-			tasks_visible[i].index - remove_count,
+			task.index - remove_count,
 		}
 		undo_task_remove_at(manager, &item)
 		remove_count += 1
@@ -472,6 +478,7 @@ shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
 			}
 		}
 
+		// delete selection
 		case "ctrl+d", "ctrl+shift+k": {
 			if task_head == -1 {
 				return
@@ -1114,7 +1121,11 @@ add_shortcuts :: proc(window: ^Window) {
 
 	// copy task/s
 	window_add_shortcut(window, "ctrl+c", proc() -> bool {
+		if !last_was_task_copy {
+			element_repaint(mode_panel) // required to make redraw and copy 
+		}
 		last_was_task_copy = true
+
 		copy_selection()
 		return true
 	})
@@ -1124,6 +1135,7 @@ add_shortcuts :: proc(window: ^Window) {
 			return false
 		}
 
+		last_was_task_copy = true
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
 

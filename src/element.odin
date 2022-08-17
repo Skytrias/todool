@@ -1238,7 +1238,12 @@ panel_measure :: proc(panel: ^Panel, di: int) -> int {
 	return size + int(panel.margin * SCALE * 2)
 }
 
-panel_layout :: proc(panel: ^Panel, bounds: Rect, measure: bool) -> f32 {
+panel_layout :: proc(
+	panel: ^Panel, 
+	bounds: Rect, 
+	measure: bool, 
+	reverse: bool,
+) -> f32 {
 	horizontal := .Panel_Horizontal in panel.flags
 	scaled_margin := math.round(panel.margin * SCALE)
 	position := scaled_margin
@@ -1250,7 +1255,9 @@ panel_layout :: proc(panel: ^Panel, bounds: Rect, measure: bool) -> f32 {
 	per_fill, count := panel_calculate_per_fill(panel, int(hspace), int(vspace))
 	expand := .Panel_Expand in panel.flags
 
-	for child, i in panel.children {
+	for i in 0..<len(panel.children) {
+		child := panel.children[reverse ? len(panel.children) - 1 - i : i]
+
 		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
 			continue
 		}
@@ -1345,12 +1352,12 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if panel.scrollbar != nil {
 				scrollbar_bounds := element.bounds
 				scrollbar_bounds.l = scrollbar_bounds.r - scrollbar_width
-				panel.scrollbar.maximum = panel_layout(panel, bounds, true)
+				panel.scrollbar.maximum = panel_layout(panel, bounds, true, false)
 				panel.scrollbar.page = rect_height(element.bounds)
 				element_move(panel.scrollbar, scrollbar_bounds)
 			}
 
-			panel_layout(panel, bounds, false)
+			panel_layout(panel, bounds, false, false)
 		}
 
 		case .Update: {
@@ -1414,7 +1421,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Get_Width: {
 			if .Panel_Horizontal in element.flags {
-				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true))
+				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true, false))
 			} else {
 				return panel_measure(panel, di)
 			}
@@ -1425,7 +1432,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				return panel_measure(panel, di)
 			} else {
 				width := di != 0 && panel.scrollbar != nil ? (f32(di) - SCROLLBAR_SIZE * SCALE) : f32(di)
-				return int(panel_layout(panel, { 0, width, 0, 0 }, true))
+				return int(panel_layout(panel, { 0, width, 0, 0 }, true, false))
 			}
 		}
 
@@ -2208,6 +2215,10 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 		}
 
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
 		case .Paint_Recursive: {
 			target := element.window.target
 			hovered := element.window.hovered == element
@@ -2508,7 +2519,7 @@ enum_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Find_By_Point_Recursive: {
 			point := cast(^Find_By_Point) dp
 			element_find_by_point_custom(chosen, point)	
-			return 1
+			return 0
 		}
 
 		case .Paint_Recursive: {
