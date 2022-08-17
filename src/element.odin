@@ -1,5 +1,6 @@
 package src
 
+import "core:runtime"
 import "core:image"
 import "core:image/png"
 import "core:mem"
@@ -277,11 +278,12 @@ element_init :: proc(
 	messaging: Message_Proc,
 	allocator: mem.Allocator,
 	index_at := -1,
+	cap := runtime.DEFAULT_RESERVE_CAPACITY,
 ) -> (res: ^T) {
 	res = new(T, allocator)
 	element := cast(^Element) res
 	element.allocator = allocator
-	element.children = make([dynamic]^Element, allocator)
+	element.children = make([dynamic]^Element, 0, cap, allocator)
 	element.flags = flags
 	element.message_class = messaging
 
@@ -1160,6 +1162,9 @@ spacer_init :: proc(
 
 Panel :: struct {
 	using element: Element,
+
+	// good to have
+	layout_elements_in_reverse: bool,
 	
 	// gut info
 	margin: f32,
@@ -1178,6 +1183,15 @@ Panel :: struct {
 
 	scrollbar: ^Scrollbar,
 	background_index: int,
+}
+
+// clears the panel children, with care for the scrollbar
+panel_clear_without_scrollbar :: proc(panel: ^Panel) {
+	if panel.scrollbar == nil {
+		clear(&panel.children)
+	} else {
+		resize(&panel.children, 1)
+	}
 }
 
 panel_calculate_per_fill :: proc(panel: ^Panel, hspace, vspace: int) -> (per_fill, count: int) {
@@ -1242,7 +1256,6 @@ panel_layout :: proc(
 	panel: ^Panel, 
 	bounds: Rect, 
 	measure: bool, 
-	reverse: bool,
 ) -> f32 {
 	horizontal := .Panel_Horizontal in panel.flags
 	scaled_margin := math.round(panel.margin * SCALE)
@@ -1256,7 +1269,8 @@ panel_layout :: proc(
 	expand := .Panel_Expand in panel.flags
 
 	for i in 0..<len(panel.children) {
-		child := panel.children[reverse ? len(panel.children) - 1 - i : i]
+		// child := panel.children[panel.layout_elements_in_reverse ? len(panel.children) - 1 - i : i]
+		child := panel.children[i]
 
 		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
 			continue
@@ -1352,12 +1366,12 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if panel.scrollbar != nil {
 				scrollbar_bounds := element.bounds
 				scrollbar_bounds.l = scrollbar_bounds.r - scrollbar_width
-				panel.scrollbar.maximum = panel_layout(panel, bounds, true, false)
+				panel.scrollbar.maximum = panel_layout(panel, bounds, true)
 				panel.scrollbar.page = rect_height(element.bounds)
 				element_move(panel.scrollbar, scrollbar_bounds)
 			}
 
-			panel_layout(panel, bounds, false, false)
+			panel_layout(panel, bounds, false)
 		}
 
 		case .Update: {
@@ -1421,7 +1435,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Get_Width: {
 			if .Panel_Horizontal in element.flags {
-				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true, false))
+				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true))
 			} else {
 				return panel_measure(panel, di)
 			}
@@ -1432,7 +1446,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				return panel_measure(panel, di)
 			} else {
 				width := di != 0 && panel.scrollbar != nil ? (f32(di) - SCROLLBAR_SIZE * SCALE) : f32(di)
-				return int(panel_layout(panel, { 0, width, 0, 0 }, true, false))
+				return int(panel_layout(panel, { 0, width, 0, 0 }, true))
 			}
 		}
 

@@ -229,6 +229,16 @@ main :: proc() {
 		pomodoro_update()
 		image_load_process_texture_handles(window)
 
+		// update visual indices of archive buttons, to not do lookups
+		if (.Hide not_in sb.enum_panel.flags) && sb.mode == .Archive {
+			sb.archive.head = clamp(sb.archive.head, 0, len(sb.archive.buttons.children) - 1)
+			sb.archive.tail = clamp(sb.archive.tail, 0, len(sb.archive.buttons.children) - 1)
+
+			for e, i in sb.archive.buttons.children {
+				button := cast(^Archive_Button) e
+				button.visual_index = len(sb.archive.buttons.children) - 1 - i
+ 			}
+		}
 	}
 
 	add_shortcuts(window)

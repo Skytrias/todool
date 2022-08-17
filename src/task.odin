@@ -196,8 +196,21 @@ copy_reset :: proc() {
 	clear(&copy_task_data)
 }
 
+// just push text, e.g. from archive
+copy_push_empty :: proc(text: string) {
+	text_byte_start := len(copy_text_data.buf)
+	strings.write_string(&copy_text_data, text)
+	text_byte_end := len(copy_text_data.buf)
+
+	// copy crucial info of task
+	append(&copy_task_data, Copy_Task {
+		text_byte_start = u32(text_byte_start),
+		text_byte_end = u32(text_byte_end),
+	})
+}
+
 // push a task to copy list
-copy_push :: proc(task: ^Task) {
+copy_push_task :: proc(task: ^Task) {
 	// NOTE works with utf8 :) copies task text
 	text_byte_start := len(copy_text_data.buf)
 	strings.write_string(&copy_text_data, strings.to_string(task.box.builder))
@@ -421,7 +434,6 @@ task_low_and_high :: #force_inline proc() -> (low, high: int) {
 task_head_tail_check_begin :: proc() ->  bool {
 	if !mode_panel.window.shift && task_head != task_tail {
 		task_tail = task_head
-		task_head = task_head
 		return false
 	}
 

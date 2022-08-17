@@ -10,6 +10,32 @@ import "core:os"
 import "core:strings"
 import "core:encoding/json"
 
+ARCHIVE_MAX :: 128
+
+// push to archive text
+archive_push :: proc(text: string) {
+	if len(text) != 0 {
+		// KEEP AT MAX.
+		if len(sb.archive.buttons.children) == ARCHIVE_MAX {
+			// TODO optimize
+			// log.info("REMOVING ONE TO STAY IN MAX")
+			// mem
+			ordered_remove(&sb.archive.buttons.children, 0)
+		} 
+
+		// log.info("LEN", len(sb.archive.buttons.children))
+		archive_button_init(sb.archive.buttons, { .HF }, text)
+		sb.archive.head += 1
+		sb.archive.tail += 1
+	}
+}
+
+archive_low_and_high :: proc() -> (low, high: int) {
+	low = min(sb.archive.head, sb.archive.tail)
+	high = max(sb.archive.head, sb.archive.tail)
+	return
+}
+
 Sidebar_Mode :: enum {
 	Options,
 	Tags,
@@ -71,6 +97,8 @@ Sidebar_Tags :: struct {
 Sidebar_Archive :: struct {
 	panel: ^Panel,
 	buttons: ^Panel,
+
+	head, tail: int,
 }
 
 sidebar_mode_toggle :: proc(to: Sidebar_Mode) {
@@ -361,20 +389,40 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		using temp
 		panel = shared_panel(enum_panel, "Archive")
 
-		buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background }, 5, 1)
-		buttons.background_index = 2
-		buttons.rounded = true
-		buttons.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			panel := cast(^Panel) element
+		top := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background })
+		top.rounded = true
+		top.background_index = 2;
 
-			if msg == .Layout {
-				panel_layout(panel, element.bounds, false, true)
-				return 1
+		b1 := button_init(top, { .HF }, "Clear")
+		b1.invoke = proc(data: rawptr) {
+			panel_clear_without_scrollbar(sb.archive.buttons)
+			sb.archive.head = -1
+			sb.archive.tail = -1
+		}
+		b2 := button_init(top, { .HF }, "Copy")
+		b2.invoke = proc(data: rawptr) {
+			if sb.archive.head == -1 {
+				return
 			}
 
-			return 0
+			low, high := archive_low_and_high()
+			c := sb.archive.buttons.children
+			
+			copy_reset()
+			last_was_task_copy = true
+			element_repaint(mode_panel)
+
+			for i in low..<high + 1 {
+				button := cast(^Archive_Button) c[len(c) - 1 - i]
+				copy_push_empty(strings.to_string(button.builder))
+			}
 		}
-		archive_button_init(buttons, { .HF }, "testing")
+
+		buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background, .Panel_Scrollable }, 5, 1)
+		buttons.background_index = 2
+		buttons.rounded = true
+		buttons.layout_elements_in_reverse = true
+		reserve(&buttons.children, ARCHIVE_MAX)
 	}
 
 	return
@@ -386,6 +434,7 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 Archive_Button :: struct {
 	using element: Element,
 	builder: strings.Builder,
+	visual_index: int,
 }
 
 archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -397,6 +446,12 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			hovered := element.window.hovered == element
 			target := element.window.target
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			low, high := archive_low_and_high()
+			if low <= button.visual_index && button.visual_index <= high {
+				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
+				text_color = theme.text_default
+			}
 
 			text := strings.to_string(button.builder)
 			rect := element.bounds
@@ -417,7 +472,29 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 		}
 
 		case .Clicked: {
-			// TODO pop the thing out
+			// head / tail setting
+			if element.window.shift {
+				sb.archive.tail = button.visual_index
+			} else {
+				sb.archive.head = button.visual_index
+				sb.archive.tail = button.visual_index
+			}
+
+			element_repaint(element)
+
+			// manager := mode_panel_manager_scoped()
+			// task_head_tail_push(manager)
+			
+			// indentation: int
+			// index := -1
+			
+			// if task_head != -1 {
+			// 	prev := tasks_visible[task_head]
+			// 	indentation = prev.indentation
+			// 	index = prev.index + 1
+			// }
+
+			// task_push_undoable(manager, indentation, strings.to_string(button.builder), index)
 		}
 
 		case .Get_Width: {

@@ -342,6 +342,12 @@ Misc_Save_Load :: struct {
 	},
 
 	theme: Theme_Save_Load,
+
+	archive: struct {
+		head: int,
+		tail: int,
+		data: []string,
+	},
 }
 
 json_save_misc :: proc(path: string) -> bool {
@@ -365,6 +371,15 @@ json_save_misc :: proc(path: string) -> bool {
 	}
 
 	pomodoro_diff := time.stopwatch_duration(pomodoro.stopwatch)
+	
+	// archive data
+	archive_data := make([]string, len(sb.archive.buttons.children))
+	defer delete(archive_data)
+	
+	for e, i in sb.archive.buttons.children {
+		button := cast(^Archive_Button) e
+		archive_data[i] = strings.to_string(button.builder)
+	}
 
 	value := Misc_Save_Load {
 		scale =  SCALE,
@@ -402,6 +417,12 @@ json_save_misc :: proc(path: string) -> bool {
 		},
 
 		theme = theme_save,
+
+		archive = {
+			sb.archive.head,
+			sb.archive.tail,
+			archive_data,
+		},
 	}
 
 	result, err := json.marshal(
@@ -492,6 +513,14 @@ json_load_misc :: proc(path: string) -> bool{
 
 	pomodoro_label_format()
 	element_repaint(mode_panel)
+
+	// archive
+	panel_clear_without_scrollbar(sb.archive.buttons)
+	for text, i in misc.archive.data {
+		archive_push(text)
+	}
+	sb.archive.head = misc.archive.head
+	sb.archive.tail = misc.archive.tail
 
 	return true
 }

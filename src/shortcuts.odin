@@ -265,11 +265,12 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	low, high := task_low_and_high()
 	remove_count: int
+	
 	for i := low; i < high + 1; i += 1 {
 		task := tasks_visible[i]
-		
-		panel := sb.archive.buttons
-		archive_button_init(panel, { .HF }, strings.to_string(task.box.builder))
+
+		// only valid
+		archive_push(strings.to_string(task.box.builder))
 		
 		item := Undo_Item_Task_Remove_At {
 			task.index - remove_count,
@@ -293,7 +294,7 @@ copy_selection :: proc() {
 		// copy each line
 		for i in low..<high + 1 {
 			task := tasks_visible[i]
-			copy_push(task)
+			copy_push_task(task)
 		}
 	}
 }
