@@ -444,7 +444,11 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			combo := (cast(^string) dp)^
 			shift := element.window.shift
 			ctrl := element.window.ctrl
-			handled := box_evaluate_combo(box, &box.box, combo, ctrl, shift)
+			handled := false
+
+			if command, ok := element.window.shortcut_state.box[combo]; ok {
+				handled = shortcuts_command_execute_box(box, &box.box, command, ctrl, shift)
+			}
 
 			if handled {
 				element_repaint(element)
@@ -579,7 +583,11 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			combo := (cast(^string) dp)^
 			shift := element.window.shift
 			ctrl := element.window.ctrl
-			handled := box_evaluate_combo(task_box, &task_box.box, combo, ctrl, shift)
+			handled := false
+
+			if command, ok := element.window.shortcut_state.box[combo]; ok {
+				handled = shortcuts_command_execute_box(task_box, &task_box.box, command, ctrl, shift)
+			}
 
 			if handled {
 				element_repaint(element)
@@ -629,50 +637,31 @@ task_box_init :: proc(
 // Box input
 //////////////////////////////////////////////
 
-box_evaluate_combo :: proc(
+// evaluate command text to actual execution of command
+shortcuts_command_execute_box :: proc(
 	element: ^Element,
 	box: ^Box,
-	combo: string, 
-	ctrl, shift: bool,
+	command: string,
+	ctrl: bool,
+	shift: bool,
 ) -> (handled: bool) {
 	handled = true
 
-	// TODO could use some form of mapping
-	switch combo {
-		case "ctrl+shift+left", "ctrl+left", "shift+left", "left": {
-			box_move_left(box, ctrl, shift)
-		}
+	switch command {
+		case "move_left": box_move_left(box, ctrl, shift)
+		case "move_right": box_move_right(box, ctrl, shift)
+		case "home": box_move_home(box, shift)
+		case "end": box_move_end(box, shift)
+		case "backspace": handled = box_backspace(element, box, ctrl, shift)
+		case "delete": handled = box_delete(element, box, ctrl, shift)
+		case "select_all": box_select_all(box)
 
-		case "ctrl+shift+right", "ctrl+right", "shift+right", "right": {
-			box_move_right(box, ctrl, shift)
-		}
-
-		case "shift+home", "home": {
-			box_move_home(box, shift)
-		}
-		
-		case "shift+end", "end": {
-			box_move_end(box, shift)
-		}
-
-		case "ctrl+backspace", "shift+backspace", "backspace": {
-			handled = box_backspace(element, box, ctrl, shift)
-		}
-
-		case "ctrl+delete", "delete": {
-			handled = box_delete(element, box, ctrl, shift)
-		}
-
-		case "ctrl+a": {
-			box_select_all(box)
-		}
-
-		case "ctrl+c": {
+		case "copy": {
 			handled = box_copy_selection(element.window, box)
 			last_was_task_copy = false
 		}
 
-		case "ctrl+x": {
+		case "cut": {
 			if box.tail != box.head {
 				handled = box_copy_selection(element.window, box)
 				box_delete(element, box, ctrl, shift)
@@ -682,7 +671,7 @@ box_evaluate_combo :: proc(
 			}
 		}
 
-		case "ctrl+v": {
+		case "paste": {
 			if !last_was_task_copy {
 				handled = box_paste(element, box)
 			} else {

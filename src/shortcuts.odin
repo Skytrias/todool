@@ -8,6 +8,731 @@ import "core:mem"
 import "../cutf8"
 import "../nfd"
 
+// shortcut state that holds all shortcuts
+// key_combo -> command -> command execution
+Shortcut_State :: struct {
+	arena: mem.Arena,
+	arena_backing: []byte,
+	
+	box: map[string]string,
+	general: map[string]string,
+}
+
+shortcut_state_init :: proc(s: ^Shortcut_State, arena_cap: int) {
+	s.arena_backing = make([]byte, arena_cap)
+	mem.arena_init(&s.arena, s.arena_backing)
+	s.box = make(map[string]string, 32)
+	s.general = make(map[string]string, 128)
+}
+
+shortcut_state_destroy :: proc(s: ^Shortcut_State) {
+	delete(s.box)
+	delete(s.general)
+	free_all(mem.arena_allocator(&s.arena))
+	delete(s.arena_backing)
+}
+
+// push box command with N combos
+shortcuts_push_box :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
+	for combo in combos {
+		s.box[strings.clone(combo)] = strings.clone(command)
+	}
+}
+
+// push general command with N combos
+shortcuts_push_general :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
+	for combo in combos {
+		s.general[strings.clone(combo)] = strings.clone(command)
+	}
+}
+
+// clear all shortcuts
+shortcuts_clear :: proc(window: ^Window) {
+	s := &window.shortcut_state
+	clear(&s.box)
+	clear(&s.general)
+	free_all(mem.arena_allocator(&s.arena))
+}
+
+// push default box shortcuts
+shortcuts_push_box_default :: proc(window: ^Window) {
+	s := &window.shortcut_state
+	context.allocator = mem.arena_allocator(&s.arena)
+	shortcuts_push_box(s, "move_left", "ctrl+shift+left", "ctrl+left", "shift+left", "left")
+	shortcuts_push_box(s, "move_right", "ctrl+shift+right", "ctrl+right", "shift+right", "right")
+	shortcuts_push_box(s, "home", "shift+home", "home")
+	shortcuts_push_box(s, "end", "shift+end", "end")
+	shortcuts_push_box(s, "backspace", "ctrl+backspace", "shift+backspace", "backspace")
+	shortcuts_push_box(s, "delete", "shift+delete", "delete")
+	shortcuts_push_box(s, "select_all", "ctrl+a")
+	shortcuts_push_box(s, "copy", "ctrl+c")
+	shortcuts_push_box(s, "cut", "ctrl+x")
+	shortcuts_push_box(s, "paste", "ctrl+v")
+}
+
+shortcuts_command_execute_todool :: proc(command: string) {
+	ctrl := mode_panel.window.ctrl
+	shift := mode_panel.window.shift
+
+	switch command {
+		case "move_up": todool_move_up()
+		case "move_down": todool_move_down()
+		case "move_up_parent": todool_move_up_parent()
+		
+		case "indent_jump_low_prev": todool_indent_jump_low_prev()
+		case "indent_jump_low_next": todool_indent_jump_low_next()
+		case "indent_jump_same_prev": todool_indent_jump_same_prev()
+		case "indent_jump_same_next": todool_indent_jump_same_next()
+		case "indent_jump_scope": todool_indent_jump_scope()
+	
+		case "tag_jump_prev": todool_tag_jump(true)
+		case "tag_jump_next": todool_tag_jump(false)
+		
+		case "tag_toggle1": tag_toggle(0x01)
+		case "tag_toggle2": tag_toggle(0x02)
+		case "tag_toggle3": tag_toggle(0x04)
+		case "tag_toggle4": tag_toggle(0x08)
+		case "tag_toggle5": tag_toggle(0x10)
+		case "tag_toggle6": tag_toggle(0x20)
+		case "tag_toggle7": tag_toggle(0x40)
+		case "tag_toggle8": tag_toggle(0x80)
+
+		case "delete_tasks": todool_delete_tasks()
+		case "delete_on_empty": todool_delete_on_empty()
+		
+		case "copy_tasks_to_clipboard": todool_copy_tasks_to_clipboard()
+		case "copy_tasks": todool_copy_tasks()
+		case "cut_tasks": todool_cut_tasks()
+		case "paste_tasks": todool_paste_tasks()
+		case "center": todool_center()
+		
+		case "change_task_state": todool_change_task_state(shift)
+		case "changelog_generate": todool_changelog_generate()
+
+		case "selection_stop": todool_selection_stop()
+		
+		case "toggle_folding": todool_toggle_folding()
+		case "toggle_bookmark": todool_toggle_bookmark()
+
+		case "indentation_shift_right": todool_indentation_shift(1)
+		case "indentation_shift_left": todool_indentation_shift(-1)
+
+		case "pomodoro_toggle1": pomodoro_stopwatch_hot_toggle(0)
+		case "pomodoro_toggle2": pomodoro_stopwatch_hot_toggle(1)
+		case "pomodoro_toggle3": pomodoro_stopwatch_hot_toggle(2)
+
+		case "mode_list": todool_mode_list()
+		case "mode_kanban": todool_mode_kanban()
+		case "theme_editor": theme_editor_spawn()
+
+		case "insert_sibling": todool_insert_sibling()
+		case "insert_child": todool_insert_child()
+
+		case "shift_up": todool_shift_up()
+		case "shift_down": todool_shift_down()
+
+		case "select_all": todool_select_all()
+
+		case "undo": todool_undo()
+		case "redo": todool_redo()
+		case "save": todool_save()
+
+		case "goto": todool_goto()
+		case "search": todool_search()
+	}
+}
+
+shortcuts_push_todool :: proc(window: ^Window) {
+	s := &window.shortcut_state
+	context.allocator = mem.arena_allocator(&s.arena)
+	shortcuts_push_general(s, "move_up", "ctrl+up", "up")
+	shortcuts_push_general(s, "move_down", "ctrl+down", "down")
+	shortcuts_push_general(s, "move_up_parent", "ctrl+shift+home", "ctrl+home")
+	
+	shortcuts_push_general(s, "indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
+	shortcuts_push_general(s, "indent_jump_low_next", "ctrl+shift+.", "ctrl+.")
+	shortcuts_push_general(s, "indent_jump_same_prev", "ctrl+shift+up", "ctrl+up")
+	shortcuts_push_general(s, "indent_jump_same_next", "ctrl+shift+down", "ctrl+down")
+	shortcuts_push_general(s, "indent_jump_scope", "ctrl+shift+m", "ctrl+m")
+	
+	shortcuts_push_general(s, "tag_jump_prev", "ctrl+shift+tab")
+	shortcuts_push_general(s, "tag_jump_next", "ctrl+tab")
+
+	shortcuts_push_general(s, "delete_on_empty", "ctrl+backspace", "backspace")
+	shortcuts_push_general(s, "delete_tasks", "ctrl+d", "ctrl+shift+k")
+	
+	shortcuts_push_general(s, "copy_tasks_to_clipboard", "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c")
+	shortcuts_push_general(s, "copy_tasks", "ctrl+c")
+	shortcuts_push_general(s, "cut_tasks", "ctrl+x")
+	shortcuts_push_general(s, "paste_tasks", "ctrl+v")
+	shortcuts_push_general(s, "center", "ctrl+e")
+	
+	shortcuts_push_general(s, "change_task_state", "ctrl+shift+q", "ctrl+q")
+	
+	shortcuts_push_general(s, "selection_stop", "left", "right")
+	shortcuts_push_general(s, "toggle_folding", "ctrl+j")
+	shortcuts_push_general(s, "toggle_bookmark", "ctrl+b")
+
+	shortcuts_push_general(s, "tag_toggle1", "ctrl+1")
+	shortcuts_push_general(s, "tag_toggle2", "ctrl+2")
+	shortcuts_push_general(s, "tag_toggle3", "ctrl+3")
+	shortcuts_push_general(s, "tag_toggle4", "ctrl+4")
+	shortcuts_push_general(s, "tag_toggle5", "ctrl+5")
+	shortcuts_push_general(s, "tag_toggle6", "ctrl+6")
+	shortcuts_push_general(s, "tag_toggle7", "ctrl+7")
+	shortcuts_push_general(s, "tag_toggle8", "ctrl+8")
+	
+	shortcuts_push_general(s, "changelog_generate", "alt+x")
+	
+	shortcuts_push_general(s, "indentation_shift_right", "tab")
+	shortcuts_push_general(s, "indentation_shift_left", "shift+tab")
+
+	shortcuts_push_general(s, "pomodoro_toggle1", "alt+1")
+	shortcuts_push_general(s, "pomodoro_toggle2", "alt+2")
+	shortcuts_push_general(s, "pomodoro_toggle3", "alt+3")
+	
+	shortcuts_push_general(s, "mode_list", "alt+q")
+	shortcuts_push_general(s, "mode_kanban", "alt+w")
+	shortcuts_push_general(s, "theme_editor", "alt+e")
+
+	shortcuts_push_general(s, "insert_sibling", "return")
+	shortcuts_push_general(s, "insert_child", "ctrl+return")
+
+	shortcuts_push_general(s, "shift_down", "alt+down")
+	shortcuts_push_general(s, "shift_up", "alt+up")
+	shortcuts_push_general(s, "select_all", "ctrl+shift+a")
+
+	shortcuts_push_general(s, "undo", "ctrl+z")
+	shortcuts_push_general(s, "redo", "ctrl+y")
+	shortcuts_push_general(s, "save", "ctrl+s")
+
+	shortcuts_push_general(s, "goto", "ctrl+g")
+	shortcuts_push_general(s, "search", "ctrl+f")
+
+	// shortcuts_push_general(s, "")
+}
+
+todool_delete_on_empty :: proc() {
+	task := tasks_visible[task_head]
+	
+	if len(task.box.builder.buf) == 0 {
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+		index := task.index
+		
+		if index == len(mode_panel.children) {
+			item := Undo_Item_Task_Pop {}
+			undo_task_pop(manager, &item)
+		} else {
+			item := Undo_Item_Task_Remove_At { index }
+			undo_task_remove_at(manager, &item)
+		}
+
+		element_repaint(task)
+		task_head -= 1
+		task_tail -= 1
+	}
+}
+
+todool_move_up :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	if task_head_tail_check_begin() {
+		task_head -= 1
+	}
+	task_head_tail_check_end()
+	bookmark_index = -1
+	task := tasks_visible[max(task_head, 0)]
+	element_repaint(mode_panel)
+	element_message(task.box, .Box_Set_Caret, BOX_END)
+}
+
+todool_move_down :: proc() {
+	if task_head == -1 {
+		return 
+	}
+
+	if task_head_tail_check_begin() {
+		task_head += 1
+	}
+	task_head_tail_check_end()
+	bookmark_index = -1
+
+	task := tasks_visible[min(task_head, len(tasks_visible) - 1)]
+	element_message(task.box, .Box_Set_Caret, BOX_END)
+	element_repaint(mode_panel)
+}
+
+todool_move_up_parent :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task_current := tasks_visible[task_head]
+
+	for i := task_head - 1; i >= 0; i -= 1 {
+		task := tasks_visible[i]
+		
+		if task.indentation < task_current.indentation {
+			if task_head_tail_check_begin() {
+				task_head = i
+			}
+			task_head_tail_check_end()
+			element_repaint(mode_panel)
+			element_message(task.box, .Box_Set_Caret, BOX_END)
+			break
+		}
+	} 
+}
+
+todool_indent_jump_low_prev :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task_current := tasks_visible[task_head]
+
+	for i := task_current.index - 1; i >= 0; i -= 1 {
+		task := cast(^Task) mode_panel.children[i]
+
+		if task.indentation == 0 && task.visible {
+			if task_head_tail_check_begin() {
+				task_head = task.visible_index
+			}
+			task_head_tail_check_end()
+			element_message(task.box, .Box_Set_Caret, BOX_END)
+			element_repaint(task)
+			break
+		}
+	}
+}
+
+todool_indent_jump_low_next :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task_current := tasks_visible[task_head]
+
+	for i in task_current.index + 1..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+
+		if task.indentation == 0 && task.visible {
+			if task_head_tail_check_begin() {
+				task_head = task.visible_index
+			}
+			task_head_tail_check_end()
+			element_repaint(task)
+			element_message(task.box, .Box_Set_Caret, BOX_END)
+			break
+		}
+	}
+}
+
+todool_indent_jump_same_prev :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task_current := tasks_visible[task_head]
+
+	for i := task_head - 1; i >= 0; i -= 1 {
+		task := tasks_visible[i]
+		
+		if task.indentation == task_current.indentation {
+			if task_head_tail_check_begin() {
+				task_head = i
+			}
+			task_head_tail_check_end()
+			element_repaint(mode_panel)
+			element_message(task.box, .Box_Set_Caret, BOX_END)
+			break
+		}
+	} 
+}
+
+todool_indent_jump_same_next :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task_current := tasks_visible[task_head]
+
+	for i := task_head + 1; i < len(tasks_visible); i += 1 {
+		task := tasks_visible[i]
+		
+		if task.indentation == task_current.indentation {
+			if task_head_tail_check_begin() {
+				task_head = i
+			}
+			task_head_tail_check_end()
+			element_repaint(mode_panel)
+			element_message(task.box, .Box_Set_Caret, BOX_END)
+			break
+		}
+	} 
+}
+
+todool_tag_jump :: proc(shift: bool) {
+	if len(bookmarks) != 0 && len(tasks_visible) != 0 {
+		bookmark_advance(shift)
+		index := bookmarks[bookmark_index]
+		task := tasks_visible[index]
+		task_head = task.visible_index
+		task_tail = task.visible_index
+		element_repaint(mode_panel)
+	}
+}
+
+todool_delete_tasks :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+	task_remove_selection(manager, true)
+	element_repaint(mode_panel)
+}
+
+todool_copy_tasks_to_clipboard :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	b := strings.builder_make(0, mem.Kilobyte * 10)
+	defer delete(b.buf)
+
+	low, high := task_low_and_high()
+
+	// get lowest
+	lowest_indentation := 255
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+		lowest_indentation = min(lowest_indentation, task.indentation)
+	}
+
+	// write text into buffer
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+		relative_indentation := task.indentation - lowest_indentation
+		task_write_text_indentation(&b, task, relative_indentation)
+	}
+
+	clipboard_set_with_builder(&b)
+	// fmt.eprint(strings.to_string(b))
+}
+
+todool_change_task_state :: proc(shift: bool) {
+	if task_head == -1 {
+		return
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+		
+	selection := task_has_selection()
+	low, high := task_low_and_high()
+
+	// modify all states
+	index: int
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+
+		if task.has_children {
+			continue
+		}
+
+		index = int(task.state)
+		range_advance_index(&index, len(Task_State) - 1, shift)
+
+		// save old set
+		task_set_state_undoable(manager, task, Task_State(index))
+	}
+
+	element_repaint(mode_panel)
+}
+
+todool_indent_jump_scope :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task_current := tasks_visible[task_head]
+	defer element_repaint(mode_panel)
+
+	// skip indent search at higher levels, just check for 0
+	if task_current.indentation == 0 {
+		// search for first indent 0 at end
+		for i := len(tasks_visible) - 1; i >= 0; i -= 1 {
+			current := tasks_visible[i]
+
+			if current.indentation == 0 {
+				if i == task_head {
+					break
+				}
+
+				task_head_tail_check_begin()
+				task_head = i
+				task_head_tail_check_end()
+				return
+			}
+		}
+
+		// search for first indent at 0 
+		for i in 0..<len(tasks_visible) {
+			current := tasks_visible[i]
+
+			if current.indentation == 0 {
+				task_head_tail_check_begin()
+				task_head = i
+				task_head_tail_check_end()
+				break
+			}
+		}
+	} else {
+		// check for end first
+		last_good := task_head
+		for i in task_head + 1..<len(tasks_visible) {
+			next := tasks_visible[i]
+
+			if next.indentation == task_current.indentation {
+				last_good = i
+			}
+
+			if next.indentation < task_current.indentation || i + 1 == len(tasks_visible) {
+				if last_good == task_head {
+					break
+				}
+
+				task_head_tail_check_begin()
+				task_head = last_good
+				task_head_tail_check_end()
+				return
+			}
+		}
+
+		// move backwards
+		last_good = -1
+		for i := task_head - 1; i >= 0; i -= 1 {
+			prev := tasks_visible[i]
+
+			if prev.indentation == task_current.indentation {
+				last_good = i
+			}
+
+			if prev.indentation < task_current.indentation {
+				task_head_tail_check_begin()
+				task_head = last_good
+				task_head_tail_check_end()
+				break
+			}
+		}
+	}
+}
+
+todool_selection_stop :: proc() {
+	if task_has_selection() {
+		task_tail = task_head
+		element_repaint(mode_panel)
+	}	
+}
+
+todool_changelog_generate :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	b := strings.builder_make(0, mem.Kilobyte * 10)
+	defer delete(b.buf)
+	removed_count: int
+	
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	// write tasks out 
+	for i := 0; i < len(mode_panel.children); i += 1 {
+		task := cast(^Task) mode_panel.children[i]
+
+		if task.state != .Normal {
+			task_write_text_indentation(&b, task, task.indentation)
+
+			item := Undo_Item_Task_Remove_At { i }
+			undo_task_remove_at(manager, &item)
+			
+			i -= 1
+			removed_count += 1
+		} else if task.has_children {
+			if task.state_count[.Done] != 0 || task.state_count[.Canceled] != 0 {
+				task_write_text_indentation(&b, task, task.indentation)
+			}
+		}
+	}
+
+	if removed_count != 0 {
+		clipboard_set_with_builder(&b)
+		element_repaint(mode_panel)
+	}
+}
+
+todool_escape :: proc() {
+	if image_display_has_content(mode_panel.image_display) {
+		mode_panel.image_display.img = nil
+		element_repaint(mode_panel)
+		return
+	}
+
+	if .Hide not_in panel_search.flags {
+		element_hide(panel_search, true)
+		element_repaint(mode_panel)
+		return
+	}
+
+	if .Hide not_in sb.enum_panel.flags {
+		element_hide(sb.enum_panel, true)
+		element_repaint(mode_panel)
+		return
+	}
+}
+
+todool_toggle_folding :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task := tasks_visible[task_head]
+	manager := mode_panel_manager_scoped()
+
+	if task.has_children {
+		task_head_tail_push(manager)
+		item := Undo_Item_Bool_Toggle { &task.folded }
+		undo_bool_toggle(manager, &item)
+		
+		task_tail = task_head
+		element_repaint(mode_panel)
+	}
+}
+
+todool_insert_sibling :: proc() {
+	indentation: int
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	// NOTE next line
+	goal := len(mode_panel.children) // default append
+	if task_head < len(tasks_visible) - 1 {
+		goal = tasks_visible[task_head + 1].index
+	}
+
+	if task_head != -1 {
+		indentation = tasks_visible[task_head].indentation
+	}
+
+	// // same line
+	// goal := 0 // default append
+	// if task_head != -1 && task_head > 0 {
+	// 	goal = tasks_visible[task_head].index
+	// 	indentation = tasks_visible[task_head - 1].indentation
+	// }
+
+	task_push_undoable(manager, indentation, "", goal)
+	task_head += 1
+	task_head_tail_check_end()
+	element_repaint(mode_panel)
+}
+
+todool_insert_child :: proc() {
+	indentation: int
+	goal := len(mode_panel.children) // default append
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	if task_head < len(tasks_visible) - 1 {
+		goal = tasks_visible[task_head + 1].index
+	}
+
+	if task_head != -1 {
+		current_task := tasks_visible[task_head]
+		indentation = current_task.indentation + 1
+		builder := &current_task.box.builder
+
+		// uppercase word
+		if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
+			item := Undo_Builder_Uppercased_Content { builder }
+			undo_box_uppercased_content(manager, &item)
+		}
+	}
+
+	task_push_undoable(manager, indentation, "", goal)
+	task_head += 1
+	task_head_tail_check_end()
+	element_repaint(mode_panel)
+}
+
+todool_mode_list :: proc() {
+	if mode_panel.mode != .List {
+		mode_panel.mode = .List
+		element_repaint(mode_panel)
+	}
+}
+
+todool_mode_kanban :: proc() {
+	if mode_panel.mode != .Kanban {
+		mode_panel.mode = .Kanban
+		element_repaint(mode_panel)
+	}
+}
+
+todool_shift_down :: proc() {
+	selection := task_has_selection()
+	low, high := task_low_and_high()
+
+	if high + 1 >= len(tasks_visible) {
+		return
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	for i := high + 1; i > low; i -= 1 {
+		a := tasks_visible[i]
+		b := tasks_visible[i - 1]
+		task_swap(manager, a.index, b.index)
+	}
+
+	task_head += 1
+	task_tail += 1
+}
+
+todool_shift_up :: proc() {
+	selection := task_has_selection()
+	low, high := task_low_and_high()
+
+	if low - 1 < 0 {
+		return
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	for i := low - 1; i < high; i += 1 {
+		a := tasks_visible[i]
+		b := tasks_visible[i + 1]
+		task_swap(manager, a.index, b.index)
+	}
+
+	task_head -= 1
+	task_tail -= 1
+}
+
+todool_select_all :: proc() {
+	task_tail = 0
+	task_head = len(tasks_visible)
+	element_repaint(mode_panel)
+}
+
 Undo_Item_Int_Set :: struct {
 	value: ^int,
 	to: int,
@@ -299,902 +1024,252 @@ copy_selection :: proc() {
 	}
 }
 
-shortcuts_run_multi :: proc(combo: string) -> (handled: bool) {
-	handled = true
-
-	switch combo {
-		case "ctrl+backspace", "backspace": {
-			task := tasks_visible[task_head]
-			
-			if len(task.box.builder.buf) == 0 {
-				manager := mode_panel_manager_scoped()
-				task_head_tail_push(manager)
-				index := task.index
-				
-				if index == len(mode_panel.children) {
-					item := Undo_Item_Task_Pop {}
-					undo_task_pop(manager, &item)
-				} else {
-					item := Undo_Item_Task_Remove_At { index }
-					undo_task_remove_at(manager, &item)
-				}
-
-				element_repaint(task)
-				task_head -= 1
-				task_tail -= 1
-			}
-		}
-
-		case "shift+up", "up": {
-			if task_head == -1 {
-				return
-			}
-
-			if task_head_tail_check_begin() {
-				task_head -= 1
-			}
-			task_head_tail_check_end()
-			bookmark_index = -1
-			task := tasks_visible[max(task_head, 0)]
-			element_repaint(mode_panel)
-			element_message(task.box, .Box_Set_Caret, BOX_END)
-		}
-
-		case "shift+down", "down": {
-			if task_head == -1 {
-				return 
-			}
-
-			if task_head_tail_check_begin() {
-				task_head += 1
-			}
-			task_head_tail_check_end()
-			bookmark_index = -1
-
-			task := tasks_visible[min(task_head, len(tasks_visible) - 1)]
-			element_message(task.box, .Box_Set_Caret, BOX_END)
-			element_repaint(mode_panel)
-		}
-
-		// move to indentation 0 next
-		case "ctrl+,", "ctrl+shift+,": {
-			if task_head != -1 {
-				task_current := tasks_visible[task_head]
-
-				for i := task_current.index - 1; i >= 0; i -= 1 {
-					task := cast(^Task) mode_panel.children[i]
-
-					if task.indentation == 0 && task.visible {
-						if task_head_tail_check_begin() {
-							task_head = task.visible_index
-						}
-						task_head_tail_check_end()
-						element_message(task.box, .Box_Set_Caret, BOX_END)
-						element_repaint(task)
-						break
-					}
-				}
-			}
-		}
-
-		// move to indentation 0 next
-		case "ctrl+.", "ctrl+shift+.": {
-			if task_head != -1 {
-				task_current := tasks_visible[task_head]
-
-				for i in task_current.index + 1..<len(mode_panel.children) {
-					task := cast(^Task) mode_panel.children[i]
-
-					if task.indentation == 0 && task.visible {
-						if task_head_tail_check_begin() {
-							task_head = task.visible_index
-						}
-						task_head_tail_check_end()
-						element_repaint(task)
-						element_message(task.box, .Box_Set_Caret, BOX_END)
-						break
-					}
-				}
-			}
-		}
-
-		// move down to same indentation
-		case "ctrl+up", "ctrl+shift+up": {
-			if task_head == -1 {
-				return
-			}
-
-			task_current := tasks_visible[task_head]
-
-			for i := task_head - 1; i >= 0; i -= 1 {
-				task := tasks_visible[i]
-				
-				if task.indentation == task_current.indentation {
-					if task_head_tail_check_begin() {
-						task_head = i
-					}
-					task_head_tail_check_end()
-					element_repaint(mode_panel)
-					element_message(task.box, .Box_Set_Caret, BOX_END)
-					break
-				}
-			} 
-		}
-
-		// move up to same indentation
-		case "ctrl+down", "ctrl+shift+down": {
-			if task_head == -1 {
-				return false
-			}
-
-			task_current := tasks_visible[task_head]
-
-			for i := task_head + 1; i < len(tasks_visible); i += 1 {
-				task := tasks_visible[i]
-				
-				if task.indentation == task_current.indentation {
-					if task_head_tail_check_begin() {
-						task_head = i
-					}
-					task_head_tail_check_end()
-					element_repaint(mode_panel)
-					element_message(task.box, .Box_Set_Caret, BOX_END)
-					break
-				}
-			} 
-		}
-
-		// move up a parent, optional shift
-		case "ctrl+home", "ctrl+shift+home": {
-			if task_head == -1 {
-				return false
-			}
-
-			task_current := tasks_visible[task_head]
-
-			for i := task_head - 1; i >= 0; i -= 1 {
-				task := tasks_visible[i]
-				
-				if task.indentation < task_current.indentation {
-					if task_head_tail_check_begin() {
-						task_head = i
-					}
-					task_head_tail_check_end()
-					element_repaint(mode_panel)
-					element_message(task.box, .Box_Set_Caret, BOX_END)
-					break
-				}
-			} 
-		}
-
-		// jump from tag to tag
-		case "ctrl+tab", "ctrl+shift+tab": {
-			if len(bookmarks) != 0 {
-				bookmark_advance(mode_panel.window.shift)
-				index := bookmarks[bookmark_index]
-				task := tasks_visible[index]
-				task_head = task.visible_index
-				task_tail = task.visible_index
-				element_repaint(mode_panel)
-			}
-		}
-
-		// delete selection
-		case "ctrl+d", "ctrl+shift+k": {
-			if task_head == -1 {
-				return
-			}
-
-			manager := mode_panel_manager_scoped()
-			task_head_tail_push(manager)
-			task_remove_selection(manager, true)
-
-			element_repaint(mode_panel)
-		}
-
-		// raw copy task to clipboard
-		case "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c": {
-			if task_head == -1 {
-				return
-			}
-
-			b := strings.builder_make(0, mem.Kilobyte * 10)
-			defer delete(b.buf)
-
-			low, high := task_low_and_high()
-
-			// get lowest
-			lowest_indentation := 255
-			for i in low..<high + 1 {
-				task := tasks_visible[i]
-				lowest_indentation = min(lowest_indentation, task.indentation)
-			}
-
-			// write text into buffer
-			for i in low..<high + 1 {
-				task := tasks_visible[i]
-				relative_indentation := task.indentation - lowest_indentation
-				task_write_text_indentation(&b, task, relative_indentation)
-			}
-
-			clipboard_set_with_builder(&b)
-			// fmt.eprint(strings.to_string(b))
-		}
-
-			// task state change
-		case "ctrl+q", "ctrl+shift+q": {
-			if task_head == -1 {
-				return
-			}
-
-			manager := mode_panel_manager_scoped()
-			task_head_tail_push(manager)
-				
-			selection := task_has_selection()
-			low, high := task_low_and_high()
-
-			// modify all states
-			backwards := mode_panel.window.shift
-			index: int
-			for i in low..<high + 1 {
-				task := tasks_visible[i]
-
-				if task.has_children {
-					continue
-				}
-
-				index = int(task.state)
-				range_advance_index(&index, len(Task_State) - 1, backwards)
-
-				// save old set
-				task_set_state_undoable(manager, task, Task_State(index))
-			}
-
-			element_repaint(mode_panel)
-		}
-
-		// jump indentation range like scopes
-		case "ctrl+m", "ctrl+shift+m": {
-			if task_head == -1 {
-				return
-			}
-
-			task_current := tasks_visible[task_head]
-			defer element_repaint(mode_panel)
-
-			// skip indent search at higher levels, just check for 0
-			if task_current.indentation == 0 {
-				// search for first indent 0 at end
-				for i := len(tasks_visible) - 1; i >= 0; i -= 1 {
-					current := tasks_visible[i]
-
-					if current.indentation == 0 {
-						if i == task_head {
-							break
-						}
-
-						task_head_tail_check_begin()
-						task_head = i
-						task_head_tail_check_end()
-						return
-					}
-				}
-
-				// search for first indent at 0 
-				for i in 0..<len(tasks_visible) {
-					current := tasks_visible[i]
-
-					if current.indentation == 0 {
-						task_head_tail_check_begin()
-						task_head = i
-						task_head_tail_check_end()
-						break
-					}
-				}
-			} else {
-				// check for end first
-				last_good := task_head
-				for i in task_head + 1..<len(tasks_visible) {
-					next := tasks_visible[i]
-
-					if next.indentation == task_current.indentation {
-						last_good = i
-					}
-
-					if next.indentation < task_current.indentation || i + 1 == len(tasks_visible) {
-						if last_good == task_head {
-							break
-						}
-
-						task_head_tail_check_begin()
-						task_head = last_good
-						task_head_tail_check_end()
-						return
-					}
-				}
-
-				// move backwards
-				last_good = -1
-				for i := task_head - 1; i >= 0; i -= 1 {
-					prev := tasks_visible[i]
-
-					if prev.indentation == task_current.indentation {
-						last_good = i
-					}
-
-					if prev.indentation < task_current.indentation {
-						task_head_tail_check_begin()
-						task_head = last_good
-						task_head_tail_check_end()
-						break
-					}
-				}
-			}
-		}
-
-		case: {
-			handled = false
-		}
+todool_indentation_shift :: proc(amt: int) {
+	if task_head == -1 {
+		return
 	}
 
-	return handled
+	// skip first
+	if task_head == task_tail && task_head == 0 {
+		return
+	}
+
+	low, high := task_low_and_high()
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+
+		if i == 0 {
+			continue
+		}
+
+		if task.indentation + amt >= 0 {
+			item := Undo_Item_Task_Indentation_Set {
+				task = task,
+				set = task.indentation,
+			}	
+			undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+
+			task.indentation += amt
+			task.indentation_animating = true
+			element_animation_start(task)
+		}
+	}		
+
+	// set new indentation based task info and push state changes
+	task_set_children_info()
+	task_check_parent_states(manager)
+
+	element_repaint(mode_panel)
 }
 
-add_shortcuts :: proc(window: ^Window) {
-	// window_add_shortcut(window, "alt+y", proc() -> bool {
-	// 	if task_head == -1 {
-	// 		return false
-	// 	}
+todool_undo :: proc() {
+	manager := &mode_panel.window.manager
+	if !undo_is_empty(manager, false) {
+		// reset bookmark index
+		bookmark_index = -1
 
-	// 	content := os.read_entire_file("src/box.odin") or_return
-	// 	defer delete(content)
-
-	// 	pattern_load_content(string(content))
-
-	// 	return true
-	// })
-
-	// changelog gen
-	window_add_shortcut(window, "alt+x", proc() -> bool {
-		if task_head == -1 {
-			return false
-		}
-
-		b := strings.builder_make(0, mem.Kilobyte * 10)
-		defer delete(b.buf)
-		removed_count: int
-		
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-
-		// write tasks out 
-		for i := 0; i < len(mode_panel.children); i += 1 {
-			task := cast(^Task) mode_panel.children[i]
-
-			if task.state != .Normal {
-				task_write_text_indentation(&b, task, task.indentation)
-
-				item := Undo_Item_Task_Remove_At { i }
-				undo_task_remove_at(manager, &item)
-				
-				i -= 1
-				removed_count += 1
-			} else if task.has_children {
-				if task.state_count[.Done] != 0 || task.state_count[.Canceled] != 0 {
-					task_write_text_indentation(&b, task, task.indentation)
-				}
-			}
-		}
-
-		if removed_count != 0 {
-			clipboard_set_with_builder(&b)
-			element_repaint(mode_panel)
-		}
-
-		return true
-	})
-
-	window_add_shortcut(window, "escape", proc() -> bool {
-		if image_display_has_content(mode_panel.image_display) {
-			mode_panel.image_display.img = nil
-			element_repaint(mode_panel)
-			return true
-		}
-
-		if .Hide not_in panel_search.flags {
-			element_hide(panel_search, true)
-			element_repaint(mode_panel)
-			return true
-		}
-
-		if .Hide not_in sb.enum_panel.flags {
-			element_hide(sb.enum_panel, true)
-			element_repaint(mode_panel)
-			return true
-		}
-
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+1", proc() -> bool {
-		tag_toggle(0x01)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+2", proc() -> bool {
-		tag_toggle(0x02)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+3", proc() -> bool {
-		tag_toggle(0x04)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+4", proc() -> bool {
-		tag_toggle(0x08)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+5", proc() -> bool {
-		tag_toggle(0x10)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+6", proc() -> bool {
-		tag_toggle(0x20)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+7", proc() -> bool {
-		tag_toggle(0x40)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+8", proc() -> bool {
-		tag_toggle(0x80)
-		return true
-	})
-
-	// toggle folding
-	window_add_shortcut(window, "ctrl+j", proc() -> bool {
-		if task_head != -1 {
-			task := tasks_visible[task_head]
-			manager := mode_panel_manager_scoped()
-
-			if task.has_children {
-				task_head_tail_push(manager)
-				item := Undo_Item_Bool_Toggle { &task.folded }
-				undo_bool_toggle(manager, &item)
-				
-				task_tail = task_head
-				element_repaint(mode_panel)
-			}
-		}
-
-		return true
-	})
-
-	task_indentation_move :: proc(amt: int) -> bool {
-		if task_head == -1 {
-			return false
-		}
-
-		// skip first
-		if task_head == task_tail && task_head == 0 {
-			return true
-		}
-
-		low, high := task_low_and_high()
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-
-		for i in low..<high + 1 {
-			task := tasks_visible[i]
-
-			if i == 0 {
-				continue
-			}
-
-			if task.indentation + amt >= 0 {
-				item := Undo_Item_Task_Indentation_Set {
-					task = task,
-					set = task.indentation,
-				}	
-				undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
-
-				task.indentation += amt
-				task.indentation_animating = true
-				element_animation_start(task)
-			}
-		}		
-
-		// set new indentation based task info and push state changes
-		task_set_children_info()
-		task_check_parent_states(manager)
-
+		undo_invoke(manager, false)
 		element_repaint(mode_panel)
-		return true
+	}
+}
+
+todool_redo :: proc() {
+	manager := &mode_panel.window.manager
+	if !undo_is_empty(manager, true) {
+		// reset bookmark index
+		bookmark_index = -1
+
+		undo_invoke(manager, true)
+		element_repaint(mode_panel)
+	}
+}
+
+todool_save :: proc() {
+	err := editor_save("save.todool")
+	if err != .None {
+		log.info("SAVE: FAILED =", err)
 	}
 
-	window_add_shortcut(window, "tab", proc() -> bool {
-		return task_indentation_move(1)
-	})
+	// when anything was pushed - set to false
+	if dirty != dirty_saved {
+		dirty_saved = dirty
+	}
 
-	window_add_shortcut(window, "shift+tab", proc() -> bool {
-		return task_indentation_move(-1)
-	})
+	json_save_misc("save.sjson")
+	element_repaint(mode_panel)
+}
 
-	window_add_shortcut(window, "return", proc() -> bool {
-		indentation: int
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
+// load
+// window_add_shortcut(window, "ctrl+o", proc() -> bool {
+// 	err := editor_load("save.bin")
 
-		// NOTE next line
-		goal := len(mode_panel.children) // default append
-		if task_head < len(tasks_visible) - 1 {
-			goal = tasks_visible[task_head + 1].index
+// 	if err != .None {
+// 		log.info("LOAD: FAILED =", err)
+// 	}
+
+// 	// out_path: cstring
+// 	// res := nfd.OpenDialog("", "", &out_path)
+// 	// log.info(res, out_path)
+
+// 	// if res == .OKAY {
+// 	// 	err := editor_load("save.bin")
+
+// 	// 	if err != .None {
+// 	// 		log.info("LOAD: FAILED =", err)
+// 	// 	}
+// 	// }
+
+// 	element_repaint(mode_panel)
+// 	return true
+// })
+
+todool_toggle_bookmark :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	low, high := task_low_and_high()
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+		item := Undo_Item_Bool_Toggle { &task.bookmarked }
+		undo_bool_toggle(manager, &item)
+	}
+
+	element_repaint(mode_panel)
+}
+
+todool_goto :: proc() {
+	p := panel_goto
+
+	element_hide(p, false)
+	goto_transition_unit = 1
+	goto_transition_hide = false
+	goto_transition_animating = true
+	element_animation_start(p)
+
+	box := cast(^Text_Box) p.panel.children[0]
+	element_focus(box)
+
+	goto_saved_task_head = task_head
+	goto_saved_task_tail = task_tail
+
+	// reset text
+	strings.builder_reset(&box.builder)
+	box.head = 0
+	box.tail = 0
+}
+
+todool_search :: proc() {
+	p := panel_search
+	element_hide(p, false)
+
+	// save info
+	search_saved_task_head = task_head
+	search_saved_task_tail = task_tail
+
+	box := cast(^Text_Box) p.children[0]
+	element_focus(box)
+
+	if task_head != -1 {
+		task := tasks_visible[task_head]
+
+		// set word to search instantly
+		if task.box.head != task.box.tail {
+			// cut out selected word
+			ds: cutf8.Decode_State
+			low, high := box_low_and_high(task.box)
+			text, ok := cutf8.ds_string_selection(
+				&ds, 
+				strings.to_string(task.box.builder), 
+				low, 
+				high,
+			)
+
+			strings.builder_reset(&box.builder)
+			strings.write_string(&box.builder, text)
+
+			search_update_results(text)
 		}
 
-		if task_head != -1 {
-			indentation = tasks_visible[task_head].indentation
-		}
+		search_saved_box_head = task.box.head
+		search_saved_box_tail = task.box.tail
+	}		
 
-		// // same line
-		// goal := 0 // default append
-		// if task_head != -1 && task_head > 0 {
-		// 	goal = tasks_visible[task_head].index
-		// 	indentation = tasks_visible[task_head - 1].indentation
-		// }
+	element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
+}
 
-		task_push_undoable(manager, indentation, "", goal)
-		task_head += 1
-		task_head_tail_check_end()
-		element_repaint(mode_panel)
+todool_copy_tasks :: proc() {
+	if !last_was_task_copy {
+		element_repaint(mode_panel) // required to make redraw and copy 
+	}
+	last_was_task_copy = true
+	copy_selection()
+}
 
-		return true
-	})
+todool_cut_tasks :: proc() {
+	if task_head == -1 {
+		return 
+	}
 
-	window_add_shortcut(window, "ctrl+return", proc() -> bool {
-		indentation: int
-		goal := len(mode_panel.children) // default append
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
+	last_was_task_copy = true
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
 
-		if task_head < len(tasks_visible) - 1 {
-			goal = tasks_visible[task_head + 1].index
-		}
+	copy_selection()
+	task_remove_selection(manager, true)
+	element_repaint(mode_panel)
+}
 
-		if task_head != -1 {
-			current_task := tasks_visible[task_head]
-			indentation = current_task.indentation + 1
-			builder := &current_task.box.builder
+todool_paste_tasks :: proc() {
+	if task_head == -1 || copy_empty() {
+		return
+	}
 
-			// uppercase word
-			if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
-				item := Undo_Builder_Uppercased_Content { builder }
-				undo_box_uppercased_content(manager, &item)
-			}
-		}
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
 
-		task_push_undoable(manager, indentation, "", goal)
-		task_head += 1
-		task_head_tail_check_end()
-		element_repaint(mode_panel)
+	// no selection
+	if task_head == task_tail {
+		task := tasks_visible[task_head]
+		copy_paste_at(manager, task.index + 1, task.indentation)
+		
+		task_head += len(copy_task_data)
+		task_tail = task_head
+	} else {
+		indentation := 255
 
-		return true
-	})
-
-	window_add_shortcut(window, "alt+q", proc() -> bool {
-		if mode_panel.mode != .List {
-			mode_panel.mode = .List
-			element_repaint(mode_panel)
-		}	
-
-		return true
-	})
-
-	window_add_shortcut(window, "alt+w", proc() -> bool {
-		if mode_panel.mode != .Kanban {
-			mode_panel.mode = .Kanban
-			element_repaint(mode_panel)
-		}	
-
-		return true
-	})
-
-	window_add_shortcut(window, "alt+down", proc() -> bool {
-		selection := task_has_selection()
-		low, high := task_low_and_high()
-
-		if high + 1 >= len(tasks_visible) {
-			return false
-		}
-
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-
-		for i := high + 1; i > low; i -= 1 {
-			a := tasks_visible[i]
-			b := tasks_visible[i - 1]
-			task_swap(manager, a.index, b.index)
-		}
-
-		task_head += 1
-		task_tail += 1
-		return true
-	}) 
-
-	window_add_shortcut(window, "alt+up", proc() -> bool {
-		selection := task_has_selection()
-		low, high := task_low_and_high()
-
-		if low - 1 < 0 {
-			return false
-		}
-
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-
-		for i := low - 1; i < high; i += 1 {
-			a := tasks_visible[i]
-			b := tasks_visible[i + 1]
-			task_swap(manager, a.index, b.index)
-		}
-
-		task_head -= 1
-		task_tail -= 1
-		return true
-	}) 
-
-	window_add_shortcut(window, "ctrl+shift+a", proc() -> bool {
-		task_tail = 0
-		task_head = len(tasks_visible)
-		element_repaint(mode_panel)
-		return true
-	})
-
-	window_add_shortcut(window, "alt+e", proc() -> bool {
-		theme_editor_spawn()
-		return true
-	})
-
-	window_add_shortcut(window, "alt+1", proc() -> bool {
-		pomodoro_stopwatch_hot_toggle(0)
-		return true
-	})
-
-	window_add_shortcut(window, "alt+2", proc() -> bool {
-		pomodoro_stopwatch_hot_toggle(1)
-		return true
-	})
-
-	window_add_shortcut(window, "alt+3", proc() -> bool {
-		pomodoro_stopwatch_hot_toggle(2)
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+z", proc() -> bool {
-		manager := &mode_panel.window.manager
-		if !undo_is_empty(manager, false) {
-			// reset bookmark index
-			bookmark_index = -1
-
-			undo_invoke(manager, false)
-			element_repaint(mode_panel)
-		}
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+y", proc() -> bool {
-		manager := &mode_panel.window.manager
-		if !undo_is_empty(manager, true) {
-			// reset bookmark index
-			bookmark_index = -1
-
-			undo_invoke(manager, true)
-			element_repaint(mode_panel)
-		}
-
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+s", proc() -> bool {
-		err := editor_save("save.todool")
-		if err != .None {
-			log.info("SAVE: FAILED =", err)
-		}
-
-		// when anything was pushed - set to false
-		if dirty != dirty_saved {
-			dirty_saved = dirty
-		}
-	
-		json_save_misc("save.sjson")
-		element_repaint(mode_panel)
-		return true
-	})
-
-	// window_add_shortcut(window, "ctrl+o", proc() -> bool {
-	// 	err := editor_load("save.bin")
-
-	// 	if err != .None {
-	// 		log.info("LOAD: FAILED =", err)
-	// 	}
-
-	// 	// out_path: cstring
-	// 	// res := nfd.OpenDialog("", "", &out_path)
-	// 	// log.info(res, out_path)
-
-	// 	// if res == .OKAY {
-	// 	// 	err := editor_load("save.bin")
-
-	// 	// 	if err != .None {
-	// 	// 		log.info("LOAD: FAILED =", err)
-	// 	// 	}
-	// 	// }
-
-	// 	element_repaint(mode_panel)
-	// 	return true
-	// })
-
-	// set tags to selected lines
-	window_add_shortcut(window, "ctrl+b", proc() -> bool {
-		if task_head != -1 {
+		// get lowest indentation of removal selection
+		{
 			low, high := task_low_and_high()
-			manager := mode_panel_manager_scoped()
-			task_head_tail_push(manager)
-
 			for i in low..<high + 1 {
 				task := tasks_visible[i]
-				item := Undo_Item_Bool_Toggle { &task.bookmarked }
-				undo_bool_toggle(manager, &item)
+				indentation = min(indentation, task.indentation)
 			}
-
-			element_repaint(mode_panel)
 		}
 
-		return true	
-	})
-
-	window_add_shortcut(window, "ctrl+g", proc() -> bool {
-		p := panel_goto
-
-		element_hide(p, false)
-		goto_transition_unit = 1
-		goto_transition_hide = false
-		goto_transition_animating = true
-		element_animation_start(p)
-
-		box := cast(^Text_Box) p.panel.children[0]
-		element_focus(box)
-
-		goto_saved_task_head = task_head
-		goto_saved_task_tail = task_tail
-
-		// reset text
-		strings.builder_reset(&box.builder)
-		box.head = 0
-		box.tail = 0
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+f", proc() -> bool {
-		p := panel_search
-		element_hide(p, false)
-
-		// save info
-		search_saved_task_head = task_head
-		search_saved_task_tail = task_tail
-	
-		box := cast(^Text_Box) p.children[0]
-		element_focus(box)
-
-		if task_head != -1 {
-			task := tasks_visible[task_head]
-
-			// set word to search instantly
-			if task.box.head != task.box.tail {
-				// cut out selected word
-				ds: cutf8.Decode_State
-				low, high := box_low_and_high(task.box)
-				text, ok := cutf8.ds_string_selection(
-					&ds, 
-					strings.to_string(task.box.builder), 
-					low, 
-					high,
-				)
-
-				strings.builder_reset(&box.builder)
-				strings.write_string(&box.builder, text)
-
-				search_update_results(text)
-			}
-
-			search_saved_box_head = task.box.head
-			search_saved_box_tail = task.box.tail
-		}		
-
-		element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
-
-		return true
-	})
-
-	// copy task/s
-	window_add_shortcut(window, "ctrl+c", proc() -> bool {
-		if !last_was_task_copy {
-			element_repaint(mode_panel) // required to make redraw and copy 
-		}
-		last_was_task_copy = true
-
-		copy_selection()
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+x", proc() -> bool {
-		if task_head == -1 {
-			return false
-		}
-
-		last_was_task_copy = true
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-
-		copy_selection()
 		task_remove_selection(manager, true)
-		element_repaint(mode_panel)
 
-		return true	
-	})
+		task := tasks_visible[task_head]
+		index := task.index + 1
+		copy_paste_at(manager, index, indentation)
+		
+		task_head += len(copy_task_data)
+		task_tail = task_head
+	}
 
-	window_add_shortcut(window, "ctrl+e", proc() -> bool {
-		if task_head != -1 {
-			cam := mode_panel_cam()
-			cam.freehand = false
-			cam_center_by_height_state(cam, mode_panel.bounds, caret_rect.t)
-		}
+	element_repaint(mode_panel)
+}
 
-		return true
-	})
-
-	window_add_shortcut(window, "ctrl+v", proc() -> bool {
-		if task_head == -1 || copy_empty() {
-			return false
-		}
-
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
-
-		// no selection
-		if task_head == task_tail {
-			task := tasks_visible[task_head]
-			copy_paste_at(manager, task.index + 1, task.indentation)
-			
-			task_head += len(copy_task_data)
-			task_tail = task_head
-		} else {
-			indentation := 255
-	
-			// get lowest indentation of removal selection
-			{
-				low, high := task_low_and_high()
-				for i in low..<high + 1 {
-					task := tasks_visible[i]
-					indentation = min(indentation, task.indentation)
-				}
-			}
-
-			task_remove_selection(manager, true)
-
-			task := tasks_visible[task_head]
-			index := task.index + 1
-			copy_paste_at(manager, index, indentation)
-			
-			task_head += len(copy_task_data)
-			task_tail = task_head
-		}
-
-		element_repaint(mode_panel)
-		return true
-	})
+todool_center :: proc() {
+	if task_head != -1 {
+		cam := mode_panel_cam()
+		cam.freehand = false
+		cam_center_by_height_state(cam, mode_panel.bounds, caret_rect.t)
+	}
 }

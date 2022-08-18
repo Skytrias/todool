@@ -36,6 +36,26 @@ import "../fontstash"
 // 	// fmt.eprintln(res, out_path)
 // }
 
+@(deferred_out=arena_scoped_end)
+arena_scoped :: proc(cap: int) -> (arena: mem.Arena, backing: []byte) {
+	backing = make([]byte, cap)
+	mem.arena_init(&arena, backing)
+	return
+}
+
+arena_scoped_end :: proc(arena: mem.Arena, backing: []byte) {
+	delete(backing)
+}
+
+// mapping from key shortcut -> key command
+// mapping from key command -> command execution
+
+todool_command_execute :: proc(command: string) {
+	switch command {
+		// case "move_right"
+	}
+}
+
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -58,6 +78,8 @@ main :: proc() {
 					return 0
 				}
 
+				s := &window.shortcut_state
+
 				task_head_tail_clamp()
 				if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
 					box := tasks_visible[task_head].box
@@ -67,7 +89,10 @@ main :: proc() {
 					}
 				}
 
-				return int(shortcuts_run_multi(combo))
+				if command, ok := s.general[combo]; ok {
+					shortcuts_command_execute_todool(command)
+				}
+				return 1
 			}
 
 			case .Unicode_Insertion: {
@@ -238,7 +263,10 @@ main :: proc() {
 		}
 	}
 
-	add_shortcuts(window)
+	shortcuts_push_todool(window)
+	shortcuts_push_box_default(window)
+
+	// add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
 
 	{

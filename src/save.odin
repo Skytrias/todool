@@ -426,6 +426,7 @@ json_save_misc :: proc(path: string) -> bool {
 		},
 	}
 
+	arena, _ := arena_scoped(mem.Megabyte)
 	result, err := json.marshal(
 		value, 
 		{
@@ -434,9 +435,8 @@ json_save_misc :: proc(path: string) -> bool {
 			write_uint_as_hex = true,
 			mjson_keys_use_equal_sign = true,
 		},
-		context.temp_allocator,
+		mem.arena_allocator(&arena),
 	)
-	// log.info("json marshal: err =", err)
 
 	if err == nil {
 		ok := bpath_file_write(path, result[:])
@@ -450,8 +450,9 @@ json_load_misc :: proc(path: string) -> bool{
 	bytes := bpath_file_read(path) or_return
 	defer delete(bytes)
 
+	arena, _ := arena_scoped(mem.Megabyte)
 	misc: Misc_Save_Load
-	err := json.unmarshal(bytes, &misc, .MJSON, context.temp_allocator)
+	err := json.unmarshal(bytes, &misc, .MJSON, mem.arena_allocator(&arena))
 
 	if err != nil {
 		return false

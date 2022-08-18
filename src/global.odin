@@ -53,7 +53,6 @@ Mouse_Coordinates :: [2]f32
 
 Window :: struct {
 	element: Element,
-
 	name: string,
 	
 	// interactable elements
@@ -97,7 +96,7 @@ Window :: struct {
 	ctrl, shift, alt: bool,
 
 	// assigned shortcuts to procedures in window
-	shortcuts: map[string]Shortcut_Proc,
+	shortcut_state: Shortcut_State,
 
 	// wether a dialog is currently showing
 	dialog: ^Element,
@@ -257,15 +256,6 @@ mix_volume_set :: proc(to: i32) {
 	mix.Volume(0, to)
 }
 
-// add shortcut to map
-window_add_shortcut :: proc(
-	window: ^Window,
-	combo: string, 
-	call: Shortcut_Proc,
-) {
-	window.shortcuts[combo] = call
-}
-
 window_init :: proc(
 	title: cstring, 
 	w, h: i32,
@@ -292,16 +282,6 @@ window_init :: proc(
 			case .Layout: {
 				for child in element.children {
 					element_move(child, element.bounds)
-				}
-			}
-
-			case .Key_Combination: {
-				combo := (cast(^string) dp)^
-				
-				if call, ok := window.shortcuts[combo]; ok {
-					if call() {
-						return 1
-					}
 				}
 			}
 
@@ -332,7 +312,6 @@ window_init :: proc(
 	res.title_builder = strings.builder_make(0, 64)
 	res.dialog_builder = strings.builder_make(0, 64)
 	res.copy_builder = strings.builder_make(0, 256)
-	res.shortcuts = make(map[string]Shortcut_Proc, 32)
 	res.target = render_target_init(window)
 	res.update_next = true
 	res.cursor_x = -100
@@ -350,10 +329,7 @@ window_init :: proc(
 	res.element.window = res
 	res.window_next = gs.windows
 	gs.windows = res
-
-	// append(&gs.windows, res)
-	// window_ptr := gs.windows[len(gs.windows) - 1]
-	// res.element.window = window_ptr
+	shortcut_state_init(&res.shortcut_state, mem.Megabyte * 2)
 
 	window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
 		context = runtime.default_context()
@@ -807,13 +783,14 @@ window_title_build :: proc(window: ^Window, text: string) {
 }
 
 window_destroy :: proc(window: ^Window) {
+	shortcut_state_destroy(&window.shortcut_state)
+
 	sdl.RemoveTimer(window.hover_timer)
 
 	delete(window.element_arena_backing)
 
 	undo_manager_destroy(window.manager)
 	render_target_destroy(window.target)
-	delete(window.shortcuts)
 	element_destroy(&window.element)
 	element_deallocate(&window.element)
 	delete(window.combo_builder.buf)
