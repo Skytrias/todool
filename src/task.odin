@@ -142,6 +142,12 @@ task_head_tail_call_all :: proc(
 	}
 }
 
+// just clamp for safety here instead of everywhere
+task_head_tail_clamp :: proc() {
+	task_head = clamp(task_head, 0, len(tasks_visible) - 1)
+	task_tail = clamp(task_tail, 0, len(tasks_visible) - 1)
+}
+
 task_head_tail_call :: proc(
 	data: rawptr,
 	call: proc(task: ^Task, data: rawptr), 
@@ -1928,8 +1934,9 @@ contains_multiple_iterator :: proc(s, substr: string, index: ^int) -> (rune_star
 	return
 }
 
-task_panel_init :: proc(split: ^Split_Pane) {
-	mode_panel_split = split_pane_init(split, { .Split_Pane_Hidable, .Split_Pane_Vertical }, 50, 50)
+task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
+	rect := window_rect(split.window)
+	mode_panel_split = split_pane_init(split, { .Split_Pane_Hidable, .Split_Pane_Vertical, .Split_Pane_Reversed }, rect.b - 50, 50)
 	mode_panel_split.pixel_based = true
 
 	search_init(mode_panel_split)
@@ -1938,6 +1945,7 @@ task_panel_init :: proc(split: ^Split_Pane) {
 	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
 	mode_panel.margin_vertical = 10
+	return mode_panel
 }
 
 tasks_load_file :: proc() {

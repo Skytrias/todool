@@ -137,112 +137,106 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 }
 
 
-sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
-	// left panel
+sidebar_panel_init :: proc(parent: ^Element) {
+	panel_info = panel_init(parent, { .Panel_Default_Background, .VF, .Tab_Movement_Allowed }, 0, 5)
+	panel_info.background_index = 2
+	panel_info.z_index = 3
+
+	// side options
 	{
-		panel_info = panel_init(parent, { .Panel_Default_Background, .VF, .Tab_Movement_Allowed }, 0, 5)
-		panel_info.background_index = 2
-		panel_info.z_index = 3
+		i1 := icon_button_init(panel_info, { .HF }, .Cog, sidebar_button_message)
+		i1.data = new_clone(Sidebar_Mode.Options)
+		i1.hover_info = "Options"
+		
+		i2 := icon_button_init(panel_info, { .HF }, .Tag, sidebar_button_message)
+		i2.data = new_clone(Sidebar_Mode.Tags)
+		i2.hover_info = "Tags"
 
-		// side options
-		{
-			i1 := icon_button_init(panel_info, { .HF }, .Cog, sidebar_button_message)
-			i1.data = new_clone(Sidebar_Mode.Options)
-			i1.hover_info = "Options"
-			
-			i2 := icon_button_init(panel_info, { .HF }, .Tag, sidebar_button_message)
-			i2.data = new_clone(Sidebar_Mode.Tags)
-			i2.hover_info = "Tags"
-
-			i3 := icon_button_init(panel_info, { .HF }, .Archive, sidebar_button_message)
-			i3.data = new_clone(Sidebar_Mode.Archive)
-			i3.hover_info = "Archive"
-		}
-
-		// pomodoro
-		{
-			spacer_init(panel_info, { .VF, }, 0, 20, .Thin)
-			i1 := icon_button_init(panel_info, { .HF }, .Tomato)
-			i1.hover_info = "Start / Stop Pomodoro Time"
-			i1.invoke = proc(data: rawptr) {
-				element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
-				pomodoro_stopwatch_toggle()
-			}
-			i2 := icon_button_init(panel_info, { .HF }, .Reply)
-			i2.invoke = proc(data: rawptr) {
-				element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
-				pomodoro_stopwatch_reset()
-				pomodoro_label_format()
-				sound_play(.Timer_Stop)
-			}
-			i2.hover_info = "Reset Pomodoro Time"
-			sb.options.button_pomodoro_reset = i2
-			element_hide(i2, true)
-
-			sb.pomodoro_label = label_init(panel_info, { .HF, .Label_Center }, "00:00")
-
-			b1 := button_init(panel_info, { .HF }, "1", pomodoro_button_message)
-			b1.hover_info = "Select Work Time"
-			b2 := button_init(panel_info, { .HF }, "2", pomodoro_button_message)
-			b2.hover_info = "Select Short Break Time"
-			b3 := button_init(panel_info, { .HF }, "3", pomodoro_button_message)
-			b3.hover_info = "Select Long Break Time"
-		}
-	
-		// copy mode
-		{
-			copy_label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-				label := cast(^Label) element
-
-				if msg == .Paint_Recursive {
-					target := element.window.target
-					text := strings.to_string(label.builder)
-					rev := last_was_task_copy ~ (uintptr(label.data) == uintptr(0))
-					color := rev ? theme.text_default : theme.text_blank
-					erender_string_aligned(element, text, element.bounds, color, .Middle, .Middle)
-					return 1
-				}
-
-				return 0
-			}
-
-			spacer_init(panel_info, { }, 0, 20, .Thin)
-			l1 := label_init(panel_info, { .HF }, "TEXT")
-			l1.message_user = copy_label_message
-			l1.hover_info = "Next paste will insert raw text"
-			l1.data = rawptr(uintptr(0))
-			l2 := label_init(panel_info, { .HF }, "TASK")
-			l2.message_user = copy_label_message
-			l2.hover_info = "Next paste will insert a task"
-			l2.data = rawptr(uintptr(1))
-		}
-
-		// mode		
-		{
-			spacer_init(panel_info, { }, 0, 20, .Thin)
-			b1 := button_init(panel_info, { .HF }, "L", mode_based_button_message)
-			b1.data = new_clone(Mode_Based_Button { 0 })
-			b1.hover_info = "List Mode"
-			b2 := button_init(panel_info, { .HF }, "K", mode_based_button_message)
-			b2.data = new_clone(Mode_Based_Button { 1 })
-			b2.hover_info = "Kanban Mode"
-		}
-
-		// TODO add border
-		// b := button_init(panel_info, { .CT, .Hover_Has_Info }, "b")
-		// b.invoke = proc(data: rawptr) {
-		// 	element := cast(^Element) data
-		// 	window_border_toggle(element.window)
-		// 	element_repaint(element)
-		// }
-		// b.hover_info = "border"
-
+		i3 := icon_button_init(panel_info, { .HF }, .Archive, sidebar_button_message)
+		i3.data = new_clone(Sidebar_Mode.Archive)
+		i3.hover_info = "Archive"
 	}
 
-	split = split_pane_init(parent, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)
-	sb.split = split
-	sb.split.pixel_based = true
+	// pomodoro
+	{
+		spacer_init(panel_info, { .VF, }, 0, 20, .Thin)
+		i1 := icon_button_init(panel_info, { .HF }, .Tomato)
+		i1.hover_info = "Start / Stop Pomodoro Time"
+		i1.invoke = proc(data: rawptr) {
+			element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
+			pomodoro_stopwatch_toggle()
+		}
+		i2 := icon_button_init(panel_info, { .HF }, .Reply)
+		i2.invoke = proc(data: rawptr) {
+			element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
+			pomodoro_stopwatch_reset()
+			pomodoro_label_format()
+			sound_play(.Timer_Stop)
+		}
+		i2.hover_info = "Reset Pomodoro Time"
+		sb.options.button_pomodoro_reset = i2
+		element_hide(i2, true)
 
+		sb.pomodoro_label = label_init(panel_info, { .HF, .Label_Center }, "00:00")
+
+		b1 := button_init(panel_info, { .HF }, "1", pomodoro_button_message)
+		b1.hover_info = "Select Work Time"
+		b2 := button_init(panel_info, { .HF }, "2", pomodoro_button_message)
+		b2.hover_info = "Select Short Break Time"
+		b3 := button_init(panel_info, { .HF }, "3", pomodoro_button_message)
+		b3.hover_info = "Select Long Break Time"
+	}
+
+	// copy mode
+	{
+		copy_label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			label := cast(^Label) element
+
+			if msg == .Paint_Recursive {
+				target := element.window.target
+				text := strings.to_string(label.builder)
+				rev := last_was_task_copy ~ (uintptr(label.data) == uintptr(0))
+				color := rev ? theme.text_default : theme.text_blank
+				erender_string_aligned(element, text, element.bounds, color, .Middle, .Middle)
+				return 1
+			}
+
+			return 0
+		}
+
+		spacer_init(panel_info, { }, 0, 20, .Thin)
+		l1 := label_init(panel_info, { .HF }, "TEXT")
+		l1.message_user = copy_label_message
+		l1.hover_info = "Next paste will insert raw text"
+		l1.data = rawptr(uintptr(0))
+		l2 := label_init(panel_info, { .HF }, "TASK")
+		l2.message_user = copy_label_message
+		l2.hover_info = "Next paste will insert a task"
+		l2.data = rawptr(uintptr(1))
+	}
+
+	// mode		
+	{
+		spacer_init(panel_info, { }, 0, 20, .Thin)
+		b1 := button_init(panel_info, { .HF }, "L", mode_based_button_message)
+		b1.data = new_clone(Mode_Based_Button { 0 })
+		b1.hover_info = "List Mode"
+		b2 := button_init(panel_info, { .HF }, "K", mode_based_button_message)
+		b2.data = new_clone(Mode_Based_Button { 1 })
+		b2.hover_info = "Kanban Mode"
+	}
+
+	// TODO add border
+	// b := button_init(panel_info, { .CT, .Hover_Has_Info }, "b")
+	// b.invoke = proc(data: rawptr) {
+	// 	element := cast(^Element) data
+	// 	window_border_toggle(element.window)
+	// 	element_repaint(element)
+	// }
+	// b.hover_info = "border"		
+}
+
+sidebar_enum_panel_init :: proc(parent: ^Element) {
 	shared_panel :: proc(element: ^Element, title: string) -> ^Panel {
 		panel := panel_init(element, { .Panel_Default_Background, .Tab_Movement_Allowed }, 5, 5)
 		panel.background_index = 1
@@ -257,7 +251,7 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 
 	// init all sidebar panels
 
-	enum_panel := enum_panel_init(split, { .Tab_Movement_Allowed }, cast(^int) &sb.mode, len(Sidebar_Mode))
+	enum_panel := enum_panel_init(parent, { .Tab_Movement_Allowed }, cast(^int) &sb.mode, len(Sidebar_Mode))
 	sb.enum_panel = enum_panel
 	element_hide(sb.enum_panel, true)
 
@@ -426,8 +420,6 @@ sidebar_init :: proc(parent: ^Element) -> (split: ^Split_Pane) {
 		buttons.layout_elements_in_reverse = true
 		reserve(&buttons.children, ARCHIVE_MAX)
 	}
-
-	return
 }
 
 // cuts of text rendering at limit

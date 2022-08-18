@@ -125,6 +125,7 @@ Element_Flag :: enum {
 
 	Split_Pane_Vertical,
 	Split_Pane_Hidable,
+	Split_Pane_Reversed,
 
 	Scrollbar_Horizontal,
 }
@@ -539,7 +540,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
 				if res == 1 {
 					rect := element.bounds
-					rect.r = rect.l + 4
+					rect.l = rect.r - (4 * SCALE)
 					render_rect(target, rect, text_color, 0)
 				}
 			}
@@ -691,7 +692,7 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 
 	if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
 		rect := button.bounds
-		rect.r = rect.l + 4
+		rect.l = rect.r - (4 * SCALE)
 		render_rect(target, rect, text_color, 0)
 	}
 
@@ -2335,7 +2336,7 @@ toggle_selector_init :: proc(
 // v / h split 2 panels with a controlable weight
 Split_Pane :: struct {
 	using element: Element,
-	pixel_based: bool,
+	pixel_based: bool, // wether weight works in pixel or unit space
 
 	weight: f32,
 	weight_origin: f32,
@@ -2347,6 +2348,7 @@ split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 	split := cast(^Split_Pane) element
 	vertical := .Split_Pane_Vertical in element.flags
 	hideable := .Split_Pane_Hidable in split.flags
+	reversed := .Split_Pane_Reversed in split.flags
 
 	#partial switch msg {
 		case .Layout: {
@@ -2357,15 +2359,28 @@ split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// reset to hideable 
 			if hideable {
 				if .Hide in left.flags {
-					if split.weight != 0 {
+					if split.weight_reset == -1 {
 						split.weight_reset = split.weight
+					}
+
+					// set to reversed location
+					if reversed {
+						bound := vertical ? split.bounds.b : split.bounds.r
+						split.weight = bound - SPLITTER_SIZE * SCALE
+					} else {
 						split.weight = 0
 					}
 				} else {
-					if split.weight == 0 {
+					if split.weight_reset != -1 {
 						split.weight = split.weight_reset
+						split.weight_reset = -1
 					}
 				}
+			}
+
+			// swap elements to deal with sizing
+			if reversed {
+				left, right = right, left
 			}
 
 			splitter_size := math.round(SPLITTER_SIZE * SCALE)
@@ -2386,7 +2401,7 @@ split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if vertical {
 				element_move(left, { b.l, b.r, b.t, b.t + left_size })
 				element_move(splitter, { b.l, b.r, b.t + left_size, b.t + left_size + splitter_size })
-				element_move(right, { b.l, b.r, b.b - right_size, b.b })
+				element_move(right, { b.l, b.r, math.ceil(b.b - right_size), b.b })
 			} else {
 				element_move(left, { b.l, b.l + left_size, b.t, b.b })
 				element_move(splitter, { b.l + left_size, b.l + left_size + splitter_size, b.t, b.b })
@@ -2402,6 +2417,7 @@ splitter_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 	split := cast(^Split_Pane) element.parent
 	vertical := .Split_Pane_Vertical in split.flags
 	hideable := .Split_Pane_Hidable in split.flags
+	reversed := .Split_Pane_Reversed in split.flags
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -2433,36 +2449,77 @@ splitter_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			
 			if split.pixel_based {
 				unit := (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l))
-				// split.weight = unit * SCALE
 				split.weight = unit / SCALE
 			} else {
 				split.weight = (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l)) / space
 			}
 
 			if !hideable {
-				if split.weight < 0.05 {
-					split.weight = 0.05
-				}
+				// bound clamping
+				if split.pixel_based {
+					low := reversed ? 0 : split.weight_lowest
+					high := reversed ? space - split.weight_lowest : space
 
-				if split.weight > 0.95 {
-					split.weight = 0.95
+					// limit to lowest
+					if split.weight < low {
+						split.weight = low
+					}
+
+					// limit to highest
+					if split.weight > high {
+						split.weight = high
+					}
+				} else {
+					// care about reversing with lowest weight
+					low := reversed ? 0 : split.weight_lowest
+					high := reversed ? 1 - split.weight_lowest : 1
+					
+					if split.weight < low {
+						split.weight = low
+					}
+
+					if split.weight > high {
+						split.weight = high
+					}
 				}
 			} else {
 				if split.weight_lowest != -1 {
 					left := split.children[1]
 
-					if split.weight > split.weight_lowest / 2 {
-						element_hide(left, false)
-					}
-					
-					// keep below half lowest, or hide away
-					if split.weight < split.weight_lowest {
-						if split.weight < split.weight_lowest / 2 {
-							split.weight = 0
-							element_hide(left, true)
-						} else {
-							split.weight = split.weight_lowest
-							// element_hide(left, true)
+					if split.pixel_based {
+						w := reversed ? space - split.weight : split.weight
+						low := split.weight_lowest
+
+						if split.weight > low / 2 {
+							element_hide(left, false)
+						}
+						
+						// keep below half lowest, or hide away
+						if w < low {
+							if w < low / 2 {
+								split.weight = reversed ? space : 0
+								element_hide(left, true)
+							} else {
+								// split.weight = reversed ? low : split.weight_lowest
+								split.weight = reversed ? space - split.weight_lowest : split.weight_lowest
+							}
+						}
+					} else {
+						w := reversed ? 1 - split.weight : split.weight
+						low := reversed ? 1 - split.weight_lowest : split.weight_lowest
+
+						if w > low / 2 {
+							element_hide(left, false)
+						}
+						
+						// keep below half lowest, or hide away
+						if w < low {
+							if w < low / 2 {
+								split.weight = reversed ? 1 : 0
+								element_hide(left, true)
+							} else {
+								split.weight = split.weight_lowest
+							}
 						}
 					}
 				}
@@ -2494,7 +2551,8 @@ split_pane_init :: proc(
 	res = element_init(Split_Pane, parent, flags, split_pane_message, allocator)
 	res.weight = weight
 	res.weight_origin = weight
-	res.weight_lowest = weight
+	res.weight_lowest = weight_lowest
+	res.weight_reset = -1
 	element_init(Element, res, {}, splitter_message, allocator)
 	return
 }

@@ -58,6 +58,7 @@ main :: proc() {
 					return 0
 				}
 
+				task_head_tail_clamp()
 				if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
 					box := tasks_visible[task_head].box
 					
@@ -112,43 +113,42 @@ main :: proc() {
 
 			case .Dropped_Files: {
 				old_indice: int
+				manager := mode_panel_manager_begin()
+				had_imports := false
+
 				for indice in element.window.drop_indices {
 					file_path := string(element.window.drop_file_name_builder.buf[old_indice:indice])
 
+					// image dropping
 					if strings.has_suffix(file_path, ".png") {
 						if task_head != -1 {
 							task := tasks_visible[task_head]
 							handle := image_load_push(file_path)
 							task.image_display.img = handle
 						}
-						// p := sb.tags.panel
-						// handle := image_load_push(file_path)
-						// image_display_init(p, { .HF }, handle)
+					} else {
+						if !had_imports {
+							task_head_tail_push(manager)
+						}
+						had_imports = true
+
+						// import from code
+						content, ok := os.read_entire_file(file_path)
+						defer delete(content)
+
+						if ok {
+							pattern_load_content(manager, string(content))
+						}
 					}
 
 					old_indice = indice
 				}
 
+				if had_imports {
+					undo_group_end(manager)
+				}
+
 				element_repaint(mode_panel)
-
-				// manager := mode_panel_manager_scoped()
-				// task_head_tail_push(manager)
-
-				// old_indice: int
-				// for indice in element.window.drop_indices {
-				// 	file_name := string(element.window.drop_file_name_builder.buf[old_indice:indice])
-
-				// 	content, ok := os.read_entire_file(file_name)
-				// 	defer delete(content)
-
-				// 	if ok {
-				// 		pattern_load_content(manager, string(content))
-				// 	}
-
-				// 	old_indice = indice
-				// }
-
-				// element_repaint(mode_panel)
 			}
 		}
 
@@ -182,11 +182,8 @@ main :: proc() {
 
 		// log.info("dirty", dirty, dirty_saved)
 		window_title_build(window, dirty != dirty_saved ? "Todool*" : "Todool")
+		task_head_tail_clamp()
 
-		// just clamp for safety here instead of everywhere
-		task_head = clamp(task_head, 0, len(tasks_visible) - 1)
-		task_tail = clamp(task_tail, 0, len(tasks_visible) - 1)
-		
 		// NOTE forces the first task to indentation == 0
 		{
 			if len(tasks_visible) != 0 {
@@ -243,9 +240,17 @@ main :: proc() {
 
 	add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
-	split := sidebar_init(panel)
 
-	task_panel_init(split)
+	{
+		rect := window_rect(window)
+		split := split_pane_init(panel, { .Split_Pane_Hidable, .Split_Pane_Reversed, .VF, .HF, .Tab_Movement_Allowed }, rect.r - 300, 300)
+		split.pixel_based = true
+		sb.split = split
+	}	
+
+	sidebar_enum_panel_init(sb.split)
+	task_panel_init(sb.split)
+	sidebar_panel_init(panel)
 
 	goto_init(window) 
 	drag_init(window)

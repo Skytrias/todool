@@ -341,6 +341,10 @@ window_init :: proc(
 	res.drop_indices = make([dynamic]int, 0, 128)
 	res.element_arena = arena
 	res.element_arena_backing = arena_backing
+	res.width = int(w)
+	res.widthf = f32(w)
+	res.height = int(h)
+	res.heightf = f32(h)
 	undo_manager_init(&res.manager)
 
 	res.element.window = res
@@ -408,6 +412,10 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 	scaled_size := math.round(DEFAULT_FONT_SIZE * SCALE)
 	text_width := fontstash.string_width(font_regular, scaled_size, text)
 	floaty.width = max(HOVER_WIDTH * SCALE, text_width + TEXT_MARGIN_HORIZONTAL * SCALE)
+
+	if floaty.x + floaty.width > window.widthf {
+		floaty.x = window.widthf - floaty.width - 5
+	}
 }
 
 window_poll_size :: proc(window: ^Window) {
@@ -880,7 +888,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					window.width = int(e.window.data1)
 					window.widthf = f32(window.width)
 					window.height = int(e.window.data2)
-					window.heightf = f32(window.height)					
+					window.heightf = f32(window.height)	
 					window.update_next = true
 				}
 
@@ -1090,6 +1098,7 @@ gs_destroy :: proc() {
 
 	if gs.stored_image_thread != nil {
 		thread.destroy(gs.stored_image_thread)
+		gs.stored_image_thread = nil
 	}
 	for key, value in gs.stored_images {
 		delete(key)
