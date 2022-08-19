@@ -142,11 +142,11 @@ shortcuts_command_execute_todool :: proc(command: string) {
 	}
 }
 
-shortcuts_push_todool :: proc(window: ^Window) {
+shortcuts_push_todool_default :: proc(window: ^Window) {
 	s := &window.shortcut_state
 	context.allocator = mem.arena_allocator(&s.arena)
-	shortcuts_push_general(s, "move_up", "ctrl+up", "up")
-	shortcuts_push_general(s, "move_down", "ctrl+down", "down")
+	shortcuts_push_general(s, "move_up", "shift+up", "ctrl+up", "up")
+	shortcuts_push_general(s, "move_down", "shift+down", "ctrl+down", "down")
 	shortcuts_push_general(s, "move_up_parent", "ctrl+shift+home", "ctrl+home")
 	
 	shortcuts_push_general(s, "indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
@@ -208,8 +208,6 @@ shortcuts_push_todool :: proc(window: ^Window) {
 
 	shortcuts_push_general(s, "goto", "ctrl+g")
 	shortcuts_push_general(s, "search", "ctrl+f")
-
-	// shortcuts_push_general(s, "")
 }
 
 todool_delete_on_empty :: proc() {

@@ -263,8 +263,15 @@ main :: proc() {
 		}
 	}
 
-	shortcuts_push_todool(window)
-	shortcuts_push_box_default(window)
+	if loaded := keymap_load("save.keymap"); !loaded {
+		shortcuts_push_todool_default(window)
+		shortcuts_push_box_default(window)
+		log.info("LOAD FAILED")
+	} else {
+		log.info("LOAD SUCCESS")
+	}
+
+	// keymap_save("save.keymap")
 
 	// add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })

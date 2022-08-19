@@ -1,5 +1,8 @@
 package src
 
+import "core:unicode"
+import "core:fmt"
+import "core:slice"
 import "core:time"
 import "core:io"
 import "core:strings"
@@ -8,6 +11,7 @@ import "core:bytes"
 import "core:log"
 import "core:os"
 import "core:encoding/json"
+import "../cutf8"
 
 /* 
 TODOOL SAVE FILE FORMAT - currently *uncompressed*
@@ -351,6 +355,9 @@ Misc_Save_Load :: struct {
 }
 
 json_save_misc :: proc(path: string) -> bool {
+	arena, _ := arena_scoped(mem.Megabyte)
+	context.allocator = mem.arena_allocator(&arena)
+
 	// set tag data
 	tag_colors: [8]u32
 	tag_names: [8]string
@@ -374,7 +381,6 @@ json_save_misc :: proc(path: string) -> bool {
 	
 	// archive data
 	archive_data := make([]string, len(sb.archive.buttons.children) - 1)
-	defer delete(archive_data)
 	
 	// NOTE SKIP THE SCROLLBAR
 	for i in 0..<len(sb.archive.buttons.children) - 1 {
@@ -426,7 +432,6 @@ json_save_misc :: proc(path: string) -> bool {
 		},
 	}
 
-	arena, _ := arena_scoped(mem.Megabyte)
 	result, err := json.marshal(
 		value, 
 		{
@@ -435,7 +440,6 @@ json_save_misc :: proc(path: string) -> bool {
 			write_uint_as_hex = true,
 			mjson_keys_use_equal_sign = true,
 		},
-		mem.arena_allocator(&arena),
 	)
 
 	if err == nil {
@@ -523,6 +527,159 @@ json_load_misc :: proc(path: string) -> bool{
 	}
 	sb.archive.head = misc.archive.head
 	sb.archive.tail = misc.archive.tail
+
+	return true
+}
+
+// CUSTOM FORMAT: 
+// [SECTION]
+// move_up = shift+up ctrl+up up
+keymap_save :: proc(path: string) -> bool {
+	arena, _ := arena_scoped(mem.Megabyte)
+	context.allocator = mem.arena_allocator(&arena)
+
+	b := strings.builder_make(0, mem.Kilobyte * 2)
+	s := &window_main.shortcut_state
+
+	write_content :: proc(b: ^strings.Builder, name: string, mapping: map[string]string) {
+		strings.write_string(b, name)
+		strings.write_byte(b, '\n')
+		rows := make(map[string]strings.Builder, len(mapping))
+
+		// gather row data
+		for k, v in mapping {
+			if row, ok := &rows[v]; ok {
+				strings.write_byte(row, ' ')
+				strings.write_string(row, k)
+			} else {
+				row_builder := strings.builder_make(0, 64)
+				fmt.sbprintf(&row_builder, "\t%s = %s", v, k)
+				rows[v] = row_builder
+			}
+		}
+
+		// write each row
+		for _, row in rows {
+			strings.write_string(b, strings.to_string(row))
+			strings.write_byte(b, '\n')
+		}		
+
+		strings.write_string(b, "[END]\n")
+	}
+
+	write_content(&b, "[BOX]", s.box)
+	strings.write_byte(&b, '\n')
+	write_content(&b, "[TODOOL]", s.general)
+
+	ok := bpath_file_write(path, b.buf[:])
+	if !ok {
+		log.error("SAVE: Keymap save failed")
+		return false
+	}
+
+	return true
+}
+
+keymap_load :: proc(path: string) -> bool {
+	bytes := bpath_file_read(path) or_return
+	defer delete(bytes)
+
+	arena, _ := arena_scoped(mem.Megabyte)
+	context.allocator = mem.arena_allocator(&arena)
+
+	section_read :: proc(content: ^string, section: string, expected: int) -> (mapping: map[string]string, ok: bool) {
+		mapping = make(map[string]string, expected)
+		found_section: bool
+		ds: cutf8.Decode_State
+
+		for line in strings.split_lines_iterator(content) {
+			// end reached for the section
+			if line == "[END]" {
+				break
+			}
+
+			if !found_section {
+				// can skip empty lines
+				if line == section {
+					found_section = true
+				}
+			} else {
+				word_start := -1
+				first_found: bool
+				first_word: string
+				line_valid: bool
+				only_space := true
+				ds = {}
+
+				for codepoint, codepoint_index in cutf8.ds_iter(&ds, line) {
+					if codepoint == '=' {
+						line_valid = true
+					}
+
+					// word validity
+					if unicode.is_letter(codepoint) || codepoint == '+' {
+						if word_start == -1 {
+							word_start = ds.byte_offset_old
+						}
+
+						only_space = false
+					} else if unicode.is_space(codepoint) {
+						// ignoring spacing
+						if word_start != -1 {
+							word := line[word_start:ds.byte_offset_old]
+							word_start = -1
+
+							// insert first word as value
+							if !first_found {
+								first_word = word
+								first_found = true
+							} else {
+								mapping[word] = first_word
+							}
+						}
+					}
+				}
+
+				// check end of word
+				if word_start != -1 {
+					word := line[word_start:ds.byte_offset]
+
+					if first_found {
+						mapping[word] = first_word
+					}
+				}
+
+				// invalid typed line disallowed, empty line allowed
+				if !line_valid && !only_space {
+					return
+				}
+
+				log.info(line, first_word, len(mapping))
+			}
+		}
+
+		ok = len(mapping) != 0 && found_section
+		return
+	}
+
+	content := string(bytes)
+	box := section_read(&content, "[BOX]", 32) or_return
+	general := section_read(&content, "[TODOOL]", 128) or_return
+
+	// NOTE ONLY TRANSFERS DATA ON ALL SUCCESS
+	{
+		shortcuts_clear(window_main)
+		s := &window_main.shortcut_state
+		context.allocator = mem.arena_allocator(&s.arena)
+		
+		for combo, command in box {
+			s.box[strings.clone(combo)] = strings.clone(command)
+		}
+
+		for combo, command in general {
+			s.general[strings.clone(combo)] = strings.clone(command)
+		}
+	}
 
 	return true
 }
