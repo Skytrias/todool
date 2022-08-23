@@ -366,6 +366,10 @@ window_init :: proc(
 	return
 }
 
+window_allocator :: proc(window: ^Window) -> mem.Allocator {
+	return mem.arena_allocator(&window.element_arena)
+}
+
 window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: string) {
 	floaty := window.hovered_panel
 	element_hide(floaty, false)

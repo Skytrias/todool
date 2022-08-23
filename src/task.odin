@@ -475,7 +475,7 @@ task_init :: proc(
 	indentation: int,
 	text: string,
 ) -> (res: ^Task) { 
-	allocator := mem.arena_allocator(&window_main.element_arena)
+	allocator := window_allocator(window_main)
 	res = new(Task, allocator)
 	element := cast(^Element) res
 	element.message_class = task_message
@@ -516,7 +516,7 @@ task_init :: proc(
 		return 0
 	}
 
-	res.image_display = image_display_init(res, {}, nil)
+	res.image_display = image_display_init(res, {}, nil, allocator)
 	res.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		display := cast(^Image_Display) element
 
@@ -1945,7 +1945,7 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 
 	search_init(mode_panel_split)
 
-	mode_panel = mode_panel_init(mode_panel_split, {})
+	mode_panel = mode_panel_init(mode_panel_split, {}, window_allocator(window_main))
 	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
 	mode_panel.margin_vertical = 10

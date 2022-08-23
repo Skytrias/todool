@@ -279,8 +279,9 @@ element_init :: proc(
 	allocator: mem.Allocator,
 	index_at := -1,
 	cap := runtime.DEFAULT_RESERVE_CAPACITY,
+	loc := #caller_location,
 ) -> (res: ^T) {
-	res = new(T, allocator)
+	res = new(T, allocator, loc)
 	element := cast(^Element) res
 	element.allocator = allocator
 	element.children = make([dynamic]^Element, 0, cap, allocator)
@@ -395,9 +396,7 @@ element_destroy :: proc(element: ^Element) {
 
 	// recurse to destroy all children
 	for child in element.children {
-		if .Layout_Ignore not_in child.flags {
-			element_destroy(child)
-		}
+		element_destroy(child)
 	}
 
 	// push repaint
@@ -1050,6 +1049,10 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Key_Combination: {
 			key_combination_check_click(element, dp)
+		}
+
+		case .Destroy: {
+			delete(box.builder.buf)
 		}
 	}
 
