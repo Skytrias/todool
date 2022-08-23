@@ -654,7 +654,7 @@ keymap_load :: proc(path: string) -> bool {
 					return
 				}
 
-				log.info(line, first_word, len(mapping))
+				// log.info(line, first_word, len(mapping))
 			}
 		}
 

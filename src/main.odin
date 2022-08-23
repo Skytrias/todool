@@ -14,6 +14,8 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
+TODOOL_RELEASE :: true
+
 // import "../notify"
 
 // main :: proc() {
@@ -35,26 +37,6 @@ import "../fontstash"
 // 	// res := nfd.SaveDialog("", "", &out_path)
 // 	// fmt.eprintln(res, out_path)
 // }
-
-@(deferred_out=arena_scoped_end)
-arena_scoped :: proc(cap: int) -> (arena: mem.Arena, backing: []byte) {
-	backing = make([]byte, cap)
-	mem.arena_init(&arena, backing)
-	return
-}
-
-arena_scoped_end :: proc(arena: mem.Arena, backing: []byte) {
-	delete(backing)
-}
-
-// mapping from key shortcut -> key command
-// mapping from key command -> command execution
-
-todool_command_execute :: proc(command: string) {
-	switch command {
-		// case "move_right"
-	}
-}
 
 main :: proc() {
 	gs_init()
@@ -90,9 +72,12 @@ main :: proc() {
 				}
 
 				if command, ok := s.general[combo]; ok {
-					shortcuts_command_execute_todool(command)
+					if shortcuts_command_execute_todool(command) {
+						return 1
+					}
 				}
-				return 1
+
+				return 0
 			}
 
 			case .Unicode_Insertion: {
@@ -263,12 +248,13 @@ main :: proc() {
 		}
 	}
 
+	// keymap loading
 	if loaded := keymap_load("save.keymap"); !loaded {
 		shortcuts_push_todool_default(window)
 		shortcuts_push_box_default(window)
-		log.info("LOAD FAILED")
+		log.error("KEYMAP: Load failed")
 	} else {
-		log.info("LOAD SUCCESS")
+		log.info("KEYMAP: Load successful")
 	}
 
 	// keymap_save("save.keymap")

@@ -70,9 +70,10 @@ shortcuts_push_box_default :: proc(window: ^Window) {
 	shortcuts_push_box(s, "paste", "ctrl+v")
 }
 
-shortcuts_command_execute_todool :: proc(command: string) {
+shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 	ctrl := mode_panel.window.ctrl
 	shift := mode_panel.window.shift
+	handled = true
 
 	switch command {
 		case "move_up": todool_move_up()
@@ -139,7 +140,13 @@ shortcuts_command_execute_todool :: proc(command: string) {
 
 		case "goto": todool_goto()
 		case "search": todool_search()
+
+		case: {
+			handled = false
+		}
 	}
+
+	return
 }
 
 shortcuts_push_todool_default :: proc(window: ^Window) {

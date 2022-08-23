@@ -140,7 +140,11 @@ Global_State :: struct {
 	// windows: [dynamic]^Window,
 	windows: ^Window,
 
+	// logger data
 	logger: log.Logger,
+	log_path: string, // freed at destroy
+	default_base_path: string,
+
 	running: bool,
 	cursors: [Cursor]^sdl.Cursor,
 
@@ -1006,14 +1010,11 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 
 gs_init :: proc() {
 	using gs
-	logger = log.create_console_logger()
-	context.logger = logger
-	// windows = make([dynamic]^Window, 0, 8)
 	running = true
 
 	err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO)
 	if err != 0 {
-		log.panicf("SDL2: failed to initialize %d", err)
+		fmt.panicf("SDL2: failed to initialize %d", err)
 	}
 
 	sdl.StartTextInput()
@@ -1027,9 +1028,6 @@ gs_init :: proc() {
 	cursors[.Resize_Horizontal] = sdl.CreateSystemCursor(.SIZEWE)
 	cursors[.Resize_Vertical] = sdl.CreateSystemCursor(.SIZENS)
 	cursors[.Crosshair] = sdl.CreateSystemCursor(.CROSSHAIR)
-
-	fontstash.init(1000, 1000)
-	fonts_init()
 
 	// base path
 	path := sdl.GetPrefPath("skytrias", "todool")
@@ -1045,6 +1043,28 @@ gs_init :: proc() {
 			default_base_path = "./"
 		}
 	}
+
+	// use file logger on release builds
+	when TODOOL_RELEASE {
+		log_path = strings.clone(bpath_temp("log.txt"))
+
+		// write only, create new file if not exists, truncate file at start
+		when os.OS == .Linux {
+			// all rights on linux
+			mode := 0o0777
+			log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, mode)
+		} else {
+			log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+		}
+
+		logger = log.create_file_logger(log_file_handle)
+	} else {
+		logger = log.create_console_logger()
+	}	
+	context.logger = logger
+
+	fontstash.init(1000, 1000)
+	fonts_init()
 
 	// audio
 	{
@@ -1091,7 +1111,15 @@ gs_destroy :: proc() {
 	ease.flux_destroy(flux)
 	fontstash.destroy()
 	fonts_destroy()
-	log.destroy_console_logger(logger)
+
+	// based on mode
+	when TODOOL_RELEASE {
+		log.destroy_file_logger(&logger)
+		delete(log_path)
+	} else {
+		log.destroy_console_logger(&logger)
+	}
+	delete(default_base_path)
 
 	for cursor in cursors {
 		sdl.FreeCursor(cursor)
@@ -1599,14 +1627,26 @@ sdl_push_empty_event :: #force_inline proc() {
 }
 
 //////////////////////////////////////////////
+// arena
+//////////////////////////////////////////////
+
+@(deferred_out=arena_scoped_end)
+arena_scoped :: proc(cap: int) -> (arena: mem.Arena, backing: []byte) {
+	backing = make([]byte, cap)
+	mem.arena_init(&arena, backing)
+	return
+}
+
+arena_scoped_end :: proc(arena: mem.Arena, backing: []byte) {
+	delete(backing)
+}
+
+//////////////////////////////////////////////
 // bpath, initialized once
 //////////////////////////////////////////////
 
-default_save_name := "save"
-default_base_path: string
-
 bpath_temp :: proc(path: string) -> string {
-	return fmt.tprintf("%s%s", default_base_path, path)
+	return fmt.tprintf("%s%s", gs.default_base_path, path)
 }
 
 bpath_file_write :: proc(path: string, content: []byte) -> bool {

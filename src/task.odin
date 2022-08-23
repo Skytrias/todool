@@ -1953,8 +1953,11 @@ tasks_load_file :: proc() {
 	
 	// on error reset and load default
 	if err != nil {
+		log.info("TODOOL: Loading failed -> Loading default")
 		tasks_load_reset()
 		tasks_load_default()
+	} else {
+		log.info("TODOOL: Loading success")
 	}
 }
 
