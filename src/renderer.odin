@@ -29,7 +29,7 @@ Render_Target :: struct {
 	// holding groups of vertices
 	groups: [dynamic]Render_Group,
 
-	// arena to quickly clear vertices
+	// slice to quickly clear vertices
 	vertices: []Render_Vertex,
 	vertex_index: int,
 

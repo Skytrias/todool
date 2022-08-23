@@ -163,8 +163,10 @@ Global_State :: struct {
 	// stores multiple png images
 	stored_images: map[string]Stored_Image,
 	stored_image_thread: ^thread.Thread,
+
+	track: mem.Tracking_Allocator,
 }
-gs: Global_State
+gs: ^Global_State
 
 Stored_Image_Load_Finished :: proc(img: ^Stored_Image, data: rawptr)
 Stored_Image :: struct {
@@ -288,27 +290,24 @@ window_init :: proc(
 					element_move(child, element.bounds)
 				}
 			}
-
-			case .Deallocate_Recursive: {
-				window_destroy(window)
-			}
 		}
 
 		return 0
 	}
 
 	// spawn an arena
-	arena_backing := make([]byte, arena_cap)
-	arena: mem.Arena
-	mem.arena_init(&arena, arena_backing)
 
 	res = cast(^Window) element_init(
 		Window, 
 		nil, 
 		{ .Tab_Movement_Allowed, .Sort_By_Z_Index },
 		_window_message,
-		mem.arena_allocator(&arena),
+		context.allocator,
 	)
+
+	res.element_arena_backing = make([]byte, arena_cap)
+	mem.arena_init(&res.element_arena, res.element_arena_backing)
+
 	res.w = window
 	res.w_id = window_id
 	res.hovered = &res.element
@@ -322,8 +321,6 @@ window_init :: proc(
 	res.cursor_y = -100
 	res.drop_file_name_builder = strings.builder_make(0, mem.Kilobyte * 2)
 	res.drop_indices = make([dynamic]int, 0, 128)
-	res.element_arena = arena
-	res.element_arena_backing = arena_backing
 	res.width = int(w)
 	res.widthf = f32(w)
 	res.height = int(h)
@@ -787,16 +784,20 @@ window_title_build :: proc(window: ^Window, text: string) {
 }
 
 window_destroy :: proc(window: ^Window) {
+	log.info("WINDOW: Destroyed")
 	shortcut_state_destroy(&window.shortcut_state)
 
 	sdl.RemoveTimer(window.hover_timer)
 
+	free_all(mem.arena_allocator(&window.element_arena))
 	delete(window.element_arena_backing)
+	delete(window.drop_indices)
+	delete(window.drop_file_name_builder.buf)
 
 	undo_manager_destroy(window.manager)
 	render_target_destroy(window.target)
-	element_destroy(&window.element)
-	element_deallocate(&window.element)
+	// element_destroy(&window.element)
+	// element_deallocate(&window.element)
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
 	delete(window.dialog_builder.buf)
@@ -1008,9 +1009,23 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 	}
 }
 
+gs_allocator :: proc() -> mem.Allocator {
+	when TRACK_MEMORY {
+		return mem.tracking_allocator(&gs.track)
+	} else {
+		return context.allocator
+	}
+}
+
 gs_init :: proc() {
+	gs = new(Global_State)
 	using gs
 	running = true
+
+	when TRACK_MEMORY {
+		mem.tracking_allocator_init(&track, context.allocator)
+	}
+	context.allocator = gs_allocator()
 
 	err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO)
 	if err != 0 {
@@ -1065,6 +1080,7 @@ gs_init :: proc() {
 
 	fontstash.init(1000, 1000)
 	fonts_init()
+	animating = make([dynamic]^Element, 0, 32)
 
 	// audio
 	{
@@ -1090,8 +1106,24 @@ gs_init :: proc() {
 	flux = ease.flux_init(f32, 128)
 }
 
+gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
+	if len(ta.allocation_map) > 0 {
+		for _, v in ta.allocation_map {
+			fmt.eprintf("%v LEAK: %dB\n", v.location, v.size)
+		}
+	}
+	
+	if len(ta.bad_free_array) > 0 {
+		for v in ta.bad_free_array {
+			fmt.eprintf("%v BAD FREE PTR: %p\n", v.location, v.memory)
+		}
+	}
+}
+
 gs_destroy :: proc() {
 	using gs
+
+	delete(animating)
 
 	if gs.stored_image_thread != nil {
 		thread.destroy(gs.stored_image_thread)
@@ -1117,15 +1149,21 @@ gs_destroy :: proc() {
 		log.destroy_file_logger(&logger)
 		delete(log_path)
 	} else {
-		log.destroy_console_logger(&logger)
+		log.destroy_console_logger(logger)
 	}
 	delete(default_base_path)
+
+	when TRACK_MEMORY {
+		gs_check_leaks(&track)
+		mem.tracking_allocator_destroy(&track)
+	}	
 
 	for cursor in cursors {
 		sdl.FreeCursor(cursor)
 	}
 
 	sdl.Quit()
+	free(gs)
 }
 
 window_flush_mouse_state :: proc(window: ^Window) {
@@ -1210,7 +1248,6 @@ gs_message_loop :: proc() {
 		} else {
 			// wait for event to arive
 			available := sdl.WaitEvent(nil)
-			// sdl.PollEvent()
 			// set frame start after waiting
 			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_events()
@@ -1233,6 +1270,7 @@ gs_message_loop :: proc() {
 		}
 	}
 
+	task_data_destroy()
 	gs_destroy()
 }
 
@@ -1270,6 +1308,8 @@ gs_draw_and_cleanup :: proc() {
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
+			window_destroy(window)
+			log.info("WINDOW: Success dealloc linked list")
 			window_count -= 1
 			link^ = next
 		} else if window.update_next {

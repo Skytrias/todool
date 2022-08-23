@@ -128,14 +128,13 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			element_repaint(element)
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			free(element.data)
 		}
 	}
 
 	return 0
 }
-
 
 sidebar_panel_init :: proc(parent: ^Element) {
 	panel_info = panel_init(parent, { .Panel_Default_Background, .VF, .Tab_Movement_Allowed }, 0, 5)
@@ -501,7 +500,7 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			delete(button.builder.buf)
 		}
 	}
@@ -577,7 +576,7 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			}
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			free(element.data)
 		}
 	}

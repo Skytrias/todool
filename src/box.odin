@@ -49,6 +49,16 @@ Box :: struct {
 	change_start: time.Tick,
 }
 
+box_init :: proc(box: ^Box, cap: int) {
+	box.builder = strings.builder_make(0, cap)
+	box.wrapped_lines = make([dynamic]string, 0, 4)
+}
+
+box_destroy :: proc(box: Box) {
+	delete(box.wrapped_lines)
+	delete(box.builder.buf)
+}
+
 Text_Box :: struct {
 	using element: Element,
 	using box: Box,
@@ -457,8 +467,8 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			return int(handled)
 		}
 
-		case .Deallocate_Recursive: {
-			delete(box.builder.buf)
+		case .Destroy: {
+			box_destroy(box.box)
 		}
 
 		case .Update: {
@@ -526,7 +536,7 @@ text_box_init :: proc(
 	flags := flags
 	flags |= { .Tab_Stop }
 	res = element_init(Text_Box, parent, flags, text_box_message, allocator, index_at)
-	res.builder = strings.builder_make(0, 32)
+	box_init(&res.box, 32)
 	strings.write_string(&res.builder, text)
 	box_move_end(&res.box, false)
 	return	
@@ -596,8 +606,8 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			return int(handled)
 		}
 
-		case .Deallocate_Recursive: {
-			delete(task_box.builder.buf)
+		case .Destroy: {
+			box_destroy(task_box.box)
 		}
 
 		case .Update: {
@@ -627,7 +637,7 @@ task_box_init :: proc(
 	index_at := -1,
 ) -> (res: ^Task_Box) {
 	res = element_init(Task_Box, parent, flags, task_box_message, allocator, index_at)
-	res.builder = strings.builder_make(0, 32)
+	box_init(&res.box, 32)
 	strings.write_string(&res.builder, text)
 	box_move_end(&res.box, false)
 	return

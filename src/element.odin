@@ -33,9 +33,8 @@ Message :: enum {
 	Update,
 	Paint_Recursive,
 	Layout,
-	Deallocate_Recursive,
+	Deallocate,
 	Destroy,
-	Destroy_Child_Finished,
 	Animate,
 	Custom_Clip,
 
@@ -413,30 +412,30 @@ element_deallocate :: proc(element: ^Element) -> bool {
 		// clear flag
 		excl(&element.flags, Element_Flag.Destroy_Descendent)
 
-		// // destroy each child, loop from end to pop quickly
-		// for i := len(element.children) - 1; i >= 0; i -= 1 {
-		// 	child := element.children[i]
-
-		// 	if element_destroy_now(child) {
-		// 		unordered_remove(&element.children, i)
-		// 	}
-		// }
-
-		// TODO use memmove?
-		for i := 0; i < len(element.children); i += 1 {
+		// destroy each child, loop from end to pop quickly
+		for i := len(element.children) - 1; i >= 0; i -= 1 {
 			child := element.children[i]
 
 			if element_deallocate(child) {
-				ordered_remove(&element.children, i)
-				element_message(element, .Destroy_Child_Finished, i)
-				i -= 1
+				unordered_remove(&element.children, i)
 			}
 		}
+
+		// // TODO use memmove?
+		// for i := 0; i < len(element.children); i += 1 {
+		// 	child := element.children[i]
+
+		// 	if element_deallocate(child) {
+		// 		ordered_remove(&element.children, i)
+		// 		element_message(element, .Destroy_Child_Finished, i)
+		// 		i -= 1
+		// 	}
+		// }
 	}
 
 	if .Destroy in element.flags {
 		// send the destroy message to clear data
-		element_message(element, .Deallocate_Recursive)
+		element_message(element, .Deallocate)
 
 		// if this element is being pressed -> clear the pressed field
 		if element.window.pressed == element {
@@ -557,7 +556,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			element_repaint(element)
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			delete(button.builder.buf)
 		}
 
@@ -787,7 +786,7 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			erender_string_aligned(element, text, element.bounds, color, ah, av)
 		}
 		
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			delete(label.builder.buf)
 		}
 
@@ -891,7 +890,7 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			delete(slider.builder.buf)
 		}
 	}
@@ -1852,7 +1851,7 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			element_repaint(element)
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			delete(table.columns)
 			delete(table.column_widths)
 		}
@@ -2305,7 +2304,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			return int(handled)
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			delete(toggle.cells)
 		}
 	}

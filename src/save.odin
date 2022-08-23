@@ -355,7 +355,7 @@ Misc_Save_Load :: struct {
 }
 
 json_save_misc :: proc(path: string) -> bool {
-	arena, _ := arena_scoped(mem.Megabyte)
+	arena, _ := arena_scoped(mem.Megabyte * 10)
 	context.allocator = mem.arena_allocator(&arena)
 
 	// set tag data
@@ -454,7 +454,7 @@ json_load_misc :: proc(path: string) -> bool{
 	bytes := bpath_file_read(path) or_return
 	defer delete(bytes)
 
-	arena, _ := arena_scoped(mem.Megabyte)
+	arena, _ := arena_scoped(mem.Megabyte * 10)
 	misc: Misc_Save_Load
 	err := json.unmarshal(bytes, &misc, .MJSON, mem.arena_allocator(&arena))
 

@@ -1117,7 +1117,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			return 1
 		}
 
-		case .Deallocate_Recursive: {
+		case .Destroy: {
 			delete(panel.kanban_outlines)
 		}
 
@@ -1463,6 +1463,10 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 	}
 
 	#partial switch msg {
+		case .Destroy: {
+			delete(task.search_results)
+		}
+
 		case .Get_Width: {
 			return int(SCALE * 200)
 		}

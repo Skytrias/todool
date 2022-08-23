@@ -14,7 +14,8 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
-TODOOL_RELEASE :: true
+TRACK_MEMORY :: true
+TODOOL_RELEASE :: false
 
 // import "../notify"
 
@@ -41,9 +42,9 @@ TODOOL_RELEASE :: true
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
+	context.allocator = gs_allocator()
 
 	task_data_init()
-	defer task_data_destroy()
 
 	window := window_init("Todool", 900, 900, mem.Megabyte * 10)
 	window.name = "main"
