@@ -39,16 +39,10 @@ TODOOL_RELEASE :: false
 // 	// fmt.eprintln(res, out_path)
 // }
 
-// Some_Struct :: struct {
-// 	a, b, c: int,
-// }
+// import "core:c/libc"
 
-// main :: proc() {
-// 	value1 := &Some_Struct { 1, 2, 3 }
-// 	value2 := &Some_Struct { 1, 2, 3 }
-// 	value3 := &Some_Struct { 1, 2, 3 }
-// 	value4 := &Some_Struct { 1, 2, 3 }
-// 	fmt.eprintln(value1, value2, value3, value4)
+// main2 :: proc() {
+// 	libc.system("xdg-open https://www.patreon.com/nakst")	
 // }
 
 main :: proc() {
@@ -60,6 +54,10 @@ main :: proc() {
 
 	window := window_init("Todool", 900, 900, mem.Megabyte * 10)
 	window.name = "main"
+	window.on_resize = proc(window: ^Window) {
+		cam := mode_panel_cam()
+		cam.freehand = true
+	}
 	window_main = window
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element

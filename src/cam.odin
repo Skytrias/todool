@@ -16,7 +16,6 @@ Pan_Camera :: struct {
 	offset_x, offset_y: f32,
 	margin_x, margin_y: f32,
 
-
 	freehand: bool, // disables auto centering while panning
 
 	ay: Pan_Camera_Animation,
@@ -45,8 +44,8 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 		return false
 	}
 
-	real_goal := direction == CAM_CENTER ? goal : math.round(off^ + f32(direction) * goal)
-	// log.info("real_goal", x ? "x" : "y", direction == 0, real_goal, off^)
+	real_goal := direction == CAM_CENTER ? goal : math.floor(off^ + f32(direction) * goal)
+	log.info("real_goal", x ? "x" : "y", direction == 0, real_goal, off^)
 	res := animate_to(
 		&animating,
 		off,
@@ -71,23 +70,20 @@ cam_bounds_check_y :: proc(
 	to_top: f32,
 	to_bottom: f32,
 ) -> (goal: f32, direction: int) {
+	if cam.margin_y * 2 > window_main.heightf {
+		cam_center_by_height_state(cam, mode_panel.bounds, caret_rect.t)
+		return
+	}
+	// margin := cam.margin_y * 2 < window_main.heightf ? cam.margin_y : 10
+
 	if to_top < focus.t + cam.margin_y {
 		goal = math.round(focus.t - to_top + cam.margin_y)
-		
-		if goal == 0 {
-			return
-		}
-
 		direction = 1
+		return
 	} 
 
 	if to_bottom > focus.b - cam.margin_y {
 		goal = math.round(to_bottom - focus.b + cam.margin_y)
-
-		if goal == 0 {
-			return
-		}
-
 		direction = -1
 	}
 

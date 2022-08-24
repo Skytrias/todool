@@ -766,6 +766,15 @@ box_copy_selection :: proc(window: ^Window, box: ^Box) -> (found: bool) {
 box_paste :: proc(element: ^Element, box: ^Box) -> (found: bool) {
 	if clipboard_has_content() {
 		text := clipboard_get_with_builder_till_newline()
+
+		if strings.has_suffix(text, ".png") {
+			task := tasks_visible[task_head]
+			handle := image_load_push(text)
+			task.image_display.img = handle
+			found = true
+			return
+		}
+
 		box_replace(element, box, text, 0, true)
 		found = true
 	}

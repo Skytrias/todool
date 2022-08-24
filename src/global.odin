@@ -120,6 +120,9 @@ Window :: struct {
 	element_arena: mem.Arena,
 	element_arena_backing: []byte,
 
+	// callbacks
+	on_resize: proc(window: ^Window),
+
 	// next window
 	window_next: ^Window,
 }
@@ -872,6 +875,10 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					window.height = int(e.window.data2)
 					window.heightf = f32(window.height)	
 					window.update_next = true
+
+					if window.on_resize != nil {
+						window->on_resize()
+					}
 				}
 
 				// called on first shown
@@ -1026,7 +1033,7 @@ gs_init :: proc() {
 		mem.tracking_allocator_init(&track, context.allocator)
 	}
 	context.allocator = gs_allocator()
-
+	
 	err := sdl.Init(sdl.INIT_VIDEO | sdl.INIT_EVENTS | sdl.INIT_AUDIO)
 	if err != 0 {
 		fmt.panicf("SDL2: failed to initialize %d", err)
@@ -1077,6 +1084,12 @@ gs_init :: proc() {
 		logger = log.create_console_logger()
 	}	
 	context.logger = logger
+
+	{
+		linked: sdl.version
+		sdl.GetVersion(&linked)
+		log.infof("SDL2: Linked Version %d.%d.%d", linked.major, linked.minor, linked.patch)
+	}
 
 	fontstash.init(1000, 1000)
 	fonts_init()
