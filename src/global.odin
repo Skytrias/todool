@@ -112,9 +112,6 @@ Window :: struct {
 	// title
 	title_builder: strings.Builder,
 
-	// copy from text boxes
-	copy_builder: strings.Builder,
-
 	// drop handling
 	drop_indices: [dynamic]int, // indices into the file name builder
 	drop_file_name_builder: strings.Builder,
@@ -144,6 +141,9 @@ Global_State :: struct {
 	logger: log.Logger,
 	log_path: string, // freed at destroy
 	default_base_path: string,
+
+	// builder to store clipboard content
+	copy_builder: strings.Builder,
 
 	running: bool,
 	cursors: [Cursor]^sdl.Cursor,
@@ -314,7 +314,6 @@ window_init :: proc(
 	res.combo_builder = strings.builder_make(0, 32)
 	res.title_builder = strings.builder_make(0, 64)
 	res.dialog_builder = strings.builder_make(0, 64)
-	res.copy_builder = strings.builder_make(0, 256)
 	res.target = render_target_init(window)
 	res.update_next = true
 	res.cursor_x = -100
@@ -800,12 +799,9 @@ window_destroy :: proc(window: ^Window) {
 
 	undo_manager_destroy(window.manager)
 	render_target_destroy(window.target)
-	// element_destroy(&window.element)
-	// element_deallocate(&window.element)
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
 	delete(window.dialog_builder.buf)
-	delete(window.copy_builder.buf)
 	sdl.DestroyWindow(window.w)
 }
 
@@ -1086,6 +1082,8 @@ gs_init :: proc() {
 	fonts_init()
 	animating = make([dynamic]^Element, 0, 32)
 
+	copy_builder = strings.builder_make(0, mem.Kilobyte)
+
 	// audio
 	{
 		// audio support
@@ -1128,6 +1126,7 @@ gs_destroy :: proc() {
 	using gs
 
 	delete(animating)
+	delete(copy_builder.buf)
 
 	if gs.stored_image_thread != nil {
 		thread.destroy(gs.stored_image_thread)
@@ -1657,10 +1656,58 @@ clipboard_get_string :: proc(allocator := context.allocator) -> string {
 	return result
 }
 
-// set the clipboard content, use builder to append nul byte
-clipboard_set_with_builder :: proc(builder: ^strings.Builder) -> i32 {
-	strings.write_byte(builder, 0)
-	ctext := strings.unsafe_string_to_cstring(strings.to_string(builder^))
+// get clipboard string and write it into the builder
+clipboard_get_with_builder :: proc() -> string {
+	text := sdl.GetClipboardText()
+	b := &gs.copy_builder
+	strings.builder_reset(b)
+	raw := (transmute(mem.Raw_Cstring) text).data
+	resize(&b.buf, len(text))
+	mem.copy(raw_data(b.buf), raw, len(text))
+	sdl.free(cast(rawptr) text)
+	return strings.to_string(b^)
+}
+
+// get clipboard string and write it into the builder
+// stops at newline
+clipboard_get_with_builder_till_newline :: proc() -> string {
+	ctext := sdl.GetClipboardText()
+	defer sdl.free(cast(rawptr) ctext)
+	text := string(ctext)
+
+	b := &gs.copy_builder
+	strings.builder_reset(b)
+
+	ds: cutf8.Decode_State
+	for codepoint in cutf8.ds_iter(&ds, text) {
+		if codepoint == '\n' {
+			break	
+		}
+		
+		strings.write_rune(b, codepoint)
+	}
+
+	return strings.to_string(b^)
+}
+
+clipboard_set_prepare :: proc() -> ^strings.Builder {
+	strings.builder_reset(&gs.copy_builder)
+	return &gs.copy_builder
+}
+
+clipboard_set_with_builder_prefilled :: proc() -> i32 {
+	b := &gs.copy_builder
+	strings.write_byte(b, 0)
+	ctext := strings.unsafe_string_to_cstring(strings.to_string(b^))
+	return sdl.SetClipboardText(ctext)
+}
+
+clipboard_set_with_builder :: proc(text: string) -> i32 {
+	b := &gs.copy_builder
+	strings.builder_reset(b)
+	strings.write_string(b, text)
+	strings.write_byte(b, 0)
+	ctext := strings.unsafe_string_to_cstring(strings.to_string(b^))
 	return sdl.SetClipboardText(ctext)
 }
 

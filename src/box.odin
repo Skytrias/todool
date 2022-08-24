@@ -307,6 +307,15 @@ Undo_Builder_Uppercased_Content_Reset :: struct {
 	byte_count: int, // content coming in the next bytes
 }
 
+Undo_Builder_Lowercased_Content :: struct {
+	builder: ^strings.Builder,
+}
+
+Undo_Builder_Lowercased_Content_Reset :: struct {
+	builder: ^strings.Builder,
+	byte_count: int, // content coming in the next bytes
+}
+
 undo_box_uppercased_content_reset :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Builder_Uppercased_Content_Reset) item
 
@@ -344,6 +353,45 @@ undo_box_uppercased_content :: proc(manager: ^Undo_Manager, item: rawptr) {
 	// write uppercased
 	text := strings.to_string(data.builder^)
 	builder_write_uppercased_string(data.builder, text)
+}
+
+undo_box_lowercased_content_reset :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Builder_Lowercased_Content_Reset) item
+
+	// reset and write old content
+	text_root := cast(^u8) (uintptr(item) + size_of(Undo_Builder_Lowercased_Content_Reset))
+	text_content := strings.string_from_ptr(text_root, data.byte_count)
+	strings.builder_reset(data.builder)
+	strings.write_string(data.builder, text_content)
+
+	output := Undo_Builder_Lowercased_Content {
+		builder = data.builder,
+	}
+	undo_push(manager, undo_box_lowercased_content, &output, size_of(Undo_Builder_Lowercased_Content))
+}
+
+undo_box_lowercased_content :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Builder_Lowercased_Content) item
+
+	// generate output before mods
+	output := Undo_Builder_Lowercased_Content_Reset {
+		builder = data.builder,
+		byte_count = len(data.builder.buf),
+	}
+	bytes := undo_push(
+		manager, 
+		undo_box_lowercased_content_reset, 
+		&output, 
+		size_of(Undo_Builder_Lowercased_Content_Reset) + output.byte_count,
+	)
+
+	// write actual text content
+	text_root := cast(^u8) &bytes[size_of(Undo_Builder_Lowercased_Content_Reset)]
+	mem.copy(text_root, raw_data(data.builder.buf), output.byte_count)
+
+	// write lowercased
+	text := strings.to_string(data.builder^)
+	builder_write_lowercased_string(data.builder, text)
 }
 
 //////////////////////////////////////////////
@@ -708,9 +756,7 @@ box_copy_selection :: proc(window: ^Window, box: ^Box) -> (found: bool) {
 	selection, ok := cutf8.ds_string_selection(&box.ds, strings.to_string(box.builder), low, high)
 	
 	if ok {
-		b := &window.copy_builder
-		strings.builder_reset(b)
-		strings.write_string(b, selection)
+		clipboard_set_with_builder(selection)
 		found = true
 	}
 
@@ -718,10 +764,9 @@ box_copy_selection :: proc(window: ^Window, box: ^Box) -> (found: bool) {
 }
 
 box_paste :: proc(element: ^Element, box: ^Box) -> (found: bool) {
-	b := &element.window.copy_builder
-
-	if len(b.buf) != 0 {
-		box_replace(element, box, strings.to_string(b^), 0, true)
+	if clipboard_has_content() {
+		text := clipboard_get_with_builder_till_newline()
+		box_replace(element, box, text, 0, true)
 		found = true
 	}
 
@@ -1009,6 +1054,16 @@ builder_write_uppercased_string :: proc(b: ^strings.Builder, s: string) {
 
 		builder_append_rune(b, codepoint)
 		prev = codepoint
+	}
+}
+
+// write uppercased version of the string
+builder_write_lowercased_string :: proc(b: ^strings.Builder, s: string) {
+	ds: cutf8.Decode_State
+	strings.builder_reset(b)
+
+	for codepoint, i in cutf8.ds_iter(&ds, s) {
+		builder_append_rune(b, unicode.to_lower(codepoint))
 	}
 }
 

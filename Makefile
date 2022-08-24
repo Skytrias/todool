@@ -1,4 +1,5 @@
 # 	@../Odin/odin check src -thread-count:12	
+# 	@../Odin/odin build src -out:target/todool -thread-count:12 && cd target && ./todool
 
 build:
 	@../Odin/odin build src -out:target/todool -thread-count:12 && cd target && ./todool

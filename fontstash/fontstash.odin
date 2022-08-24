@@ -1,5 +1,6 @@
 package fontstash
 
+import "core:fmt"
 import "core:log"
 import "core:os"
 import "core:mem"
@@ -82,7 +83,7 @@ Font :: struct {
 	lut: [LUT_SIZE]int,
 }
 
-Glyph :: struct #packed {
+Glyph :: struct {
 	codepoint: rune,
 	glyph_index: Glyph_Index_Type,
 	next: int,
@@ -399,7 +400,7 @@ get_glyph :: proc(
 	pixel_size: f32,
 	scale: f32,
 	codepoint: rune,
-) -> (res: ^Glyph, pushed: bool) #optional_ok {
+) -> (res: ^Glyph, pushed: bool) {
 	// find code point and size
 	h := font_hash(u32(codepoint)) & (LUT_SIZE - 1)
 	i := font.lut[h]
@@ -557,7 +558,7 @@ font_blur :: proc(dst: []u8, w, h, dst_stride: int, blur_size: u8) {
 // USER LEVEL CODE
 /////////////////////////////////
 
-ascent_scaled :: #force_inline proc(font: ^Font, scale: f32) -> f32 {
+ascent_scaled :: proc(font: ^Font, scale: f32) -> f32 {
 	return f32(font.ascent) * scale
 }
 
@@ -573,11 +574,11 @@ ascent_pixel_size :: proc(font: ^Font, pixel_size: f32) -> f32 {
 // 	return {}
 // }
 
-get_glyph_index :: #force_inline proc(font: ^Font, codepoint: rune) -> Glyph_Index_Type {
+get_glyph_index :: proc(font: ^Font, codepoint: rune) -> Glyph_Index_Type {
 	return stbtt.FindGlyphIndex(&font.info, codepoint)
 }
 
-scale_for_pixel_height :: #force_inline proc(font: ^Font, pixel_height: f32) -> f32 {
+scale_for_pixel_height :: proc(font: ^Font, pixel_height: f32) -> f32 {
 	return stbtt.ScaleForPixelHeight(&font.info, pixel_height)
 }
 

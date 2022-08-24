@@ -105,7 +105,11 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "copy_tasks": todool_copy_tasks()
 		case "cut_tasks": todool_cut_tasks()
 		case "paste_tasks": todool_paste_tasks()
+		case "paste_tasks_from_clipboard": todool_paste_tasks_from_clipboard()
 		case "center": todool_center()
+		
+		case "tasks_to_lowercase": todool_tasks_to_lowercase()
+		case "tasks_to_uppercase": todool_tasks_to_uppercase()
 		
 		case "change_task_state": todool_change_task_state(shift)
 		case "changelog_generate": todool_changelog_generate()
@@ -165,6 +169,9 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "tag_jump_prev", "ctrl+shift+tab")
 	shortcuts_push_general(s, "tag_jump_next", "ctrl+tab")
 
+	shortcuts_push_general(s, "tasks_to_uppercase", "ctrl+shift+j")
+	shortcuts_push_general(s, "tasks_to_lowercase", "ctrl+shift+l")
+
 	shortcuts_push_general(s, "delete_on_empty", "ctrl+backspace", "backspace")
 	shortcuts_push_general(s, "delete_tasks", "ctrl+d", "ctrl+shift+k")
 	
@@ -172,6 +179,7 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "copy_tasks", "ctrl+c")
 	shortcuts_push_general(s, "cut_tasks", "ctrl+x")
 	shortcuts_push_general(s, "paste_tasks", "ctrl+v")
+	shortcuts_push_general(s, "paste_tasks_from_clipboard", "ctrl+shift+v")
 	shortcuts_push_general(s, "center", "ctrl+e")
 	
 	shortcuts_push_general(s, "change_task_state", "ctrl+shift+q", "ctrl+q")
@@ -407,9 +415,8 @@ todool_copy_tasks_to_clipboard :: proc() {
 		return
 	}
 
-	b := strings.builder_make(0, mem.Kilobyte * 10)
-	defer delete(b.buf)
-
+	b := &gs.copy_builder
+	strings.builder_reset(b)
 	low, high := task_low_and_high()
 
 	// get lowest
@@ -423,10 +430,12 @@ todool_copy_tasks_to_clipboard :: proc() {
 	for i in low..<high + 1 {
 		task := tasks_visible[i]
 		relative_indentation := task.indentation - lowest_indentation
-		task_write_text_indentation(&b, task, relative_indentation)
+		task_write_text_indentation(b, task, relative_indentation)
 	}
 
-	clipboard_set_with_builder(&b)
+	last_was_task_copy = false
+	clipboard_set_with_builder_prefilled()
+	element_repaint(mode_panel)
 	// fmt.eprint(strings.to_string(b))
 }
 
@@ -550,8 +559,7 @@ todool_changelog_generate :: proc() {
 		return
 	}
 
-	b := strings.builder_make(0, mem.Kilobyte * 10)
-	defer delete(b.buf)
+	b := clipboard_set_prepare()
 	removed_count: int
 	
 	manager := mode_panel_manager_scoped()
@@ -562,7 +570,7 @@ todool_changelog_generate :: proc() {
 		task := cast(^Task) mode_panel.children[i]
 
 		if task.state != .Normal {
-			task_write_text_indentation(&b, task, task.indentation)
+			task_write_text_indentation(b, task, task.indentation)
 
 			item := Undo_Item_Task_Remove_At { i }
 			undo_task_remove_at(manager, &item)
@@ -571,13 +579,13 @@ todool_changelog_generate :: proc() {
 			removed_count += 1
 		} else if task.has_children {
 			if task.state_count[.Done] != 0 || task.state_count[.Canceled] != 0 {
-				task_write_text_indentation(&b, task, task.indentation)
+				task_write_text_indentation(b, task, task.indentation)
 			}
 		}
 	}
 
 	if removed_count != 0 {
-		clipboard_set_with_builder(&b)
+		clipboard_set_with_builder_prefilled()
 		element_repaint(mode_panel)
 	}
 }
@@ -1271,10 +1279,77 @@ todool_paste_tasks :: proc() {
 	element_repaint(mode_panel)
 }
 
+todool_paste_tasks_from_clipboard :: proc() {
+	if clipboard_has_content() {
+		text := clipboard_get_with_builder()
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+
+		low, high := task_low_and_high()
+		index := high + 1
+
+		indentation: int
+		if task_head != -1 {
+			indentation = tasks_visible[task_head].indentation
+		}
+
+		// TODO could interpret \t or spaces as indentation but could lead to unexpected results
+		// e.g. when mixing spaces and tabs
+		for line in strings.split_lines_iterator(&text) {
+			task_push_undoable(manager, indentation, strings.trim_space(line), index)
+			index += 1
+		}
+
+		task_tail = high + 1
+		task_head = index - 1
+		element_repaint(mode_panel)
+	}
+}
+
 todool_center :: proc() {
 	if task_head != -1 {
 		cam := mode_panel_cam()
 		cam.freehand = false
 		cam_center_by_height_state(cam, mode_panel.bounds, caret_rect.t)
+	}
+}
+
+todool_tasks_to_uppercase :: proc() {
+	if task_head != -1 {
+		low, high := task_low_and_high()
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+
+		for i in low..<high + 1 {
+			task := tasks_visible[i]
+			builder := &task.box.builder
+	
+			if len(builder.buf) != 0 {
+				item := Undo_Builder_Uppercased_Content { builder }
+				undo_box_uppercased_content(manager, &item)
+			}
+		}
+
+		element_repaint(mode_panel)
+	}
+}
+
+todool_tasks_to_lowercase :: proc() {
+	if task_head != -1 {
+		low, high := task_low_and_high()
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+
+		for i in low..<high + 1 {
+			task := tasks_visible[i]
+			builder := &task.box.builder
+	
+			if len(builder.buf) != 0 {
+				item := Undo_Builder_Lowercased_Content { builder }
+				undo_box_lowercased_content(manager, &item)
+			}
+		}
+
+		element_repaint(mode_panel)
 	}
 }

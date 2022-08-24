@@ -14,7 +14,7 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
-TRACK_MEMORY :: true
+TRACK_MEMORY :: false
 TODOOL_RELEASE :: false
 
 // import "../notify"
@@ -37,6 +37,18 @@ TODOOL_RELEASE :: false
 
 // 	// res := nfd.SaveDialog("", "", &out_path)
 // 	// fmt.eprintln(res, out_path)
+// }
+
+// Some_Struct :: struct {
+// 	a, b, c: int,
+// }
+
+// main :: proc() {
+// 	value1 := &Some_Struct { 1, 2, 3 }
+// 	value2 := &Some_Struct { 1, 2, 3 }
+// 	value3 := &Some_Struct { 1, 2, 3 }
+// 	value4 := &Some_Struct { 1, 2, 3 }
+// 	fmt.eprintln(value1, value2, value3, value4)
 // }
 
 main :: proc() {
@@ -253,7 +265,7 @@ main :: proc() {
 	if loaded := keymap_load("save.keymap"); !loaded {
 		shortcuts_push_todool_default(window)
 		shortcuts_push_box_default(window)
-		log.error("KEYMAP: Load failed")
+		log.info("KEYMAP: Load failed -> Loading default")
 	} else {
 		log.info("KEYMAP: Load successful")
 	}
@@ -277,8 +289,15 @@ main :: proc() {
 	goto_init(window) 
 	drag_init(window)
 
+	// tasks_load_reset()
+	// tasks_load_default()
 	tasks_load_file()
-	json_load_misc("save.sjson")
+	
+	if loaded := json_load_misc("save.sjson"); loaded {
+		log.info("JSON: Load Successful")
+	} else {
+		log.info("JSON: Load failed -> Using default")
+	}
 
 	gs_message_loop()
 }

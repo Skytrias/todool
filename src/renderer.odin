@@ -1,5 +1,6 @@
 package src
 
+import "core:fmt"
 import "core:strings"
 import "core:log"
 import "core:mem"
@@ -600,6 +601,7 @@ render_glyph :: proc(
 	x, y: f32,
 	delta: f32,
 ) -> f32 #no_bounds_check {
+	color := color
 	glyph, pushed := fontstash.get_glyph(font, pixel_size, scale, codepoint)
 	target.fontstash_update |= pushed
 	vertices := render_target_push_vertices(target, group, 6)
@@ -613,6 +615,7 @@ render_glyph :: proc(
 	// set positions
 	x_final := math.floor(x + f32(glyph.xoff) + delta)
 	y_final := math.floor(y + f32(glyph.yoff) + ascent)
+	// color := color
 	glyph_width := f32(glyph.x1 - glyph.x0)
 	glyph_height := f32(glyph.y1 - glyph.y0)
 	vertices[0].pos_xy = { x_final, y_final }
