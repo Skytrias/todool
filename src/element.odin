@@ -411,25 +411,25 @@ element_deallocate :: proc(element: ^Element) -> bool {
 		// clear flag
 		excl(&element.flags, Element_Flag.Destroy_Descendent)
 
-		// // destroy each child, loop from end to pop quickly
-		// for i := len(element.children) - 1; i >= 0; i -= 1 {
-		// 	child := element.children[i]
-
-		// 	if element_deallocate(child) {
-		// 		unordered_remove(&element.children, i)
-		// 	}
-		// }
-
-		// TODO use memmove?
-		for i := 0; i < len(element.children); i += 1 {
+		// destroy each child, loop from end to pop quickly
+		for i := len(element.children) - 1; i >= 0; i -= 1 {
 			child := element.children[i]
 
 			if element_deallocate(child) {
-				ordered_remove(&element.children, i)
-				// element_message(element, .Destroy_Child_Finished, i)
-				i -= 1
+				unordered_remove(&element.children, i)
 			}
 		}
+
+		// // TODO use memmove?
+		// for i := 0; i < len(element.children); i += 1 {
+		// 	child := element.children[i]
+
+		// 	if element_deallocate(child) {
+		// 		ordered_remove(&element.children, i)
+		// 		// element_message(element, .Destroy_Child_Finished, i)
+		// 		i -= 1
+		// 	}
+		// }
 	}
 
 	if .Destroy in element.flags {

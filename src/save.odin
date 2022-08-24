@@ -311,8 +311,19 @@ reader_read_bytes_out :: proc(r: ^bytes.Reader, size: int) -> (output: []byte, e
 //////////////////////////////////////////////
 
 Misc_Save_Load :: struct {
-	scale: f32,
-	mode_index: int,
+	// not shown directly to the user,
+	hidden: struct {
+		scale: f32,
+		mode_index: int,
+
+		window_x: int, 
+		window_y: int,
+		window_width: int,
+		window_height: int,	
+
+		camera_offset_x: int,
+		camera_offset_y: int,
+	},
 
 	options: struct {
 		tab: f32,
@@ -322,6 +333,7 @@ Misc_Save_Load :: struct {
 		uppercase_word: bool,
 		use_animations: bool,
 		wrapping: bool,
+		volume: f32,
 	},
 
 	tags: struct {
@@ -388,9 +400,22 @@ json_save_misc :: proc(path: string) -> bool {
 		archive_data[i] = strings.to_string(button.builder)
 	}
 
+	window_x, window_y := window_get_position(window_main)
+	cam := mode_panel_cam()
+
 	value := Misc_Save_Load {
-		scale =  SCALE,
-		mode_index = int(mode_panel.mode),
+		hidden = {
+			scale =  SCALE,
+			mode_index = int(mode_panel.mode),
+
+			window_x = window_x,
+			window_y = window_y,
+			window_width = window_main.width,
+			window_height = window_main.height,
+
+			camera_offset_x = int(cam.offset_x),
+			camera_offset_y = int(cam.offset_y),
+		},
 
 		options = {
 			options_tab(),
@@ -400,6 +425,7 @@ json_save_misc :: proc(path: string) -> bool {
 			options_uppercase_word(),
 			options_use_animations(),
 			options_wrapping(),
+			options_volume(),
 		},
 
 		tags = {
@@ -450,7 +476,7 @@ json_save_misc :: proc(path: string) -> bool {
 	return false
 }
 
-json_load_misc :: proc(path: string) -> bool{
+json_load_misc :: proc(path: string) -> bool {
 	bytes := bpath_file_read(path) or_return
 	defer delete(bytes)
 
@@ -459,16 +485,28 @@ json_load_misc :: proc(path: string) -> bool{
 	err := json.unmarshal(bytes, &misc, .MJSON, mem.arena_allocator(&arena))
 
 	if err != nil {
+		log.info("JSON: Load error unmarshal", err)
 		return false
 	}
 
-	// general
-	// TODO hook this up properly?
-	SCALE = misc.scale
-	LINE_WIDTH = max(2, 2 * SCALE)
-	ROUNDNESS = 5 * SCALE
+	// hidden
+	{
+		// TODO hook this up properly?
+		SCALE = misc.hidden.scale
+		LINE_WIDTH = max(2, 2 * SCALE)
+		ROUNDNESS = 5 * SCALE
 
-	mode_panel.mode = Mode(clamp(misc.mode_index, 0, len(Mode)))
+		mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
+
+		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
+			window_set_position(window_main, misc.hidden.window_x, misc.hidden.window_y)
+			window_set_size(window_main, clamp(misc.hidden.window_width, 0, max(int)), clamp(misc.hidden.window_height, 0, max(int)))
+		}
+
+		cam := mode_panel_cam()
+		cam.offset_x = f32(misc.hidden.camera_offset_x)
+		cam.offset_y = f32(misc.hidden.camera_offset_y)
+	}
 
 	// tag data
 	sb.tags.tag_show_mode = misc.tags.tag_mode
@@ -486,6 +524,7 @@ json_load_misc :: proc(path: string) -> bool{
 	checkbox_set(sb.options.checkbox_uppercase_word, misc.options.uppercase_word)
 	checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
 	checkbox_set(sb.options.checkbox_wrapping, misc.options.wrapping)
+	slider_set(sb.options.slider_volume, misc.options.volume)
 
 	// theme
 	{

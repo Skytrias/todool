@@ -259,8 +259,6 @@ main :: proc() {
 		}
 	}
 
-	keymap_save("save.keymap")
-
 	// keymap loading
 	if loaded := keymap_load("save.keymap"); !loaded {
 		shortcuts_push_todool_default(window)
@@ -275,7 +273,7 @@ main :: proc() {
 
 	{
 		rect := window_rect(window)
-		split := split_pane_init(panel, { .Split_Pane_Hidable, .Split_Pane_Reversed, .VF, .HF, .Tab_Movement_Allowed }, rect.r - 300, 300)
+		split := split_pane_init(panel, { .Split_Pane_Hidable, .Split_Pane_Reversed, .VF, .HF, .Tab_Movement_Allowed }, rect.r - 350, 300)
 		split.pixel_based = true
 		sb.split = split
 	}	

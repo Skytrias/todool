@@ -64,6 +64,7 @@ Sidebar_Options :: struct {
 	checkbox_uppercase_word: ^Checkbox,
 	checkbox_use_animations: ^Checkbox,	
 	checkbox_wrapping: ^Checkbox,
+	slider_volume: ^Slider,
 
 	slider_pomodoro_work: ^Slider,
 	slider_pomodoro_short_break: ^Slider,
@@ -237,7 +238,7 @@ sidebar_panel_init :: proc(parent: ^Element) {
 
 sidebar_enum_panel_init :: proc(parent: ^Element) {
 	shared_panel :: proc(element: ^Element, title: string) -> ^Panel {
-		panel := panel_init(element, { .Panel_Default_Background, .Tab_Movement_Allowed }, 5, 5)
+		panel := panel_init(element, { .Panel_Default_Background, .Tab_Movement_Allowed, .Panel_Scrollable }, 5, 5)
 		panel.background_index = 1
 		panel.z_index = 2
 
@@ -270,14 +271,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			fmt.sbprintf(builder, "Tab: %.3f%%", position)
 		}
 
-		checkbox_autosave = checkbox_init(panel, flags, "Autosave", true)
-		checkbox_uppercase_word = checkbox_init(panel, flags, "Uppercase Parent Word", true)
-		checkbox_invert_x = checkbox_init(panel, flags, "Invert Scroll X", false)
-		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
-		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
-		checkbox_wrapping = checkbox_init(panel, flags, "Wrap in List Mode", true)
-
-		slider_volume := slider_init(panel, flags, 1)
+		slider_volume = slider_init(panel, flags, 1)
 		slider_volume.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			slider := cast(^Slider) element
 
@@ -291,6 +285,13 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		slider_volume.formatting = proc(builder: ^strings.Builder, position: f32) {
 			fmt.sbprintf(builder, "Volume: %d%%", int(position * 100))
 		}
+
+		checkbox_autosave = checkbox_init(panel, flags, "Autosave", true)
+		checkbox_uppercase_word = checkbox_init(panel, flags, "Uppercase Parent Word", true)
+		checkbox_invert_x = checkbox_init(panel, flags, "Invert Scroll X", false)
+		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
+		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
+		checkbox_wrapping = checkbox_init(panel, flags, "Wrap in List Mode", true)
 
 		// pomodoro
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
@@ -316,9 +317,26 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		l2.font_options = &font_options_header
 
 		label_time_accumulated = label_init(panel, { .HF, .Label_Center })
-		b := button_init(panel, flags, "Reset acummulated")
-		b.invoke = proc(data: rawptr) {
+		b1 := button_init(panel, flags, "Reset acummulated")
+		b1.invoke = proc(data: rawptr) {
 			pomodoro.accumulated = {}
+		}
+
+		{
+			sub := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background }, 0, 2)
+			sub.rounded = true
+			sub.background_index = 2
+			s := slider_init(sub, flags, 30.0 / 60)
+			s.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "Cheat: %dmin", int(position * 60))
+			}
+
+			b := button_init(sub, flags, "Add")
+			b.data = s
+			b.invoke = proc(data: rawptr) {
+				slider := cast(^Slider) data
+				sb.options.slider_work_today.position += (slider.position / 60)
+			}
 		}
 
 		slider_work_today = slider_init(panel, flags, 8.0 / 24)
@@ -518,6 +536,10 @@ archive_button_init :: proc(
 	res.builder = strings.builder_make(0, len(text))
 	strings.write_string(&res.builder, text)
 	return
+}
+
+options_volume :: #force_inline proc() -> f32 {
+	return sb.options.slider_volume.position
 }
 
 options_autosave :: #force_inline proc() -> bool {

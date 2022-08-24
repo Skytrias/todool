@@ -996,7 +996,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 							kanban_width := KANBAN_WIDTH * SCALE
 							kanban_width += f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE
-							kanban_current = rect_cut_left(&cut, kanban_width)
+							// NOTE has to be hard cut because of panning
+							kanban_current = rect_cut_left_hard(&cut, kanban_width)
 							task.kanban_rect = kanban_current
 							cut.l += panel.gap_horizontal * SCALE + KANBAN_MARGIN * 2 * SCALE
 						}
@@ -1525,16 +1526,16 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Paint_Recursive: {
 			target := element.window.target
+			rect := task_rect_indented(task)
 
 			// render panel front color
 			{
-				rect := task_rect_indented(task)
 				color := theme_panel(task.has_children ? .Parent : .Front)
 				render_rect(target, rect, color, ROUNDNESS)
 			}
 
 			if task.bookmarked {
-				rect := task.box.bounds
+				rect := rect
 				rect.r = rect.l + math.round(TASK_BOOKMARK_WIDTH * SCALE)
 				color := theme.text_default
 				render_rect(target, rect, color, ROUNDNESS)
@@ -1542,7 +1543,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			// draw tags at an offset
 			if draw_tags {
-				rect := task.box.bounds
+				rect := rect
 
 				if task.bookmarked {
 					rect.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)

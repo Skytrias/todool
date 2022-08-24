@@ -45,7 +45,7 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 	}
 
 	real_goal := direction == CAM_CENTER ? goal : math.floor(off^ + f32(direction) * goal)
-	log.info("real_goal", x ? "x" : "y", direction == 0, real_goal, off^)
+	// log.info("real_goal", x ? "x" : "y", direction == 0, real_goal, off^)
 	res := animate_to(
 		&animating,
 		off,
@@ -70,11 +70,9 @@ cam_bounds_check_y :: proc(
 	to_top: f32,
 	to_bottom: f32,
 ) -> (goal: f32, direction: int) {
-	if cam.margin_y * 2 > window_main.heightf {
-		cam_center_by_height_state(cam, mode_panel.bounds, caret_rect.t)
+	if cam.margin_y * 2 > rect_height(focus) {
 		return
 	}
-	// margin := cam.margin_y * 2 < window_main.heightf ? cam.margin_y : 10
 
 	if to_top < focus.t + cam.margin_y {
 		goal = math.round(focus.t - to_top + cam.margin_y)
@@ -96,6 +94,10 @@ cam_bounds_check_x :: proc(
 	to_left: f32,
 	to_right: f32,
 ) -> (goal: f32, direction: int) {
+	if cam.margin_x * 2 > rect_width(focus) {
+		return
+	}
+
 	if to_left < focus.l + cam.margin_x {
 		goal = math.round(focus.l - to_left + cam.margin_x)
 

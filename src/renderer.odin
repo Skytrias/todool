@@ -27,6 +27,8 @@ DEFAULT_VERTICES :: 1024 * 2
 Icon :: fontstash.Icon
 
 Render_Target :: struct {
+	window_show: b32,
+
 	// holding groups of vertices
 	groups: [dynamic]Render_Group,
 
@@ -204,6 +206,12 @@ render_target_end :: proc(
 	window: ^sdl.Window, 
 	width, height: int,
 ) {
+	// showing the window delayed, in case the window is moved!
+	if !target.window_show {
+		target.window_show = true
+		sdl.ShowWindow(window)
+	}
+
 	err := sdl.GL_MakeCurrent(window, target.opengl_context)
 	if err < 0 {
 		log.panic("GL: MakeCurrent failed!")

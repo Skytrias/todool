@@ -6,7 +6,6 @@ import "core:strings"
 import "core:log"
 import "core:mem"
 import "../cutf8"
-import "../nfd"
 
 // shortcut state that holds all shortcuts
 // key_combo -> command -> command execution
@@ -1111,11 +1110,11 @@ todool_save :: proc() {
 		dirty_saved = dirty
 	}
 
-	if json_save_misc("save.sjson") {
+	if !json_save_misc("save.sjson") {
 		log.info("SAVE: save.sjson failed saving")
 	}
 
-	if keymap_save("save.keymap") {
+	if !keymap_save("save.keymap") {
 		log.info("SAVE: save.keymap failed saving")
 	}
 

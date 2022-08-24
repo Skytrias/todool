@@ -276,7 +276,7 @@ window_init :: proc(
 		sdl.WINDOWPOS_UNDEFINED,
 		w,
 		h,
-		{ .RESIZABLE, .OPENGL },
+		{ .RESIZABLE, .OPENGL, .HIDDEN },
 	)
 	if window == nil {
 		sdl.Quit()
@@ -403,6 +403,23 @@ window_poll_size :: proc(window: ^Window) {
 
 window_rect :: #force_inline proc(window: ^Window) -> Rect {
 	return { 0, window.widthf, 0, window.heightf }
+}
+
+// get xy
+window_get_position :: proc(window: ^Window) -> (int, int) {
+	x, y: i32
+	sdl.GetWindowPosition(window.w, &x, &y)
+	return int(x), int(y)
+}
+
+// set xy
+window_set_position :: proc(window: ^Window, x, y: int) {
+	sdl.SetWindowPosition(window.w, i32(x), i32(y))
+}
+
+// set size of window
+window_set_size :: proc(window: ^Window, w, h: int) {
+	sdl.SetWindowSize(window.w, i32(w), i32(h))
 }
 
 // send call to focused, focused parents or window
