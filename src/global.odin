@@ -64,7 +64,6 @@ Window :: struct {
 	// hovered info 
 	hovered_start: time.Tick, // when the element was first hovered
 	hovered_panel: ^Panel_Floaty, // set in init, but hidden
-	hover_timer: sdl.TimerID, // sdl based timer to check hover on a different thread 
 
 	// click counting
 	clicked_last: ^Element,
@@ -137,7 +136,6 @@ Cursor :: enum {
 }
 
 Global_State :: struct {
-	// windows: [dynamic]^Window,
 	windows: ^Window,
 
 	// logger data
@@ -166,6 +164,8 @@ Global_State :: struct {
 	// stores multiple png images
 	stored_images: map[string]Stored_Image,
 	stored_image_thread: ^thread.Thread,
+	
+	window_hovering_timer: sdl.TimerID,
 
 	track: mem.Tracking_Allocator,
 }
@@ -293,6 +293,11 @@ window_init :: proc(
 					element_move(child, element.bounds)
 				}
 			}
+
+			case .Deallocate: {
+				// NEEDS TO BE CALLED IN HERE, CUZ OTHERWHISE ITS ALREADY REMOVED
+				window_deallocate(window)
+			}
 		}
 
 		return 0
@@ -333,20 +338,6 @@ window_init :: proc(
 	res.window_next = gs.windows
 	gs.windows = res
 	shortcut_state_init(&res.shortcut_state, mem.Megabyte * 2)
-
-	window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
-		context = runtime.default_context()
-		context.logger = gs.logger
-
-		window := cast(^Window) data
-		if window_hovered_check(window) {
-			sdl_push_empty_event()
-		}
-
-		return interval
-	}
-
-	res.hover_timer = sdl.AddTimer(250, window_timer_callback, res)
 
 	{
 		// set hovered panel
@@ -789,11 +780,9 @@ window_title_build :: proc(window: ^Window, text: string) {
 	sdl.SetWindowTitle(window.w, ctext)
 }
 
-window_destroy :: proc(window: ^Window) {
-	log.info("WINDOW: Destroyed")
+window_deallocate :: proc(window: ^Window) {
+	log.info("WINDOW: Destroy START")
 	shortcut_state_destroy(&window.shortcut_state)
-
-	sdl.RemoveTimer(window.hover_timer)
 
 	free_all(mem.arena_allocator(&window.element_arena))
 	delete(window.element_arena_backing)
@@ -806,6 +795,7 @@ window_destroy :: proc(window: ^Window) {
 	delete(window.title_builder.buf)
 	delete(window.dialog_builder.buf)
 	sdl.DestroyWindow(window.w)
+	log.info("WINDOW: Destroy END")
 }
 
 window_layout_update :: proc(window: ^Window) {
@@ -1119,6 +1109,36 @@ gs_init :: proc() {
 	}
 
 	flux = ease.flux_init(f32, 128)
+
+	window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
+		context = runtime.default_context()
+		context.logger = gs.logger
+
+		window := cast(^Window) data
+		if window_hovered_check(window) {
+			sdl_push_empty_event()
+		}
+
+		return interval
+	}
+
+	window_hovering_timer = sdl.AddTimer(250, window_hovering_timer_callback, &gs.windows)
+}
+
+window_hovering_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
+	context = runtime.default_context()
+	context.logger = gs.logger
+
+	window := (cast(^^Window) data)^
+	for window != nil {	
+		if window_hovered_check(window) {
+			sdl_push_empty_event()
+		}
+
+		window = window.window_next
+	}
+
+	return interval
 }
 
 gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
@@ -1140,6 +1160,8 @@ gs_destroy :: proc() {
 
 	delete(animating)
 	delete(copy_builder.buf)
+
+	sdl.RemoveTimer(window_hovering_timer)
 
 	if gs.stored_image_thread != nil {
 		thread.destroy(gs.stored_image_thread)
@@ -1219,7 +1241,6 @@ gs_process_events :: proc() {
 	// iterate events
 	event: sdl.Event
 	for sdl.PollEvent(&event) {
-		
 		if event.type == .QUIT && !gs.ignore_quit {
 			gs.running = false
 			// log.info("QUIT CALLED")
@@ -1324,8 +1345,6 @@ gs_draw_and_cleanup :: proc() {
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
-			window_destroy(window)
-			log.info("WINDOW: Success dealloc linked list")
 			window_count -= 1
 			link^ = next
 		} else if window.update_next {

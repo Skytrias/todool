@@ -1733,7 +1733,7 @@ goto_init :: proc(window: ^Window) {
 
 		#partial switch msg {
 			case .Value_Changed: {
-				value := strconv.atoi(strings.to_string(box.builder))
+				value := strconv.atoi(strings.to_string(box.builder)) - 1
 				task_head = value
 				task_tail = value
 				element_repaint(box)

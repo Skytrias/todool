@@ -259,6 +259,8 @@ main :: proc() {
 		}
 	}
 
+	keymap_save("save.keymap")
+
 	// keymap loading
 	if loaded := keymap_load("save.keymap"); !loaded {
 		shortcuts_push_todool_default(window)
@@ -267,8 +269,6 @@ main :: proc() {
 	} else {
 		log.info("KEYMAP: Load successful")
 	}
-
-	// keymap_save("save.keymap")
 
 	// add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })

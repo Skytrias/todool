@@ -1103,7 +1103,7 @@ todool_redo :: proc() {
 todool_save :: proc() {
 	err := editor_save("save.todool")
 	if err != .None {
-		log.info("SAVE: FAILED =", err)
+		log.info("SAVE: save.todool failed saving =", err)
 	}
 
 	// when anything was pushed - set to false
@@ -1111,7 +1111,14 @@ todool_save :: proc() {
 		dirty_saved = dirty
 	}
 
-	json_save_misc("save.sjson")
+	if json_save_misc("save.sjson") {
+		log.info("SAVE: save.sjson failed saving")
+	}
+
+	if keymap_save("save.keymap") {
+		log.info("SAVE: save.keymap failed saving")
+	}
+
 	element_repaint(mode_panel)
 }
 
