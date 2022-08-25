@@ -409,7 +409,7 @@ json_save_misc :: proc(path: string) -> bool {
 			mode_index = int(mode_panel.mode),
 
 			window_x = window_x,
-			window_y = window_y,
+				window_y = window_y,
 			window_width = window_main.width,
 			window_height = window_main.height,
 

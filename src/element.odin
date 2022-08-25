@@ -1351,6 +1351,7 @@ panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
 panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Panel) element
 	panable := (.Panel_Panable in element.flags)
+	has_scrollbar := panel.scrollbar != nil && .Hide not_in panel.scrollbar.flags
 
 	#partial switch msg {
 		case .Custom_Clip: {
@@ -1362,16 +1363,21 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Layout: {
-			scrollbar_width := panel.scrollbar != nil ? SCROLLBAR_SIZE * SCALE : 0
 			bounds := element.bounds
-			bounds.r -= scrollbar_width
 
+			// called even when hidden
 			if panel.scrollbar != nil {
+				scrollbar_width := SCROLLBAR_SIZE * SCALE
+				
 				scrollbar_bounds := element.bounds
 				scrollbar_bounds.l = scrollbar_bounds.r - scrollbar_width
 				panel.scrollbar.maximum = panel_layout(panel, bounds, true)
 				panel.scrollbar.page = rect_height(element.bounds)
 				element_move(panel.scrollbar, scrollbar_bounds)
+				
+				if .Hide not_in panel.scrollbar.flags {
+					bounds.r -= scrollbar_width
+				}
 			}
 
 			panel_layout(panel, bounds, false)
@@ -1421,7 +1427,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			}
 
 			// send msg to scrollbar
-			if panel.scrollbar != nil {
+			if has_scrollbar {
 				element_message(panel.scrollbar, msg, di, dp)
 				handled = true
 			}
@@ -1448,7 +1454,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if .Panel_Horizontal in element.flags {
 				return panel_measure(panel, di)
 			} else {
-				width := di != 0 && panel.scrollbar != nil ? (f32(di) - SCROLLBAR_SIZE * SCALE) : f32(di)
+				width := di != 0 && has_scrollbar ? (f32(di) - SCROLLBAR_SIZE * SCALE) : f32(di)
 				return int(panel_layout(panel, { 0, width, 0, 0 }, true))
 			}
 		}
@@ -1596,11 +1602,13 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				incl(&up.flags, Element_Flag.Hide)
 				incl(&thumb.flags, Element_Flag.Hide)
 				incl(&down.flags, Element_Flag.Hide)
+				incl(&element.flags, Element_Flag.Hide)
 				scrollbar.position = 0
 			} else {
 				excl(&up.flags, Element_Flag.Hide)
 				excl(&thumb.flags, Element_Flag.Hide)
 				excl(&down.flags, Element_Flag.Hide)
+				excl(&element.flags, Element_Flag.Hide)
 
 				// layout each element
 				// TODO width or height
