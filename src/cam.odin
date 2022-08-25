@@ -74,6 +74,9 @@ cam_bounds_check_y :: proc(
 		return
 	}
 
+	to_top := to_top * SCALE
+	to_bottom := to_bottom * SCALE
+
 	if to_top < focus.t + cam.margin_y {
 		goal = math.round(focus.t - to_top + cam.margin_y)
 		direction = 1
@@ -97,6 +100,9 @@ cam_bounds_check_x :: proc(
 	if cam.margin_x * 2 > rect_width(focus) {
 		return
 	}
+
+	to_left := to_left * SCALE
+	to_right := to_right * SCALE
 
 	if to_left < focus.l + cam.margin_x {
 		goal = math.round(focus.l - to_left + cam.margin_x)

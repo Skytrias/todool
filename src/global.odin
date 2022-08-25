@@ -141,7 +141,9 @@ Global_State :: struct {
 	// logger data
 	logger: log.Logger,
 	log_path: string, // freed at destroy
-	default_base_path: string,
+	pref_path: string, // freed at destroy
+	base_path: string, // freed at destroy
+	cstring_builder: strings.Builder,
 
 	// builder to store clipboard content
 	copy_builder: strings.Builder,
@@ -1088,19 +1090,29 @@ gs_init :: proc() {
 	cursors[.Resize_Vertical] = sdl.CreateSystemCursor(.SIZENS)
 	cursors[.Crosshair] = sdl.CreateSystemCursor(.CROSSHAIR)
 
-	// base path
-	path := sdl.GetPrefPath("skytrias", "todool")
-	if path != nil {
-		default_base_path = strings.clone_from_cstring(path)
-		sdl.free(rawptr(path))
-	} else {
-		when os.OS == .Linux {
-			default_base_path = ".\\"
-		} 
+	// get pref path
+	{
+		path := sdl.GetPrefPath("skytrias", "todool")
+		if path != nil {
+			pref_path = strings.clone_from_cstring(path)
+			sdl.free(rawptr(path))
+		} else {
+			when os.OS == .Linux {
+				pref_path = ".\\"
+			} 
 
-		when os.OS == .Windows {
-			default_base_path = "./"
+			when os.OS == .Windows {
+				pref_path = "./"
+			}
 		}
+	}
+
+	{
+		path := sdl.GetBasePath()
+		if path != nil {
+			base_path = strings.clone_from_cstring(path)
+			sdl.free(rawptr(path))
+		} 
 	}
 
 	// use file logger on release builds
@@ -1170,6 +1182,7 @@ gs_init :: proc() {
 	}
 
 	window_hovering_timer = sdl.AddTimer(250, window_hovering_timer_callback, &gs.windows)
+	strings.builder_init(&cstring_builder, 0, 128)
 }
 
 window_hovering_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
@@ -1207,6 +1220,7 @@ gs_destroy :: proc() {
 
 	delete(animating)
 	delete(copy_builder.buf)
+	delete(cstring_builder.buf)
 
 	sdl.RemoveTimer(window_hovering_timer)
 
@@ -1236,7 +1250,8 @@ gs_destroy :: proc() {
 	} else {
 		log.destroy_console_logger(logger)
 	}
-	delete(default_base_path)
+	delete(pref_path)
+	delete(base_path)
 
 	when TRACK_MEMORY {
 		gs_check_leaks(&track)
@@ -1249,6 +1264,15 @@ gs_destroy :: proc() {
 
 	sdl.Quit()
 	free(gs)
+}
+
+// build a cstring with a builder
+gs_string_to_cstring :: proc(text: string) -> cstring {
+	b := &gs.cstring_builder
+	strings.builder_reset(b)
+	strings.write_string(b, text)
+	strings.write_byte(b, '\x00')
+	return cstring(raw_data(b.buf))
 }
 
 window_flush_mouse_state :: proc(window: ^Window) {
@@ -1816,7 +1840,7 @@ arena_scoped_end :: proc(arena: mem.Arena, backing: []byte) {
 //////////////////////////////////////////////
 
 bpath_temp :: proc(path: string) -> string {
-	return fmt.tprintf("%s%s", gs.default_base_path, path)
+	return fmt.tprintf("%s%s", gs.pref_path, path)
 }
 
 bpath_file_write :: proc(path: string, content: []byte) -> bool {

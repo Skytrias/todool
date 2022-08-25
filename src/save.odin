@@ -28,6 +28,8 @@ header:
 			task_tail: u32be -> tail line
 			task_bytes_min: u16be -> size to read per task line in memory
 			task_count: u32be -> how many "task lines" to read
+			camera_offset_x: i32be,
+			camera_offset_y: i32be,
 
 task line: atleast "task_bytes_min" big
 	Version 1:
@@ -55,6 +57,10 @@ V1_Save_Header :: struct {
 	task_tail: u32be,
 	task_count: u32be,
 	task_bytes_min: u16be,
+
+	// ONLY VALID FOR THE SAME WINDOW SIZE
+	camera_offset_x: i32be,
+	camera_offset_y: i32be,
 }
 
 V1_Save_Task :: struct {
@@ -99,7 +105,7 @@ buffer_write_string :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error) {
 	return
 }
 
-editor_save :: proc(file_name: string) -> (err: io.Error) {
+editor_save :: proc(file_path: string) -> (err: io.Error) {
 	buffer: bytes.Buffer
 	bytes.buffer_init_allocator(&buffer, 0, mem.Megabyte)
 	defer bytes.buffer_destroy(&buffer)
@@ -113,11 +119,14 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 	header_version := u16be(1)
 	buffer_write_type(&buffer, header_version) or_return
 
+	cam := mode_panel_cam()
 	header := V1_Save_Header {
 		u32be(task_head),
 		u32be(task_tail),
 		u32be(len(mode_panel.children)),
 		size_of(V1_Save_Task),
+		i32be(cam.offset_x),
+		i32be(cam.offset_y),
 	}
 	buffer_write_type(&buffer, header) or_return
 	
@@ -178,12 +187,12 @@ editor_save :: proc(file_name: string) -> (err: io.Error) {
 		}
 	}
 
-	ok := bpath_file_write(file_name, buffer.buf[:])
+	ok := os.write_entire_file(file_path, buffer.buf[:])
 	if !ok {
-		log.error("SAVE: File write failed")
+		err = .Invalid_Write
 	}
-	
-	return
+
+	return 
 }
 
 editor_load_version :: proc(
@@ -200,6 +209,9 @@ editor_load_version :: proc(
 
 			// save when size is the same as version based size
 			header := reader_read_type(reader, V1_Save_Header) or_return
+			cam := mode_panel_cam()
+			cam.offset_x = f32(header.camera_offset_x)
+			cam.offset_y = f32(header.camera_offset_y)
 
 			if int(header.task_bytes_min) != size_of(V1_Save_Task) {
 				log.error("LOAD: Wrong task byte size", size_of(V1_Save_Task), header.task_bytes_min)
@@ -254,8 +266,8 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 	return 
 }
 
-editor_load :: proc(file_name: string) -> (err: io.Error) {
-	file_data, ok := bpath_file_read(file_name)
+editor_load :: proc(file_path: string) -> (err: io.Error) {
+	file_data, ok := os.read_entire_file(file_path)
 	defer delete(file_data)
 
 	if !ok {
@@ -270,6 +282,7 @@ editor_load :: proc(file_name: string) -> (err: io.Error) {
 	start := reader_read_bytes_out(&reader, 8) or_return
 	if mem.compare(start, bytes_file_signature[:]) != 0 {
 		log.error("LOAD: Start signature invalid")
+		err = .Unknown
 		return
 	} 
 
@@ -321,8 +334,7 @@ Misc_Save_Load :: struct {
 		window_width: int,
 		window_height: int,	
 
-		camera_offset_x: int,
-		camera_offset_y: int,
+		last_save_location: string,
 	},
 
 	options: struct {
@@ -401,7 +413,6 @@ json_save_misc :: proc(path: string) -> bool {
 	}
 
 	window_x, window_y := window_get_position(window_main)
-	cam := mode_panel_cam()
 
 	value := Misc_Save_Load {
 		hidden = {
@@ -409,12 +420,11 @@ json_save_misc :: proc(path: string) -> bool {
 			mode_index = int(mode_panel.mode),
 
 			window_x = window_x,
-				window_y = window_y,
+			window_y = window_y,
 			window_width = window_main.width,
 			window_height = window_main.height,
 
-			camera_offset_x = int(cam.offset_x),
-			camera_offset_y = int(cam.offset_y),
+			last_save_location = last_save_location,
 		},
 
 		options = {
@@ -503,9 +513,7 @@ json_load_misc :: proc(path: string) -> bool {
 			window_set_size(window_main, clamp(misc.hidden.window_width, 0, max(int)), clamp(misc.hidden.window_height, 0, max(int)))
 		}
 
-		cam := mode_panel_cam()
-		cam.offset_x = f32(misc.hidden.camera_offset_x)
-		cam.offset_y = f32(misc.hidden.camera_offset_y)
+		last_save_location = strings.clone(misc.hidden.last_save_location)
 	}
 
 	// tag data

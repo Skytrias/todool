@@ -107,29 +107,7 @@ main :: proc() {
 			}
 
 			case .Window_Close: {
-				if options_autosave() {
-					editor_save("save.todool")
-				} else if dirty != dirty_saved {
-					res := dialog_spawn(
-						window, 
-						"Leave without saving progress?\n%l\n%f%b%C%B",
-						"Close Without Saving",
-						"Cancel",
-						"Save",
-					)
-					
-					switch res {
-						case "Save": {
-							editor_save("save.todool")
-						}
-
-						case "Cancel": {
-							return 1
-						}
-
-						case "Close Without Saving": {}
-					}
-				}
+				return int(todool_check_for_saving(window_main))
 			}
 
 			case .Dropped_Files: {
@@ -206,7 +184,7 @@ main :: proc() {
 			b := &window.title_builder
 			strings.builder_reset(b)
 			strings.write_string(b, "Todool: ")
-			strings.write_string(b, "save")
+			strings.write_string(b, last_save_location)
 			strings.write_string(b, dirty != dirty_saved ? " * " : " ")
 			window_title_push_builder(window, b)
 		}
@@ -293,15 +271,15 @@ main :: proc() {
 	goto_init(window) 
 	drag_init(window)
 
-	// tasks_load_reset()
-	// tasks_load_default()
-	tasks_load_file()
-	
 	if loaded := json_load_misc("save.sjson"); loaded {
 		log.info("JSON: Load Successful")
 	} else {
 		log.info("JSON: Load failed -> Using default")
 	}
 
+	// tasks_load_reset()
+	// tasks_load_default()
+	tasks_load_file()
+	
 	gs_message_loop()
 }

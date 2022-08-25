@@ -6,6 +6,7 @@ import "core:strings"
 import "core:log"
 import "core:mem"
 import "../cutf8"
+import "../nfd"
 
 // shortcut state that holds all shortcuts
 // key_combo -> command -> command execution
@@ -140,6 +141,8 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "undo": todool_undo()
 		case "redo": todool_redo()
 		case "save": todool_save()
+		case "new_file": todool_new_file()
+		case "load": todool_load()
 
 		case "goto": todool_goto()
 		case "search": todool_search()
@@ -219,6 +222,8 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "undo", "ctrl+z")
 	shortcuts_push_general(s, "redo", "ctrl+y")
 	shortcuts_push_general(s, "save", "ctrl+s")
+	shortcuts_push_general(s, "new_file", "ctrl+n")
+	shortcuts_push_general(s, "load", "ctrl+o")
 
 	shortcuts_push_general(s, "goto", "ctrl+g")
 	shortcuts_push_general(s, "search", "ctrl+f")
@@ -1100,7 +1105,19 @@ todool_redo :: proc() {
 }
 
 todool_save :: proc() {
-	err := editor_save("save.todool")
+	if last_save_location == "" {
+		output: cstring
+		default_path := gs_string_to_cstring(gs.pref_path)
+		res := nfd.SaveDialog("", default_path, &output)
+
+		if res == .OKAY {
+			last_save_location = strings.clone(string(output))
+		} else {
+			return
+		}
+	}
+
+	err := editor_save(last_save_location)
 	if err != .None {
 		log.info("SAVE: save.todool failed saving =", err)
 	}
@@ -1122,28 +1139,51 @@ todool_save :: proc() {
 }
 
 // load
-// window_add_shortcut(window, "ctrl+o", proc() -> bool {
-// 	err := editor_load("save.bin")
+todool_load :: proc() {
+	// check for canceling loading
+	if todool_check_for_saving(window_main) {
+		return
+	}
 
-// 	if err != .None {
-// 		log.info("LOAD: FAILED =", err)
-// 	}
+	output: cstring
+	default_path: cstring
 
-// 	// out_path: cstring
-// 	// res := nfd.OpenDialog("", "", &out_path)
-// 	// log.info(res, out_path)
+	if last_save_location == "" {
+		default_path = gs_string_to_cstring(gs.base_path)
+		// log.info("----")
+	} else {
+		trimmed_path := last_save_location
 
-// 	// if res == .OKAY {
-// 	// 	err := editor_load("save.bin")
+		for i := len(trimmed_path) - 1; i >= 0; i -= 1 {
+			b := trimmed_path[i]
+			if b == '/' {
+				trimmed_path = trimmed_path[:i]
+				break
+			}
+		}
 
-// 	// 	if err != .None {
-// 	// 		log.info("LOAD: FAILED =", err)
-// 	// 	}
-// 	// }
+		default_path = gs_string_to_cstring(trimmed_path)
+		// log.info("++++", last_save_location, trimmed_path)
+	}
 
-// 	element_repaint(mode_panel)
-// 	return true
-// })
+	res := nfd.OpenDialog("", default_path, &output)
+
+	if res != .OKAY {
+		return
+	}
+
+	if string(output) != last_save_location {
+		last_save_location = strings.clone(string(output))
+	} 
+
+	err := editor_load(last_save_location)
+
+	if err != .None {
+		log.info("LOAD: FAILED =", err)
+	}
+
+	element_repaint(mode_panel)
+}
 
 todool_toggle_bookmark :: proc() {
 	if task_head == -1 {
@@ -1358,4 +1398,39 @@ todool_tasks_to_lowercase :: proc() {
 
 		element_repaint(mode_panel)
 	}
+}
+
+todool_new_file :: proc() {
+  if !todool_check_for_saving(window_main) {
+	  tasks_load_reset()
+	  last_save_location = ""
+  }
+}
+
+todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
+	if options_autosave() {
+		todool_save()
+	} else if dirty != dirty_saved {
+		res := dialog_spawn(
+			window, 
+			"Leave without saving progress?\n%l\n%f%b%C%B",
+			"Close Without Saving",
+			"Cancel",
+			"Save",
+		)
+		
+		switch res {
+			case "Save": {
+				todool_save()
+			}
+
+			case "Cancel": {
+				canceled = true
+			}
+
+			case "Close Without Saving": {}
+		}
+	}
+
+	return
 }

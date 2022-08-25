@@ -1,5 +1,6 @@
 package src
 
+import "core:io"
 import "core:mem"
 import "core:strconv"
 import "core:fmt"
@@ -12,6 +13,9 @@ import "core:slice"
 import "core:reflect"
 import "../cutf8"
 import "../fontstash"
+
+// last save
+last_save_location: string
 
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
@@ -194,6 +198,7 @@ task_data_destroy :: proc() {
 	delete(copy_text_data.buf)
 	delete(copy_task_data)
 	delete(drag_list)
+	delete(last_save_location)
 }
 
 // reset copy data
@@ -1964,7 +1969,11 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 }
 
 tasks_load_file :: proc() {
-	err := editor_load("save.todool")
+	err: io.Error = .Empty
+
+	if last_save_location != "" {
+		err = editor_load(last_save_location)
+	} 
 	
 	// on error reset and load default
 	if err != nil {
@@ -1981,6 +1990,8 @@ tasks_load_reset :: proc() {
 	// TODO need to cleanup node data
 	clear(&mode_panel.children)
 	undo_manager_reset(&mode_panel.window.manager)
+	dirty = 0
+	dirty_saved = 0
 }
 
 tasks_load_default :: proc() {
