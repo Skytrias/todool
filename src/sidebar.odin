@@ -10,7 +10,7 @@ import "core:os"
 import "core:strings"
 import "core:encoding/json"
 
-ARCHIVE_MAX :: 128
+ARCHIVE_MAX :: 256
 
 // push to archive text
 archive_push :: proc(text: string) {
@@ -19,7 +19,6 @@ archive_push :: proc(text: string) {
 		if len(sb.archive.buttons.children) == ARCHIVE_MAX {
 			// TODO optimize
 			// log.info("REMOVING ONE TO STAY IN MAX")
-			// mem
 			ordered_remove(&sb.archive.buttons.children, 0)
 		} 
 
@@ -320,6 +319,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		b1 := button_init(panel, flags, "Reset acummulated")
 		b1.invoke = proc(data: rawptr) {
 			pomodoro.accumulated = {}
+			pomodoro.celebration_goal_reached = false
 		}
 
 		{
@@ -335,7 +335,9 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			b.data = s
 			b.invoke = proc(data: rawptr) {
 				slider := cast(^Slider) data
-				sb.options.slider_work_today.position += (slider.position / 60)
+				// sb.options.slider_work_today.position += (slider.position / 60)
+				minutes := time.Duration(slider.position * 60) * time.Minute
+				pomodoro.accumulated += minutes
 			}
 		}
 

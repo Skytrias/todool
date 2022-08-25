@@ -75,7 +75,7 @@ Message :: enum {
 	Button_Highlight, // di = 1 use, dp = optional color
 	Panel_Color,
 
-	// windowing
+	// window
 	Window_Close,
 }
 
@@ -127,6 +127,15 @@ Element_Flag :: enum {
 	Split_Pane_Reversed,
 
 	Scrollbar_Horizontal,
+
+	// Menu
+	Menu_Place_Above,
+	Menu_No_Scroll,
+
+	// windowing
+	Window_Menu,
+	Window_Maximize,
+	Window_Center_In_Owner,
 }
 Element_Flags :: bit_set[Element_Flag]
 
@@ -2892,4 +2901,4 @@ estring_width :: #force_inline proc(element: ^Element, text: string) -> f32 {
 efont_size :: proc(element: ^Element) -> f32 {
 	_, size := element_retrieve_font_options(element)
 	return math.round(size * SCALE)
-}
+}	

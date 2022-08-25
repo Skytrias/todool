@@ -41,7 +41,7 @@ pomodoro_destroy :: proc() {
 pomodoro_celebration_spawn :: proc(x, y: f32) {
 	if !pomodoro.celebrating {
 		pomodoro.celebrating = true
-		fmt.eprintln("called", mode_panel.bounds)
+		// fmt.eprintln("called", mode_panel.bounds)
 		
 		for c in &pomodoro.celebration {
 			c.skip = false

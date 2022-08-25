@@ -1122,6 +1122,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			delete(panel.kanban_outlines)
 		}
 
+		case .Right_Down: {
+			menu := menu_init(panel, {  })
+			menu_add_item(menu, {}, "abc", nil)
+			menu_add_item(menu, {}, "def", nil)
+			menu_add_item(menu, {}, "ghi", nil)
+			menu_add_item(menu, {}, "jkl", nil)
+			menu_show(menu)
+			return 1
+		}
+
 		case .Middle_Down: {
 			cam.start_x = cam.offset_x
 			cam.start_y = cam.offset_y

@@ -52,7 +52,7 @@ main :: proc() {
 
 	task_data_init()
 
-	window := window_init("Todool", 900, 900, mem.Megabyte * 10)
+	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 10)
 	window.name = "main"
 	window.on_resize = proc(window: ^Window) {
 		cam := mode_panel_cam()
@@ -201,8 +201,16 @@ main :: proc() {
 			}
 		}
 
-		// log.info("dirty", dirty, dirty_saved)
-		window_title_build(window, dirty != dirty_saved ? "Todool*" : "Todool")
+		// title building
+		{
+			b := &window.title_builder
+			strings.builder_reset(b)
+			strings.write_string(b, "Todool: ")
+			strings.write_string(b, "save")
+			strings.write_string(b, dirty != dirty_saved ? " * " : " ")
+			window_title_push_builder(window, b)
+		}
+
 		task_head_tail_clamp()
 
 		// NOTE forces the first task to indentation == 0

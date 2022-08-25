@@ -266,17 +266,36 @@ mix_volume_set :: proc(to: i32) {
 }
 
 window_init :: proc(
+	owner: ^Window,
+	flags: Element_Flags,
 	title: cstring, 
 	w, h: i32,
 	arena_cap: int,
 ) -> (res: ^Window) {
+	menus_close()
+
+	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
+	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
+	window_flags: sdl.WindowFlags = { .OPENGL, .HIDDEN }
+
+	if .Window_Menu not_in flags {
+		window_flags |= { .RESIZABLE }
+	} else {
+		window_flags |= { .BORDERLESS }
+	}
+
+	if .Window_Center_In_Owner in flags {
+		x_pos	= sdl.WINDOWPOS_CENTERED
+		y_pos	= sdl.WINDOWPOS_CENTERED
+	}
+
 	window := sdl.CreateWindow(
 		title, 
-		sdl.WINDOWPOS_UNDEFINED,
-		sdl.WINDOWPOS_UNDEFINED,
+		x_pos,
+		y_pos,
 		w,
 		h,
-		{ .RESIZABLE, .OPENGL, .HIDDEN },
+		window_flags,
 	)
 	if window == nil {
 		sdl.Quit()
@@ -284,6 +303,10 @@ window_init :: proc(
 	}
 	window_id := sdl.GetWindowID(window)
 	
+	if .Window_Menu in flags {
+		sdl.RaiseWindow(window)
+	}
+
 	_window_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element
 
@@ -305,10 +328,13 @@ window_init :: proc(
 
 	// spawn an arena
 
+	window_element_flags := flags
+	window_element_flags |= { .Tab_Movement_Allowed, .Sort_By_Z_Index }
+
 	res = cast(^Window) element_init(
 		Window, 
 		nil, 
-		{ .Tab_Movement_Allowed, .Sort_By_Z_Index },
+		window_element_flags,
 		_window_message,
 		context.allocator,
 	)
@@ -544,21 +570,27 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			} 
 
 			case .Left_Down: {
-				// if the left mouse button is pressed, start pressing the hovered element
-				window_set_pressed(window, hovered, MOUSE_LEFT)
-				element_message(hovered, msg, window.click_count, dp)
+				if (.Window_Menu in window.element.flags) || !menus_close() {
+					// if the left mouse button is pressed, start pressing the hovered element
+					window_set_pressed(window, hovered, MOUSE_LEFT)
+					element_message(hovered, msg, window.click_count, dp)
+				}
 			}
 
 			case .Middle_Down: {
-				// if the middle mouse button is pressed, start pressing the hovered element
-				window_set_pressed(window, hovered, MOUSE_MIDDLE)
-				element_send_msg_until_received(hovered, msg, di, dp)
+				if (.Window_Menu in window.element.flags) || !menus_close() {
+					// if the middle mouse button is pressed, start pressing the hovered element
+					window_set_pressed(window, hovered, MOUSE_MIDDLE)
+					element_send_msg_until_received(hovered, msg, di, dp)
+				}
 			}
 
 			case .Right_Down: {
-				// if the middle mouse button is pressed, start pressing the hovered element
-				window_set_pressed(window, hovered, MOUSE_RIGHT)
-				element_message(hovered, msg, di, dp)
+				if (.Window_Menu in window.element.flags) || !menus_close() {
+					// if the middle mouse button is pressed, start pressing the hovered element
+					window_set_pressed(window, hovered, MOUSE_RIGHT)
+					element_message(hovered, msg, di, dp)
+				}
 			}
 
 			case .Key_Combination: {
@@ -788,12 +820,9 @@ window_set_pressed :: proc(window: ^Window, element: ^Element, button: int) {
 	}
 }
 
-window_title_build :: proc(window: ^Window, text: string) {
-	b := &window.title_builder
-	strings.builder_reset(b)
-	strings.write_string(b, text)
-	strings.write_byte(b, '\x00')
-	ctext := strings.unsafe_string_to_cstring(strings.to_string(b^))
+window_title_push_builder :: proc(window: ^Window, builder: ^strings.Builder) {
+	strings.write_byte(builder, '\x00')
+	ctext := strings.unsafe_string_to_cstring(strings.to_string(builder^))
 	sdl.SetWindowTitle(window.w, ctext)
 }
 
@@ -869,9 +898,10 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					gs.ignore_quit = true
 						
 					if element_message(&window.element, .Window_Close) == 0 {
-						sdl.HideWindow(window.w)
-						element_destroy(&window.element)
-						sdl_push_empty_event()
+						window_destroy(window)
+						// sdl.HideWindow(window.w)
+						// element_destroy(&window.element)
+						// sdl_push_empty_event()
 						gs.ignore_quit = false
 					}
 				}
@@ -1795,4 +1825,193 @@ bpath_file_write :: proc(path: string, content: []byte) -> bool {
 
 bpath_file_read :: proc(path: string, allocator := context.allocator) -> ([]byte, bool) {
 	return os.read_entire_file(bpath_temp(path), allocator)
+}
+
+//////////////////////////////////////////////
+// menus
+//////////////////////////////////////////////
+
+Menu :: struct {
+	using element: Element,
+	point_x: int,
+	point_y: int,
+}
+
+window_destroy :: proc(window: ^Window) {
+	sdl.HideWindow(window.w)
+	element_destroy(&window.element)
+	sdl_push_empty_event()
+}
+
+menus_close :: proc() -> (any_closed: bool) {
+	window := gs.windows
+
+	for window != nil {
+		if .Window_Menu in window.element.flags {
+			window_destroy(window)
+			any_closed = true
+		}
+
+		window = window.window_next
+	}
+
+	return
+}
+
+menus_open :: proc() -> bool {
+	window := gs.windows
+
+	for window != nil {
+		if .Window_Menu in window.element.flags {
+			return true
+		}
+	}
+
+	return false
+}
+
+menu_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	menu := cast(^Menu) element
+
+	#partial switch msg {
+		case .Get_Width: {
+			width: int
+
+			for child, i in element.children {
+				w := element_message(child, .Get_Width)
+				width = max(width, w)
+			}
+
+			return width + 4
+		}
+
+		case .Get_Height: {
+			height: int
+
+			for child, i in element.children {
+				h := element_message(child, .Get_Height)
+				height += h
+			}
+
+			return height + 4
+		}
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			render_rect(target, element.bounds, RED)
+		}
+
+		case .Layout: {
+			// TODO scroll
+			position := element.bounds.t + 2
+			total_height := f32(0)
+			scrollbar_size := .Menu_No_Scroll in menu.flags ? 0 : SCROLLBAR_SIZE * SCALE
+
+			// place elements top to bottom for a traditional menu
+			for child, i in element.children {
+				height := f32(element_message(child, .Get_Height))
+				rect := Rect {
+					element.bounds.l + 2, 
+					element.bounds.r - scrollbar_size - 2, 
+					position,
+					position + height,
+				}
+				element_move(child, rect)
+				position += height
+				total_height += height
+			}
+
+			// TODO scrollbar
+		}
+
+		case .Key_Combination: {
+			combo := (cast(^string) dp)^
+
+			if combo == "escape" {
+				menus_close()
+				return 1
+			}
+		}
+
+		case .Mouse_Scroll_Y: {
+			// TODO scroll
+		}
+
+		case .Mouse_Scroll_X: {
+
+		}
+
+		case .Scrolled: {
+			element_repaint(element)
+		}
+	}
+
+	return 0
+}
+
+element_screen_bounds :: proc(element: ^Element) -> (res: Rect) {
+	window_x, window_y := window_get_position(element.window)
+	res = rect_translate(element.bounds, { f32(window_x), 0, f32(window_y), 0 })
+	return
+}
+
+menu_init :: proc(parent: ^Element, flags: Element_Flags) -> (menu: ^Menu) {
+	window := window_init(parent.window, { .Window_Menu }, "Todool Menu", 1, 1, mem.Megabyte)
+	menu = element_init(Menu, &window.element, flags, menu_message, context.allocator)
+	// menu.vscroll
+
+	// place at expected menu position
+	if parent.parent != nil {
+		screen_bounds := element_screen_bounds(parent)
+		menu.point_x = int(screen_bounds.l)
+		menu.point_y = .Menu_Place_Above in flags ? int(screen_bounds.t + 1) : int(screen_bounds.b - 1)
+		log.info("1: menu", menu.point_x, menu.point_y)
+	} else {
+		// menu
+		window_x, window_y := window_get_position(parent.window)
+		menu.point_x = int(parent.window.cursor_x) + window_x
+		menu.point_y = int(parent.window.cursor_y) + window_y
+		log.info("2: menu", menu.point_x, menu.point_y)
+	}	
+
+	return
+}
+
+menu_item_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button) element
+
+	if msg == .Clicked {
+		menus_close()
+	}
+
+	return 0
+}
+
+menu_add_item :: proc(
+	menu: ^Menu, 
+	flags: Element_Flags,
+	text: string,
+	invoke: proc(data: rawptr),
+	data: rawptr = nil,
+) {
+	button := button_init(menu, {}, text, menu_item_message)
+	button.invoke = invoke
+	button.data = data
+}
+
+menu_prepare :: proc(menu: ^Menu) -> (width, height: int) {
+	width = element_message(menu, .Get_Width)
+	height = element_message(menu, .Get_Height)
+
+	if .Menu_Place_Above not_in menu.flags {
+		menu.point_y -= height
+	}
+
+	return
+}
+
+menu_show :: proc(menu: ^Menu) {
+	w, h := menu_prepare(menu)
+	window_set_position(menu.window, menu.point_x, menu.point_y)
+	window_set_size(menu.window, w, h)
 }
