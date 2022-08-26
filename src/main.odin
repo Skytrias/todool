@@ -256,17 +256,17 @@ main :: proc() {
 
 	// add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
+	sidebar_panel_init(panel)
 
 	{
 		rect := window_rect(window)
-		split := split_pane_init(panel, { .Split_Pane_Hidable, .Split_Pane_Reversed, .VF, .HF, .Tab_Movement_Allowed }, rect.r - 350, 300)
+		split := split_pane_init(panel, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)
 		split.pixel_based = true
 		sb.split = split
 	}	
 
 	sidebar_enum_panel_init(sb.split)
 	task_panel_init(sb.split)
-	sidebar_panel_init(panel)
 
 	goto_init(window) 
 	drag_init(window)

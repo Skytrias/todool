@@ -9,6 +9,7 @@ import "core:fmt"
 
 Theme_Editor :: struct {
 	open: bool,
+	panel: ^Panel,
 	panel_list: [32]^Panel,
 	panel_list_index: int,
 	panel_selected_index: int, // theme
@@ -204,6 +205,8 @@ theme_editor_spawn :: proc() {
 						if panel_selected_index > 0 {
 							panel_selected_index -= 1
 							window.update_next = true
+							p := theme_editor.panel_list[panel_selected_index]
+							scrollbar_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, true)
 						}
 					}
 
@@ -213,6 +216,9 @@ theme_editor_spawn :: proc() {
 						
 						if panel_selected_index < color_amount - 1 {
 							panel_selected_index += 1
+
+							p := theme_editor.panel_list[panel_selected_index]
+							scrollbar_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, false)
 							window.update_next = true
 						}
 					}
@@ -240,14 +246,14 @@ theme_editor_spawn :: proc() {
 	}
 	theme_editor.window = window
 
-	panel := panel_init(&window.element, { .Panel_Scrollable, .Panel_Default_Background })
-	panel.margin = 10
+	theme_editor.panel = panel_init(&window.element, { .Panel_Scrollable, .Panel_Default_Background })
+	theme_editor.panel.margin = 10
 	
-	label := label_init(panel, {}, "Theme Editor")
+	label := label_init(theme_editor.panel, {}, "Theme Editor")
 	label.font_options = &font_options_header
 
 	SPACER_WIDTH :: 20
-	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	
 	Color_Pair :: struct {
 		color: ^Color,
@@ -335,30 +341,31 @@ theme_editor_spawn :: proc() {
 		}
 	}
 
-	color_slider(panel, &theme.background[0], "background 0")
-	color_slider(panel, &theme.background[1], "background 1")
-	color_slider(panel, &theme.background[2], "background 2")
-	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.panel[0], "panel parent")
-	color_slider(panel, &theme.panel[1], "panel front")
-	color_slider(panel, &theme.shadow, "shadow")
-	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.text_default, "text default")
-	color_slider(panel, &theme.text_blank, "text blank")
-	color_slider(panel, &theme.text_good, "text good")
-	color_slider(panel, &theme.text_bad, "text bad")
-	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(panel, &theme.caret, "caret")
-	color_slider(panel, &theme.caret_highlight, "caret highlight")
-	color_slider(panel, &theme.caret_selection, "caret selection")
-	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	p := theme_editor.panel
+	color_slider(p, &theme.background[0], "background 0")
+	color_slider(p, &theme.background[1], "background 1")
+	color_slider(p, &theme.background[2], "background 2")
+	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
+	color_slider(p, &theme.panel[0], "panel parent")
+	color_slider(p, &theme.panel[1], "panel front")
+	color_slider(p, &theme.shadow, "shadow")
+	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
+	color_slider(p, &theme.text_default, "text default")
+	color_slider(p, &theme.text_blank, "text blank")
+	color_slider(p, &theme.text_good, "text good")
+	color_slider(p, &theme.text_bad, "text bad")
+	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
+	color_slider(p, &theme.caret, "caret")
+	color_slider(p, &theme.caret_highlight, "caret highlight")
+	color_slider(p, &theme.caret_selection, "caret selection")
+	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
 	
 	for i in 0..<8 {
-		color_slider(panel, &theme.tags[i], fmt.tprintf("tag %d", i))
+		color_slider(p, &theme.tags[i], fmt.tprintf("tag %d", i))
 	}
 
-	spacer_init(panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	bot_panel := panel_init(panel, { .Panel_Horizontal, .HF })
+	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
+	bot_panel := panel_init(p, { .Panel_Horizontal, .HF })
 
 	picker := color_picker_init(bot_panel, {}, 0)
 	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -379,7 +386,7 @@ theme_editor_spawn :: proc() {
 		return 0
 	}
 	theme_editor.picker = picker
-	panel.data = picker
+	theme_editor.panel.data = picker
 	window.element.data = picker
 	
 	{

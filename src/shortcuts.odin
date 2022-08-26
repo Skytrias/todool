@@ -146,6 +146,7 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 
 		case "goto": todool_goto()
 		case "search": todool_search()
+		case "escape": todool_escape()
 
 		case: {
 			handled = false
@@ -227,6 +228,7 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 
 	shortcuts_push_general(s, "goto", "ctrl+g")
 	shortcuts_push_general(s, "search", "ctrl+f")
+	shortcuts_push_general(s, "escape", "escape")
 }
 
 todool_delete_on_empty :: proc() {
@@ -598,19 +600,17 @@ todool_escape :: proc() {
 	if image_display_has_content(mode_panel.image_display) {
 		mode_panel.image_display.img = nil
 		element_repaint(mode_panel)
+		
 		return
 	}
 
-	if .Hide not_in panel_search.flags {
-		element_hide(panel_search, true)
+	if element_hide(panel_search, true) {
 		element_repaint(mode_panel)
 		return
 	}
 
-	if .Hide not_in sb.enum_panel.flags {
-		element_hide(sb.enum_panel, true)
+	if element_hide(sb.enum_panel, true) {
 		element_repaint(mode_panel)
-		return
 	}
 }
 

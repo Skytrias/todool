@@ -19,7 +19,6 @@ last_save_location: string
 
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
-mode_panel_split: ^Split_Pane
 window_main: ^Window
 caret_rect: Rect
 caret_lerp_speed_y := f32(1)
@@ -84,6 +83,11 @@ dirty_saved := 0
 // bookmark data
 bookmark_index := -1
 bookmarks: [dynamic]int
+
+// simple split from mode_panel to search bar
+Custom_Split :: struct {
+	using element: Element
+}
 
 drag_init :: proc(window: ^Window) {
 	floaty := panel_floaty_init(&window.element, { .Panel_Default_Background })
@@ -909,12 +913,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// element.bounds = window_rect(window)
 			// element.clip = element.bounds
 			
+			bounds := element.bounds
+
 			if image_display_has_content(panel.image_display) {
 				rect := rect_margin(panel.bounds, 20 * SCALE)
 				element_move(panel.image_display, rect)
 			}
 
-			bounds := element.bounds
 			bounds.l += cam.offset_x
 			bounds.t += cam.offset_y
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
@@ -1829,8 +1834,8 @@ search_init :: proc(parent: ^Element) {
 		search_find_prev()
 	}
 
-	element_hide(p, true)
 	panel_search = p
+	element_hide(panel_search, true)
 }
 
 search_update_results :: proc(query: string) {
@@ -1954,17 +1959,35 @@ contains_multiple_iterator :: proc(s, substr: string, index: ^int) -> (rune_star
 	return
 }
 
+custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	split := cast(^Custom_Split) element
+
+	if msg == .Layout {
+		bounds := element.bounds
+		log.info("BOUNDS", element.bounds, window_rect(window_main))
+
+		if .Hide not_in panel_search.flags {
+			bot := rect_cut_bottom(&bounds, math.round(50 * SCALE))
+			element_move(panel_search, bot)
+		}
+
+		element_move(mode_panel, bounds)
+	}
+
+	return 0  	
+}
+
 task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := window_rect(split.window)
-	mode_panel_split = split_pane_init(split, { .Split_Pane_Hidable, .Split_Pane_Vertical, .Split_Pane_Reversed }, rect.b - 50, 50)
-	mode_panel_split.pixel_based = true
 
-	search_init(mode_panel_split)
+	custom_split := element_init(Custom_Split, split, {}, custom_split_message, context.allocator,)
 
-	mode_panel = mode_panel_init(mode_panel_split, {}, window_allocator(window_main))
+	mode_panel = mode_panel_init(custom_split, {}, window_allocator(window_main))
 	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
 	mode_panel.margin_vertical = 10
+	search_init(custom_split)
+	
 	return mode_panel
 }
 

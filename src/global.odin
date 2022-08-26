@@ -450,6 +450,23 @@ window_set_size :: proc(window: ^Window, w, h: int) {
 	sdl.SetWindowSize(window.w, i32(w), i32(h))
 }
 
+// NOTE ignores pixel border of 1
+window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
+	t, l, b, r: i32
+	res := sdl.GetWindowBordersSize(window.w, &t, &l, &b, &r)
+	
+	if res == 0 {
+		top = t > 1 ? int(t) : 0 
+		left = l > 1 ? int(l) : 0 
+		bottom = b > 1 ? int(b) : 0 
+		right = r > 1 ? int(r) : 0 
+	} else {
+		log.error("WINDOW BORDER SIZE call not supported")
+	}
+
+	return 
+}
+
 // send call to focused, focused parents or window
 window_send_msg_to_focused_or_parents :: proc(window: ^Window, msg: Message, di: int, dp: rawptr) -> (handled: bool) {
 	if window.focused != nil {

@@ -9,6 +9,21 @@ import "core:unicode"
 import stbtt "vendor:stb/truetype"
 import "../cutf8"
 
+// This is a port from Fontstash into odin
+
+// Notable features of Fontstash:
+// Contains a *single* channel texture atlas for multiple fonts
+// Manages a lookup table for frequent glyphs
+// Allows blurred font glyphs
+// Atlas can resize
+
+// Changes:
+// stb truetype only 
+// no font management -> do it yourself 
+// no fallback -> not really thing without knowing of all existing fonts
+// mostly with different procedure naming
+// leaves GPU rendering up to the user
+
 Icon :: enum {
 	Simple_Down = 0xeab2,
 	Simple_Right = 0xeab8,
@@ -56,7 +71,6 @@ Icon :: enum {
 LUT_SIZE :: 256
 INIT_GLYPHS :: 256
 ATLAS_NODES :: 256
-// GLYPH_TYPE :: u16
 Glyph_Index_Type :: i32
 
 Align_Horizontal :: enum {
@@ -88,6 +102,7 @@ Glyph :: struct {
 	glyph_index: Glyph_Index_Type,
 	next: int,
 	pixel_size: f32,
+	blur_size: u8,
 	x0, y0, x1, y1: i16,
 	xoff, yoff: i16,
 	xadvance: f32,
@@ -99,12 +114,13 @@ Atlas_Node :: struct {
 
 Font_Atlas :: struct {
 	width, height: int,
+	resize_callback: proc(font_atlas: ^Font_Atlas), 
 
 	// always assuming user wants to resize
 	nodes: [dynamic]Atlas_Node,
 
 	// actual pixels
-	texture_data: []byte,
+	texture_data: []byte, // created using context.allocator
 
 	// 1 / w, 1 / h
 	itw, ith: f32,
@@ -172,17 +188,15 @@ font_atlas_remove_node :: proc(atlas: ^Font_Atlas, idx: int) {
 	raw.len -= 1
 }
 
-// TODO look into resizing atlas when exceeded
-// @(private)
-// font_atlas_expand :: proc(atlas: ^Font_Atlas, w, h: int) {
-// 	if w > atlas.width {
-// 		// TODO could just be append
-// 		font_atlas_insert_node(atlas, len(atlas.nodes), atlas.width, 0, w - atlas.width)
-// 	}
+@(private)
+atlas_expand :: proc(atlas: ^Font_Atlas, w, h: int) {
+	if w > atlas.width {
+		font_atlas_insert_node(atlas, len(atlas.nodes), atlas.width, 0, w - atlas.width)
+	}
 
-// 	atlas.width = w
-// 	atlas.height = h
-// }
+	atlas.width = w
+	atlas.height = h
+}
 
 @(private)
 font_atlas_reset :: proc(atlas: ^Font_Atlas, w, h: int) {
@@ -400,7 +414,12 @@ get_glyph :: proc(
 	pixel_size: f32,
 	scale: f32,
 	codepoint: rune,
-) -> (res: ^Glyph, pushed: bool) {
+	blur_size: u8 = 0,
+) -> (res: ^Glyph, pushed: bool) #no_bounds_check {
+	if pixel_size < 2 {
+		return 
+	}
+
 	// find code point and size
 	h := font_hash(u32(codepoint)) & (LUT_SIZE - 1)
 	i := font.lut[h]
@@ -409,7 +428,8 @@ get_glyph :: proc(
 		
 		if 
 			glyph.codepoint == codepoint && 
-			glyph.pixel_size == pixel_size 
+			glyph.pixel_size == pixel_size &&
+			glyph.blur_size == blur_size 
 		{
 			res = glyph
 			return
@@ -426,7 +446,8 @@ get_glyph :: proc(
 		// return
 	}
 
-	padding := i16(2) // 2 minimum padding
+	blur_size := min(blur_size, 20)
+	padding := i16(blur_size + 2) // 2 minimum padding
 	advance, lsb, x0, y0, x1, y1 := font_build_glyph_bitmap(font, glyph_index, f32(pixel_size), scale)
 	gw := (x1 - x0) + i32(padding) * 2
 	gh := (y1 - y0) + i32(padding) * 2 
@@ -434,14 +455,27 @@ get_glyph :: proc(
 	// Find free spot for the rect in the atlas
 	gx, gy, ok := font_atlas_add_rect(&fa, int(gw), int(gh))
 	if !ok {
-		// TODO resize automaticalaly
-		log.info("FONTSTASH: no free spot in atlas", gx, gy)
+		if fa.resize_callback != nil {
+			// Atlas is full, let the user to resize the atlas (or not), and try again.
+			fa->resize_callback()
+			// TODO resize automaticalaly
+			log.info("FONTSTASH: no free spot in atlas, resizing", gx, gy)
+			
+			// try again
+			gx, gy, ok = font_atlas_add_rect(&fa, int(gw), int(gh))
+		} 
+	}
+
+	// still not ok?
+	if !ok {
+
 	}
 	
 	// Init glyph.
 	append(&font.glyphs, Glyph {
 		codepoint = codepoint,
 		pixel_size = pixel_size,
+		blur_size = blur_size,
 		glyph_index = glyph_index,
 		x0 = i16(gx),
 		y0 = i16(gy),
@@ -483,9 +517,17 @@ get_glyph :: proc(
 		dst[x + int(gh - 1) * fa.width] = 0
 	}
 
+	if blur_size > 0 {
+		font_blur(dst, int(gw), int(gh), fa.width, blur_size)
+	}
+
 	pushed = true
 	return
 }
+
+/////////////////////////////////
+// blur
+/////////////////////////////////
 
 // Based on Exponential blur, Jani Huhtanen, 2006
 
@@ -555,6 +597,58 @@ font_blur :: proc(dst: []u8, w, h, dst_stride: int, blur_size: u8) {
 }
 
 /////////////////////////////////
+// Texture expansion
+/////////////////////////////////
+
+expand_atlas :: proc(width, height: int, allocator := context.allocator) -> bool {
+	width := max(fa.width, width)
+	height := max(fa.height, height)
+
+	if width == fa.width && height == fa.height {
+		return true
+	}
+
+	// if resize_callback
+
+	data := make([]byte, width * height, allocator)
+
+	for i in 0..<height {
+		dst := &data[i * width]
+		src := &fa.texture_data[i * fa.width]
+		mem.copy(dst, src, fa.width)
+
+		if width > fa.width {
+			mem.set(&data[i * width + fa.width], 0, width - fa.width)
+		}
+	}
+
+	if height > fa.height {
+		mem.set(&data[fa.height * width], 0, (height - fa.height) * width)
+	}
+
+	delete(fa.texture_data)
+	fa.texture_data = data
+
+	return true
+}
+
+reset_atlas :: proc(width, height: int, allocator := context.allocator) -> bool {
+	if width == fa.width && height == fa.height {
+		// just clear
+		mem.zero_slice(fa.texture_data)
+	} else {
+		// realloc
+		fa.texture_data = make([]byte, width * height, allocator)
+	}
+
+	// TODO font resetting
+	// for f
+
+	font_atlas_add_white_rect(&fa, 2, 2)
+	return true
+}
+
+/////////////////////////////////
 // USER LEVEL CODE
 /////////////////////////////////
 
@@ -566,13 +660,6 @@ ascent_pixel_size :: proc(font: ^Font, pixel_size: f32) -> f32 {
 	scale := stbtt.ScaleForPixelHeight(&font.info, pixel_size)
 	return f32(font.ascent) * scale
 }
-
-// font_codepoint_kern_advance :: proc(font: ^Font, a, b: rune) -> f32 {
-// 	kerning: ft.Vector
-// 	// ft.Get_Kerning(font.face, a, b, ft.KERNING_DEFAULT, &kerning)
-// 	// return f32((kerning.x + 32) >> 6)  // Round up and convert to integer
-// 	return {}
-// }
 
 get_glyph_index :: proc(font: ^Font, codepoint: rune) -> Glyph_Index_Type {
 	return stbtt.FindGlyphIndex(&font.info, codepoint)
@@ -595,6 +682,11 @@ glyph_xadvance :: proc(font: ^Font, glyph_index: Glyph_Index_Type) -> f32 {
 	return f32(xadvance)
 }
 
+//////////////////////////////////////////////
+// helpers
+//////////////////////////////////////////////
+
+// get the width of a string
 string_width :: proc(font: ^Font, pixel_size: f32, text: string) -> (offset: f32) {
 	scale := scale_for_pixel_height(font, pixel_size)
 	xadvance, lsb: i32
@@ -611,6 +703,7 @@ string_width :: proc(font: ^Font, pixel_size: f32, text: string) -> (offset: f32
 	return
 }
 
+// get the width of unicode runes
 runes_width :: proc(font: ^Font, pixel_size: f32, runes: []rune) -> (offset: f32) {
 	scale := scale_for_pixel_height(font, pixel_size)
 	xadvance, lsb: i32
@@ -624,6 +717,7 @@ runes_width :: proc(font: ^Font, pixel_size: f32, runes: []rune) -> (offset: f32
 	return
 }
 
+// get the width of a single icon
 icon_width :: proc(font: ^Font, pixel_size: f32, icon: Icon) -> f32 {
 	scale := scale_for_pixel_height(font, pixel_size)
 	glyph_index := get_glyph_index(font, rune(icon))
@@ -632,7 +726,11 @@ icon_width :: proc(font: ^Font, pixel_size: f32, icon: Icon) -> f32 {
 	return math.round(f32(xadvance) * scale)
 }
 
-// wrap a string to a width limit where the result are the strings seperated to the visual limit
+//////////////////////////////////////////////
+// line wrapping helpers
+//////////////////////////////////////////////
+
+// wrap a string to a width limit where the result are the strings seperated to the width limit
 format_to_lines :: proc(
 	font: ^Font, 
 	pixel_size: f32,
@@ -693,10 +791,9 @@ format_to_lines :: proc(
 	if width_line <= width_limit {
 		append(lines, text[index_line_start:])
 	}
-
-	// log.info(len(lines), width_line, width_word, index_line_start)
 }
 
+// getting the right index into the now cut lines of strings
 codepoint_index_to_line :: proc(lines: []string, head: int, loc := #caller_location) -> (y: int, index: int) {
 	total_size: int
 

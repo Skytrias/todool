@@ -177,12 +177,16 @@ element_hide_toggle :: proc(element: ^Element) {
 }
 
 // set hide flag
-element_hide :: proc(element: ^Element, state: bool) {
+element_hide :: proc(element: ^Element, state: bool) -> (res: bool) {
 	if state {
+		res = .Hide not_in element.flags
 		incl(&element.flags, Element_Flag.Hide)
 	} else {
+		res = .Hide in element.flags
 		excl(&element.flags, Element_Flag.Hide)
 	}
+	
+	return 
 }
 
 // add or stop an element from animating
@@ -1607,7 +1611,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			thumb := element.children[1]
 			down := element.children[2]
 
-			if scrollbar.page >= scrollbar.maximum || scrollbar.maximum <= 0 || scrollbar.page == 0 {
+			if scrollbar_inactive(scrollbar) {
 				incl(&up.flags, Element_Flag.Hide)
 				incl(&thumb.flags, Element_Flag.Hide)
 				incl(&down.flags, Element_Flag.Hide)
@@ -1745,6 +1749,29 @@ scrollbar_init :: proc(
 	element_init(Element, res, flags, scroll_thumb_message, allocator)
 	element_init(Element, res, flags, scroll_up_down_message, allocator).data = rawptr(SCROLLBAR_DOWN)
 	return
+}
+
+// keep scrollbar in frame when in need for manual panning
+scrollbar_keep_in_frame :: proc(scrollbar: ^Scrollbar, bounds: Rect, up: bool) {
+	if !scrollbar_inactive(scrollbar) {
+		// log.info("SCROLL FRAME", bounds.t, scrollbar.position, scrollbar.page)
+		MARGIN :: 50
+
+		if up && bounds.t - MARGIN <= 0 {
+			scrollbar.position = bounds.t + scrollbar.position - MARGIN
+			// log.info("----")
+		} 
+
+		if !up && bounds.b + scrollbar.position + MARGIN >= scrollbar.page {
+			scrollbar.position = (bounds.b + scrollbar.position) - scrollbar.page + MARGIN
+			// log.info("++++")
+		}
+	}
+}
+
+// wether the scrollbar is currently active
+scrollbar_inactive :: proc(scrollbar: ^Scrollbar) -> bool {
+	return scrollbar.page >= scrollbar.maximum || scrollbar.maximum <= 0 || scrollbar.page == 0
 }
 
 //////////////////////////////////////////////

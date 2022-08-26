@@ -413,6 +413,19 @@ json_save_misc :: proc(path: string) -> bool {
 	}
 
 	window_x, window_y := window_get_position(window_main)
+	window_width := window_main.width
+	window_height := window_main.height
+	
+	// adjust by window border
+	{
+		t, l, b, r := window_border_size(window_main)
+		// log.info(t, l, b, r)
+		// log.info(window_x, window_y, window_width, window_height)
+		window_y -= t
+		window_x -= l
+		window_width += r
+		window_height += b
+	}
 
 	value := Misc_Save_Load {
 		hidden = {
@@ -421,8 +434,8 @@ json_save_misc :: proc(path: string) -> bool {
 
 			window_x = window_x,
 			window_y = window_y,
-			window_width = window_main.width,
-			window_height = window_main.height,
+			window_width = window_width,
+			window_height = window_height,
 
 			last_save_location = last_save_location,
 		},
