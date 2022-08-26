@@ -1176,7 +1176,11 @@ Wrap_State :: struct {
 	y_offset: f32,
 }
 
-wrap_state_init :: proc(lines: []string, font: ^Font, scaled_size: f32) -> Wrap_State {
+wrap_state_init :: proc(
+	lines: []string, 
+	font: ^Font, 
+	scaled_size: f32,
+) -> Wrap_State {
 	return Wrap_State {
 		lines = lines,
 		font = font,

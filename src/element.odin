@@ -2901,11 +2901,11 @@ erender_string_aligned :: #force_inline proc(
 	ah: Align_Horizontal,
 	av: Align_Vertical,
 ) {
-	font, size := element_retrieve_font_options(element)
+	font_index, size := element_retrieve_font_options(element)
 	
 	render_string_aligned(
 		element.window.target,
-		font,
+		font_index,
 		text, 
 		rect, 
 		color, 

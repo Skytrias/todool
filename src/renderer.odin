@@ -156,9 +156,9 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	vertices = make([]Render_Vertex, 1000 * 32)
 
 	textures[.Fonts] = Render_Texture {
-		data = fontstash.fa.texture_data,
-		width = i32(fontstash.fa.width),
-		height = i32(fontstash.fa.height),
+		data = gs.fc.texture_data,
+		width = i32(gs.fc.width),
+		height = i32(gs.fc.height),
 		format_a = gl.R8,
 		format_b = gl.RED,
 	}
@@ -610,7 +610,7 @@ render_glyph :: proc(
 	delta: f32,
 ) -> f32 #no_bounds_check {
 	color := color
-	glyph, pushed := fontstash.get_glyph(font, pixel_size, scale, codepoint)
+	glyph, pushed := fontstash.get_glyph(&gs.fc, font, pixel_size, scale, codepoint)
 	target.fontstash_update |= pushed
 	vertices := render_target_push_vertices(target, group, 6)
 
@@ -637,8 +637,8 @@ render_glyph :: proc(
 
 	// TODO speedup
 	for v in &vertices {
-		v.uv_xy.x *= fontstash.fa.itw
-		v.uv_xy.y *= fontstash.fa.ith
+		v.uv_xy.x *= gs.fc.itw
+		v.uv_xy.y *= gs.fc.ith
 		v.color = color
 		v.kind = .Glyph
 	}
@@ -648,7 +648,7 @@ render_glyph :: proc(
 
 render_string :: proc(
 	target: ^Render_Target,
-	font: ^fontstash.Font,
+	font: ^Font,
 	text: string,
 	x, y: f32,
 	color: Color,
@@ -696,7 +696,7 @@ render_text_strike_through :: proc(
 
 render_string_aligned :: proc(
 	target: ^Render_Target,
-	font: ^fontstash.Font,
+	font: ^Font,
 	text: string,
 	r: Rect,
 	color: Color,
@@ -747,7 +747,7 @@ render_icon :: proc(
 
 render_icon_aligned :: proc(
 	target: ^Render_Target,
-	font: ^fontstash.Font,
+	font: ^Font,
 	icon: Icon,
 	r: Rect,
 	color: Color,

@@ -1,5 +1,6 @@
 package fontstash
 
+import "core:runtime"
 import "core:fmt"
 import "core:log"
 import "core:os"
@@ -17,12 +18,12 @@ import "../cutf8"
 // Allows blurred font glyphs
 // Atlas can resize
 
-// Changes:
+// Changes from the original:
 // stb truetype only 
-// no font management -> do it yourself 
-// no fallback -> not really thing without knowing of all existing fonts
-// mostly with different procedure naming
-// leaves GPU rendering up to the user
+// no scratch allocation -> handle it yourself
+// different procedure naming as this will be used as a package, renaming Fons -> Font
+// leaves GPU vertex creation & texture management up to the user
+// no immediate style state -> can be built on top
 
 Icon :: enum {
 	Simple_Down = 0xeab2,
@@ -112,118 +113,111 @@ Atlas_Node :: struct {
 	x, y, width: i16,
 }
 
-Font_Atlas :: struct {
-	width, height: int,
-	resize_callback: proc(font_atlas: ^Font_Atlas), 
+Font_Context :: struct {
+	fonts: [dynamic]Font, // allocated using context.allocator
 
 	// always assuming user wants to resize
 	nodes: [dynamic]Atlas_Node,
 
 	// actual pixels
-	texture_data: []byte, // created using context.allocator
+	texture_data: []byte, // allocated using context.allocator
+	width, height: int,
+	resize_callback: proc(ctx: ^Font_Context), 
 
 	// 1 / w, 1 / h
 	itw, ith: f32,
 }
-fa: Font_Atlas
 
-init :: proc(w, h: int) {
-	fa.itw = f32(1) / f32(w)
-	fa.ith = f32(1) / f32(h)
-	fa.texture_data = make([]byte, w * h)
+init :: proc(using ctx: ^Font_Context, w, h: int) {
+	fonts = make([dynamic]Font, 0, 8)
 
-	font_atlas_init(&fa, w, h, ATLAS_NODES)
-}
+	itw = f32(1) / f32(w)
+	ith = f32(1) / f32(h)
+	texture_data = make([]byte, w * h)
+	
+	width = w
+	height = h
+	nodes = make([dynamic]Atlas_Node, 0, ATLAS_NODES)
 
-destroy :: proc() {
-	font_atlas_destroy(fa)
-	delete(fa.texture_data)
-}
-
-@(private)
-font_atlas_init :: proc(atlas: ^Font_Atlas, w, h, nodes: int) {
-	atlas.width = w
-	atlas.height = h
-	atlas.nodes = make([dynamic]Atlas_Node, 0, nodes)
-
-	append(&atlas.nodes, Atlas_Node {
+	append(&nodes, Atlas_Node {
 		width = i16(w),
 	})
 }
 
-@(private)
-font_atlas_destroy :: proc(atlas: Font_Atlas) {
-	delete(atlas.nodes)
+destroy :: proc(using ctx: ^Font_Context) {
+	for font in &fonts {
+		delete(font.loaded_data)
+		delete(font.glyphs)
+	}
+
+	delete(texture_data)
+	delete(fonts)
+	delete(nodes)
 }
 
-@(private)
-font_atlas_insert_node :: proc(atlas: ^Font_Atlas, idx, x, y, w: int) {
+font_atlas_insert_node :: proc(using ctx: ^Font_Context, idx, x, y, w: int) {
 	// resize is alright here
-	resize(&atlas.nodes, len(atlas.nodes) + 1)
+	resize(&nodes, len(nodes) + 1)
 
 	// shift nodes up once to leave space at idx
-	for i := len(atlas.nodes) - 1; i > idx; i -= 1 {
-		atlas.nodes[i] = atlas.nodes[i - 1]
+	for i := len(nodes) - 1; i > idx; i -= 1 {
+		nodes[i] = nodes[i - 1]
 	}
 
 	// set new inserted one to properties
-	atlas.nodes[idx].x = i16(x)
-	atlas.nodes[idx].y = i16(y)
-	atlas.nodes[idx].width = i16(w)
+	nodes[idx].x = i16(x)
+	nodes[idx].y = i16(y)
+	nodes[idx].width = i16(w)
 }
 
-@(private)
-font_atlas_remove_node :: proc(atlas: ^Font_Atlas, idx: int) {
-	if len(atlas.nodes) == 0 {
+font_atlas_remove_node :: proc(using ctx: ^Font_Context, idx: int) {
+	if len(nodes) == 0 {
 		return
 	}
 
 	// remove node at index, shift elements down
-	for i in idx..<len(atlas.nodes) - 1 {
-		atlas.nodes[i] = atlas.nodes[i + 1]
+	for i in idx..<len(nodes) - 1 {
+		nodes[i] = nodes[i + 1]
 	}
 
 	// reduce size of array
-	raw := transmute(^mem.Raw_Dynamic_Array) &atlas.nodes
+	raw := transmute(^mem.Raw_Dynamic_Array) &nodes
 	raw.len -= 1
 }
 
-@(private)
-atlas_expand :: proc(atlas: ^Font_Atlas, w, h: int) {
-	if w > atlas.width {
-		font_atlas_insert_node(atlas, len(atlas.nodes), atlas.width, 0, w - atlas.width)
+font_atlas_expand :: proc(using ctx: ^Font_Context, w, h: int) {
+	if w > width {
+		font_atlas_insert_node(ctx, len(nodes), width, 0, w - width)
 	}
 
-	atlas.width = w
-	atlas.height = h
+	width = w
+	height = h
 }
 
-@(private)
-font_atlas_reset :: proc(atlas: ^Font_Atlas, w, h: int) {
-	atlas.width = w
-	atlas.height = h
-	clear(&atlas.nodes)
+font_atlas_reset :: proc(using ctx: ^Font_Context, w, h: int) {
+	width = w
+	height = h
+	clear(&nodes)
 
 	// init root node
-	append(&atlas.nodes, Atlas_Node {
+	append(&nodes, Atlas_Node {
 		width = i16(w),
 	})
 }
 
-@(private)
-font_atlas_add_skyline_level :: proc(atlas: ^Font_Atlas, idx, x, y, w, h: int) {
+font_atlas_add_skyline_level :: proc(using ctx: ^Font_Context, idx, x, y, w, h: int) {
 	// insert new node
-	font_atlas_insert_node(atlas, idx, x, y + h, w)
+	font_atlas_insert_node(ctx, idx, x, y + h, w)
 
 	// Delete skyline segments that fall under the shadow of the new segment.
-	for i := idx + 1; i < len(atlas.nodes); i += 1 {
-		if atlas.nodes[i].x < atlas.nodes[i - 1].x + atlas.nodes[i - 1].width {
-			shrink := atlas.nodes[i-1].x + atlas.nodes[i-1].width - atlas.nodes[i].x
-			atlas.nodes[i].x += i16(shrink)
-			atlas.nodes[i].width -= i16(shrink)
+	for i := idx + 1; i < len(nodes); i += 1 {
+		if nodes[i].x < nodes[i - 1].x + nodes[i - 1].width {
+			shrink := nodes[i-1].x + nodes[i-1].width - nodes[i].x
+			nodes[i].x += i16(shrink)
+			nodes[i].width -= i16(shrink)
 			
-			if atlas.nodes[i].width <= 0 {
-				font_atlas_remove_node(atlas, i)
+			if nodes[i].width <= 0 {
+				font_atlas_remove_node(ctx, i)
 				i -= 1
 			} else {
 				break
@@ -234,62 +228,60 @@ font_atlas_add_skyline_level :: proc(atlas: ^Font_Atlas, idx, x, y, w, h: int) {
 	}
 
 	// Merge same height skyline segments that are next to each other.
-	for i := 0; i < len(atlas.nodes) - 1; i += 1 {
-		if atlas.nodes[i].y == atlas.nodes[i + 1].y {
-			atlas.nodes[i].width += atlas.nodes[i + 1].width
-			font_atlas_remove_node(atlas, i + 1)
+	for i := 0; i < len(nodes) - 1; i += 1 {
+		if nodes[i].y == nodes[i + 1].y {
+			nodes[i].width += nodes[i + 1].width
+			font_atlas_remove_node(ctx, i + 1)
 			i -= 1
 		}
 	}
 }
 
-@(private)
-font_atlas_rect_fits :: proc(atlas: ^Font_Atlas, i, w, h: int) -> int {
+font_atlas_rect_fits :: proc(using ctx: ^Font_Context, i, w, h: int) -> int {
 	// Checks if there is enough space at the location of skyline span 'i',
 	// and return the max height of all skyline spans under that at that location,
 	// (think tetris block being dropped at that position). Or -1 if no space found.
-	x := int(atlas.nodes[i].x)
-	y := int(atlas.nodes[i].y)
+	x := int(nodes[i].x)
+	y := int(nodes[i].y)
 	
-	if x + w > atlas.width {
+	if x + w > width {
 		return -1
 	}
 
 	i := i
 	space_left := w
 	for space_left > 0 {
-		if i == len(atlas.nodes) {
+		if i == len(nodes) {
 			return -1
 		}
 
-		y = max(y, int(atlas.nodes[i].y))
-		if y + h > atlas.height {
+		y = max(y, int(nodes[i].y))
+		if y + h > height {
 			return -1
 		}
 
-		space_left -= int(atlas.nodes[i].width)
+		space_left -= int(nodes[i].width)
 		i += 1
 	}
 
 	return y
 }
 
-@(private)
-font_atlas_add_rect :: proc(atlas: ^Font_Atlas, rw, rh: int) -> (rx, ry: int, ok: bool) {
-	besth := atlas.height
-	bestw := atlas.width
+font_atlas_add_rect :: proc(using ctx: ^Font_Context, rw, rh: int) -> (rx, ry: int, ok: bool) {
+	besth := height
+	bestw := width
 	besti, bestx, besty := -1, -1, -1
 
 	// Bottom left fit heuristic.
-	for i in 0..<len(atlas.nodes) {
-		y := font_atlas_rect_fits(atlas, i, rw, rh)
+	for i in 0..<len(nodes) {
+		y := font_atlas_rect_fits(ctx, i, rw, rh)
 		
 		if y != -1 {
-			if y + rh < besth || (y + rh == besth && int(atlas.nodes[i].width) < bestw) {
+			if y + rh < besth || (y + rh == besth && int(nodes[i].width) < bestw) {
 				besti = i
-				bestw = int(atlas.nodes[i].width)
+				bestw = int(nodes[i].width)
 				besth = y + rh
-				bestx = int(atlas.nodes[i].x)
+				bestx = int(nodes[i].x)
 				besty = y
 			}
 		}
@@ -300,43 +292,44 @@ font_atlas_add_rect :: proc(atlas: ^Font_Atlas, rw, rh: int) -> (rx, ry: int, ok
 	}
 
 	// Perform the actual packing.
-	font_atlas_add_skyline_level(atlas, besti, bestx, besty, rw, rh) 
+	font_atlas_add_skyline_level(ctx, besti, bestx, besty, rw, rh) 
 	ok = true
 	rx = bestx
 	ry = besty
 	return
 }
 
-@(private)
-font_atlas_add_white_rect :: proc(atlas: ^Font_Atlas, w, h: int) {
-	gx, gy, ok := font_atlas_add_rect(atlas, w, h)
+font_atlas_add_white_rect :: proc(ctx: ^Font_Context, w, h: int) {
+	gx, gy, ok := font_atlas_add_rect(ctx, w, h)
 
 	if !ok {
 		return
 	}
 
 	// Rasterize
-	dst := atlas.texture_data[gx + gy * atlas.width:]
+	dst := ctx.texture_data[gx + gy * ctx.width:]
 	for y in 0..<h {
 		for x in 0..<w {
 			dst[x] = 0xff
 		}
 
-		dst = dst[atlas.width:]
+		dst = dst[ctx.width:]
 	}
 }
 
-font_init :: proc(
+font_push :: proc(
+	ctx: ^Font_Context,
 	path: string, 
 	init_default_ascii := false,
 	pixel_size := f32(0),
 ) -> (res: ^Font) {
+	append(&ctx.fonts, Font {})
 	ok: bool
-	res = new(Font)
+	res = &ctx.fonts[len(ctx.fonts) - 1]
 	res.loaded_data, ok = os.read_entire_file(path)
 
 	if !ok {
-		log.panicf("FONT: failed to read font at %s", path)
+		log.errorf("FONT: failed to read font at %s", path)
 	}
 
 	stbtt.InitFont(&res.info, &res.loaded_data[0], 0)
@@ -348,29 +341,16 @@ font_init :: proc(
 	}
 
 	if init_default_ascii {
-		font_init_ascii(res, pixel_size)
+		scale := scale_for_pixel_height(res, pixel_size)
+
+		for i in 0..<95 {
+			get_glyph(ctx, res, pixel_size, scale, rune(32 + i))
+		}
 	}
 
-	return
+	return res
 }
 
-@(private)
-font_init_ascii :: proc(font: ^Font, pixel_size: f32) {
-	scale := scale_for_pixel_height(font, pixel_size)
-
-	// init default ascii codepoints 
-	for i in 0..<95 {
-		get_glyph(font, pixel_size, scale, rune(32 + i))
-	}
-}
-
-font_destroy :: proc(font: ^Font) {
-	delete(font.loaded_data)
-	delete(font.glyphs)
-	free(font)
-}
-
-@(private)
 font_hash :: proc(a: u32) -> u32 {
 	a := a
 	a += ~(a << 15)
@@ -382,7 +362,6 @@ font_hash :: proc(a: u32) -> u32 {
 	return a
 }
 
-@(private)
 font_render_glyph_bitmap :: proc(
 	font: ^Font,
 	output: []u8,
@@ -396,7 +375,6 @@ font_render_glyph_bitmap :: proc(
 	stbtt.MakeGlyphBitmap(&font.info, raw_data(output), out_width, out_height, out_stride, scale_x, scale_y, glyph_index)
 }
 
-@(private)
 font_build_glyph_bitmap :: proc(
 	font: ^Font, 
 	glyph_index: Glyph_Index_Type,
@@ -410,6 +388,7 @@ font_build_glyph_bitmap :: proc(
 
 // get glyph and push to atlas if not exists
 get_glyph :: proc(
+	ctx: ^Font_Context,
 	font: ^Font,
 	pixel_size: f32,
 	scale: f32,
@@ -453,16 +432,16 @@ get_glyph :: proc(
 	gh := (y1 - y0) + i32(padding) * 2 
 
 	// Find free spot for the rect in the atlas
-	gx, gy, ok := font_atlas_add_rect(&fa, int(gw), int(gh))
+	gx, gy, ok := font_atlas_add_rect(ctx, int(gw), int(gh))
 	if !ok {
-		if fa.resize_callback != nil {
+		if ctx.resize_callback != nil {
 			// Atlas is full, let the user to resize the atlas (or not), and try again.
-			fa->resize_callback()
+			ctx->resize_callback()
 			// TODO resize automaticalaly
 			log.info("FONTSTASH: no free spot in atlas, resizing", gx, gy)
 			
 			// try again
-			gx, gy, ok = font_atlas_add_rect(&fa, int(gw), int(gh))
+			gx, gy, ok = font_atlas_add_rect(ctx, int(gw), int(gh))
 		} 
 	}
 
@@ -492,33 +471,33 @@ get_glyph :: proc(
 	res = &font.glyphs[len(font.glyphs) - 1]
 
 	// rasterize
-	dst := fa.texture_data[int(res.x0 + padding) + int(res.y0 + padding) * fa.width:]
+	dst := ctx.texture_data[int(res.x0 + padding) + int(res.y0 + padding) * ctx.width:]
 	font_render_glyph_bitmap(
 		font,
 		dst,
 		gw - i32(padding) * 2, 
 		gh - i32(padding) * 2, 
-		i32(fa.width), 
+		i32(ctx.width), 
 		scale,
 		scale,
 		glyph_index,
 	)
 
 	// make sure there is one pixel empty border.
-	dst = fa.texture_data[int(res.x0) + int(res.y0) * fa.width:]
+	dst = ctx.texture_data[int(res.x0) + int(res.y0) * ctx.width:]
 	// y direction
 	for y in 0..<int(gh) {
-		dst[y * fa.width] = 0
-		dst[int(gw - 1) + y * fa.width] = 0
+		dst[y * ctx.width] = 0
+		dst[int(gw - 1) + y * ctx.width] = 0
 	}
 	// x direction
 	for x in 0..<int(gw) {
 		dst[x] = 0
-		dst[x + int(gh - 1) * fa.width] = 0
+		dst[x + int(gh - 1) * ctx.width] = 0
 	}
 
 	if blur_size > 0 {
-		font_blur(dst, int(gw), int(gh), fa.width, blur_size)
+		font_blur(dst, int(gw), int(gh), ctx.width, blur_size)
 	}
 
 	pushed = true
@@ -534,7 +513,6 @@ get_glyph :: proc(
 BLUR_APREC :: 16
 BLUR_ZPREC :: 7
 
-@(private)
 font_blur_cols :: proc(dst: []u8, w, h, dst_stride, alpha: int) {
 	dst := dst
 
@@ -559,7 +537,6 @@ font_blur_cols :: proc(dst: []u8, w, h, dst_stride, alpha: int) {
 	}
 }
 
-@(private)
 font_blur_rows :: proc(dst: []u8, w, h, dst_stride, alpha: int) {
 	dst := dst
 
@@ -583,7 +560,6 @@ font_blur_rows :: proc(dst: []u8, w, h, dst_stride, alpha: int) {
 	}
 }
 
-@(private)
 font_blur :: proc(dst: []u8, w, h, dst_stride: int, blur_size: u8) {
 	assert(blur_size != 0)
 
@@ -600,11 +576,11 @@ font_blur :: proc(dst: []u8, w, h, dst_stride: int, blur_size: u8) {
 // Texture expansion
 /////////////////////////////////
 
-expand_atlas :: proc(width, height: int, allocator := context.allocator) -> bool {
-	width := max(fa.width, width)
-	height := max(fa.height, height)
+expand_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := context.allocator) -> bool {
+	width := max(ctx.width, width)
+	height := max(ctx.height, height)
 
-	if width == fa.width && height == fa.height {
+	if width == ctx.width && height == ctx.height {
 		return true
 	}
 
@@ -614,37 +590,37 @@ expand_atlas :: proc(width, height: int, allocator := context.allocator) -> bool
 
 	for i in 0..<height {
 		dst := &data[i * width]
-		src := &fa.texture_data[i * fa.width]
-		mem.copy(dst, src, fa.width)
+		src := &ctx.texture_data[i * ctx.width]
+		mem.copy(dst, src, ctx.width)
 
-		if width > fa.width {
-			mem.set(&data[i * width + fa.width], 0, width - fa.width)
+		if width > ctx.width {
+			mem.set(&data[i * width + ctx.width], 0, width - ctx.width)
 		}
 	}
 
-	if height > fa.height {
-		mem.set(&data[fa.height * width], 0, (height - fa.height) * width)
+	if height > ctx.height {
+		mem.set(&data[ctx.height * width], 0, (height - ctx.height) * width)
 	}
 
-	delete(fa.texture_data)
-	fa.texture_data = data
+	delete(ctx.texture_data)
+	ctx.texture_data = data
 
 	return true
 }
 
-reset_atlas :: proc(width, height: int, allocator := context.allocator) -> bool {
-	if width == fa.width && height == fa.height {
+reset_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := context.allocator) -> bool {
+	if width == ctx.width && height == ctx.height {
 		// just clear
-		mem.zero_slice(fa.texture_data)
+		mem.zero_slice(ctx.texture_data)
 	} else {
 		// realloc
-		fa.texture_data = make([]byte, width * height, allocator)
+		ctx.texture_data = make([]byte, width * height, allocator)
 	}
 
 	// TODO font resetting
 	// for f
 
-	font_atlas_add_white_rect(&fa, 2, 2)
+	font_atlas_add_white_rect(ctx, 2, 2)
 	return true
 }
 
@@ -687,7 +663,11 @@ glyph_xadvance :: proc(font: ^Font, glyph_index: Glyph_Index_Type) -> f32 {
 //////////////////////////////////////////////
 
 // get the width of a string
-string_width :: proc(font: ^Font, pixel_size: f32, text: string) -> (offset: f32) {
+string_width :: proc(
+	font: ^Font, 
+	pixel_size: f32, 
+	text: string,
+) -> (offset: f32) {
 	scale := scale_for_pixel_height(font, pixel_size)
 	xadvance, lsb: i32
 
@@ -704,7 +684,11 @@ string_width :: proc(font: ^Font, pixel_size: f32, text: string) -> (offset: f32
 }
 
 // get the width of unicode runes
-runes_width :: proc(font: ^Font, pixel_size: f32, runes: []rune) -> (offset: f32) {
+runes_width :: proc(
+	font: ^Font,
+	pixel_size: f32, 
+	runes: []rune,
+) -> (offset: f32) {
 	scale := scale_for_pixel_height(font, pixel_size)
 	xadvance, lsb: i32
 
@@ -718,11 +702,16 @@ runes_width :: proc(font: ^Font, pixel_size: f32, runes: []rune) -> (offset: f32
 }
 
 // get the width of a single icon
-icon_width :: proc(font: ^Font, pixel_size: f32, icon: Icon) -> f32 {
+icon_width :: proc(
+	font: ^Font,
+	pixel_size: f32, 
+	icon: Icon,
+) -> f32 {
 	scale := scale_for_pixel_height(font, pixel_size)
 	glyph_index := get_glyph_index(font, rune(icon))
 	xadvance, lsb: i32
 	stbtt.GetGlyphHMetrics(&font.info, glyph_index, &xadvance, &lsb)
+	
 	return math.round(f32(xadvance) * scale)
 }
 

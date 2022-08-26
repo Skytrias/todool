@@ -30,16 +30,11 @@ font_regular: ^Font
 font_bold: ^Font
 font_icon: ^Font
 
-fonts_init :: proc() {
-	font_regular = fontstash.font_init("Lato-Regular.ttf", true, 20)
-	font_bold = fontstash.font_init("Lato-Bold.ttf", true, 20)
-	font_icon = fontstash.font_init("icofont.ttf")  	
-}
-
-fonts_destroy :: proc() {
-	fontstash.font_destroy(font_regular)	
-	fontstash.font_destroy(font_bold)	
-	fontstash.font_destroy(font_icon)	
+fonts_push :: proc() {
+	ctx := &gs.fc
+	font_regular = fontstash.font_push(ctx, "Lato-Regular.ttf", true, 20)
+	font_bold = fontstash.font_push(ctx, "Lato-Bold.ttf", true, 20)
+	font_icon = fontstash.font_push(ctx, "icofont.ttf")
 }
 
 Shortcut_Proc :: proc() -> bool
@@ -170,6 +165,7 @@ Global_State :: struct {
 	window_hovering_timer: sdl.TimerID,
 
 	track: mem.Tracking_Allocator,
+	fc: fontstash.Font_Context,
 }
 gs: ^Global_State
 
@@ -1157,8 +1153,8 @@ gs_init :: proc() {
 		log.infof("SDL2: Linked Version %d.%d.%d", linked.major, linked.minor, linked.patch)
 	}
 
-	fontstash.init(1000, 1000)
-	fonts_init()
+	fontstash.init(&fc, 1000, 1000)
+	fonts_push()
 	animating = make([dynamic]^Element, 0, 32)
 
 	copy_builder = strings.builder_make(0, mem.Kilobyte)
@@ -1257,8 +1253,7 @@ gs_destroy :: proc() {
 	mix.Quit()
 
 	ease.flux_destroy(flux)
-	fontstash.destroy()
-	fonts_destroy()
+	fontstash.destroy(&fc)
 
 	// based on mode
 	when TODOOL_RELEASE {
