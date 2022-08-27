@@ -83,16 +83,69 @@ Align_Horizontal :: enum {
 Align_Vertical :: enum {
 	Top,
 	Middle,
+	Baseline,
 	Bottom,
+}
+
+// based on font
+align_vertical :: proc(
+	font: ^Font,
+	pixel_size: i16,
+	av: Align_Vertical,
+) -> f32 {
+	switch av {
+		case .Top: {
+			return f32(font.ascent) * f32(pixel_size / 10)
+		}
+
+		case .Middle: {
+			return f32(font.ascent + font.descent) / 2 * f32(pixel_size / 10)
+		}
+
+		case .Baseline: {
+			return 0
+		}
+
+		case .Bottom: {
+			return f32(font.descent) * f32(pixel_size / 10)
+		}
+	}
+
+	return -1
+}
+
+// based on string content
+align_horizontal :: proc(
+	font: ^Font,
+	pixel_size: f32,
+	text_width: f32, // left to the user *when* to compute
+	width: f32, // center inside of a rectangle
+	ah: Align_Horizontal,
+) -> f32 {
+	switch ah {
+		case .Left: {
+			return 0
+		}
+
+		case .Middle: {
+			return width / 2 - text_width / 2
+		}
+
+		case .Right: {
+			return width - text_width
+		}
+	}
+
+	return -1
 }
 
 Font :: struct {
 	info: stbtt.fontinfo,
 	loaded_data: []byte,
 
-	ascent: i32,
-	descent: i32,
-	line_height: i32,
+	ascent: f32,
+	descent: f32,
+	line_height: f32,
 
 	glyphs: [dynamic]Glyph,
 	lut: [LUT_SIZE]int,
@@ -102,7 +155,7 @@ Glyph :: struct {
 	codepoint: rune,
 	glyph_index: Glyph_Index_Type,
 	next: int,
-	pixel_size: f32,
+	isize: i16,
 	blur_size: u8,
 	x0, y0, x1, y1: i16,
 	xoff, yoff: i16,
@@ -333,7 +386,12 @@ font_push :: proc(
 	}
 
 	stbtt.InitFont(&res.info, &res.loaded_data[0], 0)
-	stbtt.GetFontVMetrics(&res.info, &res.ascent, &res.descent, &res.line_height)
+	a, d, l: i32
+	stbtt.GetFontVMetrics(&res.info, &a, &d, &l)
+	fh := f32(a - d)
+	res.ascent = f32(a) / fh
+	res.descent = f32(d) / fh
+	res.line_height = f32(l) / fh
 	res.glyphs = make([dynamic]Glyph, 0, INIT_GLYPHS)
 
 	for i in 0..<LUT_SIZE {
@@ -341,10 +399,11 @@ font_push :: proc(
 	}
 
 	if init_default_ascii {
-		scale := scale_for_pixel_height(res, pixel_size)
+		isize := i16(pixel_size * 10)
+		scale := scale_for_pixel_height(res, f32(isize / 10))
 
 		for i in 0..<95 {
-			get_glyph(ctx, res, pixel_size, scale, rune(32 + i))
+			get_glyph(ctx, res, isize, rune(32 + i))
 		}
 	}
 
@@ -390,13 +449,12 @@ font_build_glyph_bitmap :: proc(
 get_glyph :: proc(
 	ctx: ^Font_Context,
 	font: ^Font,
-	pixel_size: f32,
-	scale: f32,
+	isize: i16,
 	codepoint: rune,
 	blur_size: u8 = 0,
 ) -> (res: ^Glyph, pushed: bool) #no_bounds_check {
-	if pixel_size < 2 {
-		return 
+	if isize < 2 {
+		return
 	}
 
 	// find code point and size
@@ -407,7 +465,7 @@ get_glyph :: proc(
 		
 		if 
 			glyph.codepoint == codepoint && 
-			glyph.pixel_size == pixel_size &&
+			glyph.isize == isize &&
 			glyph.blur_size == blur_size 
 		{
 			res = glyph
@@ -425,9 +483,11 @@ get_glyph :: proc(
 		// return
 	}
 
+	pixel_size := f32(isize / 10)
 	blur_size := min(blur_size, 20)
 	padding := i16(blur_size + 2) // 2 minimum padding
-	advance, lsb, x0, y0, x1, y1 := font_build_glyph_bitmap(font, glyph_index, f32(pixel_size), scale)
+	scale := scale_for_pixel_height(font, pixel_size)
+	advance, lsb, x0, y0, x1, y1 := font_build_glyph_bitmap(font, glyph_index, pixel_size, scale)
 	gw := (x1 - x0) + i32(padding) * 2
 	gh := (y1 - y0) + i32(padding) * 2 
 
@@ -453,7 +513,7 @@ get_glyph :: proc(
 	// Init glyph.
 	append(&font.glyphs, Glyph {
 		codepoint = codepoint,
-		pixel_size = pixel_size,
+		isize = isize,
 		blur_size = blur_size,
 		glyph_index = glyph_index,
 		x0 = i16(gx),
@@ -761,11 +821,11 @@ format_to_lines :: proc(
 		width_word += width_codepoint
 		
 		if width_line > width_limit {
-			if unicode.is_letter(codepoint) {
+			if !unicode.is_space(codepoint) {
 				append(lines, text[index_line_start:index_word_start])
 				index_line_start = index_word_start
 				width_line = width_word
-			} else if codepoint == ' ' {
+			} else {
 				append(lines, text[index_line_start:codepoint_count])
 				index_line_start = codepoint_count
 				width_line = width_word
@@ -784,13 +844,13 @@ format_to_lines :: proc(
 
 // getting the right index into the now cut lines of strings
 codepoint_index_to_line :: proc(lines: []string, head: int, loc := #caller_location) -> (y: int, index: int) {
-	total_size: int
+	assert(len(lines) != 0, "Lines should have valid content of lines > 1", loc)
 
-	assert(len(lines) != 0, "", loc)
 	if head == 0 || len(lines) == 1 {
 		return
 	}
 	
+	total_size: int
 	for line, i in lines {
 		codepoint_count := cutf8.count(line)
 

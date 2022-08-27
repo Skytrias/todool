@@ -2018,12 +2018,132 @@ tasks_load_reset :: proc() {
 }
 
 tasks_load_default :: proc() {
-	// task_push(0, "one")
-	task_push(0, "two")
-	task_push(1, "three")
-	// task_push(2, "four")
-	// task_push(2, "four")
-	// task_push(2, "four")
+	task_push(0, "one")
+	task_push(1, "two")
+	task_push(2, "three")
 	task_head = 0
 	task_tail = 0
+}
+
+tasks_load_tutorial :: proc() {
+	@static load_indent := 0
+
+	@(deferred_none=pop)
+	push_scoped_task :: #force_inline proc(text: string) {
+		task_push(max(load_indent, 0), text)
+		load_indent	+= 1
+	}
+
+	push_scoped :: #force_inline proc(text: string) {
+		load_indent	+= 1
+	}
+
+	pop :: #force_inline proc() {
+	  load_indent -= 1
+	}
+
+	t :: #force_inline proc(text: string) {
+		task_push(max(load_indent, 0), text)
+	}
+
+	push_scoped_task("Tutorial")
+
+	{
+		push_scoped_task("Tutorial")
+		t("thank you for alpha testing todool")
+		t("if you have any issues, please post them on the discord")
+		t("tutorial shortcut explanations are based on default key bindings")
+	}
+
+	{
+		push_scoped_task("Task Keyboard Movement")
+
+		t("up / down -> move to upper / lower task")
+		t("ctrl+up / ctrl+down -> move to same upper/ lower task with the same indentation")
+		t("ctrl+m -> moves to the last task in scope, then shuffles between the start of the scope")
+		t("ctrl+, / ctrl+. -> moves to the previous / next task at indentation 0")
+		t("shift + movement -> shift select till the new destination")
+		t("alt+up / alt+down -> shift the selected tasks up / down")
+	}
+
+	{
+		push_scoped_task("Text Box Keyboard Movement")
+		t("same as normal text editors")
+		t("up / down are used for task based movement")
+		t("copying text switches to text paste mode")
+	}
+
+	{
+		push_scoped_task("Task Addition / Deletion")
+		t("return -> insert a new task at the same indentation as the current task")
+		t("ctrl+return -> insert a a task as a child with indentation + 1")
+		t("backspace -> removes the task when it has no text")
+		t("ctrl+d -> removes the selected tasks")
+	}
+
+	{
+		push_scoped_task("Bookmarks")
+		t("ctrl+b -> toggle the current selected tasks bookmark flag")
+		t("ctrl+shift+tab -> cycle jump through the previous bookmark")
+		t("ctrl+tab -> cycle jump through the next bookmark")
+	}
+
+	{
+		push_scoped_task("Text Manipulation")
+		t("ctrl+shift+j -> uppercase the starting words of the selected tasks")
+		t("ctrl+shift+l -> lowercase all letters of the selected tasks")
+	}
+
+	{
+		push_scoped_task("Task Properties")
+		t("tab -> increase the selected tasks indentation")
+		t("shift+tab -> decrease the selected tasks indentation")
+		t("ctrl+q -> cycle through the selected tasks state")
+		t("ctrl+j -> toggle the current task folding level")
+	}
+
+	{
+		push_scoped_task("Tags")
+		t("ctrl+(1-8) -> toggle the selected tasks tag (1-8)")
+		t("ctrl+(1-8) -> toggle the selected tasks tag (1-8)")
+		t("ctrl+(1-8) -> toggle the selected tasks tag (1-8)")
+	}
+
+	{
+		push_scoped_task("Task & Text | Copy & Paste")
+		t("ctrl+c -> copy the selected tasks - when no text is selected")
+		t("ctrl+x -> cut the selected tasks - when no text is selected")
+		t("ctrl+shift+c -> copy the selected tasks to the clipboard with basic indentation")
+		t("ctrl+v -> paste the previously copied tasks relative to the current position")
+		t("ctrl+shift+v -> paste text from the clipboard based on newlines - text is left/right trimmed")
+	}
+
+	{
+		push_scoped_task("Pomodoro")
+		t("alt+1 -> toggle the pomodoro work time")
+		t("alt+2 -> toggle the pomodoro short break time")
+		t("alt+3 -> toggle the pomodoro long break time")
+	}
+
+	{
+		push_scoped_task("Modes")
+		t("alt+q -> enter the List mode")
+		t("alt+w -> enter the Kanban mode")
+		t("alt+e -> TEMP spawn the theme editor")
+	}
+
+	{
+		push_scoped_task("Miscellaneous")
+		t("ctrl+s -> save to a file")
+		t("ctrl+o -> load from a file")
+		t("ctrl+n -> new file")
+		t("ctrl+z -> undo")
+		t("ctrl+y -> redo")
+		t("ctrl+e -> center the view vertically")
+	}
+
+	task_head = 0
+	task_tail = 0
+
+	// TODO add ctrl+shift+return to insert at prev
 }

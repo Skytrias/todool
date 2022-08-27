@@ -86,8 +86,8 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "indent_jump_same_next": todool_indent_jump_same_next()
 		case "indent_jump_scope": todool_indent_jump_scope()
 	
-		case "tag_jump_prev": todool_tag_jump(true)
-		case "tag_jump_next": todool_tag_jump(false)
+		case "bookmark_jump_prev": todool_bookmark_jump(true)
+		case "bookmark_jump_next": todool_bookmark_jump(false)
 		
 		case "tag_toggle1": tag_toggle(0x01)
 		case "tag_toggle2": tag_toggle(0x02)
@@ -169,8 +169,8 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "indent_jump_same_next", "ctrl+shift+down", "ctrl+down")
 	shortcuts_push_general(s, "indent_jump_scope", "ctrl+shift+m", "ctrl+m")
 	
-	shortcuts_push_general(s, "tag_jump_prev", "ctrl+shift+tab")
-	shortcuts_push_general(s, "tag_jump_next", "ctrl+tab")
+	shortcuts_push_general(s, "bookmark_jump_prev", "ctrl+shift+tab")
+	shortcuts_push_general(s, "bookmark_jump_next", "ctrl+tab")
 
 	shortcuts_push_general(s, "tasks_to_uppercase", "ctrl+shift+j")
 	shortcuts_push_general(s, "tasks_to_lowercase", "ctrl+shift+l")
@@ -394,7 +394,7 @@ todool_indent_jump_same_next :: proc() {
 	} 
 }
 
-todool_tag_jump :: proc(shift: bool) {
+todool_bookmark_jump :: proc(shift: bool) {
 	if len(bookmarks) != 0 && len(tasks_visible) != 0 {
 		bookmark_advance(shift)
 		index := bookmarks[bookmark_index]

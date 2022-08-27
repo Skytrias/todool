@@ -45,6 +45,9 @@ TODOOL_RELEASE :: false
 // 	libc.system("xdg-open https://www.patreon.com/nakst")	
 // }
 
+// TODO general
+// while search typing set camera to focus atleast search result found
+
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -52,7 +55,7 @@ main :: proc() {
 
 	task_data_init()
 
-	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 10)
+	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
 	window.name = "main"
 	window.on_resize = proc(window: ^Window) {
 		cam := mode_panel_cam()
@@ -277,9 +280,10 @@ main :: proc() {
 		log.info("JSON: Load failed -> Using default")
 	}
 
-	// tasks_load_reset()
+	tasks_load_reset()
+	tasks_load_tutorial()
 	// tasks_load_default()
-	tasks_load_file()
+	// tasks_load_file()
 	
 	gs_message_loop()
 }
