@@ -43,7 +43,7 @@ state_clear :: proc(ctx: ^Font_Context) {
 	state.spacing = 0
 	state.font = 0
 	state.ah = .Left
-	state.av = .Baseline
+	state.av = .Top
 }
 
 state_get :: #force_inline proc(ctx: ^Font_Context) -> ^State {
@@ -101,9 +101,8 @@ text_iter_init :: proc(
 	state := state_get(ctx)
 
 	// font 
-	assert(!(state.font < 0 || state.font >= len(ctx.fonts)))
+	// assert(!(state.font < 0 || state.font >= len(ctx.fonts)))
 	res.font = &ctx.fonts[state.font]
-
 	res.isize = i16(state.size * 10)
 	res.iblur = i16(state.blur)
 	res.scale = scale_for_pixel_height(res.font, f32(res.isize / 10))
@@ -137,28 +136,31 @@ text_iter_init :: proc(
 	return
 }
 
-text_iter_next :: proc(
+text_iter_step :: proc(
 	ctx: ^Font_Context, 
 	iter: ^Text_Iter, 
 	quad: ^Quad,
-) -> bool #no_bounds_check {
+) -> (ok: bool) {
 	for len(iter.text) > 0 {
-		if cutf8.decode(&iter.state, &iter.codepoint, iter.text[0]) {
+		b := iter.text[0]
+		iter.text = iter.text[1:]
+
+		if cutf8.decode(&iter.state, &iter.codepoint, b) {
 			iter.x = iter.nextx
 			iter.y = iter.nexty
-			glyph, _ := get_glyph(ctx, iter.font, iter.codepoint, iter.isize, u8(iter.iblur))
+			glyph := get_glyph(ctx, iter.font, iter.codepoint, iter.isize, u8(iter.iblur))
 			
 			if glyph != nil {
 				get_quad(ctx, iter.font, iter.previous_glyph_index, glyph, iter.scale, iter.spacing, &iter.nextx, &iter.nexty, quad)
 			}
 
 			iter.previous_glyph_index = glyph == nil ? -1 : glyph.index
+			ok = true
+			break
 		}
-
-		iter.text = iter.text[1:]
 	}
 
-	return true
+	return
 }
 
 // rendering using immediate style state
@@ -246,7 +248,7 @@ text_bounds :: proc(
 	previous_glyph_index: Glyph_Index = -1
 	quad: Quad
 	for codepoint in cutf8.ds_iter(&ds, text) {
-		glyph, _ := get_glyph(ctx, font, codepoint, isize, u8(iblur))
+		glyph := get_glyph(ctx, font, codepoint, isize, u8(iblur))
 
 		if glyph != nil {
 			get_quad(ctx, font, previous_glyph_index, glyph, scale, state.spacing, &x, &y, &quad)
@@ -292,63 +294,63 @@ text_bounds :: proc(
 	return advance
 }
 
-state_draw_text :: proc(ctx: ^Font_Context, x, y: f32, text: string) -> (output: f32) {
-	state := state_get(ctx)
-	isize := i16(state.size * 10)
-	iblur := i16(state.blur)
-	x := x
-	y := y
-	output = x
+// state_draw_text :: proc(ctx: ^Font_Context, x, y: f32, text: string) -> (output: f32) {
+// 	state := state_get(ctx)
+// 	isize := i16(state.size * 10)
+// 	iblur := i16(state.blur)
+// 	x := x
+// 	y := y
+// 	output = x
 
-	// get font
-	if state.font < 0 || state.font >= len(ctx.fonts) {
-		return
-	}
-	font := &ctx.fonts[state.font]
+// 	// get font
+// 	if state.font < 0 || state.font >= len(ctx.fonts) {
+// 		return
+// 	}
+// 	font := &ctx.fonts[state.font]
 
-	// align horizontally 
-	switch state.ah {
-		case .Left: {}
-		case .Middle: {
-			width := text_bounds(ctx, x, y, text, nil)
-			x -= width
-		}
-		case .Right: {
-			width := text_bounds(ctx, x, y, text, nil)
-			x -= width * 0.5
-		}
-	}
+// 	// align horizontally 
+// 	switch state.ah {
+// 		case .Left: {}
+// 		case .Middle: {
+// 			width := text_bounds(ctx, x, y, text, nil)
+// 			x -= width
+// 		}
+// 		case .Right: {
+// 			width := text_bounds(ctx, x, y, text, nil)
+// 			x -= width * 0.5
+// 		}
+// 	}
 
-	// align vertically
-	y += get_vertical_align(font, isize, state.av)
+// 	// align vertically
+// 	y += get_vertical_align(font, isize, state.av)
 
-	// iterate codepoints
-	scale := scale_for_pixel_height(font, f32(isize / 10))
-	ds: cutf8.Decode_State
-	quad: Quad
-	previous_glyph_index: Glyph_Index = -1
-	for codepoint in cutf8.ds_iter(&ds, text) {
-		glyph, _ := get_glyph(ctx, font, codepoint, isize, u8(iblur))
+// 	// iterate codepoints
+// 	scale := scale_for_pixel_height(font, f32(isize / 10))
+// 	ds: cutf8.Decode_State
+// 	quad: Quad
+// 	previous_glyph_index: Glyph_Index = -1
+// 	for codepoint in cutf8.ds_iter(&ds, text) {
+// 		glyph, _ := get_glyph(ctx, font, codepoint, isize, u8(iblur))
 
-		// push quad
-		if glyph != nil {
-			get_quad(ctx, font, previous_glyph_index, glyph, scale, state.spacing, &x, &y, &quad)
+// 		// push quad
+// 		if glyph != nil {
+// 			get_quad(ctx, font, previous_glyph_index, glyph, scale, state.spacing, &x, &y, &quad)
 
-			push_vertex(ctx, { quad.x0, quad.y0, quad.s0, quad.t0, state.color })
-			push_vertex(ctx, { quad.x1, quad.y1, quad.s1, quad.t1, state.color })
-			push_vertex(ctx, { quad.x1, quad.y0, quad.s1, quad.t0, state.color })
+// 			push_vertex(ctx, { quad.x0, quad.y0, quad.s0, quad.t0, state.color })
+// 			push_vertex(ctx, { quad.x1, quad.y1, quad.s1, quad.t1, state.color })
+// 			push_vertex(ctx, { quad.x1, quad.y0, quad.s1, quad.t0, state.color })
 			
-			push_vertex(ctx, { quad.x0, quad.y0, quad.s0, quad.t0, state.color })
-			push_vertex(ctx, { quad.x0, quad.y1, quad.s0, quad.t1, state.color })
-			push_vertex(ctx, { quad.x1, quad.y1, quad.s1, quad.t1, state.color })
-		}
+// 			push_vertex(ctx, { quad.x0, quad.y0, quad.s0, quad.t0, state.color })
+// 			push_vertex(ctx, { quad.x0, quad.y1, quad.s0, quad.t1, state.color })
+// 			push_vertex(ctx, { quad.x1, quad.y1, quad.s1, quad.t1, state.color })
+// 		}
 
-		previous_glyph_index = glyph == nil ? -1 : glyph.index
-	}
+// 		previous_glyph_index = glyph == nil ? -1 : glyph.index
+// 	}
 
-	output = x
-	return 
-}
+// 	output = x
+// 	return 
+// }
 
 state_vertical_metrics :: proc(
 	ctx: ^Font_Context,
@@ -407,8 +409,4 @@ validate_texture :: proc(using ctx: ^Font_Context, dirty: ^[4]f32) -> bool {
 	}
 
 	return false
-}
-
-push_vertex :: #force_inline proc(using ctx: ^Font_Context, v: Vertex) {
-	append(&ctx.vertices, v)
 }

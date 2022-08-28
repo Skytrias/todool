@@ -1143,7 +1143,7 @@ box_layout_caret :: proc(
 			break
 		}
 
-		glyph, _ := fontstash.get_glyph(&gs.fc, font, codepoint, scaled_size)
+		glyph := fontstash.get_glyph(&gs.fc, font, codepoint, scaled_size)
 		if glyph != nil {
 			low_width += f32(glyph.xadvance) / 10
 		}
@@ -1210,7 +1210,7 @@ wrap_state_iter :: proc(
 
 	// iterate string line
 	for codepoint, i in cutf8.ds_iter(&ds, text) {
-		glyph, _ := fontstash.get_glyph(&gs.fc, font, codepoint, scaled_size)
+		glyph := fontstash.get_glyph(&gs.fc, font, codepoint, scaled_size)
 		width_codepoint: i16
 
 		if glyph != nil {

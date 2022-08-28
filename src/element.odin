@@ -795,7 +795,10 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			}
 
 			color := theme.text_default
-			erender_string_aligned(element, text, element.bounds, color, ah, av)
+			fontstash.state_set_size(&gs.fc, 50)
+			fontstash.state_set_color(&gs.fc, color)
+			// erender_string_aligned(element, text, element.bounds, color, ah, av)
+			render_string_test(target, element.bounds.l, element.bounds.t, text)
 		}
 		
 		case .Destroy: {

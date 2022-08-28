@@ -249,11 +249,17 @@ render_target_end :: proc(
 	gl.VertexAttribPointer(attribute_additional, 2, gl.FLOAT, true, size, offset_of(Render_Vertex, additional))
 	gl.VertexAttribIPointer(attribute_kind, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, kind))
 
-	if fontstash_update {
-		// log.info("RENDERER: fontstash atlas updated")
+	bounds: [4]f32
+	if fontstash.validate_texture(&gs.fc, &bounds) {
+		log.info("VALID", bounds)
 		texture_update(&textures[.Fonts])
-		fontstash_update = false
 	}
+
+	// // if fontstash_update {
+	// 	// log.info("RENDERER: fontstash atlas updated")
+	// 	texture_update(&textures[.Fonts])
+	// 	fontstash_update = false
+	// // }
 
 	for kind in Texture_Kind {
 		texture_bind(target, kind)
@@ -612,14 +618,14 @@ render_glyph :: proc(
 	x, y: ^f32,
 ) #no_bounds_check {
 	color := color
-	glyph, pushed := fontstash.get_glyph(&gs.fc, font, codepoint, isize)
+	glyph := fontstash.get_glyph(&gs.fc, font, codepoint, isize)
 	
 	if glyph == nil {
 		previous_glyph_index^ = -1
 		return
 	}
 
-	target.fontstash_update |= pushed
+	// target.fontstash_update |= pushed
 	vertices := render_target_push_vertices(target, group, 6)
 
 	if previous_glyph_index^ != -1 {
@@ -666,6 +672,42 @@ render_glyph :: proc(
 	}
 
 	x^ += f32(int(glyph.xadvance / 10)) + 0.5
+}
+
+render_string_test :: proc(
+	target: ^Render_Target,
+	x, y: f32,
+	text: string,
+) -> f32 {
+	group := &target.groups[len(target.groups) - 1]
+	state := fontstash.state_get(&gs.fc)
+	iter := fontstash.text_iter_init(&gs.fc, x, y, text)
+	q: fontstash.Quad
+
+	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+		v := render_target_push_vertices(target, group, 6)
+		v[0].uv_xy = { q.s0, q.t0 }
+		v[1].uv_xy = { q.s1, q.t0 }
+		v[2].uv_xy = { q.s0, q.t1 }
+		v[5].uv_xy = { q.s1, q.t1 }
+
+		v[0].pos_xy = { q.x0, q.y0 }
+		v[1].pos_xy = { q.x1, q.y0 }
+		v[2].pos_xy = { q.x0, q.y1 }
+		v[5].pos_xy = { q.x1, q.y1 }
+
+		v[3] = v[1]
+		v[4] = v[2]
+
+		for vertex in &v {
+			vertex.color = state.color
+			vertex.kind = .Glyph
+		}
+
+		// log.info("iter.codepoint", iter.codepoint, q)
+	}
+
+  return iter.x
 }
 
 render_string :: proc(

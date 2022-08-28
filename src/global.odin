@@ -1352,6 +1352,8 @@ gs_message_loop :: proc() {
 	context.logger = gs.logger
 	
 	for gs.running {
+		fontstash.state_clear(&gs.fc)
+
 		// when animating
 		if len(gs.animating) != 0 || len(gs.flux.values) != 0 {
 			gs.frame_start = sdl.GetPerformanceCounter()

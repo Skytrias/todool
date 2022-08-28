@@ -1,8 +1,8 @@
 # 	@../Odin/odin build src -out:target/todool -thread-count:12 && cd target && ./todool
-# 	@../Odin/odin build src -out:target/todool -thread-count:12 && cd target && ./todool
+# 	@../Odin/odin check src -thread-count:12	
 
 build:
-	@../Odin/odin check src -thread-count:12	
+	@../Odin/odin build src -out:target/todool -thread-count:12 && cd target && ./todool
 
 release:
 	@../Odin/odin build src -out:target/todool -o:speed -thread-count:12

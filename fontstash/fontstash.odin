@@ -25,7 +25,6 @@ import "../cutf8"
 // leaves GPU vertex creation & texture management up to the user
 // no immediate style state -> can be built on top
 
-// TODO also keep vertices pushing to a limit?
 // TODO use i16 for blur
 
 Icon :: enum {
@@ -193,8 +192,6 @@ Font_Context :: struct {
 	states: []State,
  	state_count: int, // used states
  	
- 	vertices: [dynamic]Vertex,
-
  	// dirty rectangle of the texture region that was updated
  	dirty_rect: [4]f32,
 
@@ -215,7 +212,6 @@ init :: proc(using ctx: ^Font_Context, w, h: int) {
 	dirty_rect_reset(ctx)
 
 	states = make([]State, STATE_MAX)
-	vertices = make([dynamic]Vertex, 0, 2048)
 
 	// append(&nodes, Atlas_Node {
 	// 	width = i16(w),
@@ -233,7 +229,6 @@ destroy :: proc(using ctx: ^Font_Context) {
 		delete(font.glyphs)
 	}
 
-	delete(vertices)
 	delete(states)
 	delete(texture_data)
 	delete(fonts)
@@ -431,6 +426,7 @@ font_push :: proc(
 	res.line_height = f32(l) / fh
 	res.glyphs = make([dynamic]Glyph, 0, INIT_GLYPHS)
 
+	// set lookup table
 	for i in 0..<LUT_SIZE {
 		res.lut[i] = -1
 	}
@@ -489,7 +485,7 @@ get_glyph :: proc(
 	codepoint: rune,
 	isize: i16,
 	blur_size: u8 = 0,
-) -> (res: ^Glyph, pushed: bool) #no_bounds_check {
+) -> (res: ^Glyph) #no_bounds_check {
 	if isize < 2 {
 		return
 	}
@@ -520,7 +516,7 @@ get_glyph :: proc(
 		// return
 	}
 
-	pixel_size := f32(isize / 10)
+	pixel_size := f32(isize) / 10
 	blur_size := min(blur_size, 20)
 	padding := i16(blur_size + 2) // 2 minimum padding
 	scale := scale_for_pixel_height(font, pixel_size)
@@ -602,7 +598,7 @@ get_glyph :: proc(
 	ctx.dirty_rect[2] = cast(f32) max(int(ctx.dirty_rect[2]), int(res.x1))
 	ctx.dirty_rect[3] = cast(f32) max(int(ctx.dirty_rect[3]), int(res.y1))
 
-	pushed = true
+	// pushed = true
 	return
 }
 
