@@ -602,7 +602,7 @@ task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
 	font, size := element_retrieve_font_options(box)
 	fontstash.format_to_lines(
 		font,
-		size * SCALE,
+		i16(f32(size) * SCALE),
 		strings.to_string(box.builder),
 		max(300 * SCALE, width),
 		&box.wrapped_lines,
@@ -1253,10 +1253,10 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			if task_head == task_tail && task.visible_index == task_head {
 				offset := x_offset(task, box)
 				font, size := element_retrieve_font_options(box)
-				scaled_size := size * SCALE
+				scaled_size := i16(f32(size) * SCALE)
 				x := box.bounds.l + offset
 				y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
-				caret_rect = box_layout_caret(box, font, scaled_size, x, y)
+				caret_rect = box_layout_caret(box, font, scaled_size * 10, x, y)
 			}
 		}
 
@@ -1267,7 +1267,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			box.bounds.t += math.round(mode_panel.margin_vertical / 2 * SCALE)
 			box.bounds.l += x_offset(task, box)
 			font, size := element_retrieve_font_options(box)
-			scaled_size := size * SCALE
+			scaled_size := i16(f32(size) * SCALE)
 
 			// draw the search results outline
 			if draw_search_results && len(task.search_results) != 0 {
@@ -1292,15 +1292,16 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			if task.state == .Canceled {
 				state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
-				font_ascent_scaled := fontstash.ascent_pixel_size(font, scaled_size)
+				font_ascent_scaled := fontstash.ascent_pixel_size(font, f32(scaled_size))
 				
 				x := box.bounds.l
 				y := box.bounds.t
 				for wrap_line, i in box.wrapped_lines {
+					// TODO could be bad with new centering
 					width := fontstash.string_width(font, scaled_size, wrap_line)
-					rect := rect_wh(x, y, width, scaled_size)
+					rect := rect_wh(x, y, width, f32(scaled_size))
 					render_text_strike_through(target, font_ascent_scaled, rect, theme.text_bad)
-					y += scaled_size
+					y += f32(scaled_size)
 				}
 			}
 
@@ -1532,8 +1533,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					left.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
 				}
 				left.r = left.l + math.round(DEFAULT_FONT_SIZE * SCALE)
-				scaled_size := task.font_options.size * SCALE
-				left.b = left.t + scaled_size
+				scaled_size := i16(f32(task.font_options.size) * SCALE)
+				left.b = left.t + f32(scaled_size)
 				off := math.round(mode_panel.margin_vertical / 2 * SCALE)
 				left.t += off
 				left.b += off
@@ -1588,7 +1589,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				}
 
 				font := font_regular
-				scaled_size := DEFAULT_FONT_SIZE * SCALE
+				scaled_size := i16(DEFAULT_FONT_SIZE * SCALE)
 				text_margin := math.round(10 * SCALE)
 				gap := math.round(TASK_DATA_GAP * SCALE)
 

@@ -711,7 +711,7 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 		render_rect_outline(target, button.bounds, text_color)
 	}
 
-	icon_size := DEFAULT_ICON_SIZE * SCALE
+	icon_size := i16(DEFAULT_ICON_SIZE * SCALE)
 	render_icon_aligned(target, font_icon, button.icon, button.bounds, text_color, .Middle, .Middle, icon_size)
 }
 
@@ -2877,10 +2877,10 @@ image_display_has_content :: #force_inline proc(display: ^Image_Display) -> bool
 
 Font_Options :: struct {
 	font: ^Font,
-	size: f32,
+	size: i16,
 }
 
-element_retrieve_font_options :: proc(element: ^Element) -> (font: ^Font, size: f32) {
+element_retrieve_font_options :: proc(element: ^Element) -> (font: ^Font, size: i16) {
 	// default
 	if element.font_options == nil {
 		font = font_regular
@@ -2901,31 +2901,35 @@ erender_string_aligned :: #force_inline proc(
 	ah: Align_Horizontal,
 	av: Align_Vertical,
 ) {
-	font_index, size := element_retrieve_font_options(element)
-	
+	font, size := element_retrieve_font_options(element)
+	scaled_size := i16(f32(size) * SCALE)
+
 	render_string_aligned(
 		element.window.target,
-		font_index,
+		font,
 		text, 
 		rect, 
 		color, 
 		ah, 
 		av, 
-		size * SCALE,
+		scaled_size,
 	)
 }
 
 erunes_width :: #force_inline proc(element: ^Element, runes: []rune) -> f32 {
 	font, size := element_retrieve_font_options(element)
-	return fontstash.runes_width(font, size * SCALE, runes)
+	scaled_size := i16(f32(size) * SCALE)
+	return fontstash.runes_width(font, scaled_size, runes)
 }
 
 estring_width :: #force_inline proc(element: ^Element, text: string) -> f32 {
 	font, size := element_retrieve_font_options(element)
-	return fontstash.string_width(font, size * SCALE, text)
+	scaled_size := i16(f32(size) * SCALE)
+	return fontstash.string_width(font, scaled_size, text)
 }
 
 efont_size :: proc(element: ^Element) -> f32 {
 	_, size := element_retrieve_font_options(element)
-	return math.round(size * SCALE)
+	scaled_size := f32(size) * SCALE * 10
+	return f32(i16(scaled_size) / 10)
 }	

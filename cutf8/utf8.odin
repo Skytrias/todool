@@ -56,6 +56,7 @@ Decode_State :: struct {
 	byte_offset: int,
 	byte_offset_old: int,
 	codepoint_count: int,
+	codepoint_previous: rune,
 }
 
 // decode until the word ended using state

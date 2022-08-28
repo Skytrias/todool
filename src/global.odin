@@ -20,6 +20,7 @@ import gl "vendor:OpenGL"
 import "../fontstash"
 import "../cutf8"
 
+LETTER_SPACING :: 0
 SCALE := f32(1)
 LINE_WIDTH := max(2, 2 * SCALE)
 ROUNDNESS := 5.0 * SCALE
@@ -407,7 +408,7 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 	}
 
 	floaty.y = goal_y
-	scaled_size := math.round(DEFAULT_FONT_SIZE * SCALE)
+	scaled_size := i16(DEFAULT_FONT_SIZE * SCALE)
 	text_width := fontstash.string_width(font_regular, scaled_size, text)
 	floaty.width = max(HOVER_WIDTH * SCALE, text_width + TEXT_MARGIN_HORIZONTAL * SCALE)
 

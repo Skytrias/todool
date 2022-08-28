@@ -72,7 +72,7 @@ Icon :: enum {
 LUT_SIZE :: 256
 INIT_GLYPHS :: 256
 ATLAS_NODES :: 256
-Glyph_Index_Type :: i32
+Glyph_Index :: i32
 
 Align_Horizontal :: enum {
 	Left,
@@ -117,7 +117,6 @@ align_vertical :: proc(
 // based on string content
 align_horizontal :: proc(
 	font: ^Font,
-	pixel_size: f32,
 	text_width: f32, // left to the user *when* to compute
 	width: f32, // center inside of a rectangle
 	ah: Align_Horizontal,
@@ -153,13 +152,13 @@ Font :: struct {
 
 Glyph :: struct {
 	codepoint: rune,
-	glyph_index: Glyph_Index_Type,
+	index: Glyph_Index,
 	next: int,
 	isize: i16,
 	blur_size: u8,
 	x0, y0, x1, y1: i16,
 	xoff, yoff: i16,
-	xadvance: f32,
+	xadvance: i16,
 }
 
 Atlas_Node :: struct {
@@ -429,14 +428,14 @@ font_render_glyph_bitmap :: proc(
 	out_stride: i32,
 	scale_x: f32,
 	scale_y: f32,
-	glyph_index: Glyph_Index_Type,
+	glyph_index: Glyph_Index,
 ) {
 	stbtt.MakeGlyphBitmap(&font.info, raw_data(output), out_width, out_height, out_stride, scale_x, scale_y, glyph_index)
 }
 
 font_build_glyph_bitmap :: proc(
 	font: ^Font, 
-	glyph_index: Glyph_Index_Type,
+	glyph_index: Glyph_Index,
 	pixel_size: f32,
 	scale: f32,
 ) -> (advance, lsb, x0, y0, x1, y1: i32) {
@@ -515,12 +514,12 @@ get_glyph :: proc(
 		codepoint = codepoint,
 		isize = isize,
 		blur_size = blur_size,
-		glyph_index = glyph_index,
+		index = glyph_index,
 		x0 = i16(gx),
 		y0 = i16(gy),
 		x1 = i16(i32(gx) + gw),
 		y1 = i16(i32(gy) + gh),
-		xadvance = math.round(scale * f32(advance)),
+		xadvance = i16(scale * f32(advance) * 10),
 		xoff = i16(x0 - i32(padding)),
 		yoff = i16(y0 - i32(padding)),
 
@@ -697,7 +696,7 @@ ascent_pixel_size :: proc(font: ^Font, pixel_size: f32) -> f32 {
 	return f32(font.ascent) * scale
 }
 
-get_glyph_index :: proc(font: ^Font, codepoint: rune) -> Glyph_Index_Type {
+get_glyph_index :: proc(font: ^Font, codepoint: rune) -> Glyph_Index {
 	return stbtt.FindGlyphIndex(&font.info, codepoint)
 }
 
@@ -712,10 +711,14 @@ codepoint_xadvance :: proc(font: ^Font, codepoint: rune, scale: f32) -> f32 {
 }
 
 // glyph based xadvance polling
-glyph_xadvance :: proc(font: ^Font, glyph_index: Glyph_Index_Type) -> f32 {
+glyph_xadvance :: proc(font: ^Font, glyph_index: Glyph_Index) -> f32 {
 	xadvance, lsb: i32
 	stbtt.GetGlyphHMetrics(&font.info, glyph_index, &xadvance, &lsb)
 	return f32(xadvance)
+}
+
+glyph_kern_advance :: proc(font: ^Font, glyph1, glyph2: Glyph_Index) -> i32 {
+	return stbtt.GetGlyphKernAdvance(&font.info, glyph1, glyph2)
 }
 
 //////////////////////////////////////////////
@@ -725,10 +728,10 @@ glyph_xadvance :: proc(font: ^Font, glyph_index: Glyph_Index_Type) -> f32 {
 // get the width of a string
 string_width :: proc(
 	font: ^Font, 
-	pixel_size: f32, 
+	pixel_size: i16, 
 	text: string,
 ) -> (offset: f32) {
-	scale := scale_for_pixel_height(font, pixel_size)
+	scale := scale_for_pixel_height(font, f32(pixel_size))
 	xadvance, lsb: i32
 
 	state, codepoint: rune
@@ -746,10 +749,10 @@ string_width :: proc(
 // get the width of unicode runes
 runes_width :: proc(
 	font: ^Font,
-	pixel_size: f32, 
+	pixel_size: i16, 
 	runes: []rune,
 ) -> (offset: f32) {
-	scale := scale_for_pixel_height(font, pixel_size)
+	scale := scale_for_pixel_height(font, f32(pixel_size))
 	xadvance, lsb: i32
 
 	for codepoint in runes {
@@ -782,7 +785,7 @@ icon_width :: proc(
 // wrap a string to a width limit where the result are the strings seperated to the width limit
 format_to_lines :: proc(
 	font: ^Font, 
-	pixel_size: f32,
+	pixel_size: i16,
 	text: string,
 	width_limit: f32,
 	lines: ^[dynamic]string,
