@@ -196,7 +196,11 @@ sidebar_panel_init :: proc(parent: ^Element) {
 				text := strings.to_string(label.builder)
 				rev := last_was_task_copy ~ (uintptr(label.data) == uintptr(0))
 				color := rev ? theme.text_default : theme.text_blank
-				erender_string_aligned(element, text, element.bounds, color, .Middle, .Middle)
+				fcs_element(element)
+				fcs_ahv()
+				fcs_color(color)
+				render_string_rect(target, element.bounds, text)
+				// erender_string_aligned(element, text, element.bounds, color, .Middle, .Middle)
 				return 1
 			}
 
@@ -469,7 +473,11 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			text := strings.to_string(button.builder)
 			rect := element.bounds
 			rect.l += (5 * SCALE)
-			erender_string_aligned(element, text, rect, text_color, .Left, .Middle)
+			fcs_element(element)
+			fcs_ahv(.Left, .Middle)
+			fcs_color(text_color)
+			render_string_rect(target, rect, text)
+			// erender_string_aligned(element, text, rect, text_color, .Left, .Middle)
 
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, text_color)
@@ -512,7 +520,8 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 
 		case .Get_Width: {
 			text := strings.to_string(button.builder)
-			width := max(50 * SCALE, estring_width(element, text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			fcs_element(element)
+			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
 			return int(width)
 		}
 

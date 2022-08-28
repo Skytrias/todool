@@ -424,12 +424,11 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			focused := element.window.focused == element
 
 			target := element.window.target
-			font, size := element_retrieve_font_options(element)
-			scaled_size := i16(f32(size)  * SCALE)
 			OFF :: 5
 			offset := 5 * SCALE
 			text := strings.to_string(box.builder)
-			text_width := estring_width(element, text) - offset
+			scaled_size := fcs_element(element)
+			text_width := string_width(text) - offset
 			caret_x: f32
 
 			// handle scrolling
@@ -444,14 +443,15 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					box.scroll = 0
 				}
 
-				caret_x = estring_width(element, text[:box.head]) - box.scroll
+				// TODO probably will fail?
+			// 	caret_x = estring_width(element, text[:box.head]) - box.scroll
 
-				// check caret x
-				if caret_x < 0 {
-					box.scroll = caret_x + box.scroll
-				} else if caret_x > rect_width(element.bounds) {
-					box.scroll = caret_x - rect_width(element.bounds) + box.scroll + 1
-				}
+			// 	// check caret x
+			// 	if caret_x < 0 {
+			// 		box.scroll = caret_x + box.scroll
+			// 	} else if caret_x > rect_width(element.bounds) {
+			// 		box.scroll = caret_x - rect_width(element.bounds) + box.scroll + 1
+			// 	}
 			}
 
 			old_bounds := element.bounds
@@ -460,17 +460,17 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			color: Color
 			element_message(element, .Box_Text_Color, 0, &color)
 
-			// selection & caret
-			if focused {
-				render_rect(target, old_bounds, theme_panel(.Front), ROUNDNESS)
-				x := box.bounds.l - box.scroll
-				y := box.bounds.t
-				low, high := box_low_and_high(box)
-				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
+			// // selection & caret
+			// if focused {
+			// 	render_rect(target, old_bounds, theme_panel(.Front), ROUNDNESS)
+			// 	x := box.bounds.l - box.scroll
+			// 	y := box.bounds.t
+			// 	low, high := box_low_and_high(box)
+			// 	box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
 
-				caret := box_layout_caret(box, font, scaled_size * 10, x, y)
-				render_rect(target, caret, theme.caret, 0)
-			}
+			// 	caret := box_layout_caret(box, font, scaled_size * 10, x, y)
+			// 	render_rect(target, caret, theme.caret, 0)
+			// }
 
 			render_rect_outline(target, old_bounds, color)
 
@@ -479,19 +479,20 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			// 	render_rect_outline(target, old_bounds, RED)
 			// }
 
-
 			// draw each wrapped line
 			y: f32
 			for wrap_line, i in box.wrapped_lines {
-				render_string(
-					target,
-					font,
-					wrap_line,
-					element.bounds.l - box.scroll,
-					element.bounds.t + y,
-					color,
-					scaled_size,
-				)
+				render_string_test(target, element.bounds.l - box.scroll, element.bounds.t + y, wrap_line)
+
+				// render_string(
+				// 	target,
+				// 	font,
+				// 	wrap_line,
+				// 	element.bounds.l - box.scroll,
+				// 	element.bounds.t + y,
+				// 	color,
+				// 	scaled_size,
+				// )
 				y += f32(scaled_size)
 			}
 		}
@@ -596,24 +597,17 @@ text_box_init :: proc(
 task_box_paint_default :: proc(box: ^Task_Box) {
 	focused := box.window.focused == box
 	target := box.window.target
-	font, size := element_retrieve_font_options(box)
-	scaled_size := i16(f32(size) * SCALE)
+	scaled_size := fcs_element(box)
 
 	color: Color
 	element_message(box, .Box_Text_Color, 0, &color)
 
+	fcs_color(color)
+
 	// draw each wrapped line
 	y: f32
 	for wrap_line, i in box.wrapped_lines {
-		render_string(
-			target,
-			font,
-			wrap_line,
-			box.bounds.l,
-			box.bounds.t + y,
-			color,
-			scaled_size,
-		)
+		render_string_test(target, box.bounds.l, box.bounds.t + y, wrap_line)
 		y += f32(scaled_size)
 	}
 }
@@ -1288,8 +1282,9 @@ element_box_mouse_selection :: proc(
 ) -> (found: bool) {
 	// log.info("relative clicks", clicks)
 	text := strings.to_string(b.builder)
-	font, size := element_retrieve_font_options(element)
+	font_index, size := element_retrieve_font_options(element)
 	scaled_size := i16(f32(size) * SCALE)
+	font := font_get(font_index)
 	scale := fontstash.scale_for_pixel_height(font, f32(scaled_size))
 
 	// state used in word / single mouse selection

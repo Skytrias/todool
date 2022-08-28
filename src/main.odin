@@ -60,6 +60,7 @@ main :: proc() {
 	label_init(p, { .HF }, "Testing")
 	label_init(p, { .HF, .Label_Center }, "Testing")
 	label_init(p, { .HF }, "Testing")
+	button_init(p, {}, "Testing")
 
 	gs_message_loop()  	
 }

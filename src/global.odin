@@ -27,15 +27,18 @@ ROUNDNESS := 5.0 * SCALE
 HOVER_WIDTH :: 100
 
 Font :: fontstash.Font
-font_regular: ^Font
-font_bold: ^Font
-font_icon: ^Font
+font_regular: int
+font_bold: int
+font_icon: int
 
 fonts_push :: proc() {
 	ctx := &gs.fc
-	font_regular = fontstash.font_push(ctx, "Lato-Regular.ttf", true, 20)
-	font_bold = fontstash.font_push(ctx, "Lato-Bold.ttf", true, 20)
-	font_icon = fontstash.font_push(ctx, "icofont.ttf")
+	fontstash.font_push(ctx, "Lato-Regular.ttf", true, 20)
+	font_regular = 0
+	fontstash.font_push(ctx, "Lato-Bold.ttf", true, 20)
+	font_bold = 1
+	fontstash.font_push(ctx, "icofont.ttf")
+	font_icon = 2
 }
 
 Shortcut_Proc :: proc() -> bool
@@ -409,7 +412,9 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 
 	floaty.y = goal_y
 	scaled_size := i16(DEFAULT_FONT_SIZE * SCALE)
-	text_width := fontstash.string_width(font_regular, scaled_size, text)
+
+	fontstash.state_set_size(&gs.fc, DEFAULT_FONT_SIZE * SCALE)
+	text_width := fontstash.text_bounds(&gs.fc, text)
 	floaty.width = max(HOVER_WIDTH * SCALE, text_width + TEXT_MARGIN_HORIZONTAL * SCALE)
 
 	if floaty.x + floaty.width > window.widthf {
@@ -2075,4 +2080,57 @@ menu_show :: proc(menu: ^Menu) {
 	w, h := menu_prepare(menu)
 	window_set_position(menu.window, menu.point_x, menu.point_y)
 	window_set_size(menu.window, w, h)
+}
+
+//////////////////////////////////////////////
+// fontstash helpers
+//////////////////////////////////////////////
+
+fcs_element :: proc(element: ^Element) -> f32 {
+	font_index, size := element_retrieve_font_options(element)
+	fcs_size(size * SCALE)
+	fcs_font(font_index)
+	return f32(size) * SCALE
+}
+
+string_width :: #force_inline proc(text: string, x: f32 = 0, y: f32 = 0) -> f32 {
+	return fontstash.text_bounds(&gs.fc, text, x, y)
+}
+
+fcs_size :: #force_inline proc(size: f32) {
+	fontstash.state_set_size(&gs.fc, size)
+}
+
+fcs_font :: #force_inline proc(font: int) {
+	fontstash.state_set_font(&gs.fc, font)
+}
+
+// font context state set color
+fcs_color :: #force_inline proc(color: Color) {
+	fontstash.state_set_color(&gs.fc, color)
+}
+
+fcs_spacing :: #force_inline proc(spacing: f32) {
+	fontstash.state_set_spacing(&gs.fc, spacing)
+}
+
+fcs_blur :: #force_inline proc(blur: f32) {
+	fontstash.state_set_blur(&gs.fc, blur)
+}
+
+fcs_ah :: #force_inline proc(ah: Align_Horizontal) {
+	fontstash.state_set_ah(&gs.fc, ah)
+}
+
+fcs_av :: #force_inline proc(av: Align_Vertical) {
+	fontstash.state_set_av(&gs.fc, av)
+}
+
+fcs_ahv :: #force_inline proc(ah: Align_Horizontal = .Middle, av: Align_Vertical = .Middle) {
+	fontstash.state_set_ah(&gs.fc, ah)
+	fontstash.state_set_av(&gs.fc, av)
+}
+
+font_get :: #force_inline proc(font_index: int, loc := #caller_location) -> ^Font {
+	return fontstash.font_get(&gs.fc, font_index, loc)
 }

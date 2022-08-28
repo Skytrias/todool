@@ -599,7 +599,8 @@ task_push_undoable :: proc(
 }
 
 task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
-	font, size := element_retrieve_font_options(box)
+	font_index, size := element_retrieve_font_options(box)
+	font := font_get(font_index)
 	fontstash.format_to_lines(
 		font,
 		i16(f32(size) * SCALE),
@@ -1252,7 +1253,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Layout: {
 			if task_head == task_tail && task.visible_index == task_head {
 				offset := x_offset(task, box)
-				font, size := element_retrieve_font_options(box)
+				font_index, size := element_retrieve_font_options(box)
+				font := font_get(font_index)
 				scaled_size := i16(f32(size) * SCALE)
 				x := box.bounds.l + offset
 				y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
@@ -1266,8 +1268,10 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			box.bounds.t += math.round(mode_panel.margin_vertical / 2 * SCALE)
 			box.bounds.l += x_offset(task, box)
-			font, size := element_retrieve_font_options(box)
-			scaled_size := i16(f32(size) * SCALE)
+			font_index, size := element_retrieve_font_options(box)
+			font := font_get(font_index)
+			scaled_size := i16(fcs_element(box))
+			// scaled_size := i16(f32(size) * SCALE)
 
 			// draw the search results outline
 			if draw_search_results && len(task.search_results) != 0 {
@@ -1292,13 +1296,17 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			if task.state == .Canceled {
 				state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
-				font_ascent_scaled := fontstash.ascent_pixel_size(font, f32(scaled_size))
+				// TODO ascent
+				font_ascent_scaled := f32(10)
+				// font_ascent_scaled := fontstash.ascent_pixel_size(font, f32(scaled_size))
 				
 				x := box.bounds.l
 				y := box.bounds.t
 				for wrap_line, i in box.wrapped_lines {
 					// TODO could be bad with new centering
-					width := fontstash.string_width(font, scaled_size, wrap_line)
+
+					width := string_width(wrap_line)
+					// width := fontstash.string_width(font, scaled_size, wrap_line)
 					rect := rect_wh(x, y, width, f32(scaled_size))
 					render_text_strike_through(target, font_ascent_scaled, rect, theme.text_bad)
 					y += f32(scaled_size)
@@ -1593,6 +1601,9 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				text_margin := math.round(10 * SCALE)
 				gap := math.round(TASK_DATA_GAP * SCALE)
 
+				fcs_element(element)
+				fcs_ahv()
+
 				// go through each existing tag, draw each one
 				for i in 0..<u8(8) {
 					value := u8(1 << i)
@@ -1604,12 +1615,15 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 						switch tag_mode {
 							case TAG_SHOW_TEXT_AND_COLOR: {
 								text := strings.to_string(tag^)
-								width := fontstash.string_width(font, scaled_size, text)
+								width := string_width(text)
+								// width := fontstash.string_width(font, scaled_size, text)
 								r := rect_cut_left_hard(&rect, width + text_margin)
 
 								if rect_valid(r) {
 									render_rect(target, r, tag_color, ROUNDNESS)
-									render_string_aligned(target, font, text, r, theme_panel(.Front), .Middle, .Middle, scaled_size)
+									fcs_color(theme_panel(.Front))
+									render_string_rect(target, r, text)
+									// render_string_aligned(target, font, text, r, theme_panel(.Front), .Middle, .Middle, scaled_size)
 								}
 							}
 

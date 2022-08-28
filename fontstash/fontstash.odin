@@ -89,57 +89,6 @@ Align_Vertical :: enum {
 	Bottom,
 }
 
-// based on font
-align_vertical :: proc(
-	font: ^Font,
-	pixel_size: i16,
-	av: Align_Vertical,
-) -> f32 {
-	switch av {
-		case .Top: {
-			return f32(font.ascender) * f32(pixel_size / 10)
-		}
-
-		case .Middle: {
-			return f32(font.ascender + font.descender) / 2 * f32(pixel_size / 10)
-		}
-
-		case .Baseline: {
-			return 0
-		}
-
-		case .Bottom: {
-			return f32(font.descender) * f32(pixel_size / 10)
-		}
-	}
-
-	return -1
-}
-
-// based on string content
-align_horizontal :: proc(
-	font: ^Font,
-	text_width: f32, // left to the user *when* to compute
-	width: f32, // center inside of a rectangle
-	ah: Align_Horizontal,
-) -> f32 {
-	switch ah {
-		case .Left: {
-			return 0
-		}
-
-		case .Middle: {
-			return width / 2 - text_width / 2
-		}
-
-		case .Right: {
-			return width - text_width
-		}
-	}
-
-	return -1
-}
-
 Font :: struct {
 	info: stbtt.fontinfo,
 	loaded_data: []byte,
@@ -756,18 +705,14 @@ reset_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := context
 	return true
 }
 
-/////////////////////////////////
-// USER LEVEL CODE
-/////////////////////////////////
+// ascent_scaled :: proc(font: ^Font, scale: f32) -> f32 {
+// 	return f32(font.ascender) * scale
+// }
 
-ascent_scaled :: proc(font: ^Font, scale: f32) -> f32 {
-	return f32(font.ascender) * scale
-}
-
-ascent_pixel_size :: proc(font: ^Font, pixel_size: f32) -> f32 {
-	scale := stbtt.ScaleForPixelHeight(&font.info, pixel_size)
-	return f32(font.ascender) * scale
-}
+// ascent_pixel_size :: proc(font: ^Font, pixel_size: f32) -> f32 {
+// 	scale := stbtt.ScaleForPixelHeight(&font.info, pixel_size)
+// 	return f32(font.ascender) * scale
+// }
 
 get_glyph_index :: proc(font: ^Font, codepoint: rune) -> Glyph_Index {
 	return stbtt.FindGlyphIndex(&font.info, codepoint)
@@ -794,14 +739,15 @@ glyph_kern_advance :: proc(font: ^Font, glyph1, glyph2: Glyph_Index) -> i32 {
 	return stbtt.GetGlyphKernAdvance(&font.info, glyph1, glyph2)
 }
 
-//////////////////////////////////////////////
-// helpers
-//////////////////////////////////////////////
+font_get :: proc(ctx: ^Font_Context, index: int, loc := #caller_location) -> ^Font #no_bounds_check {
+	runtime.bounds_check_error_loc(loc, index, len(ctx.fonts))
+	return &ctx.fonts[index]
+}
 
-// get top and bottom font ascending height
+// get top and bottom line boundary
 line_bounds :: proc(ctx: ^Font_Context, y: f32) -> (miny, maxy: f32) {
 	state := state_get(ctx)
-	font := &ctx.fonts[state.font]
+	font := font_get(ctx, state.font)
 	isize := i16(state.size * 10)
 	y := y
 	y += get_vertical_align(font, isize, state.av)
@@ -810,57 +756,53 @@ line_bounds :: proc(ctx: ^Font_Context, y: f32) -> (miny, maxy: f32) {
 	return
 }
 
-// get the width of a string
-string_width :: proc(
-	font: ^Font, 
-	pixel_size: i16, 
-	text: string,
-) -> (offset: f32) {
-	scale := scale_for_pixel_height(font, f32(pixel_size))
-	xadvance, lsb: i32
+// reset dirty rect
+dirty_rect_reset :: proc(using ctx: ^Font_Context) {
+	dirty_rect[0] = f32(width)
+	dirty_rect[1] = f32(height)
+	dirty_rect[2] = 0
+	dirty_rect[3] = 0
+}
 
-	state, codepoint: rune
-	for i in 0..<len(text) {
-		if cutf8.decode(&state, &codepoint, text[i]) {
-			glyph_index := get_glyph_index(font, codepoint)
-			stbtt.GetGlyphHMetrics(&font.info, glyph_index, &xadvance, &lsb)
-			offset += math.round(f32(xadvance) * scale)
+// true when the dirty rectangle is valid and needs a texture update on the gpu
+validate_texture :: proc(using ctx: ^Font_Context, dirty: ^[4]f32) -> bool {
+	if dirty_rect[0] < dirty_rect[2] && dirty_rect[1] < dirty_rect[3] {
+		dirty[0] = dirty_rect[0]
+		dirty[1] = dirty_rect[1]
+		dirty[2] = dirty_rect[2]
+		dirty[3] = dirty_rect[3]
+		dirty_rect_reset(ctx)
+		return true
+	}
+
+	return false
+}
+
+// based on font
+align_vertical :: proc(
+	font: ^Font,
+	pixel_size: i16,
+	av: Align_Vertical,
+) -> f32 {
+	switch av {
+		case .Top: {
+			return f32(font.ascender) * f32(pixel_size / 10)
+		}
+
+		case .Middle: {
+			return f32(font.ascender + font.descender) / 2 * f32(pixel_size / 10)
+		}
+
+		case .Baseline: {
+			return 0
+		}
+
+		case .Bottom: {
+			return f32(font.descender) * f32(pixel_size / 10)
 		}
 	}
 
-	return
-}
-
-// get the width of unicode runes
-runes_width :: proc(
-	font: ^Font,
-	pixel_size: i16, 
-	runes: []rune,
-) -> (offset: f32) {
-	scale := scale_for_pixel_height(font, f32(pixel_size))
-	xadvance, lsb: i32
-
-	for codepoint in runes {
-		glyph_index := get_glyph_index(font, codepoint)
-		stbtt.GetGlyphHMetrics(&font.info, glyph_index, &xadvance, &lsb)
-		offset += math.round(f32(xadvance) * scale)
-	}
-
-	return
-}
-
-// get the width of a single icon
-icon_width :: proc(
-	font: ^Font,
-	pixel_size: f32, 
-	icon: Icon,
-) -> f32 {
-	scale := scale_for_pixel_height(font, pixel_size)
-	glyph_index := get_glyph_index(font, rune(icon))
-	xadvance, lsb: i32
-	stbtt.GetGlyphHMetrics(&font.info, glyph_index, &xadvance, &lsb)
-	
-	return math.round(f32(xadvance) * scale)
+	return -1
 }
 
 //////////////////////////////////////////////
@@ -953,26 +895,4 @@ codepoint_index_to_line :: proc(lines: []string, head: int, loc := #caller_locat
 
 	y = -1
 	return
-}
-
-// reset dirty rect
-dirty_rect_reset :: proc(using ctx: ^Font_Context) {
-	dirty_rect[0] = f32(width)
-	dirty_rect[1] = f32(height)
-	dirty_rect[2] = 0
-	dirty_rect[3] = 0
-}
-
-// true when the dirty rectangle is valid and needs a texture update on the gpu
-validate_texture :: proc(using ctx: ^Font_Context, dirty: ^[4]f32) -> bool {
-	if dirty_rect[0] < dirty_rect[2] && dirty_rect[1] < dirty_rect[3] {
-		dirty[0] = dirty_rect[0]
-		dirty[1] = dirty_rect[1]
-		dirty[2] = dirty_rect[2]
-		dirty[3] = dirty_rect[3]
-		dirty_rect_reset(ctx)
-		return true
-	}
-
-	return false
 }

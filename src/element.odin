@@ -560,8 +560,10 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				render_rect_outline(target, element.bounds, text_color)
 			}
 
+			fcs_element(button)
+			fcs_ahv()
 			text := strings.to_string(button.builder)
-			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
+			render_string_rect(target, element.bounds, text)
 		}
 
 		case .Update: {
@@ -583,8 +585,9 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Get_Width: {
+			fcs_element(element)
 			text := strings.to_string(button.builder)
-			width := max(50 * SCALE, estring_width(element, text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
 			return int(width)
 		}
 
@@ -712,7 +715,7 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 	}
 
 	icon_size := i16(DEFAULT_ICON_SIZE * SCALE)
-	render_icon_aligned(target, font_icon, button.icon, button.bounds, text_color, .Middle, .Middle, icon_size)
+	// render_icon_aligned(target, font_icon, button.icon, button.bounds, text_color, .Middle, .Middle, icon_size)
 }
 
 icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -739,7 +742,9 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 
 		case .Get_Width: {
 			icon_size := DEFAULT_ICON_SIZE * SCALE
-			icon_width := fontstash.icon_width(font_icon, icon_size, button.icon) 
+			// TODO icon width
+			icon_width := f32(100)
+			// icon_width := fontstash.icon_width(font_icon, icon_size, button.icon) 
 			return int(icon_width + TEXT_MARGIN_HORIZONTAL * SCALE)
 		}
 
@@ -794,11 +799,9 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				av = .Middle
 			}
 
-			font, size := element_retrieve_font_options(element)
-			fontstash.state_set_ah(&gs.fc, ah)
-			fontstash.state_set_av(&gs.fc, av)
-			fontstash.state_set_size(&gs.fc, f32(size))
-			fontstash.state_set_color(&gs.fc, theme.text_default)
+			fcs_element(element)
+			fcs_ahv(ah, av)
+			fcs_color(theme.text_default)
 			render_string_rect(target, element.bounds, text)
 		}
 		
@@ -811,7 +814,8 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				return int(label.custom_width * SCALE)
 			} else {
 				text := strings.to_string(label.builder)
-				return int(estring_width(element, text))
+				fcs_element(element)
+				return int(string_width(text))
 			}
 		}
 
@@ -886,8 +890,12 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			strings.builder_reset(&slider.builder)
 			slider.formatting(&slider.builder, slider.position)
 
+			fcs_element(slider)
+			fcs_ahv()
+			fcs_color(text_color)
 			text := strings.to_string(slider.builder)
-			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
+			render_string_rect(target, element.bounds, text)
+			// erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
 		}
 
 		case .Get_Cursor: {
@@ -990,7 +998,8 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		// width of text + icon rect
 		case .Get_Width: {
 			text := strings.to_string(box.builder)
-			text_width := estring_width(element, text)
+			fcs_element(element)
+			text_width := string_width(text)
 			
 			margin := BOX_MARGIN * SCALE
 			gap := BOX_GAP * SCALE
@@ -1030,14 +1039,18 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			text_bounds := element.bounds
 			text_bounds.l = box_rect.r + BOX_GAP * SCALE
 
-			erender_string_aligned(
-				element,
-				strings.to_string(box.builder),
-				text_bounds,
-				text_color,
-				.Left,
-				.Middle,
-			)
+			fcs_element(element)
+			fcs_ahv(.Left, .Middle)
+			fcs_color(text_color)
+			render_string_rect(target, text_bounds, strings.to_string(box.builder))
+			// erender_string_aligned(
+			// 	element,
+			// 	strings.to_string(box.builder),
+			// 	text_bounds,
+			// 	text_color,
+			// 	.Left,
+			// 	.Middle,
+			// )
 		}
 
 		case .Clicked: {
@@ -1833,6 +1846,9 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			row.t += TABLE_HEADER * SCALE
 			row.t -= f32(int(table.scrollbar.position) % int(row_height))
 
+			fcs_element(element)
+			fcs_ahv(.Left, .Middle)
+
 			hovered := table_hit_test(table, element.window.cursor_x, element.window.cursor_y)
 			for i := int(table.scrollbar.position / row_height); i < table.item_count; i += 1 {
 				if row.t > element.clip.b {
@@ -1856,6 +1872,8 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 					text_color = theme.background[0]
 				}
 
+				fcs_color(text_color)
+				fcs_ahv(.Left, .Middle)
 				cell := row
 				cell.l += TABLE_COLUMN_GAP * SCALE
 
@@ -1868,7 +1886,7 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 					}
 
 					cell.r = cell.l + table.column_widths[j]
-					erender_string_aligned(element, item.output, cell, text_color, .Left, .Middle)
+					render_string_rect(target, cell, item.output)
 					cell.l += table.column_widths[j] + TABLE_COLUMN_GAP * SCALE
 				}
 
@@ -1882,13 +1900,15 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			render_underline(target, header, theme.text_default, 2)
 			header.l += TABLE_COLUMN_GAP * SCALE
 
-			text_color := theme.text_default
+			fcs_color(theme.text_default)
+
 			// draw each column
 			index := 0
 			mod := table.columns
 			for word in strings.split_iterator(&mod, "\t") {
 				header.r = header.l + table.column_widths[index]
-				erender_string_aligned(element, word, header, text_color, .Left, .Middle)
+				render_string_rect(target, header, word)
+				// erender_string_aligned(element, word, header, text_color, .Left, .Middle)
 				header.l += table.column_widths[index] + TABLE_COLUMN_GAP * SCALE
 				index += 1	
 			}
@@ -2004,13 +2024,14 @@ table_resize_columns :: proc(table: ^Table) {
 
 	// retrieve longest textual width per column by iterating through all items widths
 	mod = table.columns
+	fcs_element(table)
 	for word in strings.split_iterator(&mod, "\t") {
-		longest := estring_width(table, word)
+		longest := string_width(word)
 
 		for i in 0..<table.item_count {
 			item.index = i
 			element_message(table, .Table_Get_Item, 0, &item)
-			width := estring_width(table, item.output)
+			width := string_width(item.output)
 
 			if width > longest {
 				longest = width
@@ -2298,6 +2319,9 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			highlight.r = highlight.l + toggle.cell_width
 			render_rect(target, highlight, theme.text_good, ROUNDNESS)
 
+			fcs_element(element)
+			fcs_ahv()
+
 			for i in 0..<toggle.count {
 				r := toggle.cells[i]
 				color := text_color
@@ -2306,7 +2330,8 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					color = theme.text_blank
 				}
 
-				erender_string_aligned(element, toggle.names[i], r, color, .Middle, .Middle)
+				fcs_color(color)
+				render_string_rect(target, r, toggle.names[i])
 			}
 			
 			render_rect_outline(target, element.bounds, text_color)
@@ -2703,12 +2728,16 @@ linear_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			// render_rect_outline(target, element.bounds, text_color)
 
 			output := gauge_text(gauge)
-			erender_string_aligned(element, output, element.bounds, text_color, .Middle, .Middle)
+			fcs_element(element)
+			fcs_ahv()
+			fcs_color(text_color)
+			render_string_rect(target, element.bounds, output)
 		}
 
 		case .Get_Width: {
 			output := gauge_text(gauge)
-			width := max(150 * SCALE, estring_width(element, output) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			fcs_element(element)
+			width := max(150 * SCALE, string_width(output) + TEXT_MARGIN_HORIZONTAL * SCALE)
 			return int(width)
 		}
 
@@ -2760,7 +2789,11 @@ radial_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			text := fmt.tprintf("%s: %d%%", gauge.text, int(gauge.position * 100))
 
 			// text := strings.to_string(gauge.builder)
-			erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
+			fcs_element(element)
+			fcs_ahv()
+			fcs_color(text_color)
+			render_string_rect(target, element.bounds, text)
+			// erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
 		}
 
 		case .Get_Width: {
@@ -2880,11 +2913,11 @@ image_display_has_content :: #force_inline proc(display: ^Image_Display) -> bool
 //////////////////////////////////////////////
 
 Font_Options :: struct {
-	font: ^Font,
-	size: i16,
+	font: int,
+	size: f32,
 }
 
-element_retrieve_font_options :: proc(element: ^Element) -> (font: ^Font, size: i16) {
+element_retrieve_font_options :: proc(element: ^Element) -> (font: int, size: f32) {
 	// default
 	if element.font_options == nil {
 		font = font_regular
@@ -2895,41 +2928,6 @@ element_retrieve_font_options :: proc(element: ^Element) -> (font: ^Font, size: 
 	}
 
 	return 
-}
-
-erender_string_aligned :: #force_inline proc(
-	element: ^Element,
-	text: string,
-	rect: Rect,
-	color: Color,
-	ah: Align_Horizontal,
-	av: Align_Vertical,
-) {
-	font, size := element_retrieve_font_options(element)
-	scaled_size := i16(f32(size) * SCALE)
-
-	render_string_aligned(
-		element.window.target,
-		font,
-		text, 
-		rect, 
-		color, 
-		ah, 
-		av, 
-		scaled_size,
-	)
-}
-
-erunes_width :: #force_inline proc(element: ^Element, runes: []rune) -> f32 {
-	font, size := element_retrieve_font_options(element)
-	scaled_size := i16(f32(size) * SCALE)
-	return fontstash.runes_width(font, scaled_size, runes)
-}
-
-estring_width :: #force_inline proc(element: ^Element, text: string) -> f32 {
-	font, size := element_retrieve_font_options(element)
-	scaled_size := i16(f32(size) * SCALE)
-	return fontstash.string_width(font, scaled_size, text)
 }
 
 efont_size :: proc(element: ^Element) -> f32 {

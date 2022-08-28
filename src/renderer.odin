@@ -639,78 +639,6 @@ shallow_texture_init :: proc(
 // GLYPH
 //////////////////////////////////////////////
 
-render_glyph :: proc(
-	target: ^Render_Target,
-	group: ^Render_Group,
-	font: ^fontstash.Font,
-
-	// sizing options
-	isize: i16,
-	scale: f32,
-	spacing: f32,
-	color: Color,
-	
-	previous_glyph_index: ^fontstash.Glyph_Index,
-	codepoint: rune,
-	x, y: ^f32,
-) #no_bounds_check {
-	color := color
-	glyph := fontstash.get_glyph(&gs.fc, font, codepoint, isize)
-	
-	if glyph == nil {
-		previous_glyph_index^ = -1
-		return
-	}
-
-	// target.fontstash_update |= pushed
-	vertices := render_target_push_vertices(target, group, 6)
-
-	if previous_glyph_index^ != -1 {
-		adv := f32(fontstash.glyph_kern_advance(font, previous_glyph_index^, glyph.index)) * scale
-		x^ += f32(int(adv + spacing + 0.5))
-	}
-	previous_glyph_index^ = glyph.index
-
-	// fill props right
-	rx, ry, x0, y0, x1, y1, xoff, yoff, glyph_width, glyph_height: f32
-	xoff = f32(glyph.xoff + 1)
-	yoff = f32(glyph.yoff + 1)
-	x0 = f32(glyph.x0 + 1)
-	y0 = f32(glyph.y0 + 1)
-	x1 = f32(glyph.x1 - 1)
-	y1 = f32(glyph.y1 - 1)
-	rx = f32(int(x^) + int(xoff))
-	ry = f32(int(y^) + int(yoff))
-	glyph_width = x1 - x0
-	glyph_height = y1 - y0
-
-	// set uv
-	vertices[0].uv_xy = { x0, y0 }
-	vertices[1].uv_xy = { x1, y0 }
-	vertices[2].uv_xy = { x0, y1 }
-	vertices[5].uv_xy = { x1, y1 }
-
-	// color := color
-	vertices[0].pos_xy = { rx, ry }
-	vertices[1].pos_xy = { rx + glyph_width, ry }
-	vertices[2].pos_xy = { rx, ry + glyph_height }
-	vertices[5].pos_xy = { rx + glyph_width, ry + glyph_height }
-
-	// duplicates
-	vertices[3] = vertices[1]
-	vertices[4] = vertices[2]
-
-	// TODO speedup
-	for v in &vertices {
-		v.uv_xy.x *= gs.fc.itw
-		v.uv_xy.y *= gs.fc.ith
-		v.color = color
-		v.kind = .Glyph
-	}
-
-	x^ += f32(int(glyph.xadvance / 10)) + 0.5
-}
-
 render_string_rect :: proc(
 	target: ^Render_Target,
 	rect: Rect,
@@ -794,48 +722,6 @@ render_string_test :: proc(
   return iter.nextx
 }
 
-render_string :: proc(
-	target: ^Render_Target,
-	font: ^Font,
-	text: string,
-	x, y: f32,
-	color: Color,
-	pixel_size: i16,
-) -> (res: Rect) {
-	group := &target.groups[len(target.groups) - 1]
-	isize := i16(pixel_size * 10)
-	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
-	spacing := LETTER_SPACING * SCALE
-
-	x := x
-	x_origin := x
-	y := y
-	y_origin := y
-	y += fontstash.align_vertical(font, isize, .Top)
-
-	previous_glyph_index: fontstash.Glyph_Index
-	ds: cutf8.Decode_State
-	for codepoint in cutf8.ds_iter(&ds, text) {
-		render_glyph(
-			target,
-			group, 
-			font,
-
-			isize,
-			scale,
-			spacing,
-			color,
-
-			&previous_glyph_index,
-			codepoint,
-			&x, &y,
-		)
-
-	}
-
-	return rect_wh(x_origin, y_origin, x, f32(pixel_size))
-}
-
 // strike through text in the middle
 render_text_strike_through :: proc(
 	target: ^Render_Target,
@@ -850,113 +736,67 @@ render_text_strike_through :: proc(
 	render_rect(target, r, color, 0)
 }
 
-render_string_aligned :: proc(
-	target: ^Render_Target,
-	font: ^Font,
-	text: string,
-	r: Rect,
-	color: Color,
-	ah: Align_Horizontal,
-	av: Align_Vertical,
-	pixel_size: i16,
-) -> Rect #no_bounds_check {
-	group := &target.groups[len(target.groups) - 1]
-	isize := i16(pixel_size * 10)
-	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
-	delta: f32
+// render_icon :: proc(
+// 	target: ^Render_Target,
+// 	font: ^fontstash.Font,
+// 	icon: Icon,
+// 	x, y: f32,
+// 	color: Color,
+// 	pixel_size: i16,
+// ) -> Rect {
+// 	isize := i16(pixel_size * 10)
+// 	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
+// 	codepoint := rune(icon)
+// 	group := &target.groups[len(target.groups) - 1]
+// 	spacing := LETTER_SPACING * SCALE
 
-	text_width := fontstash.string_width(font, pixel_size, text)
-	x := r.l
-	x_origin := x
-	x += fontstash.align_horizontal(font, text_width, rect_width(r), ah)
-	y := r.t
-	y_origin := y
-	y += fontstash.align_vertical(font, isize, .Top)
-	spacing := LETTER_SPACING * SCALE
+// 	x := x
+// 	y := y
+// 	y += fontstash.align_vertical(font, isize, .Top)
+// 	previous_glyph_index: fontstash.Glyph_Index
 
-	previous_glyph_index: fontstash.Glyph_Index
-	ds: cutf8.Decode_State
-	for codepoint in cutf8.ds_iter(&ds, text) {
-		render_glyph(
-			target,
-			group, 
-			font,
+// 	render_glyph(
+// 		target,
+// 		group,
+// 		font,
 
-			isize,
-			scale,
-			spacing,
-			color,
+// 		isize,
+// 		scale,
+// 		spacing,
+// 		color,
 
-			&previous_glyph_index,
-			codepoint,
-			&x, &y,
-		)
-	}
+// 		&previous_glyph_index,
+// 		codepoint,
+// 		&x, &y,
+// 	)
 
-	return rect_wh(x_origin, y_origin, x, f32(pixel_size))
-}
+// 	// return rect_wh(
+// 	// 	x,
+// 	// 	y,
+// 	// 	delta,
+// 	// 	pixel_size,
+// 	// )
+// 	return {}
+// }
 
-render_icon :: proc(
-	target: ^Render_Target,
-	font: ^fontstash.Font,
-	icon: Icon,
-	x, y: f32,
-	color: Color,
-	pixel_size: i16,
-) -> Rect {
-	isize := i16(pixel_size * 10)
-	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
-	codepoint := rune(icon)
-	group := &target.groups[len(target.groups) - 1]
-	spacing := LETTER_SPACING * SCALE
-
-	x := x
-	y := y
-	y += fontstash.align_vertical(font, isize, .Top)
-	previous_glyph_index: fontstash.Glyph_Index
-
-	render_glyph(
-		target,
-		group,
-		font,
-
-		isize,
-		scale,
-		spacing,
-		color,
-
-		&previous_glyph_index,
-		codepoint,
-		&x, &y,
-	)
-
-	// return rect_wh(
-	// 	x,
-	// 	y,
-	// 	delta,
-	// 	pixel_size,
-	// )
-	return {}
-}
-
-render_icon_aligned :: proc(
-	target: ^Render_Target,
-	font: ^Font,
-	icon: Icon,
-	r: Rect,
-	color: Color,
-	ah: Align_Horizontal = .Middle,
-	av: Align_Vertical = .Middle,
-	pixel_size: i16,
-) -> Rect {
-	// icon_width := fontstash.icon_width(font, pixel_size, icon)
-	// // x_offset := f32(0);
-	// x_offset := fontstash.align_horizontal(font, pixel_size, icon_width, rect_width(r), ah)
-	// y_offset := fontstash.align_vertical(font, pixel_size, av)
-	// // y_offset := f32(0);
-	// return render_icon(target, font, icon, r.l + x_offset, r.t + y_offset, color, pixel_size)
-	return {}
-}
+// render_icon_aligned :: proc(
+// 	target: ^Render_Target,
+// 	font: ^Font,
+// 	icon: Icon,
+// 	r: Rect,
+// 	color: Color,
+// 	ah: Align_Horizontal = .Middle,
+// 	av: Align_Vertical = .Middle,
+// 	pixel_size: i16,
+// ) -> Rect {
+// 	// icon_width := fontstash.icon_width(font, pixel_size, icon)
+// 	// // x_offset := f32(0);
+// 	// x_offset := fontstash.align_horizontal(font, pixel_size, icon_width, rect_width(r), ah)
+// 	// y_offset := fontstash.align_vertical(font, pixel_size, av)
+// 	// // y_offset := f32(0);
+// 	// return render_icon(target, font, icon, r.l + x_offset, r.t + y_offset, color, pixel_size)
+// 	return {}
+// }
 
 render_texture_from_kind :: proc(
 	target: ^Render_Target,

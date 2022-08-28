@@ -1,9 +1,11 @@
 package fontstash
 
+import "core:runtime"
 import "core:mem"
 import "core:log"
 import "../cutf8"
 
+// state used to share font options
 State :: struct {
 	font: int,
 	size: f32,
@@ -15,6 +17,7 @@ State :: struct {
 	av: Align_Vertical,
 }
 
+// quad that should be used to draw from the texture atlas
 Quad :: struct {
 	x0, y0, s0, t0: f32,
 	x1, y1, s1, t1: f32,
@@ -34,26 +37,27 @@ Text_Iter :: struct {
 	state: rune, // utf8
 }
 
-state_push :: proc(using ctx: ^Font_Context) {
-	if state_count >= STATE_MAX {
-		log.error("FONTSTASH: state max exceeded")
-	}
+// push a state, copies the current one over to the next one
+state_push :: proc(using ctx: ^Font_Context, loc := #caller_location) #no_bounds_check {
+	runtime.bounds_check_error_loc(loc, state_count, STATE_MAX)
 
 	if state_count > 0 {
-		mem.copy(&states[state_count], &states[state_count - 1], size_of(State))
+		states[state_count] = states[state_count - 1]
 	}
 
 	state_count += 1
 }
 
+// pop a state 
 state_pop :: proc(using ctx: ^Font_Context) {
 	if state_count <= 1 {
 		log.error("FONTSTASH: state underflow! to many pops were called")
+	} else {
+		state_count -= 1
 	}
-
-	state_count -= 1
 }
 
+// clear current state
 state_clear :: proc(ctx: ^Font_Context) {
 	state := state_get(ctx)
 	state.size = 12
@@ -167,11 +171,11 @@ text_iter_init :: proc(
 	switch state.ah {
 		case .Left: {}
 		case .Middle: {
-			width := text_bounds(ctx, x, y, text, nil)
+			width := text_bounds(ctx, text, x, y, nil)
 			x -= width * 0.5
 		}
 		case .Right: {
-			width := text_bounds(ctx, x, y, text, nil)
+			width := text_bounds(ctx, text, x, y, nil)
 			x -= width
 		}
 	}
@@ -221,14 +225,15 @@ text_iter_step :: proc(
 // width of a text line, optionally the full rect
 text_bounds :: proc(
 	ctx: ^Font_Context,
-	x, y: f32,
 	text: string,
-	bounds: ^[4]f32,
+	x: f32 = 0,
+	y: f32 = 0,
+	bounds: ^[4]f32 = nil,
 ) -> f32 {
 	state := state_get(ctx)
 	isize := i16(state.size * 10)
 	iblur := i16(state.blur)
-	font := &ctx.fonts[state.font]
+	font := font_get(ctx, state.font)
 
 	// bunch of state
 	x := x
@@ -267,17 +272,17 @@ text_bounds :: proc(
 		previous_glyph_index = glyph == nil ? -1 : glyph.index
 	}
 
-	// alignment
+	// horizontal alignment
 	advance := x - start_x
 	switch state.ah {
 		case .Left: {}
 		case .Middle: {
-			minx -= advance
-			maxx -= advance
-		}
-		case .Right: {
 			minx -= advance * 0.5
 			maxx -= advance * 0.5
+		}
+		case .Right: {
+			minx -= advance
+			maxx -= advance
 		}
 	}
 
@@ -296,13 +301,7 @@ state_vertical_metrics :: proc(
 ) -> (ascender, descender, line_height: f32) {
 	state := state_get(ctx)
 	isize := i16(state.size * 10)
-
-	// get font
-	if state.font < 0 || state.font >= len(ctx.fonts) {
-		return
-	}
-	font := &ctx.fonts[state.font]
-
+	font := font_get(ctx, state.font)
 	ascender = font.ascender * f32(isize / 10)
 	descender = font.descender * f32(isize / 10)
 	line_height = font.line_height * f32(isize / 10)
@@ -316,6 +315,7 @@ state_begin :: proc(using ctx: ^Font_Context) {
 	state_clear(ctx)
 }
 
+// checks for texture updates after potential get_glyph calls
 state_end :: proc(using ctx: ^Font_Context) {
 	// check for texture update
 	if dirty_rect[0] < dirty_rect[2] && dirty_rect[1] < dirty_rect[3] {
