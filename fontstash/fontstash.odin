@@ -20,12 +20,11 @@ import "../cutf8"
 
 // Changes from the original:
 // stb truetype only 
-// no scratch allocation -> handle it yourself
+// no scratch allocation -> parts use odins dynamic arrays
 // different procedure naming as this will be used as a package, renaming Fons -> Font
 // leaves GPU vertex creation & texture management up to the user
-// no immediate style state -> can be built on top
-
-// TODO use i16 for blur
+// *optional* immediate style usage
+// expands by default
 
 Icon :: enum {
 	Simple_Down = 0xeab2,
@@ -158,7 +157,7 @@ Glyph :: struct {
 	index: Glyph_Index,
 	next: int,
 	isize: i16,
-	blur_size: u8,
+	blur_size: i16,
 	x0, y0, x1, y1: i16,
 	xoff, yoff: i16,
 	xadvance: i16,
@@ -183,7 +182,6 @@ Font_Context :: struct {
 	// actual pixels
 	texture_data: []byte, // allocated using context.allocator
 	width, height: int,
-	resize_callback: proc(ctx: ^Font_Context), 
 
 	// 1 / w, 1 / h
 	itw, ith: f32,
@@ -195,11 +193,16 @@ Font_Context :: struct {
  	// dirty rectangle of the texture region that was updated
  	dirty_rect: [4]f32,
 
- 	// callbacks to be used in a renderer
- 	// render_update: proc() 
+ 	// callbacks
+ 	user_data: rawptr, // by default set to the context
+ 	// called when a texture is expanded and needs handling
+ 	callback_resize: proc(data: rawptr, w, h: int), 
+ 	// called in state_end to update the texture region that changed
+ 	callback_update: proc(data: rawptr, dirty_rect: [4]f32, texture_data: rawptr), 
 }
 
 init :: proc(using ctx: ^Font_Context, w, h: int) {
+	user_data = ctx
 	fonts = make([dynamic]Font, 0, 8)
 
 	itw = f32(1) / f32(w)
@@ -213,9 +216,10 @@ init :: proc(using ctx: ^Font_Context, w, h: int) {
 
 	states = make([]State, STATE_MAX)
 
-	// append(&nodes, Atlas_Node {
-	// 	width = i16(w),
-	// })
+	// NOTE NECESSARY
+	append(&nodes, Atlas_Node {
+		width = i16(w),
+	})
 
 	font_atlas_add_white_rect(ctx, 2, 2)
 
@@ -484,7 +488,7 @@ get_glyph :: proc(
 	font: ^Font,
 	codepoint: rune,
 	isize: i16,
-	blur_size: u8 = 0,
+	blur_size: i16 = 0,
 ) -> (res: ^Glyph) #no_bounds_check {
 	if isize < 2 {
 		return
@@ -527,20 +531,14 @@ get_glyph :: proc(
 	// Find free spot for the rect in the atlas
 	gx, gy, ok := font_atlas_add_rect(ctx, int(gw), int(gh))
 	if !ok {
-		if ctx.resize_callback != nil {
-			// Atlas is full, let the user to resize the atlas (or not), and try again.
-			ctx->resize_callback()
-			// TODO resize automaticalaly
-			log.info("FONTSTASH: no free spot in atlas, resizing", gx, gy)
-			
-			// try again
-			gx, gy, ok = font_atlas_add_rect(ctx, int(gw), int(gh))
-		} 
+		// try again with expanded
+		expand_atlas(ctx, ctx.width * 2, ctx.height * 2)
+		gx, gy, ok = font_atlas_add_rect(ctx, int(gw), int(gh))
 	}
 
 	// still not ok?
 	if !ok {
-
+		return
 	}
 	
 	// Init glyph.
@@ -658,7 +656,7 @@ font_blur_rows :: proc(dst: []u8, w, h, dst_stride, alpha: int) {
 	}
 }
 
-font_blur :: proc(dst: []u8, w, h, dst_stride: int, blur_size: u8) {
+font_blur :: proc(dst: []u8, w, h, dst_stride: int, blur_size: i16) {
 	assert(blur_size != 0)
 
 	// Calculate the alpha such that 90% of the kernel is within the radius. (Kernel extends to infinity)
@@ -682,7 +680,9 @@ expand_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := contex
 		return true
 	}
 
-	// if resize_callback
+	if ctx.callback_resize != nil {
+		ctx.callback_resize(ctx.user_data, width, height)
+	}
 
 	data := make([]byte, width * height, allocator)
 
@@ -797,6 +797,18 @@ glyph_kern_advance :: proc(font: ^Font, glyph1, glyph2: Glyph_Index) -> i32 {
 //////////////////////////////////////////////
 // helpers
 //////////////////////////////////////////////
+
+// get top and bottom font ascending height
+line_bounds :: proc(ctx: ^Font_Context, y: f32) -> (miny, maxy: f32) {
+	state := state_get(ctx)
+	font := &ctx.fonts[state.font]
+	isize := i16(state.size * 10)
+	y := y
+	y += get_vertical_align(font, isize, state.av)
+	miny = y - font.ascender * f32(isize / 10)
+	maxy = miny + font.line_height * f32(isize / 10)
+	return
+}
 
 // get the width of a string
 string_width :: proc(
@@ -941,4 +953,26 @@ codepoint_index_to_line :: proc(lines: []string, head: int, loc := #caller_locat
 
 	y = -1
 	return
+}
+
+// reset dirty rect
+dirty_rect_reset :: proc(using ctx: ^Font_Context) {
+	dirty_rect[0] = f32(width)
+	dirty_rect[1] = f32(height)
+	dirty_rect[2] = 0
+	dirty_rect[3] = 0
+}
+
+// true when the dirty rectangle is valid and needs a texture update on the gpu
+validate_texture :: proc(using ctx: ^Font_Context, dirty: ^[4]f32) -> bool {
+	if dirty_rect[0] < dirty_rect[2] && dirty_rect[1] < dirty_rect[3] {
+		dirty[0] = dirty_rect[0]
+		dirty[1] = dirty_rect[1]
+		dirty[2] = dirty_rect[2]
+		dirty[3] = dirty_rect[3]
+		dirty_rect_reset(ctx)
+		return true
+	}
+
+	return false
 }

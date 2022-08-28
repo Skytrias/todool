@@ -1154,7 +1154,28 @@ gs_init :: proc() {
 		log.infof("SDL2: Linked Version %d.%d.%d", linked.major, linked.minor, linked.patch)
 	}
 
-	fontstash.init(&fc, 1000, 1000)
+	fontstash.init(&fc, 500, 500)
+	fc.callback_resize = proc(data: rawptr, w, h: int) {
+		if data != nil {
+			// regenerate the texture on all windows
+			window := gs.windows
+			for window != nil {
+				// NOTE dunno if this is safe to be called during glyph calls
+				render_target_fontstash_generate(window.target, w, h)
+				window = window.window_next
+			}
+		}
+	}
+	fc.callback_update = proc(data: rawptr, dirty_rect: [4]f32, texture_data: rawptr) {
+		// update the texture on all windows
+		if data != nil {
+			window := cast(^Window) data
+			sdl.GL_MakeCurrent(window.w, window.target.opengl_context)
+			t := &window.target.textures[.Fonts]
+			t.data = texture_data
+			texture_update_subimage(t, dirty_rect, texture_data)
+		}
+	}
 	fonts_push()
 	animating = make([dynamic]^Element, 0, 32)
 
@@ -1352,8 +1373,6 @@ gs_message_loop :: proc() {
 	context.logger = gs.logger
 	
 	for gs.running {
-		fontstash.state_clear(&gs.fc)
-
 		// when animating
 		if len(gs.animating) != 0 || len(gs.flux.values) != 0 {
 			gs.frame_start = sdl.GetPerformanceCounter()
@@ -1447,9 +1466,12 @@ gs_draw_and_cleanup :: proc() {
 				window->update()
 			}
 
+			gs.fc.user_data = window
+			fontstash.state_begin(&gs.fc)
 			render_target_begin(window.target, theme.shadow)
 			element_message(&window.element, .Layout)
 			render_element_clipped(window.target, &window.element)
+			fontstash.state_end(&gs.fc)
 			render_target_end(window.target, window.w, window.width, window.height)
 
 			// TODO could use specific update region only

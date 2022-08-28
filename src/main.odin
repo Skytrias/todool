@@ -58,6 +58,8 @@ main :: proc() {
 	p.background_index = 0
 
 	label_init(p, { .HF }, "Testing")
+	label_init(p, { .HF, .Label_Center }, "Testing")
+	label_init(p, { .HF }, "Testing")
 
 	gs_message_loop()  	
 }

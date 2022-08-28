@@ -15,6 +15,25 @@ State :: struct {
 	av: Align_Vertical,
 }
 
+Quad :: struct {
+	x0, y0, s0, t0: f32,
+	x1, y1, s1, t1: f32,
+}
+
+// text iteration with custom settings
+Text_Iter :: struct {
+	x, y, nextx, nexty, scale, spacing: f32,
+
+	codepoint: rune,
+	isize, iblur: i16,
+
+	font: ^Font,
+	previous_glyph_index: Glyph_Index,
+
+	text: string,
+	state: rune, // utf8
+}
+
 state_push :: proc(using ctx: ^Font_Context) {
 	if state_count >= STATE_MAX {
 		log.error("FONTSTASH: state max exceeded")
@@ -70,104 +89,15 @@ state_set_font :: proc(ctx: ^Font_Context, font: int) {
 	state_get(ctx).font = font
 }
 
+state_set_ah :: state_set_align_horizontal
+state_set_av :: state_set_align_vertical
+
 state_set_align_horizontal :: proc(ctx: ^Font_Context, ah: Align_Horizontal) {
 	state_get(ctx).ah = ah
 }
 
 state_set_align_vertical :: proc(ctx: ^Font_Context, av: Align_Vertical) {
 	state_get(ctx).av = av
-}
-
-// text iteration with custom settings
-
-Text_Iter :: struct {
-	x, y, nextx, nexty, scale, spacing: f32,
-
-	codepoint: rune,
-	isize, iblur: i16,
-
-	font: ^Font,
-	previous_glyph_index: Glyph_Index,
-
-	text: string,
-	state: rune, // utf8
-}
-
-text_iter_init :: proc(
-	ctx: ^Font_Context,
-	x, y: f32,
-	text: string,
-) -> (res: Text_Iter) {
-	state := state_get(ctx)
-
-	// font 
-	// assert(!(state.font < 0 || state.font >= len(ctx.fonts)))
-	res.font = &ctx.fonts[state.font]
-	res.isize = i16(state.size * 10)
-	res.iblur = i16(state.blur)
-	res.scale = scale_for_pixel_height(res.font, f32(res.isize / 10))
-
-	// align horizontally
-	x := x
-	y := y
-	switch state.ah {
-		case .Left: {}
-		case .Middle: {
-			width := text_bounds(ctx, x, y, text, nil)
-			x -= width
-		}
-		case .Right: {
-			width := text_bounds(ctx, x, y, text, nil)
-			x -= width * 0.5
-		}
-	}
-
-	// align vertically
-	y += get_vertical_align(res.font, res.isize, state.av)
-
-	// set positions
-	res.x = x
-	res.nextx = x
-	res.y = y
-	res.nexty = y
-	res.previous_glyph_index = -1
-	res.spacing = state.spacing
-	res.text = text
-	return
-}
-
-text_iter_step :: proc(
-	ctx: ^Font_Context, 
-	iter: ^Text_Iter, 
-	quad: ^Quad,
-) -> (ok: bool) {
-	for len(iter.text) > 0 {
-		b := iter.text[0]
-		iter.text = iter.text[1:]
-
-		if cutf8.decode(&iter.state, &iter.codepoint, b) {
-			iter.x = iter.nextx
-			iter.y = iter.nexty
-			glyph := get_glyph(ctx, iter.font, iter.codepoint, iter.isize, u8(iter.iblur))
-			
-			if glyph != nil {
-				get_quad(ctx, iter.font, iter.previous_glyph_index, glyph, iter.scale, iter.spacing, &iter.nextx, &iter.nexty, quad)
-			}
-
-			iter.previous_glyph_index = glyph == nil ? -1 : glyph.index
-			ok = true
-			break
-		}
-	}
-
-	return
-}
-
-// rendering using immediate style state
-
-Quad :: struct {
-	x0, y0, s0, t0: f32,
-	x1, y1, s1, t1: f32,
 }
 
 get_vertical_align :: align_vertical
@@ -216,7 +146,79 @@ get_quad :: proc(
 	x^ += f32(int(glyph.xadvance / 10)) + 0.5
 }
 
-// width of a text line
+// init text iter struct with settings
+text_iter_init :: proc(
+	ctx: ^Font_Context,
+	x, y: f32,
+	text: string,
+) -> (res: Text_Iter) {
+	state := state_get(ctx)
+
+	// font 
+	// assert(!(state.font < 0 || state.font >= len(ctx.fonts)))
+	res.font = &ctx.fonts[state.font]
+	res.isize = i16(state.size * 10)
+	res.iblur = i16(state.blur)
+	res.scale = scale_for_pixel_height(res.font, f32(res.isize / 10))
+
+	// align horizontally
+	x := x
+	y := y
+	switch state.ah {
+		case .Left: {}
+		case .Middle: {
+			width := text_bounds(ctx, x, y, text, nil)
+			x -= width * 0.5
+		}
+		case .Right: {
+			width := text_bounds(ctx, x, y, text, nil)
+			x -= width
+		}
+	}
+
+	// align vertically
+	y += get_vertical_align(res.font, res.isize, state.av)
+
+	// set positions
+	res.x = x
+	res.nextx = x
+	res.y = y
+	res.nexty = y
+	res.previous_glyph_index = -1
+	res.spacing = state.spacing
+	res.text = text
+	return
+}
+
+// step through each codepoint
+text_iter_step :: proc(
+	ctx: ^Font_Context, 
+	iter: ^Text_Iter, 
+	quad: ^Quad,
+) -> (ok: bool) {
+	for len(iter.text) > 0 {
+		b := iter.text[0]
+		iter.text = iter.text[1:]
+
+		if cutf8.decode(&iter.state, &iter.codepoint, b) {
+			iter.x = iter.nextx
+			iter.y = iter.nexty
+			glyph := get_glyph(ctx, iter.font, iter.codepoint, iter.isize, iter.iblur)
+			
+			if glyph != nil {
+				get_quad(ctx, iter.font, iter.previous_glyph_index, glyph, iter.scale, iter.spacing, &iter.nextx, &iter.nexty, quad)
+			}
+
+			iter.previous_glyph_index = glyph == nil ? -1 : glyph.index
+			ok = true
+			break
+		}
+	}
+
+	return
+}
+
+// width of a text line, optionally the full rect
 text_bounds :: proc(
 	ctx: ^Font_Context,
 	x, y: f32,
@@ -226,11 +228,6 @@ text_bounds :: proc(
 	state := state_get(ctx)
 	isize := i16(state.size * 10)
 	iblur := i16(state.blur)
-
-	// font 
-	if state.font < 0 || state.font >= len(ctx.fonts) {
-		return 0
-	}
 	font := &ctx.fonts[state.font]
 
 	// bunch of state
@@ -248,7 +245,7 @@ text_bounds :: proc(
 	previous_glyph_index: Glyph_Index = -1
 	quad: Quad
 	for codepoint in cutf8.ds_iter(&ds, text) {
-		glyph := get_glyph(ctx, font, codepoint, isize, u8(iblur))
+		glyph := get_glyph(ctx, font, codepoint, isize, iblur)
 
 		if glyph != nil {
 			get_quad(ctx, font, previous_glyph_index, glyph, scale, state.spacing, &x, &y, &quad)
@@ -294,64 +291,6 @@ text_bounds :: proc(
 	return advance
 }
 
-// state_draw_text :: proc(ctx: ^Font_Context, x, y: f32, text: string) -> (output: f32) {
-// 	state := state_get(ctx)
-// 	isize := i16(state.size * 10)
-// 	iblur := i16(state.blur)
-// 	x := x
-// 	y := y
-// 	output = x
-
-// 	// get font
-// 	if state.font < 0 || state.font >= len(ctx.fonts) {
-// 		return
-// 	}
-// 	font := &ctx.fonts[state.font]
-
-// 	// align horizontally 
-// 	switch state.ah {
-// 		case .Left: {}
-// 		case .Middle: {
-// 			width := text_bounds(ctx, x, y, text, nil)
-// 			x -= width
-// 		}
-// 		case .Right: {
-// 			width := text_bounds(ctx, x, y, text, nil)
-// 			x -= width * 0.5
-// 		}
-// 	}
-
-// 	// align vertically
-// 	y += get_vertical_align(font, isize, state.av)
-
-// 	// iterate codepoints
-// 	scale := scale_for_pixel_height(font, f32(isize / 10))
-// 	ds: cutf8.Decode_State
-// 	quad: Quad
-// 	previous_glyph_index: Glyph_Index = -1
-// 	for codepoint in cutf8.ds_iter(&ds, text) {
-// 		glyph, _ := get_glyph(ctx, font, codepoint, isize, u8(iblur))
-
-// 		// push quad
-// 		if glyph != nil {
-// 			get_quad(ctx, font, previous_glyph_index, glyph, scale, state.spacing, &x, &y, &quad)
-
-// 			push_vertex(ctx, { quad.x0, quad.y0, quad.s0, quad.t0, state.color })
-// 			push_vertex(ctx, { quad.x1, quad.y1, quad.s1, quad.t1, state.color })
-// 			push_vertex(ctx, { quad.x1, quad.y0, quad.s1, quad.t0, state.color })
-			
-// 			push_vertex(ctx, { quad.x0, quad.y0, quad.s0, quad.t0, state.color })
-// 			push_vertex(ctx, { quad.x0, quad.y1, quad.s0, quad.t1, state.color })
-// 			push_vertex(ctx, { quad.x1, quad.y1, quad.s1, quad.t1, state.color })
-// 		}
-
-// 		previous_glyph_index = glyph == nil ? -1 : glyph.index
-// 	}
-
-// 	output = x
-// 	return 
-// }
-
 state_vertical_metrics :: proc(
 	ctx: ^Font_Context,
 ) -> (ascender, descender, line_height: f32) {
@@ -370,43 +309,20 @@ state_vertical_metrics :: proc(
 	return
 }
 
-// vertice pushing
+// reset to single state
+state_begin :: proc(using ctx: ^Font_Context) {
+	state_count = 0
+	state_push(ctx)
+	state_clear(ctx)
+}
 
-flush :: proc(using ctx: ^Font_Context) {
-	// flush texture
+state_end :: proc(using ctx: ^Font_Context) {
+	// check for texture update
 	if dirty_rect[0] < dirty_rect[2] && dirty_rect[1] < dirty_rect[3] {
-		// if (params.renderUpdate != NULL)
-		// 	params.renderUpdate(params.userPtr, dirty_rect, texData);
+		if callback_update != nil {
+			callback_update(user_data, dirty_rect, raw_data(texture_data))
+		}
 
 		dirty_rect_reset(ctx)
 	}
-
-	// // flush triangles
-	// if nverts > 0 {
-	// 	// if params.renderDraw != NULL
-	// 	// 	params.renderDraw(params.userPtr, verts, tcoords, colors, nverts);
-		
-	// 	nverts = 0
-	// }
-}
-
-dirty_rect_reset :: proc(using ctx: ^Font_Context) {
-	dirty_rect[0] = f32(width)
-	dirty_rect[1] = f32(height)
-	dirty_rect[2] = 0
-	dirty_rect[3] = 0
-}
-
-// guessing this is for validating texture update based on dirty rect?
-validate_texture :: proc(using ctx: ^Font_Context, dirty: ^[4]f32) -> bool {
-	if dirty_rect[0] < dirty_rect[2] && dirty_rect[1] < dirty_rect[3] {
-		dirty[0] = dirty_rect[0]
-		dirty[1] = dirty_rect[1]
-		dirty[2] = dirty_rect[2]
-		dirty[3] = dirty_rect[3]
-		dirty_rect_reset(ctx)
-		return true
-	}
-
-	return false
 }

@@ -57,7 +57,6 @@ Render_Target :: struct {
 
 	// texture atlas
 	textures: [Texture_Kind]Render_Texture,
-	fontstash_update: bool,
 
 	// context thats needed to be switched to
 	opengl_context: sdl.GLContext,
@@ -81,7 +80,7 @@ Texture_Kind :: enum {
 
 Render_Texture :: struct {
 	width, height: i32,
-	data: []u8,
+	data: rawptr,
 	handle: u32, // gl handle
 	format_a: i32,
 	format_b: u32,
@@ -155,14 +154,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	groups = make([dynamic]Render_Group, 0, 32)
 	vertices = make([]Render_Vertex, 1000 * 32)
 
-	textures[.Fonts] = Render_Texture {
-		data = gs.fc.texture_data,
-		width = i32(gs.fc.width),
-		height = i32(gs.fc.height),
-		format_a = gl.R8,
-		format_b = gl.RED,
-	}
-	texture_generate(res, .Fonts)
+	render_target_fontstash_generate(res, gs.fc.width, gs.fc.height)
 	textures[.Fonts].uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_font")
 
 	texture_generate_from_png(res, .SV, png_sv, "_sv")
@@ -172,6 +164,19 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	// log.info("bind slots", gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)
 
 	return
+}
+
+// generate the fontstash atlas texture with the wanted width and height
+render_target_fontstash_generate :: proc(using target: ^Render_Target, width, height: int) {
+	textures[.Fonts] = Render_Texture {
+		data = raw_data(gs.fc.texture_data),
+		width = i32(width),
+		height = i32(height),
+		format_a = gl.R8,
+		format_b = gl.RED,
+	}
+	// TODO could do texture image2d with nil on resize?
+	texture_generate(target, .Fonts)  	
 }
 
 render_target_destroy :: proc(using target: ^Render_Target) {
@@ -248,18 +253,6 @@ render_target_end :: proc(
 	gl.VertexAttribIPointer(attribute_roundness_and_thickness, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, roundness))
 	gl.VertexAttribPointer(attribute_additional, 2, gl.FLOAT, true, size, offset_of(Render_Vertex, additional))
 	gl.VertexAttribIPointer(attribute_kind, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, kind))
-
-	bounds: [4]f32
-	if fontstash.validate_texture(&gs.fc, &bounds) {
-		log.info("VALID", bounds)
-		texture_update(&textures[.Fonts])
-	}
-
-	// // if fontstash_update {
-	// 	// log.info("RENDERER: fontstash atlas updated")
-	// 	texture_update(&textures[.Fonts])
-	// 	fontstash_update = false
-	// // }
 
 	for kind in Texture_Kind {
 		texture_bind(target, kind)
@@ -483,7 +476,7 @@ texture_generate_from_png :: proc(
 	location := gl.GetUniformLocation(target.shader_program, combined_name)
 
 	target.textures[kind] = Render_Texture {
-		data = res.pixels.buf[:],
+		data = raw_data(res.pixels.buf),
 		width = i32(res.width),
 		height = i32(res.height),
 		format_a = gl.RGBA8,
@@ -505,6 +498,12 @@ texture_generate :: proc(
 	texture := &target.textures[kind]
 	using texture 
 
+	// when called multiple times
+	if handle != 0 {
+		gl.DeleteTextures(1, &handle)
+		handle = 0
+	}
+
 	gl.GenTextures(1, &handle)
 	gl.BindTexture(gl.TEXTURE_2D, handle)
 
@@ -518,7 +517,7 @@ texture_generate :: proc(
 		0, 
 		format_b, 
 		gl.UNSIGNED_BYTE, 
-		raw_data(data),
+		data,
 	)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, mode)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, mode)
@@ -529,6 +528,7 @@ texture_generate :: proc(
 	return
 }
 
+// update the full texture 
 texture_update :: proc(using texture: ^Render_Texture) {
 	gl.BindTexture(gl.TEXTURE_2D, handle)
 	gl.TexImage2D(
@@ -540,9 +540,46 @@ texture_update :: proc(using texture: ^Render_Texture) {
 		0, 
 		format_b, 
 		gl.UNSIGNED_BYTE, 
-		raw_data(data),
+		data,
 	)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
+}
+
+// NOTE assumess the correct GL context to be set
+texture_update_subimage :: proc(
+	texture: ^Render_Texture,
+	rect: [4]f32,
+	data: rawptr,
+) {
+	log.info("RENDERER: Update subimage")
+	w := rect[2] - rect[0]
+	h := rect[3] - rect[1]
+
+	// if texture.handle == 0 {
+	// 	return
+	// }
+
+	// Push old values
+	alignment, rowLength, skipPixels, skipRows: i32
+	gl.GetIntegerv(gl.UNPACK_ALIGNMENT, &alignment)
+	gl.GetIntegerv(gl.UNPACK_ROW_LENGTH, &rowLength)
+	gl.GetIntegerv(gl.UNPACK_SKIP_PIXELS, &skipPixels)
+	gl.GetIntegerv(gl.UNPACK_SKIP_ROWS, &skipRows)
+
+	gl.BindTexture(gl.TEXTURE_2D, texture.handle)
+
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1)
+	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, texture.width)
+	gl.PixelStorei(gl.UNPACK_SKIP_PIXELS, i32(rect[0]))
+	gl.PixelStorei(gl.UNPACK_SKIP_ROWS, i32(rect[1]))
+
+	gl.TexSubImage2D(gl.TEXTURE_2D, 0, i32(rect[0]), i32(rect[1]), i32(w), i32(h), gl.RED, gl.UNSIGNED_BYTE, data)
+
+	// Pop old values
+	gl.PixelStorei(gl.UNPACK_ALIGNMENT, alignment)
+	gl.PixelStorei(gl.UNPACK_ROW_LENGTH, rowLength)
+	gl.PixelStorei(gl.UNPACK_SKIP_PIXELS, skipPixels)
+	gl.PixelStorei(gl.UNPACK_SKIP_ROWS, skipRows)  	
 }
 
 texture_bind :: proc(target: ^Render_Target, kind: Texture_Kind) {
@@ -674,6 +711,55 @@ render_glyph :: proc(
 	x^ += f32(int(glyph.xadvance / 10)) + 0.5
 }
 
+render_string_rect :: proc(
+	target: ^Render_Target,
+	rect: Rect,
+	text: string,
+) -> f32 {
+	group := &target.groups[len(target.groups) - 1]
+	state := fontstash.state_get(&gs.fc)
+
+	x: f32
+	y: f32
+	switch state.ah {
+		case .Left: { x = rect.l }
+		case .Middle: { x = rect.l + rect_width_halfed(rect) }
+		case .Right: { x = rect.r }
+	}
+	switch state.av {
+		case .Top: { y = rect.t }
+		case .Middle: { y = rect.t + rect_height_halfed(rect) }
+		case .Baseline: { y = rect.t }
+		case .Bottom: { y = rect.b }
+	}
+
+	iter := fontstash.text_iter_init(&gs.fc, x, y, text)
+	q: fontstash.Quad
+
+	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+		v := render_target_push_vertices(target, group, 6)
+		v[0].uv_xy = { q.s0, q.t0 }
+		v[1].uv_xy = { q.s1, q.t0 }
+		v[2].uv_xy = { q.s0, q.t1 }
+		v[5].uv_xy = { q.s1, q.t1 }
+
+		v[0].pos_xy = { q.x0, q.y0 }
+		v[1].pos_xy = { q.x1, q.y0 }
+		v[2].pos_xy = { q.x0, q.y1 }
+		v[5].pos_xy = { q.x1, q.y1 }
+
+		v[3] = v[1]
+		v[4] = v[2]
+
+		for vertex in &v {
+			vertex.color = state.color
+			vertex.kind = .Glyph
+		}
+	}
+
+  return iter.nextx
+}
+
 render_string_test :: proc(
 	target: ^Render_Target,
 	x, y: f32,
@@ -703,11 +789,9 @@ render_string_test :: proc(
 			vertex.color = state.color
 			vertex.kind = .Glyph
 		}
-
-		// log.info("iter.codepoint", iter.codepoint, q)
 	}
 
-  return iter.x
+  return iter.nextx
 }
 
 render_string :: proc(

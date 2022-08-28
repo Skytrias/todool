@@ -794,11 +794,12 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				av = .Middle
 			}
 
-			color := theme.text_default
-			fontstash.state_set_size(&gs.fc, 50)
-			fontstash.state_set_color(&gs.fc, color)
-			// erender_string_aligned(element, text, element.bounds, color, ah, av)
-			render_string_test(target, element.bounds.l, element.bounds.t, text)
+			font, size := element_retrieve_font_options(element)
+			fontstash.state_set_ah(&gs.fc, ah)
+			fontstash.state_set_av(&gs.fc, av)
+			fontstash.state_set_size(&gs.fc, f32(size))
+			fontstash.state_set_color(&gs.fc, theme.text_default)
+			render_string_rect(target, element.bounds, text)
 		}
 		
 		case .Destroy: {
