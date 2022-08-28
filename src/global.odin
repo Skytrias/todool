@@ -2086,8 +2086,47 @@ menu_show :: proc(menu: ^Menu) {
 // fontstash helpers
 //////////////////////////////////////////////
 
+Font_Options :: struct {
+	font: int,
+	size: f32,
+}
+
+// element_retrieve_font_options :: proc(element: ^Element) -> (font: int, size: f32) {
+// 	// default
+// 	if element.font_options == nil {
+// 		font = font_regular
+// 		size = DEFAULT_FONT_SIZE
+// 	} else {
+// 		font = element.font_options.font
+// 		size = element.font_options.size
+// 	}
+
+// 	return 
+// }
+
+efont_size :: proc(element: ^Element) -> f32 {
+	scaled_size := f32(element.font_options == nil ? DEFAULT_FONT_SIZE : element.font_options.size) * SCALE * 10
+	return f32(i16(scaled_size) / 10)
+}	
+
+fcs_icon :: proc() -> f32 {
+	fcs_size(DEFAULT_ICON_SIZE * SCALE)
+	fcs_font(font_icon)
+	return DEFAULT_ICON_SIZE * SCALE
+}
+
 fcs_element :: proc(element: ^Element) -> f32 {
-	font_index, size := element_retrieve_font_options(element)
+	font_index: int
+	size: f32
+
+	if element.font_options == nil {
+		font_index = font_regular
+		size = DEFAULT_FONT_SIZE
+	} else {
+		font_index = element.font_options.font
+		size = element.font_options.size
+	}
+
 	fcs_size(size * SCALE)
 	fcs_font(font_index)
 	return f32(size) * SCALE
@@ -2095,6 +2134,13 @@ fcs_element :: proc(element: ^Element) -> f32 {
 
 string_width :: #force_inline proc(text: string, x: f32 = 0, y: f32 = 0) -> f32 {
 	return fontstash.text_bounds(&gs.fc, text, x, y)
+}
+
+icon_width :: #force_inline proc(icon: Icon) -> f32 {
+	font := fontstash.font_get(&gs.fc, font_icon)
+	isize := i16(DEFAULT_FONT_SIZE * 10 * SCALE)
+	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
+	return fontstash.codepoint_width(font, rune(icon), scale)
 }
 
 fcs_size :: #force_inline proc(size: f32) {

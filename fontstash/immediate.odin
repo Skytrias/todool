@@ -33,8 +33,11 @@ Text_Iter :: struct {
 	font: ^Font,
 	previous_glyph_index: Glyph_Index,
 
-	text: string,
+	// unicode iteration
 	state: rune, // utf8
+	text: string,
+	byte_offset: int,
+	codepoint_count: int,
 }
 
 // push a state, copies the current one over to the next one
@@ -153,14 +156,12 @@ get_quad :: proc(
 // init text iter struct with settings
 text_iter_init :: proc(
 	ctx: ^Font_Context,
-	x, y: f32,
 	text: string,
+	x: f32 = 0,
+	y: f32 = 0,
 ) -> (res: Text_Iter) {
 	state := state_get(ctx)
-
-	// font 
-	// assert(!(state.font < 0 || state.font >= len(ctx.fonts)))
-	res.font = &ctx.fonts[state.font]
+	res.font = font_get(ctx, state.font)
 	res.isize = i16(state.size * 10)
 	res.iblur = i16(state.blur)
 	res.scale = scale_for_pixel_height(res.font, f32(res.isize / 10))
@@ -200,13 +201,14 @@ text_iter_step :: proc(
 	iter: ^Text_Iter, 
 	quad: ^Quad,
 ) -> (ok: bool) {
-	for len(iter.text) > 0 {
-		b := iter.text[0]
-		iter.text = iter.text[1:]
+	for iter.byte_offset < len(iter.text) {
+		b := iter.text[iter.byte_offset]
+		iter.byte_offset += 1
 
 		if cutf8.decode(&iter.state, &iter.codepoint, b) {
 			iter.x = iter.nextx
 			iter.y = iter.nexty
+			iter.codepoint_count += 1
 			glyph := get_glyph(ctx, iter.font, iter.codepoint, iter.isize, iter.iblur)
 			
 			if glyph != nil {

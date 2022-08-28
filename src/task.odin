@@ -599,15 +599,16 @@ task_push_undoable :: proc(
 }
 
 task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
-	font_index, size := element_retrieve_font_options(box)
-	font := font_get(font_index)
-	fontstash.format_to_lines(
-		font,
-		i16(f32(size) * SCALE),
-		strings.to_string(box.builder),
-		max(300 * SCALE, width),
-		&box.wrapped_lines,
-	)
+
+// 	font_index, size := element_retrieve_font_options(box)
+// 	font := font_get(font_index)
+// 	fontstash.format_to_lines(
+// 		font,
+// 		i16(f32(size) * SCALE),
+// 		strings.to_string(box.builder),
+// 		max(300 * SCALE, width),
+// 		&box.wrapped_lines,
+// 	)
 }
 
 // iter through visible children
@@ -1252,13 +1253,14 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Layout: {
 			if task_head == task_tail && task.visible_index == task_head {
-				offset := x_offset(task, box)
-				font_index, size := element_retrieve_font_options(box)
-				font := font_get(font_index)
-				scaled_size := i16(f32(size) * SCALE)
-				x := box.bounds.l + offset
-				y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
-				caret_rect = box_layout_caret(box, font, scaled_size * 10, x, y)
+				// TODO LAYOUT
+				// offset := x_offset(task, box)
+				// font_index, size := element_retrieve_font_options(box)
+				// font := font_get(font_index)
+				// scaled_size := i16(f32(size) * SCALE)
+				// x := box.bounds.l + offset
+				// y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
+				// caret_rect = box_layout_caret(box, font, scaled_size * 10, x, y)
 			}
 		}
 
@@ -1268,58 +1270,58 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			box.bounds.t += math.round(mode_panel.margin_vertical / 2 * SCALE)
 			box.bounds.l += x_offset(task, box)
-			font_index, size := element_retrieve_font_options(box)
-			font := font_get(font_index)
-			scaled_size := i16(fcs_element(box))
+			// font_index, size := element_retrieve_font_options(box)
+			// font := font_get(font_index)
+			// scaled_size := i16(fcs_element(box))
 			// scaled_size := i16(f32(size) * SCALE)
 
-			// draw the search results outline
-			if draw_search_results && len(task.search_results) != 0 {
-				x := box.bounds.l
-				y := box.bounds.t
+			// // draw the search results outline
+			// if draw_search_results && len(task.search_results) != 0 {
+			// 	x := box.bounds.l
+			// 	y := box.bounds.t
 
-				for res in task.search_results {
-					color := search_index == search_draw_index ? theme.text_good : theme.text_bad
-					state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
+			// 	for res in task.search_results {
+			// 		color := search_index == search_draw_index ? theme.text_good : theme.text_bad
+			// 		state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
 
-					for wrap_state_iter(&state, int(res.low), int(res.high)) {
-						if state.rect_valid {
-							rect := state.rect
-							translated := rect_add(rect, rect_xxyy(x, y))
-							render_rect_outline(target, translated, color, 0)
-						}
-					}
+			// 		for wrap_state_iter(&state, int(res.low), int(res.high)) {
+			// 			if state.rect_valid {
+			// 				rect := state.rect
+			// 				translated := rect_add(rect, rect_xxyy(x, y))
+			// 				render_rect_outline(target, translated, color, 0)
+			// 			}
+			// 		}
 
-					search_draw_index += 1
-				}
-			}
+			// 		search_draw_index += 1
+			// 	}
+			// }
 
-			if task.state == .Canceled {
-				state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
-				// TODO ascent
-				font_ascent_scaled := f32(10)
-				// font_ascent_scaled := fontstash.ascent_pixel_size(font, f32(scaled_size))
+			// if task.state == .Canceled {
+			// 	state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
+			// 	// TODO ascent
+			// 	font_ascent_scaled := f32(10)
+			// 	// font_ascent_scaled := fontstash.ascent_pixel_size(font, f32(scaled_size))
 				
-				x := box.bounds.l
-				y := box.bounds.t
-				for wrap_line, i in box.wrapped_lines {
-					// TODO could be bad with new centering
+			// 	x := box.bounds.l
+			// 	y := box.bounds.t
+			// 	for wrap_line, i in box.wrapped_lines {
+			// 		// TODO could be bad with new centering
 
-					width := string_width(wrap_line)
-					// width := fontstash.string_width(font, scaled_size, wrap_line)
-					rect := rect_wh(x, y, width, f32(scaled_size))
-					render_text_strike_through(target, font_ascent_scaled, rect, theme.text_bad)
-					y += f32(scaled_size)
-				}
-			}
+			// 		width := string_width(wrap_line)
+			// 		// width := fontstash.string_width(font, scaled_size, wrap_line)
+			// 		rect := rect_wh(x, y, width, f32(scaled_size))
+			// 		render_text_strike_through(target, font_ascent_scaled, rect, theme.text_bad)
+			// 		y += f32(scaled_size)
+			// 	}
+			// }
 
- 			// paint selection before text
-			if task_head == task_tail && task.visible_index == task_head {
-				x := box.bounds.l
-				y := box.bounds.t
-				low, high := box_low_and_high(box)
-				box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
-			}
+ 		// 	// paint selection before text
+			// if task_head == task_tail && task.visible_index == task_head {
+			// 	x := box.bounds.l
+			// 	y := box.bounds.t
+			// 	low, high := box_low_and_high(box)
+			// 	box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
+			// }
 
 			task_box_paint_default(box)
 

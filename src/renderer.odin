@@ -24,7 +24,50 @@ Align_Horizontal :: fontstash.Align_Horizontal
 Align_Vertical :: fontstash.Align_Vertical
 DROP_SHADOW :: 20
 DEFAULT_VERTICES :: 1024 * 2
-Icon :: fontstash.Icon
+
+Icon :: enum {
+	Simple_Down = 0xeab2,
+	Simple_Right = 0xeab8,
+	Simple_Left = 0xeab5,
+		
+	Clock = 0xec3f,
+	Close = 0xec4f,
+	Check = 0xec4b,
+
+	Search = 0xed1b,
+	Search_Document = 0xed13,
+	Search_Map = 0xed16,
+
+	List = 0xef76,
+	UI_Calendar = 0xec45,
+	Stopwatch = 0xedcd,
+
+	Exclamation_Mark_Rounded = 0xef19,
+	Trash = 0xee09,
+
+	Bookmark = 0xeec0,
+	Tomato = 0xeb9a,
+	Clock_Time = 0xeedc,
+	Tag = 0xf004,
+
+	Caret_Right = 0xeac4,
+	Home = 0xef47,
+
+	Simple_Up = 0xeab9,
+
+	Arrow_Up = 0xea5e,
+	Arrow_Down = 0xea5b,
+
+	Locked = 0xef7a,
+	Unlocked = 0xf01b,
+
+	Cog = 0xefb0,
+	Sort = 0xefee,
+	Reply = 0xec7f,
+	Notebook = 0xefaa,
+	Archive = 0xeea5,
+	Copy = 0xedea,
+}
 
 Render_Target :: struct {
 	window_show: b32,
@@ -639,6 +682,34 @@ shallow_texture_init :: proc(
 // GLYPH
 //////////////////////////////////////////////
 
+// render a quad from the fontstash texture atlas
+render_glyph_quad :: proc(
+	target: ^Render_Target, 
+	group: ^Render_Group, 
+	state: ^fontstash.State,
+	q: ^fontstash.Quad,
+) {
+	v := render_target_push_vertices(target, group, 6)
+	v[0].uv_xy = { q.s0, q.t0 }
+	v[1].uv_xy = { q.s1, q.t0 }
+	v[2].uv_xy = { q.s0, q.t1 }
+	v[5].uv_xy = { q.s1, q.t1 }
+
+	v[0].pos_xy = { q.x0, q.y0 }
+	v[1].pos_xy = { q.x1, q.y0 }
+	v[2].pos_xy = { q.x0, q.y1 }
+	v[5].pos_xy = { q.x1, q.y1 }
+
+	v[3] = v[1]
+	v[4] = v[2]
+
+	for vertex in &v {
+		vertex.color = state.color
+		vertex.kind = .Glyph
+	}
+}
+
+// render string offset to alignment
 render_string_rect :: proc(
 	target: ^Render_Target,
 	rect: Rect,
@@ -661,62 +732,29 @@ render_string_rect :: proc(
 		case .Bottom: { y = rect.b }
 	}
 
-	iter := fontstash.text_iter_init(&gs.fc, x, y, text)
+	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
 	q: fontstash.Quad
 
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
-		v := render_target_push_vertices(target, group, 6)
-		v[0].uv_xy = { q.s0, q.t0 }
-		v[1].uv_xy = { q.s1, q.t0 }
-		v[2].uv_xy = { q.s0, q.t1 }
-		v[5].uv_xy = { q.s1, q.t1 }
-
-		v[0].pos_xy = { q.x0, q.y0 }
-		v[1].pos_xy = { q.x1, q.y0 }
-		v[2].pos_xy = { q.x0, q.y1 }
-		v[5].pos_xy = { q.x1, q.y1 }
-
-		v[3] = v[1]
-		v[4] = v[2]
-
-		for vertex in &v {
-			vertex.color = state.color
-			vertex.kind = .Glyph
-		}
+		render_glyph_quad(target, group, state, &q)
 	}
 
   return iter.nextx
 }
 
-render_string_test :: proc(
+// render a string at arbitrary xy
+render_string :: proc(
 	target: ^Render_Target,
 	x, y: f32,
 	text: string,
 ) -> f32 {
 	group := &target.groups[len(target.groups) - 1]
 	state := fontstash.state_get(&gs.fc)
-	iter := fontstash.text_iter_init(&gs.fc, x, y, text)
+	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
 	q: fontstash.Quad
 
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
-		v := render_target_push_vertices(target, group, 6)
-		v[0].uv_xy = { q.s0, q.t0 }
-		v[1].uv_xy = { q.s1, q.t0 }
-		v[2].uv_xy = { q.s0, q.t1 }
-		v[5].uv_xy = { q.s1, q.t1 }
-
-		v[0].pos_xy = { q.x0, q.y0 }
-		v[1].pos_xy = { q.x1, q.y0 }
-		v[2].pos_xy = { q.x0, q.y1 }
-		v[5].pos_xy = { q.x1, q.y1 }
-
-		v[3] = v[1]
-		v[4] = v[2]
-
-		for vertex in &v {
-			vertex.color = state.color
-			vertex.kind = .Glyph
-		}
+		render_glyph_quad(target, group, state, &q)
 	}
 
   return iter.nextx
@@ -736,67 +774,76 @@ render_text_strike_through :: proc(
 	render_rect(target, r, color, 0)
 }
 
-// render_icon :: proc(
-// 	target: ^Render_Target,
-// 	font: ^fontstash.Font,
-// 	icon: Icon,
-// 	x, y: f32,
-// 	color: Color,
-// 	pixel_size: i16,
-// ) -> Rect {
-// 	isize := i16(pixel_size * 10)
-// 	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
-// 	codepoint := rune(icon)
-// 	group := &target.groups[len(target.groups) - 1]
-// 	spacing := LETTER_SPACING * SCALE
+render_icon :: proc(
+	target: ^Render_Target,
+	x, y: f32,
+	icon: Icon,
+) -> f32 {
+	ctx := &gs.fc
+	state := fontstash.state_get(ctx)
+	group := &target.groups[len(target.groups) - 1]
+	font := fontstash.font_get(ctx, state.font)
+	isize := i16(state.size * 10)
+	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
 
-// 	x := x
-// 	y := y
-// 	y += fontstash.align_vertical(font, isize, .Top)
-// 	previous_glyph_index: fontstash.Glyph_Index
+	// get glyph codepoint manually	
+	codepoint := rune(icon)
+	glyph := fontstash.get_glyph(ctx, font, codepoint, isize, 0)
+	q: fontstash.Quad
+	x := x
+	y := y
 
-// 	render_glyph(
-// 		target,
-// 		group,
-// 		font,
+	if glyph != nil {
+		fontstash.get_quad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
+		render_glyph_quad(target, group, state, &q)
+	}
 
-// 		isize,
-// 		scale,
-// 		spacing,
-// 		color,
+	return x
+}
 
-// 		&previous_glyph_index,
-// 		codepoint,
-// 		&x, &y,
-// 	)
+render_icon_rect :: proc(
+	target: ^Render_Target,
+	rect: Rect,
+	icon: Icon,
+) -> f32 {
+	ctx := &gs.fc
+	state := fontstash.state_get(&gs.fc)
+	group := &target.groups[len(target.groups) - 1]
+	font := fontstash.font_get(ctx, state.font)
+	isize := i16(state.size * 10)
+	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
 
-// 	// return rect_wh(
-// 	// 	x,
-// 	// 	y,
-// 	// 	delta,
-// 	// 	pixel_size,
-// 	// )
-// 	return {}
-// }
+	x: f32
+	y: f32
+	switch state.ah {
+		case .Left: { x = rect.l }
+		case .Middle: { 
+			width := fontstash.codepoint_width(font, rune(icon), scale)
+			x = rect.l + rect_width_halfed(rect) - width / 2
+		}
+		case .Right: { x = rect.r }
+	}
+	switch state.av {
+		case .Top: { y = rect.t }
+		case .Middle: { y = rect.t + rect_height_halfed(rect) }
+		case .Baseline: { y = rect.t }
+		case .Bottom: { y = rect.b }
+	}
 
-// render_icon_aligned :: proc(
-// 	target: ^Render_Target,
-// 	font: ^Font,
-// 	icon: Icon,
-// 	r: Rect,
-// 	color: Color,
-// 	ah: Align_Horizontal = .Middle,
-// 	av: Align_Vertical = .Middle,
-// 	pixel_size: i16,
-// ) -> Rect {
-// 	// icon_width := fontstash.icon_width(font, pixel_size, icon)
-// 	// // x_offset := f32(0);
-// 	// x_offset := fontstash.align_horizontal(font, pixel_size, icon_width, rect_width(r), ah)
-// 	// y_offset := fontstash.align_vertical(font, pixel_size, av)
-// 	// // y_offset := f32(0);
-// 	// return render_icon(target, font, icon, r.l + x_offset, r.t + y_offset, color, pixel_size)
-// 	return {}
-// }
+	y += fontstash.get_vertical_align(font, isize, state.av)
+
+	// get glyph codepoint manually	
+	codepoint := rune(icon)
+	glyph := fontstash.get_glyph(ctx, font, codepoint, isize, 0)
+	q: fontstash.Quad
+
+	if glyph != nil {
+		fontstash.get_quad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
+		render_glyph_quad(target, group, state, &q)
+	}
+
+  return x
+}
 
 render_texture_from_kind :: proc(
 	target: ^Render_Target,

@@ -714,8 +714,10 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 		render_rect_outline(target, button.bounds, text_color)
 	}
 
-	icon_size := i16(DEFAULT_ICON_SIZE * SCALE)
-	// render_icon_aligned(target, font_icon, button.icon, button.bounds, text_color, .Middle, .Middle, icon_size)
+	fcs_icon()
+	fcs_ahv()
+	fcs_color(text_color)
+	render_icon_rect(target, button.bounds, button.icon)
 }
 
 icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -741,11 +743,8 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Get_Width: {
-			icon_size := DEFAULT_ICON_SIZE * SCALE
-			// TODO icon width
-			icon_width := f32(100)
-			// icon_width := fontstash.icon_width(font_icon, icon_size, button.icon) 
-			return int(icon_width + TEXT_MARGIN_HORIZONTAL * SCALE)
+			w := icon_width(button.icon)
+			return int(w + TEXT_MARGIN_HORIZONTAL * SCALE)
 		}
 
 		case .Get_Height: {
@@ -895,7 +894,6 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			fcs_color(text_color)
 			text := strings.to_string(slider.builder)
 			render_string_rect(target, element.bounds, text)
-			// erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
 		}
 
 		case .Get_Cursor: {
@@ -1043,14 +1041,6 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			fcs_ahv(.Left, .Middle)
 			fcs_color(text_color)
 			render_string_rect(target, text_bounds, strings.to_string(box.builder))
-			// erender_string_aligned(
-			// 	element,
-			// 	strings.to_string(box.builder),
-			// 	text_bounds,
-			// 	text_color,
-			// 	.Left,
-			// 	.Middle,
-			// )
 		}
 
 		case .Clicked: {
@@ -1908,7 +1898,6 @@ table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			for word in strings.split_iterator(&mod, "\t") {
 				header.r = header.l + table.column_widths[index]
 				render_string_rect(target, header, word)
-				// erender_string_aligned(element, word, header, text_color, .Left, .Middle)
 				header.l += table.column_widths[index] + TABLE_COLUMN_GAP * SCALE
 				index += 1	
 			}
@@ -2781,19 +2770,16 @@ radial_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		case .Paint_Recursive: {
 			target := element.window.target
 			text_color := theme.text_default
-			// render_rect_outline(target, element.bounds, theme.text_default)
 
 			render_arc(target, element.bounds, BLACK, 13 * SCALE, 3.14, 0)
 			render_arc(target, rect_margin(element.bounds, 2 * SCALE), GREEN, 10 * SCALE, gauge.position * math.PI, 0)
 
 			text := fmt.tprintf("%s: %d%%", gauge.text, int(gauge.position * 100))
 
-			// text := strings.to_string(gauge.builder)
 			fcs_element(element)
 			fcs_ahv()
 			fcs_color(text_color)
 			render_string_rect(target, element.bounds, text)
-			// erender_string_aligned(element, text, element.bounds, text_color, .Middle, .Middle)
 		}
 
 		case .Get_Width: {
@@ -2907,31 +2893,3 @@ image_display_init :: proc(
 image_display_has_content :: #force_inline proc(display: ^Image_Display) -> bool {
 	return display.img != nil && display.img.loaded && display.img.handle_set
 }
-
-//////////////////////////////////////////////
-// font size helpers
-//////////////////////////////////////////////
-
-Font_Options :: struct {
-	font: int,
-	size: f32,
-}
-
-element_retrieve_font_options :: proc(element: ^Element) -> (font: int, size: f32) {
-	// default
-	if element.font_options == nil {
-		font = font_regular
-		size = DEFAULT_FONT_SIZE
-	} else {
-		font = element.font_options.font
-		size = element.font_options.size
-	}
-
-	return 
-}
-
-efont_size :: proc(element: ^Element) -> f32 {
-	_, size := element_retrieve_font_options(element)
-	scaled_size := f32(size) * SCALE * 10
-	return f32(i16(scaled_size) / 10)
-}	

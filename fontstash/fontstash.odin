@@ -26,50 +26,6 @@ import "../cutf8"
 // *optional* immediate style usage
 // expands by default
 
-Icon :: enum {
-	Simple_Down = 0xeab2,
-	Simple_Right = 0xeab8,
-	Simple_Left = 0xeab5,
-		
-	Clock = 0xec3f,
-	Close = 0xec4f,
-	Check = 0xec4b,
-
-	Search = 0xed1b,
-	Search_Document = 0xed13,
-	Search_Map = 0xed16,
-
-	List = 0xef76,
-	UI_Calendar = 0xec45,
-	Stopwatch = 0xedcd,
-
-	Exclamation_Mark_Rounded = 0xef19,
-	Trash = 0xee09,
-
-	Bookmark = 0xeec0,
-	Tomato = 0xeb9a,
-	Clock_Time = 0xeedc,
-	Tag = 0xf004,
-
-	Caret_Right = 0xeac4,
-	Home = 0xef47,
-
-	Simple_Up = 0xeab9,
-
-	Arrow_Up = 0xea5e,
-	Arrow_Down = 0xea5b,
-
-	Locked = 0xef7a,
-	Unlocked = 0xf01b,
-
-	Cog = 0xefb0,
-	Sort = 0xefee,
-	Reply = 0xec7f,
-	Notebook = 0xefaa,
-	Archive = 0xeea5,
-	Copy = 0xedea,
-}
-
 STATE_MAX :: 20
 LUT_SIZE :: 256
 INIT_GLYPHS :: 256
@@ -396,7 +352,7 @@ font_push :: proc(
 	return res
 }
 
-font_hash :: proc(a: u32) -> u32 {
+hash_value :: proc(a: u32) -> u32 {
 	a := a
 	a += ~(a << 15)
 	a ~=  (a >> 10)
@@ -444,7 +400,7 @@ get_glyph :: proc(
 	}
 
 	// find code point and size
-	h := font_hash(u32(codepoint)) & (LUT_SIZE - 1)
+	h := hash_value(u32(codepoint)) & (LUT_SIZE - 1)
 	i := font.lut[h]
 	for i != -1 {
 		glyph := &font.glyphs[i]
@@ -739,9 +695,22 @@ glyph_kern_advance :: proc(font: ^Font, glyph1, glyph2: Glyph_Index) -> i32 {
 	return stbtt.GetGlyphKernAdvance(&font.info, glyph1, glyph2)
 }
 
+// get a font with bounds checking
 font_get :: proc(ctx: ^Font_Context, index: int, loc := #caller_location) -> ^Font #no_bounds_check {
 	runtime.bounds_check_error_loc(loc, index, len(ctx.fonts))
 	return &ctx.fonts[index]
+}
+
+// only useful for single glyphs where you quickly want the width
+codepoint_width :: proc(
+	font: ^Font,
+	codepoint: rune,
+	scale: f32,
+) -> f32 {
+	glyph_index := get_glyph_index(font, codepoint)
+	xadvance, lsb: i32
+	stbtt.GetGlyphHMetrics(&font.info, glyph_index, &xadvance, &lsb)
+	return f32(xadvance) * scale
 }
 
 // get top and bottom line boundary
@@ -812,7 +781,7 @@ align_vertical :: proc(
 // wrap a string to a width limit where the result are the strings seperated to the width limit
 format_to_lines :: proc(
 	font: ^Font, 
-	pixel_size: i16,
+	pixel_size: f32,
 	text: string,
 	width_limit: f32,
 	lines: ^[dynamic]string,
@@ -870,6 +839,90 @@ format_to_lines :: proc(
 	if width_line <= width_limit {
 		append(lines, text[index_line_start:])
 	}
+}
+
+// wrap a string to a width limit where the result are the strings seperated to the width limit
+format_to_lines_custom :: proc(
+	ctx: ^Font_Context,
+	font: ^Font,
+	pixel_size: f32,
+	text: string,
+	width_limit: f32,
+	lines: ^[dynamic]string,
+) {
+	clear(lines)
+	iter := text_iter_init(ctx, text, 0, 0)
+	q: Quad
+	last_byte_offset: int
+	last_x: f32
+	last_line_x: f32
+
+	for text_iter_step(ctx, &iter, &q) {
+		if last_x > width_limit {
+			append(lines, text[last_byte_offset:iter.byte_offset])
+			last_byte_offset = iter.byte_offset
+			last_line_x = iter.nextx
+		}
+
+		last_x = iter.nextx - last_line_x
+	}
+
+	if last_x <= width_limit {
+		append(lines, text[last_byte_offset:iter.byte_offset])
+	}
+
+	// scale := scale_for_pixel_height(font, f32(pixel_size))
+	
+	// // normal data
+	// index_last: int
+	// index_line_start: int
+	// codepoint_count: int
+	// width_codepoint: f32
+
+	// // word data
+	// index_word_start: int = -1
+	// width_word: f32
+	// width_line: f32
+	// ds: cutf8.Decode_State
+
+	// for codepoint, i in cutf8.ds_iter(&ds, text) {
+	// 	width_codepoint = codepoint_xadvance(font, codepoint, scale)
+
+	// 	// set first valid index
+	// 	if index_word_start == -1 {
+	// 		index_word_start = i
+	// 	}
+
+	// 	// set the word index, reset width
+	// 	if index_word_start != -1 && codepoint == ' ' {
+	// 		index_word_start = -1
+	// 		width_word = 0
+	// 	}
+
+	// 	// add widths
+	// 	width_line += width_codepoint
+	// 	width_word += width_codepoint
+		
+	// 	if width_line > width_limit {
+	// 		if !unicode.is_space(codepoint) {
+	// 			append(lines, text[index_line_start:index_word_start])
+	// 			index_line_start = index_word_start
+	// 			width_line = width_word
+	// 		} else {
+	// 			append(lines, text[index_line_start:codepoint_count])
+	// 			index_line_start = codepoint_count
+	// 			width_line = width_word
+	// 		}
+	// 	}
+
+	// 	index_last = i
+	// 	codepoint_count += 1
+	// }
+
+	// // get rest in
+	// if width_line <= width_limit {
+	// 	append(lines, text[index_line_start:])
+	// }
 }
 
 // getting the right index into the now cut lines of strings
