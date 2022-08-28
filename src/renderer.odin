@@ -612,7 +612,7 @@ render_glyph :: proc(
 	x, y: ^f32,
 ) #no_bounds_check {
 	color := color
-	glyph, pushed := fontstash.get_glyph(&gs.fc, font, isize, codepoint)
+	glyph, pushed := fontstash.get_glyph(&gs.fc, font, codepoint, isize)
 	
 	if glyph == nil {
 		previous_glyph_index^ = -1

@@ -25,6 +25,9 @@ import "../cutf8"
 // leaves GPU vertex creation & texture management up to the user
 // no immediate style state -> can be built on top
 
+// TODO also keep vertices pushing to a limit?
+// TODO use i16 for blur
+
 Icon :: enum {
 	Simple_Down = 0xeab2,
 	Simple_Right = 0xeab8,
@@ -69,6 +72,7 @@ Icon :: enum {
 	Copy = 0xedea,
 }
 
+STATE_MAX :: 20
 LUT_SIZE :: 256
 INIT_GLYPHS :: 256
 ATLAS_NODES :: 256
@@ -95,11 +99,11 @@ align_vertical :: proc(
 ) -> f32 {
 	switch av {
 		case .Top: {
-			return f32(font.ascent) * f32(pixel_size / 10)
+			return f32(font.ascender) * f32(pixel_size / 10)
 		}
 
 		case .Middle: {
-			return f32(font.ascent + font.descent) / 2 * f32(pixel_size / 10)
+			return f32(font.ascender + font.descender) / 2 * f32(pixel_size / 10)
 		}
 
 		case .Baseline: {
@@ -107,7 +111,7 @@ align_vertical :: proc(
 		}
 
 		case .Bottom: {
-			return f32(font.descent) * f32(pixel_size / 10)
+			return f32(font.descender) * f32(pixel_size / 10)
 		}
 	}
 
@@ -142,8 +146,8 @@ Font :: struct {
 	info: stbtt.fontinfo,
 	loaded_data: []byte,
 
-	ascent: f32,
-	descent: f32,
+	ascender: f32,
+	descender: f32,
 	line_height: f32,
 
 	glyphs: [dynamic]Glyph,
@@ -165,6 +169,12 @@ Atlas_Node :: struct {
 	x, y, width: i16,
 }
 
+Vertex :: struct #packed {
+	x, y: f32,
+	u, v: f32,
+	color: [4]u8,
+}
+
 Font_Context :: struct {
 	fonts: [dynamic]Font, // allocated using context.allocator
 
@@ -178,6 +188,18 @@ Font_Context :: struct {
 
 	// 1 / w, 1 / h
 	itw, ith: f32,
+
+	// state 
+	states: []State,
+ 	state_count: int, // used states
+ 	
+ 	vertices: [dynamic]Vertex,
+
+ 	// dirty rectangle of the texture region that was updated
+ 	dirty_rect: [4]f32,
+
+ 	// callbacks to be used in a renderer
+ 	// render_update: proc() 
 }
 
 init :: proc(using ctx: ^Font_Context, w, h: int) {
@@ -190,10 +212,19 @@ init :: proc(using ctx: ^Font_Context, w, h: int) {
 	width = w
 	height = h
 	nodes = make([dynamic]Atlas_Node, 0, ATLAS_NODES)
+	dirty_rect_reset(ctx)
 
-	append(&nodes, Atlas_Node {
-		width = i16(w),
-	})
+	states = make([]State, STATE_MAX)
+	vertices = make([dynamic]Vertex, 0, 2048)
+
+	// append(&nodes, Atlas_Node {
+	// 	width = i16(w),
+	// })
+
+	font_atlas_add_white_rect(ctx, 2, 2)
+
+	state_push(ctx)
+	state_clear(ctx)
 }
 
 destroy :: proc(using ctx: ^Font_Context) {
@@ -202,6 +233,8 @@ destroy :: proc(using ctx: ^Font_Context) {
 		delete(font.glyphs)
 	}
 
+	delete(vertices)
+	delete(states)
 	delete(texture_data)
 	delete(fonts)
 	delete(nodes)
@@ -367,6 +400,11 @@ font_atlas_add_white_rect :: proc(ctx: ^Font_Context, w, h: int) {
 
 		dst = dst[ctx.width:]
 	}
+
+	ctx.dirty_rect[0] = cast(f32) min(int(ctx.dirty_rect[0]), gx)
+	ctx.dirty_rect[1] = cast(f32) min(int(ctx.dirty_rect[1]), gy)
+	ctx.dirty_rect[2] = cast(f32) max(int(ctx.dirty_rect[2]), gx + w)
+	ctx.dirty_rect[3] = cast(f32) max(int(ctx.dirty_rect[3]), gy + h)
 }
 
 font_push :: proc(
@@ -388,8 +426,8 @@ font_push :: proc(
 	a, d, l: i32
 	stbtt.GetFontVMetrics(&res.info, &a, &d, &l)
 	fh := f32(a - d)
-	res.ascent = f32(a) / fh
-	res.descent = f32(d) / fh
+	res.ascender = f32(a) / fh
+	res.descender = f32(d) / fh
 	res.line_height = f32(l) / fh
 	res.glyphs = make([dynamic]Glyph, 0, INIT_GLYPHS)
 
@@ -402,7 +440,7 @@ font_push :: proc(
 		scale := scale_for_pixel_height(res, f32(isize / 10))
 
 		for i in 0..<95 {
-			get_glyph(ctx, res, isize, rune(32 + i))
+			get_glyph(ctx, res, rune(32 + i), isize)
 		}
 	}
 
@@ -448,8 +486,8 @@ font_build_glyph_bitmap :: proc(
 get_glyph :: proc(
 	ctx: ^Font_Context,
 	font: ^Font,
-	isize: i16,
 	codepoint: rune,
+	isize: i16,
 	blur_size: u8 = 0,
 ) -> (res: ^Glyph, pushed: bool) #no_bounds_check {
 	if isize < 2 {
@@ -559,6 +597,11 @@ get_glyph :: proc(
 		font_blur(dst, int(gw), int(gh), ctx.width, blur_size)
 	}
 
+	ctx.dirty_rect[0] = cast(f32) min(int(ctx.dirty_rect[0]), int(res.x0))
+	ctx.dirty_rect[1] = cast(f32) min(int(ctx.dirty_rect[1]), int(res.y0))
+	ctx.dirty_rect[2] = cast(f32) max(int(ctx.dirty_rect[2]), int(res.x1))
+	ctx.dirty_rect[3] = cast(f32) max(int(ctx.dirty_rect[3]), int(res.y1))
+
 	pushed = true
 	return
 }
@@ -664,6 +707,24 @@ expand_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := contex
 	delete(ctx.texture_data)
 	ctx.texture_data = data
 
+	// increase atlas size
+	font_atlas_expand(ctx, width, height)
+
+	// add existing data as dirty
+	maxy := i16(0)
+	for node in ctx.nodes {
+		maxy = max(maxy, node.y)
+	}
+	ctx.dirty_rect[0] = 0
+	ctx.dirty_rect[1] = 0
+	ctx.dirty_rect[2] = f32(ctx.width)
+	ctx.dirty_rect[3] = f32(maxy)
+
+	ctx.width = width
+	ctx.height = height
+	ctx.itw = 1.0 / f32(width)
+	ctx.ith = 1.0 / f32(height)
+
 	return true
 }
 
@@ -676,8 +737,24 @@ reset_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := context
 		ctx.texture_data = make([]byte, width * height, allocator)
 	}
 
-	// TODO font resetting
-	// for f
+	ctx.dirty_rect[0] = f32(width)
+	ctx.dirty_rect[1] = f32(height)
+	ctx.dirty_rect[2] = 0
+	ctx.dirty_rect[3] = 0
+
+	// reset fonts
+	for font in &ctx.fonts {
+		clear(&font.glyphs)
+
+		for i in 0..<LUT_SIZE {
+			font.lut[i] = -1
+		}
+	}
+
+	ctx.width = width
+	ctx.height = height
+	ctx.itw = 1.0 / f32(width)
+	ctx.ith = 1.0 / f32(height)
 
 	font_atlas_add_white_rect(ctx, 2, 2)
 	return true
@@ -688,12 +765,12 @@ reset_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := context
 /////////////////////////////////
 
 ascent_scaled :: proc(font: ^Font, scale: f32) -> f32 {
-	return f32(font.ascent) * scale
+	return f32(font.ascender) * scale
 }
 
 ascent_pixel_size :: proc(font: ^Font, pixel_size: f32) -> f32 {
 	scale := stbtt.ScaleForPixelHeight(&font.info, pixel_size)
-	return f32(font.ascent) * scale
+	return f32(font.ascender) * scale
 }
 
 get_glyph_index :: proc(font: ^Font, codepoint: rune) -> Glyph_Index {
