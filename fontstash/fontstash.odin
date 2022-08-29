@@ -779,38 +779,36 @@ align_vertical :: proc(
 //////////////////////////////////////////////
 
 // wrap a string to a width limit where the result are the strings seperated to the width limit
-format_to_lines :: proc(
-	font: ^Font, 
-	pixel_size: f32,
+wrap_format_to_lines :: proc(
+	ctx: ^Font_Context,
 	text: string,
 	width_limit: f32,
 	lines: ^[dynamic]string,
 ) {
 	clear(lines)
-	scale := scale_for_pixel_height(font, f32(pixel_size))
-	
-	// normal data
+	iter := text_iter_init(ctx, text, 0, 0)
+	q: Quad
+	last_byte_offset: int
+
 	index_last: int
 	index_line_start: int
-	codepoint_count: int
-	width_codepoint: f32
-
-	// word data
 	index_word_start: int = -1
+
+	// widths
+	width_codepoint: f32
 	width_word: f32
 	width_line: f32
-	ds: cutf8.Decode_State
 
-	for codepoint, i in cutf8.ds_iter(&ds, text) {
-		width_codepoint = codepoint_xadvance(font, codepoint, scale)
+	for text_iter_step(ctx, &iter, &q) {
+		width_codepoint = iter.nextx - iter.x
 
 		// set first valid index
 		if index_word_start == -1 {
-			index_word_start = i
+			index_word_start = last_byte_offset
 		}
 
 		// set the word index, reset width
-		if index_word_start != -1 && codepoint == ' ' {
+		if index_word_start != -1 && iter.codepoint == ' ' {
 			index_word_start = -1
 			width_word = 0
 		}
@@ -820,132 +818,100 @@ format_to_lines :: proc(
 		width_word += width_codepoint
 		
 		if width_line > width_limit {
-			if !unicode.is_space(codepoint) {
+			if !unicode.is_space(iter.codepoint) {
 				append(lines, text[index_line_start:index_word_start])
 				index_line_start = index_word_start
 				width_line = width_word
 			} else {
-				append(lines, text[index_line_start:codepoint_count])
-				index_line_start = codepoint_count
+				append(lines, text[index_line_start:iter.byte_offset])
+				index_line_start = iter.byte_offset
 				width_line = width_word
 			}
 		}
 
-		index_last = i
-		codepoint_count += 1
+		index_last = last_byte_offset
+		last_byte_offset = iter.byte_offset
 	}
 
-	// get rest in
 	if width_line <= width_limit {
 		append(lines, text[index_line_start:])
 	}
 }
 
-// wrap a string to a width limit where the result are the strings seperated to the width limit
-format_to_lines_custom :: proc(
-	ctx: ^Font_Context,
-	font: ^Font,
-	pixel_size: f32,
-	text: string,
-	width_limit: f32,
-	lines: ^[dynamic]string,
-) {
-	clear(lines)
-	iter := text_iter_init(ctx, text, 0, 0)
-	q: Quad
-	last_byte_offset: int
-	last_x: f32
-	last_line_x: f32
-
-	for text_iter_step(ctx, &iter, &q) {
-		if last_x > width_limit {
-			append(lines, text[last_byte_offset:iter.byte_offset])
-			last_byte_offset = iter.byte_offset
-			last_line_x = iter.nextx
-		}
-
-		last_x = iter.nextx - last_line_x
-	}
-
-	if last_x <= width_limit {
-		append(lines, text[last_byte_offset:iter.byte_offset])
-	}
-
-	// scale := scale_for_pixel_height(font, f32(pixel_size))
-	
-	// // normal data
-	// index_last: int
-	// index_line_start: int
-	// codepoint_count: int
-	// width_codepoint: f32
-
-	// // word data
-	// index_word_start: int = -1
-	// width_word: f32
-	// width_line: f32
-	// ds: cutf8.Decode_State
-
-	// for codepoint, i in cutf8.ds_iter(&ds, text) {
-	// 	width_codepoint = codepoint_xadvance(font, codepoint, scale)
-
-	// 	// set first valid index
-	// 	if index_word_start == -1 {
-	// 		index_word_start = i
-	// 	}
-
-	// 	// set the word index, reset width
-	// 	if index_word_start != -1 && codepoint == ' ' {
-	// 		index_word_start = -1
-	// 		width_word = 0
-	// 	}
-
-	// 	// add widths
-	// 	width_line += width_codepoint
-	// 	width_word += width_codepoint
-		
-	// 	if width_line > width_limit {
-	// 		if !unicode.is_space(codepoint) {
-	// 			append(lines, text[index_line_start:index_word_start])
-	// 			index_line_start = index_word_start
-	// 			width_line = width_word
-	// 		} else {
-	// 			append(lines, text[index_line_start:codepoint_count])
-	// 			index_line_start = codepoint_count
-	// 			width_line = width_word
-	// 		}
-	// 	}
-
-	// 	index_last = i
-	// 	codepoint_count += 1
-	// }
-
-	// // get rest in
-	// if width_line <= width_limit {
-	// 	append(lines, text[index_line_start:])
-	// }
-}
-
 // getting the right index into the now cut lines of strings
-codepoint_index_to_line :: proc(lines: []string, head: int, loc := #caller_location) -> (y: int, index: int) {
-	assert(len(lines) != 0, "Lines should have valid content of lines > 1", loc)
+wrap_codepoint_index_to_line :: proc(
+	lines: []string, 
+	codepoint_index: int, 
+	loc := #caller_location,
+) -> (y: int, index: int) {
+	assert(len(lines) > 0, "Lines should have valid content of lines > 0", loc)
 
-	if head == 0 || len(lines) == 1 {
+	if codepoint_index == 0 || len(lines) == 1 {
 		return
 	}
-	
-	total_size: int
+
+	// need to care about utf8 sized codepoints
+	total_byte_offset: int
+	last_byte_offset: int
+	total_codepoint_count: int
 	for line, i in lines {
 		codepoint_count := cutf8.count(line)
 
-		if head <= total_size + codepoint_count {
+		if codepoint_index < total_codepoint_count + codepoint_count {
 			y = i
-			index = total_size
+			index = total_byte_offset - 1
 			return
 		}
 
-		total_size += codepoint_count
+		total_codepoint_count += codepoint_count
+		last_byte_offset = total_byte_offset
+		total_byte_offset += len(line)
 	}
 
-	y = -1
+	if codepoint_index == total_codepoint_count {
+		index = last_byte_offset
+		log.info("GOT HERE")
+		y = len(lines) - 1
+	}
+
+	// y = -1
+	return
+}
+
+// returns the logical position of a caret without offsetting
+// can be used on single lines of text or wrapped lines of text
+wrap_layout_caret :: proc(
+	ctx: ^Font_Context,
+	wrapped_lines: []string, // using the resultant lines
+	codepoint_index: int, // in codepoint_index, not byte_offset
+	loc := #caller_location,
+) -> (x_offset: f32, line: int) {
+	assert(len(wrapped_lines) > 0, "Lines should have valid content of lines > 0", loc)
+
+	// get wanted line and byte index offset
+	index_start: int
+	line, index_start = wrap_codepoint_index_to_line(
+		wrapped_lines, 
+		codepoint_index,
+	)
+
+	q: Quad
+	text := wrapped_lines[line]
+	goal := codepoint_index - index_start
+	iter := text_iter_init(ctx, text)
+
+	// still till the goal position is reached and use x position
+	for text_iter_step(ctx, &iter, &q) {
+		if iter.codepoint_count >= goal {
+			break
+		}
+	}
+
+	if codepoint_index == iter.codepoint_count {
+		x_offset = iter.nextx
+	} else {
+		x_offset = iter.x
+	}
+
 	return
 }

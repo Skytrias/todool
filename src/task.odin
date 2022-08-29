@@ -599,16 +599,15 @@ task_push_undoable :: proc(
 }
 
 task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
+	fcs_element(box)
+	fcs_ahv(.Left, .Top)
 
-// 	font_index, size := element_retrieve_font_options(box)
-// 	font := font_get(font_index)
-// 	fontstash.format_to_lines(
-// 		font,
-// 		i16(f32(size) * SCALE),
-// 		strings.to_string(box.builder),
-// 		max(300 * SCALE, width),
-// 		&box.wrapped_lines,
-// 	)
+	fontstash.wrap_format_to_lines(
+		&gs.fc,
+		strings.to_string(box.builder),
+		max(300 * SCALE, width),
+		&box.wrapped_lines,
+	)
 }
 
 // iter through visible children
@@ -1253,14 +1252,14 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Layout: {
 			if task_head == task_tail && task.visible_index == task_head {
-				// TODO LAYOUT
-				// offset := x_offset(task, box)
+				offset := x_offset(task, box)
 				// font_index, size := element_retrieve_font_options(box)
 				// font := font_get(font_index)
 				// scaled_size := i16(f32(size) * SCALE)
-				// x := box.bounds.l + offset
-				// y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
-				// caret_rect = box_layout_caret(box, font, scaled_size * 10, x, y)
+				scaled_size := efont_size(box)
+				x := box.bounds.l + offset
+				y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
+				caret_rect = box_layout_caret(box, scaled_size, x, y)
 			}
 		}
 
@@ -1625,7 +1624,6 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 									render_rect(target, r, tag_color, ROUNDNESS)
 									fcs_color(theme_panel(.Front))
 									render_string_rect(target, r, text)
-									// render_string_aligned(target, font, text, r, theme_panel(.Front), .Middle, .Middle, scaled_size)
 								}
 							}
 
@@ -1981,7 +1979,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 	if msg == .Layout {
 		bounds := element.bounds
-		log.info("BOUNDS", element.bounds, window_rect(window_main))
+		// log.info("BOUNDS", element.bounds, window_rect(window_main))
 
 		if .Hide not_in panel_search.flags {
 			bot := rect_cut_bottom(&bounds, math.round(50 * SCALE))
@@ -2038,6 +2036,7 @@ tasks_load_default :: proc() {
 	task_push(0, "one")
 	task_push(1, "two")
 	task_push(2, "three")
+	task_push(2, "just some long line of textjust some long line of textjust some long line of textjust some long line of textjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of text")
 	task_head = 0
 	task_tail = 0
 }

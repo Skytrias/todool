@@ -427,6 +427,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			offset := 5 * SCALE
 			text := strings.to_string(box.builder)
 			scaled_size := fcs_element(element)
+			fcs_ahv(.Left, .Top)
 			text_width := string_width(text) - offset
 			caret_x: f32
 
@@ -472,26 +473,12 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			// }
 
 			render_rect_outline(target, old_bounds, color)
-
-			// if element.window.focused == element {
-			// 	// log.info("rendering outline")
-			// 	render_rect_outline(target, old_bounds, RED)
-			// }
+			fcs_color(color)
 
 			// draw each wrapped line
 			y: f32
 			for wrap_line, i in box.wrapped_lines {
 				render_string(target, element.bounds.l - box.scroll, element.bounds.t + y, wrap_line)
-
-				// render_string(
-				// 	target,
-				// 	font,
-				// 	wrap_line,
-				// 	element.bounds.l - box.scroll,
-				// 	element.bounds.t + y,
-				// 	color,
-				// 	scaled_size,
-				// )
 				y += f32(scaled_size)
 			}
 		}
@@ -601,6 +588,7 @@ task_box_paint_default :: proc(box: ^Task_Box) {
 	color: Color
 	element_message(box, .Box_Text_Color, 0, &color)
 
+	fcs_ahv(.Left, .Top)
 	fcs_color(color)
 
 	// draw each wrapped line
@@ -1113,43 +1101,16 @@ box_low_and_high :: proc(box: ^Box) -> (low, high: int) {
 // layout textual caret
 box_layout_caret :: proc(
 	box: ^Box,
-	font: ^Font,
-	scaled_size: i16,
+	scaled_size: f32,
 	x, y: f32,
 ) -> Rect {
-	// wrapped line based caret
-	wanted_line, index_start := fontstash.codepoint_index_to_line(
-		box.wrapped_lines[:], 
-		box.head,
-	)
-
-	goal := box.head - index_start
-	text := box.wrapped_lines[wanted_line]
-	low_width: f32
-	// scale := fontstash.scale_for_pixel_height(font, scaled_size)
-	// xadvance, lsb: i32
-
-	// iter till join
-	ds: cutf8.Decode_State
-	for codepoint, i in cutf8.ds_iter(&ds, text) {
-		if i >= goal {
-			break
-		}
-
-		glyph := fontstash.get_glyph(&gs.fc, font, codepoint, scaled_size)
-		if glyph != nil {
-			low_width += f32(glyph.xadvance) / 10
-		}
-	}
-
-	caret_rect := rect_wh(
-		x + low_width,
-		y + f32(wanted_line) * f32(scaled_size),
+	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
+	return rect_wh(
+		x + caret_x,
+		y + f32(line) * scaled_size,
 		math.round(2 * SCALE),
-		f32(scaled_size),
+		scaled_size,
 	)
-
-	return caret_rect
 }
 
 Wrap_State :: struct {

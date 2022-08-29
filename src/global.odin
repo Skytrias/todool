@@ -2091,19 +2091,6 @@ Font_Options :: struct {
 	size: f32,
 }
 
-// element_retrieve_font_options :: proc(element: ^Element) -> (font: int, size: f32) {
-// 	// default
-// 	if element.font_options == nil {
-// 		font = font_regular
-// 		size = DEFAULT_FONT_SIZE
-// 	} else {
-// 		font = element.font_options.font
-// 		size = element.font_options.size
-// 	}
-
-// 	return 
-// }
-
 efont_size :: proc(element: ^Element) -> f32 {
 	scaled_size := f32(element.font_options == nil ? DEFAULT_FONT_SIZE : element.font_options.size) * SCALE * 10
 	return f32(i16(scaled_size) / 10)
