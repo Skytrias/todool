@@ -1375,6 +1375,11 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				dragging = false
 				element_hide(drag_panel, true)
 
+				// remove task on invalid
+				if drag_index_at == -1 {
+					return 0
+				}
+
 				// find lowest indentation 
 				lowest_indentation := 255
 				for i in 0..<len(drag_list) {
@@ -1384,7 +1389,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 				drag_indentation: int
 
-				if task_head != -1 && drag_index_at != -1 {
+				if task_head != -1 {
 					drag_indentation = tasks_visible[drag_index_at].indentation
 				}
 

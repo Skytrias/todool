@@ -435,6 +435,11 @@ window_rect :: #force_inline proc(window: ^Window) -> Rect {
 	return { 0, window.widthf, 0, window.heightf }
 }
 
+window_mouse_inside :: proc(window: ^Window) -> bool {
+	rect := window_rect(window)
+	return rect_contains(rect, window.cursor_x, window.cursor_y)
+}
+
 // get xy
 window_get_position :: proc(window: ^Window) -> (int, int) {
 	x, y: i32
@@ -962,6 +967,13 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 			}
 
 			if combo, ok := window_build_combo(window, e.key); ok {
+				// // log.info("CALLED", combo)
+				// if menus_open() {
+				// 	// menus_close()
+				// 	// window.ignore_text_input = true
+					// 	// return
+				// }
+
 				if window_input_event(window, .Key_Combination, 0, &combo) {
 					window.ignore_text_input = true
 				}
@@ -1351,6 +1363,15 @@ gs_process_events :: proc() {
 	// iterate events
 	event: sdl.Event
 	for sdl.PollEvent(&event) {
+		// lookup keydown event to quit menus early
+		if event.type == .KEYDOWN	{
+			if event.key.keysym.scancode == .ESCAPE {
+				if menus_open() {
+					menus_close()
+				}
+			}
+		}
+
 		if event.type == .QUIT && !gs.ignore_quit {
 			gs.running = false
 			// log.info("QUIT CALLED")
@@ -1490,9 +1511,6 @@ gs_draw_and_cleanup :: proc() {
 
 	if window_count == 0 {
 		gs.running = false
-		// custom_event: sdl.Event
-		// custom_event.type = .QUIT
-		// sdl.PushEvent(&custom_event)
 		log.info("SHOULD QUIT")
 	}
 }
@@ -1931,6 +1949,8 @@ menus_open :: proc() -> bool {
 		if .Window_Menu in window.element.flags {
 			return true
 		}
+
+		window = window.window_next
 	}
 
 	return false
@@ -1988,15 +2008,6 @@ menu_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			}
 
 			// TODO scrollbar
-		}
-
-		case .Key_Combination: {
-			combo := (cast(^string) dp)^
-
-			if combo == "escape" {
-				menus_close()
-				return 1
-			}
 		}
 
 		case .Mouse_Scroll_Y: {

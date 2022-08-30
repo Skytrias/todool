@@ -185,10 +185,15 @@ main :: proc() {
 		
 		// find dragging index at
 		if dragging {
-			for task, i in tasks_visible {
-				if task.bounds.t < task.window.cursor_y && task.window.cursor_y < task.bounds.b {
-					drag_index_at = task.visible_index
-					break
+			if !window_mouse_inside(window) {
+				// set index to invalid
+				drag_index_at = -1
+			} else {
+				for task, i in tasks_visible {
+					if task.bounds.t < task.window.cursor_y && task.window.cursor_y < task.bounds.b {
+						drag_index_at = task.visible_index
+						break
+					}
 				}
 			}
 		}
@@ -303,8 +308,8 @@ main :: proc() {
 
 	tasks_load_reset()
 	// tasks_load_tutorial()
-	tasks_load_default()
-	// tasks_load_file()
+	// tasks_load_default()
+	tasks_load_file()
 	
 	gs_message_loop()
 }
