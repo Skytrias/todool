@@ -1159,7 +1159,7 @@ gs_init :: proc() {
 		log.infof("SDL2: Linked Version %d.%d.%d", linked.major, linked.minor, linked.patch)
 	}
 
-	fontstash.init(&fc, 500, 500)
+	fontstash.init(&fc, 100, 100)
 	fc.callback_resize = proc(data: rawptr, w, h: int) {
 		if data != nil {
 			// regenerate the texture on all windows

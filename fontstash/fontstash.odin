@@ -23,8 +23,7 @@ import "../cutf8"
 // no scratch allocation -> parts use odins dynamic arrays
 // different procedure naming as this will be used as a package, renaming Fons -> Font
 // leaves GPU vertex creation & texture management up to the user
-// *optional* immediate style usage
-// expands by default
+// texture atlas expands by default
 
 STATE_MAX :: 20
 LUT_SIZE :: 256
@@ -87,8 +86,7 @@ Font_Context :: struct {
 	// actual pixels
 	texture_data: []byte, // allocated using context.allocator
 	width, height: int,
-
-	// 1 / w, 1 / h
+	// 1 / texture_atlas_width, 1 / texture_atlas_height
 	itw, ith: f32,
 
 	// state 
@@ -98,7 +96,7 @@ Font_Context :: struct {
  	// dirty rectangle of the texture region that was updated
  	dirty_rect: [4]f32,
 
- 	// callbacks
+ 	// callbacks with user_data passed
  	user_data: rawptr, // by default set to the context
  	// called when a texture is expanded and needs handling
  	callback_resize: proc(data: rawptr, w, h: int), 
@@ -311,6 +309,8 @@ font_atlas_add_white_rect :: proc(ctx: ^Font_Context, w, h: int) {
 	ctx.dirty_rect[3] = cast(f32) max(int(ctx.dirty_rect[3]), gy + h)
 }
 
+// push a font to the font stack
+// optionally init with ascii characters at a wanted size
 font_push :: proc(
 	ctx: ^Font_Context,
 	path: string, 
@@ -591,7 +591,7 @@ expand_atlas :: proc(ctx: ^Font_Context, width, height: int, allocator := contex
 
 	data := make([]byte, width * height, allocator)
 
-	for i in 0..<height {
+	for i in 0..<ctx.height {
 		dst := &data[i * width]
 		src := &ctx.texture_data[i * ctx.width]
 		mem.copy(dst, src, ctx.width)
@@ -738,8 +738,8 @@ validate_texture :: proc(using ctx: ^Font_Context, dirty: ^[4]f32) -> bool {
 	return false
 }
 
-// based on font
-align_vertical :: proc(
+// get alignment based on font
+get_vertical_align :: proc(
 	font: ^Font,
 	pixel_size: i16,
 	av: Align_Vertical,
@@ -928,10 +928,8 @@ Wrap_State :: struct {
 	// formatted lines
 	lines: []string,
 
-	// new
-	codepoint_offset: int,
-
 	// wanted from / to
+	codepoint_offset: int,
 	codepoint_index_low: int,
 	codepoint_index_high: int,
 

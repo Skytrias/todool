@@ -107,8 +107,6 @@ state_set_align_vertical :: proc(ctx: ^Font_Context, av: Align_Vertical) {
 	state_get(ctx).av = av
 }
 
-get_vertical_align :: align_vertical
-
 get_quad :: proc(
 	ctx: ^Font_Context,
 	font: ^Font,
