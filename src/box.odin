@@ -1113,123 +1113,28 @@ box_layout_caret :: proc(
 	)
 }
 
-Wrap_State :: struct {
-	// font option
-	font: ^Font,
-	scaled_size: i16,
-	
-	// text lines
-	lines: []string,
-
-	// result
-	rect_valid: bool,
-	rect: Rect,
-
-	// increasing state
-	line_index: int,
-	codepoint_offset: int,
-	y_offset: f32,
-}
-
-wrap_state_init :: proc(
-	lines: []string, 
-	font: ^Font, 
-	scaled_size: i16,
-) -> Wrap_State {
-	return Wrap_State {
-		lines = lines,
-		font = font,
-		scaled_size = scaled_size,
-	}
-}
-
-wrap_state_iter :: proc(
-	using wrap_state: ^Wrap_State,
-	index_from: int,
-	index_to: int,
-) -> bool {
-	if line_index > len(lines) - 1 {
-		return false
-	}
-
-	text := lines[line_index]
-	line_index += 1
-	rect_valid = false
-	
-	text_width: f32
-	x_from_start: f32 = -1
-	x_from_end: f32
-	ds: cutf8.Decode_State
-	scale := fontstash.scale_for_pixel_height(font, f32(scaled_size))
-
-	// iterate string line
-	for codepoint, i in cutf8.ds_iter(&ds, text) {
-		glyph := fontstash.get_glyph(&gs.fc, font, codepoint, scaled_size)
-		width_codepoint: i16
-
-		if glyph != nil {
-			width_codepoint = glyph.xadvance
-		}
-
-		// width_codepoint := fontstash.codepoint_xadvance(font, codepoint, scale)
-
-		if index_from <= i + codepoint_offset && i + codepoint_offset <= index_to {
-			if x_from_start == -1 {
-				x_from_start = text_width
-			}
-
-			x_from_end = text_width
-		}
-
-		text_width += f32(width_codepoint)
-	}
-
-	// last character
-	if index_to == codepoint_offset + ds.codepoint_count {
-		x_from_end = text_width
-	}
-
-	codepoint_offset += ds.codepoint_count
-
-	if x_from_start != -1 {
-		y := y_offset * f32(scaled_size)
-
-		rect = Rect {
-			x_from_start,
-			x_from_end,
-			y,
-			y + f32(scaled_size),
-		}
-
-		rect_valid = true
-	}
-
-	y_offset += 1
-	return true
-}
-
 box_render_selection :: proc(
 	target: ^Render_Target, 
 	box: ^Box,
-	font: ^Font,
-	scaled_size: i16,
 	x, y: f32,
 	color: Color,
 ) {
-	low, high := box_low_and_high(box)
-
-	if low == high {
+	if box.head == box.tail {
 		return
 	}
 
-	state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
+	state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines[:], box.head, box.tail)
+	scaled_size := f32(state.isize / 10)
 
-	for wrap_state_iter(&state, low, high) {
-		if state.rect_valid {
-			rect := state.rect
-			translated := rect_add(rect, rect_xxyy(x, y))
-			render_rect(target, translated, color, 0)
+	for fontstash.wrap_state_iter(&gs.fc, &state) {
+		translated := Rect {
+			x + state.x_from,
+			x + state.x_to,
+			y + f32(state.y - 1) * scaled_size,
+			y + f32(state.y) * scaled_size,
 		}
+
+		render_rect(target, translated, color, 0)
 	}
 }
 

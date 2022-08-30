@@ -1253,9 +1253,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Layout: {
 			if task_head == task_tail && task.visible_index == task_head {
 				offset := x_offset(task, box)
-				// font_index, size := element_retrieve_font_options(box)
-				// font := font_get(font_index)
-				// scaled_size := i16(f32(size) * SCALE)
 				scaled_size := efont_size(box)
 				x := box.bounds.l + offset
 				y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
@@ -1269,58 +1266,62 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			box.bounds.t += math.round(mode_panel.margin_vertical / 2 * SCALE)
 			box.bounds.l += x_offset(task, box)
-			// font_index, size := element_retrieve_font_options(box)
-			// font := font_get(font_index)
-			// scaled_size := i16(fcs_element(box))
-			// scaled_size := i16(f32(size) * SCALE)
+			x := box.bounds.l
+			y := box.bounds.t
 
-			// // draw the search results outline
-			// if draw_search_results && len(task.search_results) != 0 {
-			// 	x := box.bounds.l
-			// 	y := box.bounds.t
+			// draw the search results outline
+			if draw_search_results && len(task.search_results) != 0 {
+				fcs_element(task)
 
-			// 	for res in task.search_results {
-			// 		color := search_index == search_draw_index ? theme.text_good : theme.text_bad
-			// 		state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
+				for res in task.search_results {
+					state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines[:], int(res.low), int(res.high))
+					scaled_size := f32(state.isize / 10)
 
-			// 		for wrap_state_iter(&state, int(res.low), int(res.high)) {
-			// 			if state.rect_valid {
-			// 				rect := state.rect
-			// 				translated := rect_add(rect, rect_xxyy(x, y))
-			// 				render_rect_outline(target, translated, color, 0)
-			// 			}
-			// 		}
+					for fontstash.wrap_state_iter(&gs.fc, &state) {
+						rect := Rect {
+							x + state.x_from,
+							x + state.x_to,
+							y + f32(state.y - 1) * scaled_size,
+							y + f32(state.y) * scaled_size,
+						}
+						
+						color := search_index == search_draw_index ? theme.text_good : theme.text_bad
+						render_rect_outline(target, rect, color, 0)
+					}
 
-			// 		search_draw_index += 1
-			// 	}
-			// }
+					search_draw_index += 1
+				}
+			}
 
-			// if task.state == .Canceled {
-			// 	state := wrap_state_init(box.wrapped_lines[:], font, scaled_size)
-			// 	// TODO ascent
-			// 	font_ascent_scaled := f32(10)
-			// 	// font_ascent_scaled := fontstash.ascent_pixel_size(font, f32(scaled_size))
-				
-			// 	x := box.bounds.l
-			// 	y := box.bounds.t
-			// 	for wrap_line, i in box.wrapped_lines {
-			// 		// TODO could be bad with new centering
+			// sstrike through line
+			if task.state == .Canceled {
+				fcs_element(task)
+				state := fontstash.state_get(&gs.fc)
+				font := fontstash.font_get(&gs.fc, state.font)
+				isize := i16(state.size * 10)
+				scaled_size := f32(isize / 10)
+				offset := f32(font.ascender / 2) * scaled_size
 
-			// 		width := string_width(wrap_line)
-			// 		// width := fontstash.string_width(font, scaled_size, wrap_line)
-			// 		rect := rect_wh(x, y, width, f32(scaled_size))
-			// 		render_text_strike_through(target, font_ascent_scaled, rect, theme.text_bad)
-			// 		y += f32(scaled_size)
-			// 	}
-			// }
+				for line_text, line_y in box.wrapped_lines {
+					text_width := string_width(line_text)
+					real_y := y + f32(line_y) * scaled_size + offset
 
- 		// 	// paint selection before text
-			// if task_head == task_tail && task.visible_index == task_head {
-			// 	x := box.bounds.l
-			// 	y := box.bounds.t
-			// 	low, high := box_low_and_high(box)
-			// 	box_render_selection(target, box, font, scaled_size, x, y, theme.caret_selection)
-			// }
+					rect := Rect {
+						x,
+						x + text_width,
+						real_y,
+						real_y + LINE_WIDTH * SCALE,
+					}
+					
+					render_rect(target, rect, theme.text_bad, 0)
+				}
+			}
+
+ 			// paint selection before text
+			if task_head == task_tail && task.visible_index == task_head {
+				fcs_element(task)
+				box_render_selection(target, box, x, y, theme.caret_selection)
+			}
 
 			task_box_paint_default(box)
 
@@ -2035,10 +2036,10 @@ tasks_load_reset :: proc() {
 tasks_load_default :: proc() {
 	task_push(0, "one")
 	task_push(1, "two")
-	task_push(2, "three")
+	task_push(2, "three some longer line of text")
 	task_push(2, "just some long line of textjust some long line of textjust some long line of textjust some long line of textjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of text")
-	task_head = 0
-	task_tail = 0
+	task_head = 2
+	task_tail = 2
 }
 
 tasks_load_tutorial :: proc() {

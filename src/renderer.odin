@@ -760,20 +760,6 @@ render_string :: proc(
   return iter.nextx
 }
 
-// strike through text in the middle
-render_text_strike_through :: proc(
-	target: ^Render_Target,
-	ascent: f32, 
-	r: Rect, 
-	color: Color,
-	line_width := LINE_WIDTH,
-) {
-	r := r
-	r.t = r.b - ascent / 2 - line_width
-	r.b = r.t + line_width
-	render_rect(target, r, color, 0)
-}
-
 render_icon :: proc(
 	target: ^Render_Target,
 	x, y: f32,

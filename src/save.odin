@@ -84,7 +84,7 @@ Save_Tag :: enum u8 {
 bytes_file_signature := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', 'F', 'F' }
 
 buffer_write_type :: proc(b: ^bytes.Buffer, type: $T) -> (err: io.Error) {
-	// NOTE use pointer instead?
+	// NOTE could use pointer ^T instead?
 	type := type
 	byte_slice := mem.byte_slice(&type, size_of(T))
 	bytes.buffer_write(b, byte_slice) or_return
