@@ -196,6 +196,8 @@ main :: proc() {
 					}
 				}
 			}
+
+			window_set_cursor(window, .Hand_Drag)
 		}
 
 		// set bookmarks

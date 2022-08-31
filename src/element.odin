@@ -628,6 +628,12 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			fcs_element(element)
 			text := strings.to_string(button.builder)
 			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+
+			// if button.opt_icon != .None {
+			// 	fcs_icon()
+			// 	width += icon_width(button.opt_icon) + 5 * SCALE
+			// }
+
 			return int(width)
 		}
 
@@ -2321,6 +2327,7 @@ color_picker_init :: proc(
 Toggle_Selector :: struct {
 	using element: Element,
 	value: ^int,
+	value_old: int, 
 	count: int,
 	names: []string,
 
@@ -2405,21 +2412,21 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Clicked: {
-			old := toggle.value^
-
 			// select and start animation transition towards
 			for i in 0..<toggle.count {
 				r := toggle.cells[i]
 				if rect_contains(r, element.window.cursor_x, element.window.cursor_y) {
-					toggle.value^ = i
-					toggle.cell_transition = true
-					element_animation_start(element)
+					if toggle.value^ != i {
+						toggle.value_old = toggle.value^
+						toggle.value^ = i
+						element_message(element, .Value_Changed,)
+						toggle.cell_transition = true
+						element_animation_start(element)
+						element_repaint(element)
+					}
+
 					break
 				}
-			}
-
-			if old != toggle.value^ {
-				element_repaint(element)
 			}
 		}
 

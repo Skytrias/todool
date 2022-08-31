@@ -132,6 +132,7 @@ Cursor :: enum {
 	Arrow,
 	IBeam,
 	Hand,
+	Hand_Drag,
 	Resize_Vertical,
 	Resize_Horizontal,
 	Crosshair,
@@ -601,10 +602,14 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			case .Mouse_Move: {
 				// if the mouse was moved, tell the hovered parent
 				element_message(hovered, .Mouse_Move, di, dp)
-				cursor := cast(Cursor) element_message(hovered, .Get_Cursor)
+				wanted_cursor := element_message(hovered, .Get_Cursor)
 				
-				if cursor != window.cursor {
-					window_set_cursor(window, cursor)
+				if wanted_cursor != 0 {
+					cursor := cast(Cursor) wanted_cursor
+					
+					if cursor != window.cursor {
+						window_set_cursor(window, cursor)
+					}
 				}
 			} 
 
@@ -1143,6 +1148,7 @@ gs_init :: proc() {
 	cursors[.Arrow] = sdl.CreateSystemCursor(.ARROW)
 	cursors[.IBeam] = sdl.CreateSystemCursor(.IBEAM)
 	cursors[.Hand] = sdl.CreateSystemCursor(.HAND)
+	cursors[.Hand_Drag] = sdl.CreateSystemCursor(.SIZEALL)
 	cursors[.Resize_Horizontal] = sdl.CreateSystemCursor(.SIZEWE)
 	cursors[.Resize_Vertical] = sdl.CreateSystemCursor(.SIZENS)
 	cursors[.Crosshair] = sdl.CreateSystemCursor(.CROSSHAIR)

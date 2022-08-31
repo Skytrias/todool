@@ -933,7 +933,7 @@ task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_
 			cast(u8) task.state,
 		}
 		undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
-		task.state = goal		
+		task.state = goal
 	}
 }
 

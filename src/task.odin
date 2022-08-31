@@ -2100,6 +2100,8 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	menu := menu_init(task.window, {})
 
 	task_multi_context := task_head != task_tail
+	
+	// select this task on single right click
 	if task_head == task_tail {
 		task_tail = task.visible_index
 		task_head = task.visible_index
@@ -2129,13 +2131,30 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		b3.invoke = proc(data: rawptr) {
 			todool_change_task_selection_state_to(.Canceled)
 		}
-
 	} else {
 		state := cast(^int) &task.state
 		names := reflect.enum_field_names(Task_State)
-		toggle_selector_init(p, {}, state, len(Task_State), names)
+		t := toggle_selector_init(p, {}, state, len(Task_State), names)
+		t.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			toggle := cast(^Toggle_Selector) element
+
+			if msg == .Value_Changed {
+				manager := mode_panel_manager_scoped()
+				task_head_tail_push(manager)
+
+				item := Undo_Item_U8_Set {
+					cast(^u8) toggle.value,
+					u8(toggle.value_old),
+				}
+				undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
+				// task.state = goal
+			}
+
+			return 0
+		}
 	}
 
+	// indentation
 	{
 		panel := panel_init(p, { .HF, .Panel_Horizontal })
 		panel.outline = true
@@ -2148,6 +2167,18 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		b2 := button_init(panel, {}, "->")
 		b2.invoke = proc(data: rawptr) {
 			todool_indentation_shift(1)
+		}
+	}
+
+	// deletion
+	{
+		// label_init(p, "Delete")
+		b1 := button_init(p, { .HF }, "Delete")
+		// b1.opt_icon = .Check
+		b1.invoke = proc(data: rawptr) {
+			button := cast(^Button) data
+			todool_delete_tasks()
+			menu_close(button.window)
 		}
 	}
 
@@ -2254,5 +2285,6 @@ task_dragging_end :: proc() -> bool {
 	task_head = drag_index_at + len(drag_list)
 
 	element_repaint(mode_panel)
+	window_set_cursor(window_main, .Arrow)
 	return true
 }

@@ -26,6 +26,8 @@ DROP_SHADOW :: 20
 DEFAULT_VERTICES :: 1024 * 2
 
 Icon :: enum {
+	None = 0x00,
+
 	Simple_Down = 0xeab2,
 	Simple_Right = 0xeab8,
 	Simple_Left = 0xeab5,
@@ -776,6 +778,7 @@ render_icon :: proc(
 	codepoint := rune(icon)
 	glyph := fontstash.get_glyph(ctx, font, codepoint, isize, 0)
 	q: fontstash.Quad
+	x_origin := x
 	x := x
 	y := y
 
@@ -784,7 +787,7 @@ render_icon :: proc(
 		render_glyph_quad(target, group, state, &q)
 	}
 
-	return x
+	return 0
 }
 
 render_icon_rect :: proc(
