@@ -1,5 +1,7 @@
 package src
 
+import "core:sort"
+import "core:slice"
 import "core:runtime"
 import "core:image"
 import "core:image/png"
@@ -128,9 +130,9 @@ Element_Flag :: enum {
 
 	Scrollbar_Horizontal,
 
-	// Menu
-	Menu_Place_Above,
-	Menu_No_Scroll,
+	// // Menu
+	// Menu_Place_Above,
+	// Menu_No_Scroll,
 
 	// windowing
 	Window_Menu,
@@ -356,12 +358,18 @@ element_find_by_point :: proc(element: ^Element, x, y: f32) -> ^Element {
 		return p.res != nil ? p.res : element
 	}
 
-	for i := len(element.children) - 1; i >= 0; i -= 1 {
-		child := element.children[i]
+	temp, sorted := element_children_sorted_or_unsorted(element)
+
+	for i := len(temp) - 1; i >= 0; i -= 1 {
+		child := temp[i]
 
 		if (.Hide not_in child.flags) && rect_contains(child.clip, p.x, p.y) {
 			return element_find_by_point(child, x, y)
 		}
+	}
+
+	if sorted {
+		delete(temp)
 	}
 
 	return element
@@ -508,6 +516,31 @@ element_focus :: proc(element: ^Element) -> bool {
 	return true
 }
 
+// retrieve wanted children, may be sorted and need to be deallocated manually
+element_children_sorted_or_unsorted :: proc(element: ^Element) -> (res: []^Element, sorted: bool) {
+	res = element.children[:]
+	// clone and sort elements for z ordering
+	sorted = .Sort_By_Z_Index in element.flags
+
+	if sorted {
+		res = slice.clone(element.children[:])
+		
+		sort.quick_sort_proc(res, proc(a, b: ^Element) -> int {
+			if a.z_index < b.z_index {
+				return -1
+			}	
+
+			if a.z_index > b.z_index {
+				return 1
+			}
+
+			return 0
+		})
+	}
+
+	return
+}
+
 // true if the given element is 
 window_focused_shown :: proc(window: ^Window) -> bool {
 	if window.focused == nil || window.focused == &window.element {
@@ -525,6 +558,12 @@ window_focused_shown :: proc(window: ^Window) -> bool {
 	}
 
 	return true
+}
+
+render_hovered_highlight :: #force_inline proc(target: ^Render_Target, bounds: Rect, scale := f32(1)) {
+	color := DARKEN
+	color.a = u8((f32(color.a) / 255 * scale) * 255)
+	render_rect(target, bounds, color, ROUNDNESS)
 }
 
 //////////////////////////////////////////////
@@ -558,6 +597,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, text_color)
+				render_hovered_highlight(target, element.bounds)
 			}
 
 			fcs_element(button)
@@ -642,6 +682,7 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, text_color)
+				render_hovered_highlight(target, element.bounds)
 			}
 		}
 
@@ -712,6 +753,7 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 
 	if hovered || pressed {
 		render_rect_outline(target, button.bounds, text_color)
+		render_hovered_highlight(target, button.bounds)
 	}
 
 	fcs_icon()
@@ -880,6 +922,10 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 			render_rect_outline(target, element.bounds, text_color)
 
+			if hovered {
+				render_hovered_highlight(target, element.bounds)
+			}
+
 			slide := element.bounds
 			slide.t = slide.b - math.round(5 * SCALE)
 			slide.b = slide.t + math.round(3 * SCALE)
@@ -1025,6 +1071,10 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			box_rect := box_icon_rect(box)
 			box_color := color_blend(theme.text_good, theme.text_bad, box.state_unit, true)
 			render_rect(target, box_rect, box_color, ROUNDNESS)
+			
+			if hovered {
+				render_hovered_highlight(target, element.bounds)
+			}
 
 			box_width := math.round(rect_width_halfed(box_rect))
 
@@ -1203,6 +1253,7 @@ Panel :: struct {
 	// shadow + roundness
 	shadow: bool,
 	rounded: bool,
+	outline: bool,
 
 	scrollbar: ^Scrollbar,
 	background_index: int,
@@ -1357,10 +1408,15 @@ panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
 		bounds.t -= panel.offset_y
 	}
 
+	roundness := panel.rounded ? ROUNDNESS : 0
 	if panel.shadow {
-		render_drop_shadow(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
+		render_drop_shadow(target, bounds, color, roundness)
 	} else {
-		render_rect(target, bounds, color, panel.rounded ? ROUNDNESS : 0)
+		render_rect(target, bounds, color, roundness)
+	}
+
+	if panel.outline {
+		render_rect_outline(target, bounds, theme.text_default, roundness)
 	}
 
 	when DEBUG_PANEL {
@@ -1557,10 +1613,9 @@ panel_floaty_init :: proc(
 	res.z_index = 255
 	
 	p := panel_init(res, { .Panel_Default_Background })
-	res.panel = p
 	p.margin = math.round(4 * SCALE)
-	// p.shadow = true
 	p.rounded = true
+	res.panel = p
 	return
 }
 
@@ -2307,6 +2362,10 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			highlight.l += toggle.cell_unit * toggle.cell_width 
 			highlight.r = highlight.l + toggle.cell_width
 			render_rect(target, highlight, theme.text_good, ROUNDNESS)
+			
+			if hovered {
+				render_hovered_highlight(target, element.bounds)
+			}
 
 			fcs_element(element)
 			fcs_ahv()
@@ -2327,7 +2386,14 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Get_Width: {
-			return int(100 * SCALE)
+			sum_width: f32
+			fcs_element(element)
+
+			for name in toggle.names {
+				sum_width += string_width(name)
+			}
+			
+			return int(sum_width + f32(len(toggle.names)) * 20 * SCALE)
 		}
 
 		case .Get_Height: {
@@ -2389,6 +2455,7 @@ toggle_selector_init :: proc(
 	res.value = value
 	res.count = count
 	res.names = names
+	res.cell_unit = f32(value^)
 	res.cells = make([]Rect, count)
 	return 
 }

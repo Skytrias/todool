@@ -445,6 +445,21 @@ todool_copy_tasks_to_clipboard :: proc() {
 	// fmt.eprint(strings.to_string(b))
 }
 
+todool_change_task_selection_state_to :: proc(state: Task_State) {
+	if task_head == -1 {
+		return
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+	low, high := task_low_and_high()
+
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+		task_set_state_undoable(manager, task, state)
+	}
+}
+
 todool_change_task_state :: proc(shift: bool) {
 	if task_head == -1 {
 		return
@@ -452,8 +467,6 @@ todool_change_task_state :: proc(shift: bool) {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-		
-	selection := task_has_selection()
 	low, high := task_low_and_high()
 
 	// modify all states
@@ -600,7 +613,6 @@ todool_escape :: proc() {
 	if image_display_has_content(mode_panel.image_display) {
 		mode_panel.image_display.img = nil
 		element_repaint(mode_panel)
-		
 		return
 	}
 
@@ -611,6 +623,14 @@ todool_escape :: proc() {
 
 	if element_hide(sb.enum_panel, true) {
 		element_repaint(mode_panel)
+		return
+	}
+
+	// reset selection
+	if task_head != task_tail {
+		task_tail = task_head
+		element_repaint(mode_panel)
+		return
 	}
 }
 

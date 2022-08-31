@@ -79,7 +79,7 @@ theme_panel :: #force_inline proc(panel: Theme_Panel) -> Color #no_bounds_check 
 	return theme.panel[panel]
 }
 
-theme := Theme {
+theme_default := Theme {
 	background = {
 		0 = { 200, 200, 200, 255 },
 		1 = { 220, 220, 220, 255 },
@@ -113,6 +113,7 @@ theme := Theme {
 		{ 199, 99, 0, 255 },
 	},
 }
+theme := theme_default
 
 theme_task_text :: #force_inline proc(state: Task_State) -> Color {
 	switch state {
@@ -150,7 +151,7 @@ theme_editor_spawn :: proc() {
 		return
 	}
 
-	window := window_init(nil, {}, "Todool Theme Editor", 700, 900, mem.Megabyte)
+	window := window_init(nil, {}, "Todool Theme Editor", i32(700 * SCALE), 900, mem.Megabyte)
 	window.name = "theme"
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		#partial switch msg {
@@ -392,6 +393,7 @@ theme_editor_spawn :: proc() {
 	{
 		right_panel := panel_init(bot_panel, { .HF })
 
+
 		button_panel := panel_init(right_panel, { .Panel_Default_Background, .Panel_Horizontal }, 5, 0)
 		button_panel.background_index = 1
 		button_panel.rounded = true
@@ -451,6 +453,11 @@ theme_editor_spawn :: proc() {
 
 			gs_update_all_windows()
 		}	
+
+		reset := button_init(button_panel, {}, "Reset")
+		reset.invoke = proc(data: rawptr) {
+			theme = theme_default
+		}
 
 		LABEL_WIDTH :: 100
 

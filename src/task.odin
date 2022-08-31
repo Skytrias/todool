@@ -68,6 +68,7 @@ task_tail := 0
 old_task_head := 0
 old_task_tail := 0
 tasks_visible: [dynamic]^Task
+task_multi_context: bool
 
 // drag state
 drag_list: [dynamic]^Task
@@ -1084,20 +1085,20 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// render selection outlines
-			if task_head != -1 {
-				render_push_clip(target, panel.clip)
+			// if task_head != -1 {
+			// 	render_push_clip(target, panel.clip)
 
-				task_head_tail_call_all(target, proc(task: ^Task, data: rawptr) {
-					target := cast(^Render_Target) data
-					color := theme.caret_highlight
-					if task_head != task_tail && task.visible_index == task_head {
-						color = theme.caret
-					}
+			// 	task_head_tail_call_all(target, proc(task: ^Task, data: rawptr) {
+			// 		target := cast(^Render_Target) data
+			// 		color := theme.caret_highlight
+			// 		if task_head != task_tail && task.visible_index == task_head {
+			// 			color = theme.caret
+			// 		}
 
-					rect := task_rect_indented(task)
-					render_rect_outline(target, rect, color)
-				})
-			}
+			// 		rect := task_rect_indented(task)
+			// 		render_rect_outline(target, rect, color)
+			// 	})
+			// }
 
 			// visual line for dragging
 			if task_head != -1 && dragging && drag_index_at != -1 {
@@ -1115,7 +1116,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				bounds := rect_bounding(a.bounds, b.bounds)
 
 				rects := rect_cut_out_rect(panel.bounds, bounds)
-				color := color_alpha(theme.background[0], 0.5)
+				color := color_alpha(theme.background[0], 0.75)
 				render_rect(target, rects[0], color)
 				render_rect(target, rects[1], color)
 				render_rect(target, rects[2], color)
@@ -1131,16 +1132,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Destroy: {
 			delete(panel.kanban_outlines)
-		}
-
-		case .Right_Down: {
-			menu := menu_init(panel, {  })
-			menu_add_item(menu, {}, "abc", nil)
-			menu_add_item(menu, {}, "def", nil)
-			menu_add_item(menu, {}, "ghi", nil)
-			menu_add_item(menu, {}, "jkl", nil)
-			menu_show(menu)
-			return 1
 		}
 
 		case .Middle_Down: {
@@ -1358,110 +1349,31 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Mouse_Drag: {
-			if task_head != task_tail {
-				return 0
-			}
-
 			if element.window.pressed_button == MOUSE_LEFT {
-				element_box_mouse_selection(task.box, task.box, di, true)
-				element_repaint(task)
+				if task_head == task_tail {
+					element_box_mouse_selection(task.box, task.box, di, true)
+					element_repaint(task)
+					return 1
+				}
+			} else if element.window.pressed_button == MOUSE_RIGHT {
+				if task_dragging_check_start(task) {
+					return 1
+				}
 			}
 
-			return 1
+			return 0
 		}
 
 		case .Right_Up: {
-			if dragging {
-				dragging = false
-				element_hide(drag_panel, true)
-
-				// remove task on invalid
-				if drag_index_at == -1 {
-					return 0
-				}
-
-				// find lowest indentation 
-				lowest_indentation := 255
-				for i in 0..<len(drag_list) {
-					task := drag_list[i]
-					lowest_indentation = min(lowest_indentation, task.indentation)
-				}
-
-				drag_indentation: int
-
-				if task_head != -1 {
-					drag_indentation = tasks_visible[drag_index_at].indentation
-				}
-
-				manager := mode_panel_manager_scoped()
-				task_head_tail_push(manager)
-
-				// paste lines with indentation change saved
-				for i in 0..<len(drag_list) {
-					t := drag_list[i]
-					relative_indentation := drag_indentation + int(t.indentation) - lowest_indentation
-					
-					item := Undo_Item_Task_Indentation_Set {
-						task = t,
-						set = t.indentation,
-					}	
-					undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
-
-					t.indentation = relative_indentation
-					t.indentation_smooth = f32(t.indentation)
-					task_insert_at(manager, drag_index_at + i + 1, t)
-				}
-
-				task_tail = drag_index_at + 1
-				task_head = drag_index_at + len(drag_list)
-
-				element_repaint(mode_panel)
+			if task_dragging_end() {
+				return 1
 			}
+
+			task_context_menu_spawn(task)
 		}
 
 		case .Right_Down: {
-			if task_head == -1 {
-				return 0
-			}
-
-			low, high := task_low_and_high()
-			selected := low <= task.visible_index && task.visible_index <= high
-
-			// on not task != selection just select this one
-			if !selected {
-				task_head = task.visible_index
-				task_tail = task.visible_index
-				low, high = task_low_and_high()
-			}
-
-			clear(&drag_list)
-			manager := mode_panel_manager_scoped()
-			task_head_tail_push(manager)
-
-			// push removal tasks to array before
-			for i in low..<high + 1 {
-				task := tasks_visible[i]
-				append(&drag_list, task)
-			}
-
-			task_head_tail_push(manager)
-			task_remove_selection(manager, false)
-
-			if low != high {
-				task_head = low
-				task_tail = low
-			}
-
-			{
-				b := &drag_label.builder
-				strings.builder_reset(b)
-				fmt.sbprintf(b, "%dx", len(drag_list))
-
-				dragging = true
-				drag_index_at = -1
-				element_hide(drag_panel, false)
-				element_animation_start(drag_panel)
-			}
+			// task_dragging_check_start(task)
 		}
 
 		case .Value_Changed: {
@@ -1570,6 +1482,18 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				render_rect(target, rect, color, ROUNDNESS)
 			}
 
+			hovered := element.window.hovered == task.box
+			pressed := element.window.pressed == task.box
+			
+			if task_head == task.visible_index {
+				color := theme.text_default
+				render_rect_outline(target, rect, color)
+			} 
+
+			if hovered || pressed {
+				render_hovered_highlight(target, rect, hovered && !pressed ? 0.75 : 1)
+			}
+
 			if task.bookmarked {
 				rect := rect
 				rect.r = rect.l + math.round(TASK_BOOKMARK_WIDTH * SCALE)
@@ -1654,6 +1578,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		case .Middle_Down: {
 			window_set_pressed(element.window, mode_panel, MOUSE_MIDDLE)
 		}
+
+		// case .Right_Down: {}
 
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
@@ -2168,4 +2094,165 @@ tasks_load_tutorial :: proc() {
 	task_tail = 0
 
 	// TODO add ctrl+shift+return to insert at prev
+}
+
+task_context_menu_spawn :: proc(task: ^Task) {
+	menu := menu_init(task.window, {})
+
+	task_multi_context := task_head != task_tail
+	if task_head == task_tail {
+		task_tail = task.visible_index
+		task_head = task.visible_index
+	}
+
+	p := menu.panel
+	p.gap = 5
+	p.shadow = true
+	p.background_index = 2
+	header_name := task_multi_context ? "Multi Properties" : "Task Properties"
+	header := label_init(p, { .HF, .Label_Center }, header_name)
+	header.font_options = &font_options_bold
+
+	if task_multi_context {
+		button_panel := panel_init(p, { .HF, .Panel_Horizontal })
+		button_panel.outline = true
+		// button_panel.color = DARKEN
+		b1 := button_init(button_panel, {}, "Normal")
+		b1.invoke = proc(data: rawptr) {
+			todool_change_task_selection_state_to(.Normal)
+		}
+		b2 := button_init(button_panel, {}, "Done")
+		b2.invoke = proc(data: rawptr) {
+			todool_change_task_selection_state_to(.Done)
+		}
+		b3 := button_init(button_panel, {}, "Canceled")
+		b3.invoke = proc(data: rawptr) {
+			todool_change_task_selection_state_to(.Canceled)
+		}
+
+	} else {
+		state := cast(^int) &task.state
+		names := reflect.enum_field_names(Task_State)
+		toggle_selector_init(p, {}, state, len(Task_State), names)
+	}
+
+	{
+		panel := panel_init(p, { .HF, .Panel_Horizontal })
+		panel.outline = true
+
+		b1 := button_init(panel, {}, "<-")
+		b1.invoke = proc(data: rawptr) {
+			todool_indentation_shift(-1)
+		}
+		label := label_init(panel, { .HF, .Label_Center }, "indent")
+		b2 := button_init(panel, {}, "->")
+		b2.invoke = proc(data: rawptr) {
+			todool_indentation_shift(1)
+		}
+	}
+
+	menu_show(menu)
+}
+
+task_dragging_check_start :: proc(task: ^Task) -> bool {
+	if task_head == -1 || dragging {
+		return true
+	}
+
+	if rect_contains(task.bounds, task.window.cursor_x, task.window.cursor_y) {
+		return false
+	}
+
+	low, high := task_low_and_high()
+	selected := low <= task.visible_index && task.visible_index <= high
+
+	// on not task != selection just select this one
+	if !selected {
+		task_head = task.visible_index
+		task_tail = task.visible_index
+		low, high = task_low_and_high()
+	}
+
+	clear(&drag_list)
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	// push removal tasks to array before
+	for i in low..<high + 1 {
+		task := tasks_visible[i]
+		append(&drag_list, task)
+	}
+
+	task_head_tail_push(manager)
+	task_remove_selection(manager, false)
+
+	if low != high {
+		task_head = low
+		task_tail = low
+	}
+
+	{
+		b := &drag_label.builder
+		strings.builder_reset(b)
+		fmt.sbprintf(b, "%dx", len(drag_list))
+
+		dragging = true
+		drag_index_at = -1
+		element_hide(drag_panel, false)
+		element_animation_start(drag_panel)
+	}
+
+	return true
+}
+
+task_dragging_end :: proc() -> bool {
+	if !dragging {
+		return false
+	}
+
+	dragging = false
+	element_hide(drag_panel, true)
+
+	// remove task on invalid
+	if drag_index_at == -1 {
+		return false
+	}
+
+	// find lowest indentation 
+	lowest_indentation := 255
+	for i in 0..<len(drag_list) {
+		task := drag_list[i]
+		lowest_indentation = min(lowest_indentation, task.indentation)
+	}
+
+	drag_indentation: int
+
+	if task_head != -1 {
+		drag_indentation = tasks_visible[drag_index_at].indentation
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	// paste lines with indentation change saved
+	for i in 0..<len(drag_list) {
+		t := drag_list[i]
+		relative_indentation := drag_indentation + int(t.indentation) - lowest_indentation
+		
+		item := Undo_Item_Task_Indentation_Set {
+			task = t,
+			set = t.indentation,
+		}	
+		undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+
+		t.indentation = relative_indentation
+		t.indentation_smooth = f32(t.indentation)
+		task_insert_at(manager, drag_index_at + i + 1, t)
+	}
+
+	task_tail = drag_index_at + 1
+	task_head = drag_index_at + len(drag_list)
+
+	element_repaint(mode_panel)
+	return true
 }

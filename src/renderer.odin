@@ -912,24 +912,7 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 		return
 	}
 
-	temp := element.children[:]
-
-	// clone and sort elements for z ordering
-	sort_children := .Sort_By_Z_Index in element.flags
-	if sort_children {
-		temp = slice.clone(element.children[:])
-		sort.quick_sort_proc(temp, proc(a, b: ^Element) -> int {
-			if a.z_index < b.z_index {
-				return -1
-			}	
-
-			if a.z_index > b.z_index {
-				return 1
-			}
-
-			return 0
-		})
-	}
+	temp, sorted := element_children_sorted_or_unsorted(element)
 
 	for child in temp {
 		render_element_clipped(target, child)
@@ -939,7 +922,7 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 		}
 	}
 
-	if sort_children {
+	if sorted {
 		delete(temp)
 	}
 }
