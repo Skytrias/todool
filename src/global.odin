@@ -603,13 +603,10 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				// if the mouse was moved, tell the hovered parent
 				element_message(hovered, .Mouse_Move, di, dp)
 				wanted_cursor := element_message(hovered, .Get_Cursor)
+				cursor := cast(Cursor) wanted_cursor
 				
-				if wanted_cursor != 0 {
-					cursor := cast(Cursor) wanted_cursor
-					
-					if cursor != window.cursor {
-						window_set_cursor(window, cursor)
-					}
+				if cursor != window.cursor {
+					window_set_cursor(window, cursor)
 				}
 			} 
 

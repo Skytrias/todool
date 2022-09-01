@@ -20,6 +20,8 @@ shader_vert := #load("../assets/vert.glsl")
 shader_frag := #load("../assets/frag.glsl")
 png_sv := #load("../assets/sv.png")
 png_hue := #load("../assets/hue.png")
+png_mode_icon_kanban := #load("../assets/Kanban Mode Icon.png")
+png_mode_icon_list := #load("../assets/List Mode Icon.png")
 Align_Horizontal :: fontstash.Align_Horizontal
 Align_Vertical :: fontstash.Align_Vertical
 DROP_SHADOW :: 20
@@ -121,6 +123,8 @@ Texture_Kind :: enum {
 	Fonts,
 	SV,
 	HUE,
+	Kanban,
+	List,
 }
 
 Render_Texture :: struct {
@@ -142,7 +146,6 @@ Render_Kind :: enum u32 {
 	SV,
 	HUE,
 	Texture,
-	Arc,
 }
 
 Render_Vertex :: struct #packed {
@@ -204,6 +207,8 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 
 	texture_generate_from_png(res, .SV, png_sv, "_sv")
 	texture_generate_from_png(res, .HUE, png_hue, "_hue")
+	texture_generate_from_png(res, .Kanban, png_mode_icon_kanban, "_kanban")
+	texture_generate_from_png(res, .List, png_mode_icon_list, "_list")
 
 	res.shallow_uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_custom")
 	// log.info("bind slots", gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)
@@ -378,39 +383,39 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
 // RENDER PRIMITIVES
 //////////////////////////////////////////////
 
-render_arc :: proc(
-	target: ^Render_Target,
-	rect: Rect, 
-	color: Color,
-	thickness: f32,
+// render_arc :: proc(
+// 	target: ^Render_Target,
+// 	rect: Rect, 
+// 	color: Color,
+// 	thickness: f32,
 
-	radians: f32, // 0-PI
-	rotation: f32, // 0-PI,
-) {
-	group := &target.groups[len(target.groups) - 1]
-	vertices := render_target_push_vertices(target, group, 6)
+// 	radians: f32, // 0-PI
+// 	rotation: f32, // 0-PI,
+// ) {
+// 	group := &target.groups[len(target.groups) - 1]
+// 	vertices := render_target_push_vertices(target, group, 6)
 	
-	vertices[0].pos_xy = { rect.l, rect.t }
-	vertices[1].pos_xy = { rect.r, rect.t }
-	vertices[2].pos_xy = { rect.l, rect.b }
+// 	vertices[0].pos_xy = { rect.l, rect.t }
+// 	vertices[1].pos_xy = { rect.r, rect.t }
+// 	vertices[2].pos_xy = { rect.l, rect.b }
 	
-	vertices[3].pos_xy = { rect.r, rect.t }
-	vertices[4].pos_xy = { rect.l, rect.b }
-	vertices[5].pos_xy = { rect.r, rect.b }
+// 	vertices[3].pos_xy = { rect.r, rect.t }
+// 	vertices[4].pos_xy = { rect.l, rect.b }
+// 	vertices[5].pos_xy = { rect.r, rect.b }
 
-	center_x, center_y := rect_center(rect)
-	// real_roundness := u16(roundness)
-	real_thickness := u16(thickness)
+// 	center_x, center_y := rect_center(rect)
+// 	// real_roundness := u16(roundness)
+// 	real_thickness := u16(thickness)
 	
-	// TODO: SPEED UP
-	for i in 0..<6 {
-		vertices[i].uv_xy = { center_x, center_y }
-		vertices[i].color = color
-		vertices[i].thickness = real_thickness
-		vertices[i].kind = .Arc
-		vertices[i].additional = { radians, rotation }
-	}
-}
+// 	// TODO: SPEED UP
+// 	for i in 0..<6 {
+// 		vertices[i].uv_xy = { center_x, center_y }
+// 		vertices[i].color = color
+// 		vertices[i].thickness = real_thickness
+// 		vertices[i].kind = .Arc
+// 		vertices[i].additional = { radians, rotation }
+// 	}
+// }
 
 render_rect :: proc(
 	target: ^Render_Target,

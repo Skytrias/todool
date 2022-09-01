@@ -48,10 +48,6 @@ TODOOL_RELEASE :: false
 // TODO general
 // while search typing set camera to focus atleast search result found
 
-// TODO fontstash
-// wrapped lines rework
-// try out immediate style errors more
-
 // main :: proc() {
 // 	gs_init()
 // 	context.logger = gs.logger

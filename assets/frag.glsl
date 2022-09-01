@@ -15,6 +15,8 @@ uniform mat4 u_projection;
 uniform sampler2D u_sampler_font;
 uniform sampler2D u_sampler_sv;
 uniform sampler2D u_sampler_hue;
+uniform sampler2D u_sampler_kanban;
+uniform sampler2D u_sampler_list;
 uniform sampler2D u_sampler_custom;
 uniform vec4 u_shadow_color;
 
@@ -44,8 +46,9 @@ float sigmoid(float t) {
 #define RK_Drop_Shadow uint(3)
 #define RK_SV uint(4)
 #define RK_HUE uint(5)
-#define RK_TEXTURE uint(6)
-#define RK_ARC uint(7)
+#define RK_Kanban uint(6)
+#define RK_List uint(7)
+#define RK_TEXTURE uint(8)
 
 void main(void) {
 	vec4 color_goal = v_color;
@@ -94,28 +97,36 @@ void main(void) {
 	} else if (v_kind == RK_TEXTURE) {
 		vec4 texture_color = texture(u_sampler_custom, v_uv);
 		color_goal = texture_color;
-	} else if (v_kind == RK_ARC) {
-		float tb = v_additional.x;
-		vec2 sc = vec2(sin(tb), cos(tb));
-		vec2 center = v_uv;
-		float thickness = v_thickness;
-		float size = v_adjusted_half_dimensions.x - thickness - 5;
-		
-		float rot = tb;
-    mat4 mat = mat4(
-        cos(rot), -sin(rot), 0, 0,
-        sin(rot), cos(rot), 0, 0,
-        0, 0, 1, 0,
-        0, 0, 0, 1
-    );
-		vec2 p = v_pos - round(center);
-    vec4 res = (mat * vec4(p, 0, 0));
-    p = res.xy;
-
-		float distance = sdArc(p, sc, size, thickness);
-
-		color_goal = mix(vec4(1, 1, 1, 0), color_goal, 1 - smoothstep(-1, 0, distance));
+	} else if (v_kind == RK_Kanban) {
+		vec4 texture_color = texture(u_sampler_kanban, v_uv);
+		color_goal *= texture_color;
+	} else if (v_kind == RK_List) {
+		vec4 texture_color = texture(u_sampler_list, v_uv);
+		color_goal *= texture_color;
 	}
+	
+	// } else if (v_kind == RK_ARC) {
+	// 	float tb = v_additional.x;
+	// 	vec2 sc = vec2(sin(tb), cos(tb));
+	// 	vec2 center = v_uv;
+	// 	float thickness = v_thickness;
+	// 	float size = v_adjusted_half_dimensions.x - thickness - 5;
+		
+	// 	float rot = tb;
+	// 	mat4 mat = mat4(
+	// 		cos(rot), -sin(rot), 0, 0,
+	// 		sin(rot), cos(rot), 0, 0,
+	// 		0, 0, 1, 0,
+	// 		0, 0, 0, 1
+	// 	);
+	// 		vec2 p = v_pos - round(center);
+	// 	vec4 res = (mat * vec4(p, 0, 0));
+	// 	p = res.xy;
+
+	// 	float distance = sdArc(p, sc, size, thickness);
+
+	// 	color_goal = mix(vec4(1, 1, 1, 0), color_goal, 1 - smoothstep(-1, 0, distance));
+	// }
 
 	o_color = color_goal;
 }

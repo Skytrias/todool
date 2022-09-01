@@ -581,9 +581,9 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 	#partial switch msg {
 		case .Paint_Recursive: {
+			target := element.window.target
 			pressed := element.window.pressed == element
 			hovered := element.window.hovered == element
-			target := element.window.target
 
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
@@ -2831,57 +2831,57 @@ linear_gauge_init :: proc(
 // Radial Gauge
 //////////////////////////////////////////////
 
-Radial_Gauge :: struct {
-	using element: Element,
-	position: f32,
-	text: string,
-}
+// Radial_Gauge :: struct {
+// 	using element: Element,
+// 	position: f32,
+// 	text: string,
+// }
 
-radial_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	gauge := cast(^Radial_Gauge) element
+// radial_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+// 	gauge := cast(^Radial_Gauge) element
 
-	#partial switch msg {
-		case .Paint_Recursive: {
-			target := element.window.target
-			text_color := theme.text_default
+// 	#partial switch msg {
+// 		case .Paint_Recursive: {
+// 			target := element.window.target
+// 			text_color := theme.text_default
 
-			render_arc(target, element.bounds, BLACK, 13 * SCALE, 3.14, 0)
-			render_arc(target, rect_margin(element.bounds, 2 * SCALE), GREEN, 10 * SCALE, gauge.position * math.PI, 0)
+// 			render_arc(target, element.bounds, BLACK, 13 * SCALE, 3.14, 0)
+// 			render_arc(target, rect_margin(element.bounds, 2 * SCALE), GREEN, 10 * SCALE, gauge.position * math.PI, 0)
 
-			text := fmt.tprintf("%s: %d%%", gauge.text, int(gauge.position * 100))
+// 			text := fmt.tprintf("%s: %d%%", gauge.text, int(gauge.position * 100))
 
-			fcs_element(element)
-			fcs_ahv()
-			fcs_color(text_color)
-			render_string_rect(target, element.bounds, text)
-		}
+// 			fcs_element(element)
+// 			fcs_ahv()
+// 			fcs_color(text_color)
+// 			render_string_rect(target, element.bounds, text)
+// 		}
 
-		case .Get_Width: {
-			return int(200 * SCALE)
-		}
+// 		case .Get_Width: {
+// 			return int(200 * SCALE)
+// 		}
 
-		case .Get_Height: {
-			return int(200 * SCALE)
-		}
+// 		case .Get_Height: {
+// 			return int(200 * SCALE)
+// 		}
 
-	}
+// 	}
 
-	return 0
-}
+// 	return 0
+// }
 
-radial_gauge_init :: proc(
-	parent: ^Element,
-	flags: Element_Flags,
-	position: f32,
-	text: string,
-	allocator := context.allocator,
-) -> (res: ^Radial_Gauge) {
-	res = element_init(Radial_Gauge, parent, flags, radial_gauge_message, allocator)
-	res.text = text
-	res.position = position
-	res.font_options = &font_options_bold
-	return 
-}
+// radial_gauge_init :: proc(
+// 	parent: ^Element,
+// 	flags: Element_Flags,
+// 	position: f32,
+// 	text: string,
+// 	allocator := context.allocator,
+// ) -> (res: ^Radial_Gauge) {
+// 	res = element_init(Radial_Gauge, parent, flags, radial_gauge_message, allocator)
+// 	res.text = text
+// 	res.position = position
+// 	res.font_options = &font_options_bold
+// 	return 
+// }
 
 //////////////////////////////////////////////
 // image display

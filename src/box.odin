@@ -407,9 +407,9 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			append(&box.wrapped_lines, strings.to_string(box.builder))
 		}
 
-		case .Get_Cursor: {
-			return int(Cursor.IBeam)
-		}
+		// case .Get_Cursor: {
+		// 	return int(Cursor.IBeam)
+		// }
 
 		case .Box_Text_Color: {
 			color := cast(^Color) dp

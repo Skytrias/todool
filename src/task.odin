@@ -1,5 +1,6 @@
 package src
 
+import "core:c/libc"
 import "core:io"
 import "core:mem"
 import "core:strconv"
@@ -918,8 +919,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds := element.bounds
 
 			if image_display_has_content(panel.image_display) {
-				rect := rect_margin(panel.bounds, 20 * SCALE)
+				rect := rect_margin(element.bounds, 20 * SCALE)
 				element_move(panel.image_display, rect)
+				// log.info(rect)
 			}
 
 			bounds.l += cam.offset_x
@@ -1124,6 +1126,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			if image_display_has_content(panel.image_display) {
+				render_push_clip(target, panel.clip)
 				element_message(panel.image_display, .Paint_Recursive)
 			}
 
@@ -1238,6 +1241,12 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
 			color^ = theme_task_text(task.state)
+				
+			text := strings.to_string(box.builder)
+			if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
+				color^ = BLUE
+			}
+
 			return 1
 		}
 
@@ -2138,6 +2147,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		t.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			toggle := cast(^Toggle_Selector) element
 
+			// save state change in undo
 			if msg == .Value_Changed {
 				manager := mode_panel_manager_scoped()
 				task_head_tail_push(manager)
@@ -2147,7 +2157,6 @@ task_context_menu_spawn :: proc(task: ^Task) {
 					u8(toggle.value_old),
 				}
 				undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
-				// task.state = goal
 			}
 
 			return 0
@@ -2172,13 +2181,34 @@ task_context_menu_spawn :: proc(task: ^Task) {
 
 	// deletion
 	{
-		// label_init(p, "Delete")
 		b1 := button_init(p, { .HF }, "Delete")
-		// b1.opt_icon = .Check
 		b1.invoke = proc(data: rawptr) {
 			button := cast(^Button) data
 			todool_delete_tasks()
 			menu_close(button.window)
+		}
+	}
+
+	if task_head == task_tail {
+		task := tasks_visible[task_head]
+		text := strings.to_string(task.box.builder)
+
+		if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
+			b1 := button_init(p, { .HF }, "Open Link")
+			b1.invoke = proc(data: rawptr) {
+				task := tasks_visible[task_head]
+				text := strings.to_string(task.box.builder)
+
+				b := &gs.cstring_builder
+				strings.builder_reset(b)
+				strings.write_string(b, "xdg-open")
+				strings.write_byte(b, ' ')
+				strings.write_string(b, text)
+				strings.write_byte(b, '\x00')
+				libc.system(cstring(raw_data(b.buf)))
+
+				menu_close(window_main)
+			}
 		}
 	}
 
@@ -2285,6 +2315,6 @@ task_dragging_end :: proc() -> bool {
 	task_head = drag_index_at + len(drag_list)
 
 	element_repaint(mode_panel)
-	window_set_cursor(window_main, .Arrow)
+	window_set_cursor(mode_panel.window, .Arrow)
 	return true
 }
