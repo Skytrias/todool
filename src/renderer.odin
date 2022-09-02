@@ -99,7 +99,7 @@ Render_Target :: struct {
 	attribute_uv: u32,
 	attribute_color: u32,
 	attribute_roundness_and_thickness: u32,
-	attribute_additional: u32,
+	// attribute_additional: u32,
 	attribute_kind: u32,
 
 	// texture atlas
@@ -157,8 +157,6 @@ Render_Vertex :: struct #packed {
 	roundness: u16,
 	thickness: u16,
 
-	additional: [2]f32,
-
 	// render kind
 	kind: Render_Kind,
 }
@@ -189,7 +187,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	attribute_uv = u32(gl.GetAttribLocation(shader_program, "i_uv"))
 	attribute_color = u32(gl.GetAttribLocation(shader_program, "i_color"))
 	attribute_roundness_and_thickness = u32(gl.GetAttribLocation(shader_program, "i_roundness_and_thickness"))
-	attribute_additional = u32(gl.GetAttribLocation(shader_program, "i_additional"))
+	// attribute_additional = u32(gl.GetAttribLocation(shader_program, "i_additional"))
 	attribute_kind = u32(gl.GetAttribLocation(shader_program, "i_kind"))
 
 	gl.GenVertexArrays(1, &vao)
@@ -294,14 +292,12 @@ render_target_end :: proc(
 	gl.EnableVertexAttribArray(attribute_uv)
 	gl.EnableVertexAttribArray(attribute_color)
 	gl.EnableVertexAttribArray(attribute_roundness_and_thickness)
-	gl.EnableVertexAttribArray(attribute_additional)
 	gl.EnableVertexAttribArray(attribute_kind)
 	size := i32(size_of(Render_Vertex))
 	gl.VertexAttribPointer(attribute_position, 2, gl.FLOAT, true, size, 0)
 	gl.VertexAttribPointer(attribute_uv, 2, gl.FLOAT, true, size, offset_of(Render_Vertex, uv_xy))
 	gl.VertexAttribIPointer(attribute_color, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, color))
 	gl.VertexAttribIPointer(attribute_roundness_and_thickness, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, roundness))
-	gl.VertexAttribPointer(attribute_additional, 2, gl.FLOAT, true, size, offset_of(Render_Vertex, additional))
 	gl.VertexAttribIPointer(attribute_kind, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, kind))
 
 	for kind in Texture_Kind {

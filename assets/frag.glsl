@@ -7,7 +7,6 @@ in vec4 v_color;
 in vec2 v_adjusted_half_dimensions;
 in float v_roundness;
 in float v_thickness;
-in vec2 v_additional;
 flat in uint v_kind;
 
 // uniforms
@@ -104,7 +103,7 @@ void main(void) {
 		vec4 texture_color = texture(u_sampler_list, v_uv);
 		color_goal *= texture_color;
 	}
-	
+
 	// } else if (v_kind == RK_ARC) {
 	// 	float tb = v_additional.x;
 	// 	vec2 sc = vec2(sin(tb), cos(tb));

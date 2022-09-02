@@ -202,8 +202,8 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	
 	shortcuts_push_general(s, "changelog_generate", "alt+x")
 	
-	shortcuts_push_general(s, "indentation_shift_right", "tab")
-	shortcuts_push_general(s, "indentation_shift_left", "shift+tab")
+	shortcuts_push_general(s, "indentation_shift_right", "tab", "alt+right")
+	shortcuts_push_general(s, "indentation_shift_left", "shift+tab", "alt+left")
 
 	shortcuts_push_general(s, "pomodoro_toggle1", "alt+1")
 	shortcuts_push_general(s, "pomodoro_toggle2", "alt+2")

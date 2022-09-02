@@ -2189,6 +2189,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		}
 	}
 
+	// open a link button on link text
 	if task_head == task_tail {
 		task := tasks_visible[task_head]
 		text := strings.to_string(task.box.builder)

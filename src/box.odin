@@ -407,9 +407,9 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			append(&box.wrapped_lines, strings.to_string(box.builder))
 		}
 
-		// case .Get_Cursor: {
-		// 	return int(Cursor.IBeam)
-		// }
+		case .Get_Cursor: {
+			return int(Cursor.IBeam)
+		}
 
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
@@ -1295,6 +1295,14 @@ element_box_mouse_selection :: proc(
 			mcs_check_single(&mcs, b, iter.codepoint_count + codepoint_offset, dragging)
 
 			codepoint_offset += iter.codepoint_count
+
+			// do line end?
+			if relative_x > x {
+				index := codepoint_offset
+				box_set_caret(b, 0, &index)
+				break search_line
+			}
+
 			old_y = y
 		}
 

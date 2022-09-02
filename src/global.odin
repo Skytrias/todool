@@ -274,6 +274,12 @@ mix_volume_set :: proc(to: i32) {
 	mix.Volume(0, to)
 }
 
+window_destroy :: proc(window: ^Window) {
+	sdl.HideWindow(window.w)
+	element_destroy(&window.element)
+	sdl_push_empty_event()
+}
+
 window_init :: proc(
 	owner: ^Window,
 	flags: Element_Flags,
@@ -1927,12 +1933,7 @@ bpath_file_read :: proc(path: string, allocator := context.allocator) -> ([]byte
 // menus
 //////////////////////////////////////////////
 
-window_destroy :: proc(window: ^Window) {
-	sdl.HideWindow(window.w)
-	element_destroy(&window.element)
-	sdl_push_empty_event()
-}
-
+// close the current menu when its opened
 menu_close :: proc(window: ^Window) -> (any_closed: bool) {
 	assert(window.menu != nil)
 
@@ -1944,6 +1945,7 @@ menu_close :: proc(window: ^Window) -> (any_closed: bool) {
 	return
 }
 
+// true when the menu is shown
 menu_open :: proc(window: ^Window) -> bool {
 	assert(window.menu != nil) 
 	return .Hide in window.menu.flags
@@ -1955,37 +1957,10 @@ menu_init :: proc(window: ^Window, flags: Element_Flags) -> (menu: ^Panel_Floaty
 	panel_clear_without_scrollbar(menu.panel)
 	menu.x = window.cursor_x
 	menu.y = window.cursor_y
-
-	// // TODO scrolling?
-	// // menu.vscroll
-
-	// // place at expected menu position
-	// // if parent.parent != nil {
-	// // 	screen_bounds := element_screen_bounds(parent)
-	// // 	menu.point_x = int(screen_bounds.l)
-	// // 	menu.point_y = .Menu_Place_Above in flags ? int(screen_bounds.t + 1) : int(screen_bounds.b - 1)
-	// // 	// log.info("1: menu", menu.point_x, menu.point_y)
-	// // } else {
-	// 	// menu
-	// 	window_x, window_y := window_get_position(window)
-	// 	menu.point_x = int(window.cursor_x) + window_x
-	// 	menu.point_y = int(window.cursor_y) + window_y
-	// 	// log.info("2: menu", menu.point_x, menu.point_y)
-	// // }	
-
 	return
 }
 
-menu_item_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	button := cast(^Button) element
-
-	if msg == .Clicked {
-		menu_close(element.window)
-	}
-
-	return 0
-}
-
+// add a basic button with auto closing
 menu_add_item :: proc(
 	menu: ^Panel_Floaty, 
 	flags: Element_Flags,
@@ -1993,31 +1968,36 @@ menu_add_item :: proc(
 	invoke: proc(data: rawptr),
 	data: rawptr = nil,
 ) {
-	button := button_init(menu.panel, {}, text, menu_item_message)
+	button := button_init(menu.panel, {}, text)
+	button.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		button := cast(^Button) element
+
+		if msg == .Clicked {
+			menu_close(element.window)
+		}
+
+		return 0
+	}
 	button.invoke = invoke
 	button.data = data
 }
 
-menu_prepare :: proc(menu: ^Panel_Floaty) -> (width, height: int) {
-	width = element_message(menu.panel, .Get_Width)
-	height = element_message(menu.panel, .Get_Height)
-
-	// if .Menu_Place_Above not_in menu.flags {
-	// 	menu.point_y -= height
-	// }
-
-	return
-}
-
+// set width & height based on child elements and keep menu in frame
 menu_show :: proc(menu: ^Panel_Floaty) {
-	w, h := menu_prepare(menu)
-	menu.width = f32(w)
-	menu.height = f32(h)
-	// log.info(menu)
-	// window_set_position(menu.window, menu.point_x, menu.point_y)
-	// window_set_size(menu.window, w, h)
+	width := element_message(menu.panel, .Get_Width)
+	height := element_message(menu.panel, .Get_Height)
+	menu.width = f32(width)
+	menu.height = f32(height)
+
+	full := window_rect(menu.window)
+
+	// keep x & y in frame with a margin
+	margin := 10 * SCALE
+	menu.x = clamp(menu.x, margin, full.r - menu.width - margin)
+	menu.y = clamp(menu.y, margin, full.b - menu.height - margin)
 }
 
+// true wether the requested element is from the menu tree
 element_is_from_menu :: proc(window: ^Window, element: ^Element) -> bool {
 	assert(window.menu != nil)
 
