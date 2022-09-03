@@ -17,22 +17,22 @@ import "../cutf8"
 TODOOL SAVE FILE FORMAT - currently *uncompressed*
 
 file_signature: "TODOOLFF"
+version: [8]u8 -> version number as a string "00.02.00"
 
 header: 
 	block_size: u32be
-	version: u16be -> version number
 	
 	block read into struct -> based on block_size
-		Version 1:
+		Version "00.02.00":
 			task_head: u32be -> head line
 			task_tail: u32be -> tail line
-			task_bytes_min: u16be -> size to read per task line in memory
-			task_count: u32be -> how many "task lines" to read
 			camera_offset_x: i32be,
 			camera_offset_y: i32be,
+			task_count: u32be -> how many "task lines" to read
+			task_bytes_min: u16be -> size to read per task line in memory
 
 task line: atleast "task_bytes_min" big
-	Version 1:
+	Version "00.02.00":
 		indentation: u8 -> indentation used, capped to 255
 		folded: u8 -> task folded
 		state: u8 -> task state
@@ -51,25 +51,6 @@ opt data:
 	
 	Save_Tag enum -> u8
 */
-
-V1_Save_Header :: struct {
-	task_head: u32be,
-	task_tail: u32be,
-	task_count: u32be,
-	task_bytes_min: u16be,
-
-	// ONLY VALID FOR THE SAME WINDOW SIZE
-	camera_offset_x: i32be,
-	camera_offset_y: i32be,
-}
-
-V1_Save_Task :: struct {
-	indentation: u8,
-	state: u8,
-	tags: u8,
-	text_size: u16be,
-	// N text content comes after this
-}
 
 // NOTE should only increase, mark things as deprecated!
 Save_Tag :: enum u8 {
@@ -112,28 +93,48 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 
 	// signature
 	bytes.buffer_write_ptr(&buffer, &bytes_file_signature[0], 8) or_return
+	// NOTE 8 bytes only
+	version := "00.02.00"
+	bytes.buffer_write_ptr(&buffer, raw_data(version), 8) or_return
+
+	// current version structs
+	Save_Header :: struct #packed {
+		task_head: u32be,
+		task_tail: u32be,
+		// ONLY VALID FOR THE SAME WINDOW SIZE
+		camera_offset_x: i32be,
+		camera_offset_y: i32be,
+		task_count: u32be,
+		task_bytes_min: u16be,
+	}
+
+	Save_Task :: struct #packed {
+		indentation: u8,
+		state: u8,
+		tags: u8,
+		text_size: u16be,
+		// N text content comes after this
+	}
 
 	// header block
-	header_size := u32be(size_of(V1_Save_Header))
+	header_size := u32be(size_of(Save_Header))
 	buffer_write_type(&buffer, header_size) or_return
-	header_version := u16be(1)
-	buffer_write_type(&buffer, header_version) or_return
-
+	
 	cam := mode_panel_cam()
-	header := V1_Save_Header {
+	header := Save_Header {
 		u32be(task_head),
 		u32be(task_tail),
-		u32be(len(mode_panel.children)),
-		size_of(V1_Save_Task),
 		i32be(cam.offset_x),
 		i32be(cam.offset_y),
+		u32be(len(mode_panel.children)),
+		size_of(Save_Task),
 	}
 	buffer_write_type(&buffer, header) or_return
 	
 	// write all lines
 	for child in mode_panel.children {
 		task := cast(^Task) child
-		t := V1_Save_Task {
+		t := Save_Task {
 			u8(task.indentation),
 			u8(task.state),
 			u8(task.tags),
@@ -198,29 +199,49 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 editor_load_version :: proc(
 	reader: ^bytes.Reader,
 	block_size: u32be, 
-	version: u16be,
+	version: string,
 ) -> (err: io.Error) {
 	switch version {
-		case 1: {
-			if int(block_size) != size_of(V1_Save_Header) {
+		case "00.02.00": {
+			Save_Header :: struct #packed {
+				task_head: u32be,
+				task_tail: u32be,
+				// ONLY VALID FOR THE SAME WINDOW SIZE
+				camera_offset_x: i32be,
+				camera_offset_y: i32be,
+
+				task_count: u32be,
+				task_bytes_min: u16be,
+			}
+
+			if int(block_size) != size_of(Save_Header) {
 				log.error("LOAD: Wrong block size for version: ", version)
 				return
 			}
 
 			// save when size is the same as version based size
-			header := reader_read_type(reader, V1_Save_Header) or_return
+			header := reader_read_type(reader, Save_Header) or_return
 			cam := mode_panel_cam()
 			cam.offset_x = f32(header.camera_offset_x)
 			cam.offset_y = f32(header.camera_offset_y)
+			log.info("xy", cam.offset_x, cam.offset_y)
 
-			if int(header.task_bytes_min) != size_of(V1_Save_Task) {
-				log.error("LOAD: Wrong task byte size", size_of(V1_Save_Task), header.task_bytes_min)
+			Save_Task :: struct #packed {
+				indentation: u8,
+				state: u8,
+				tags: u8,
+				text_size: u16be,
+				// N text content comes after this
+			}
+
+			if int(header.task_bytes_min) != size_of(Save_Task) {
+				log.error("LOAD: Wrong task byte size", size_of(Save_Task), header.task_bytes_min)
 				return
 			}
 
 			// read each task
 			for i in 0..<header.task_count {
-				block_task := reader_read_type(reader, V1_Save_Task) or_return
+				block_task := reader_read_type(reader, Save_Task) or_return
 				text_byte_content := reader_read_bytes_out(reader, int(block_task.text_size)) or_return
 
 				line := task_push(int(block_task.indentation), string(text_byte_content[:]))
@@ -289,8 +310,10 @@ editor_load :: proc(file_path: string) -> (err: io.Error) {
 	tasks_load_reset()
 
 	// header block
+	version_bytes := reader_read_bytes_out(&reader, 8) or_return
+	version := string(version_bytes)
 	block_size := reader_read_type(&reader, u32be) or_return
-	version := reader_read_type(&reader, u16be) or_return
+	log.info("FOUND VERSION", version)
 	editor_load_version(&reader, block_size, version) or_return
 	editor_read_opt_tags(&reader) or_return
 

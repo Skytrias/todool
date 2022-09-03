@@ -617,6 +617,14 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 
 			kind: Texture_Kind = info.index == 1 ? .Kanban : .List
 
+			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
+				if res == 1 {
+					rect := element.bounds
+					rect.l = rect.r - (4 * SCALE)
+					render_rect(target, rect, text_color, 0)
+				}
+			}
+
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, text_color)
 				render_hovered_highlight(target, element.bounds)

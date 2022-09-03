@@ -423,20 +423,20 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			focused := element.window.focused == element
 
 			target := element.window.target
-			OFF :: 5
-			offset := 5 * SCALE
 			text := strings.to_string(box.builder)
 			scaled_size := fcs_element(element)
 			fcs_ahv(.Left, .Top)
-			text_width := string_width(text) - offset
 			caret_x: f32
+			text_bounds := element.bounds
+			text_bounds.l += 5 * SCALE
+			text_bounds.r -= 5 * SCALE
+			text_width := string_width(text)
 
 			// handle scrolling
 			{
-				// TODO review with scaling
 				// clamp scroll(?)
-				if box.scroll > text_width - rect_width(element.bounds) {
-					box.scroll = text_width - rect_width(element.bounds)
+				if box.scroll > text_width - rect_width(text_bounds) {
+					box.scroll = text_width - rect_width(text_bounds)
 				}
 
 				if box.scroll < 0 {
@@ -450,25 +450,25 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				// check caret x
 				if caret_x < 0 {
 					box.scroll = caret_x + box.scroll
-				} else if caret_x > rect_width(element.bounds) {
-					box.scroll = caret_x - rect_width(element.bounds) + box.scroll + 1
+				} else if caret_x > rect_width(text_bounds) {
+					box.scroll = caret_x - rect_width(text_bounds) + box.scroll + 1
 				}
 
 				// caret_x = estring_width(element, text[:box.head]) - box.scroll
 				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 			}
 
-			old_bounds := element.bounds
-			element.bounds.l += offset
+			// old_bounds := text_bounds
+			// element.bounds.l += offset
 
 			color: Color
 			element_message(element, .Box_Text_Color, 0, &color)
 
 			// selection & caret
 			if focused {
-				render_rect(target, old_bounds, theme_panel(.Front), ROUNDNESS)
-				x := box.bounds.l - box.scroll
-				y := box.bounds.t
+				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
+				x := text_bounds.l - box.scroll
+				y := text_bounds.t
 				low, high := box_low_and_high(box)
 				box_render_selection(target, box, x, y, theme.caret_selection)
 
@@ -481,13 +481,13 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				render_rect(target, caret, theme.caret, 0)
 			}
 
-			render_rect_outline(target, old_bounds, color)
+			render_rect_outline(target, element.bounds, color)
 			fcs_color(color)
 
 			// draw each wrapped line
 			y: f32
 			for wrap_line, i in box.wrapped_lines {
-				render_string(target, element.bounds.l - box.scroll, element.bounds.t + y, wrap_line)
+				render_string(target, text_bounds.l - box.scroll, text_bounds.t + y, wrap_line)
 				y += f32(scaled_size)
 			}
 		}
@@ -539,10 +539,9 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Left_Down: {
 			element_focus(element)
-			// element.window.focused = element
 
 			old_tail := box.tail
-			element_box_mouse_selection(box, box, di, false)
+			element_box_mouse_selection(box, box, di, false, box.scroll)
 
 			if element.window.shift && di == 0 {
 				box.tail = old_tail
@@ -551,7 +550,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Mouse_Drag: {
 			if element.window.pressed_button == MOUSE_LEFT {
-				element_box_mouse_selection(box, box, di, true)
+				element_box_mouse_selection(box, box, di, true, box.scroll)
 				element_repaint(box)
 			}
 		}
@@ -1153,6 +1152,7 @@ element_box_mouse_selection :: proc(
 	b: ^Box,
 	clicks: int,
 	dragging: bool,
+	x_offset: f32,
 ) -> (found: bool) {
 	scaled_size := fcs_element(element)
 
@@ -1248,7 +1248,7 @@ element_box_mouse_selection :: proc(
 	}
 
 	using mcs
-	relative_x = element.window.cursor_x - element.bounds.l
+	relative_x = element.window.cursor_x - element.bounds.l + x_offset
 	relative_y = element.window.cursor_y - element.bounds.t
 
 	ctx := &gs.fc

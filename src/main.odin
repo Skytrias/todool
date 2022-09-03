@@ -48,23 +48,6 @@ TODOOL_RELEASE :: false
 // TODO general
 // while search typing set camera to focus atleast search result found
 
-// main :: proc() {
-// 	gs_init()
-// 	context.logger = gs.logger
-// 	context.allocator = gs_allocator()
-
-// 	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
-// 	p := panel_init(&window.element, { .HF, .VF, .Panel_Default_Background }, 5)
-// 	p.background_index = 0
-
-// 	label_init(p, { .HF }, "Testing")
-// 	label_init(p, { .HF, .Label_Center }, "Testing")
-// 	label_init(p, { .HF }, "Testing")
-// 	button_init(p, {}, "Testing")
-
-// 	gs_message_loop()  	
-// }
-
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -304,7 +287,7 @@ main :: proc() {
 		log.info("JSON: Load failed -> Using default")
 	}
 
-	tasks_load_reset()
+	// tasks_load_reset()
 	// tasks_load_tutorial()
 	// tasks_load_default()
 	tasks_load_file()

@@ -1347,7 +1347,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				box_set_caret(task.box, BOX_END, nil)
 			} else {
 				old_tail := box.tail
-				element_box_mouse_selection(task.box, task.box, di, false)
+				element_box_mouse_selection(task.box, task.box, di, false, 0)
 
 				if element.window.shift && di == 0 {
 					box.tail = old_tail
@@ -1360,7 +1360,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Mouse_Drag: {
 			if element.window.pressed_button == MOUSE_LEFT {
 				if task_head == task_tail {
-					element_box_mouse_selection(task.box, task.box, di, true)
+					element_box_mouse_selection(task.box, task.box, di, true, 0)
 					element_repaint(task)
 					return 1
 				}
