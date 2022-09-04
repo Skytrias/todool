@@ -335,7 +335,7 @@ range_advance_index :: proc(index: ^int, high: int, backwards := false) {
 }
 
 // editor_pushed_unsaved: bool
-TAB_WIDTH :: 100
+TAB_WIDTH :: 200
 TASK_DATA_GAP :: 5
 TASK_TEXT_OFFSET :: 2
 TASK_DATA_MARGIN :: 2
@@ -1107,7 +1107,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 				
 				drag_task := tasks_visible[drag_index_at]
-				render_underline(target, drag_task.bounds, theme.text_good)
+				render_underline(target, drag_task.bounds, theme.text_default)
 			}
 
 			// highlight selection
@@ -1636,8 +1636,10 @@ goto_init :: proc(window: ^Window) {
 	panel_goto = p
 	p.panel.background_index = 2
 	p.width = 200
-	p.height = DEFAULT_FONT_SIZE * SCALE + p.panel.margin * 2
+	p.height = DEFAULT_FONT_SIZE * 2 * SCALE + p.panel.margin * 2
 	p.panel.flags |= { .Panel_Expand }
+	p.panel.margin = 5
+	p.panel.shadow = true
 
 	p.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		floaty := cast(^Panel_Floaty) element
@@ -1703,6 +1705,8 @@ goto_init :: proc(window: ^Window) {
 		return 0
 	}
 
+
+	label_init(p.panel, { .Label_Center }, "Goto Line")
 	box := text_box_init(p.panel, {})
 	box.codepoint_numbers_only = true
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

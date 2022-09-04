@@ -556,7 +556,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Get_Width: {
-			return int(SCALE * 200)
+			return int(SCALE * 100)
 		}
 
 		case .Get_Height: {

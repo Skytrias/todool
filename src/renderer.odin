@@ -27,50 +27,19 @@ Align_Vertical :: fontstash.Align_Vertical
 DROP_SHADOW :: 20
 DEFAULT_VERTICES :: 1024 * 2
 
+// TODO minimize icofont file to only these
 Icon :: enum {
 	None = 0x00,
 
 	Simple_Down = 0xeab2,
 	Simple_Right = 0xeab8,
-	Simple_Left = 0xeab5,
-		
-	Clock = 0xec3f,
-	Close = 0xec4f,
-	Check = 0xec4b,
 
-	Search = 0xed1b,
-	Search_Document = 0xed13,
-	Search_Map = 0xed16,
-
-	List = 0xef76,
-	UI_Calendar = 0xec45,
-	Stopwatch = 0xedcd,
-
-	Exclamation_Mark_Rounded = 0xef19,
-	Trash = 0xee09,
-
-	Bookmark = 0xeec0,
 	Tomato = 0xeb9a,
-	Clock_Time = 0xeedc,
 	Tag = 0xf004,
 
-	Caret_Right = 0xeac4,
-	Home = 0xef47,
-
-	Simple_Up = 0xeab9,
-
-	Arrow_Up = 0xea5e,
-	Arrow_Down = 0xea5b,
-
-	Locked = 0xef7a,
-	Unlocked = 0xf01b,
-
 	Cog = 0xefb0,
-	Sort = 0xefee,
 	Reply = 0xec7f,
-	Notebook = 0xefaa,
 	Archive = 0xeea5,
-	Copy = 0xedea,
 }
 
 Render_Target :: struct {
@@ -718,6 +687,7 @@ render_string_rect :: proc(
 	rect: Rect,
 	text: string,
 ) -> f32 {
+	ctx := &gs.fc
 	group := &target.groups[len(target.groups) - 1]
 	state := fontstash.state_get(&gs.fc)
 
@@ -725,15 +695,26 @@ render_string_rect :: proc(
 	y: f32
 	switch state.ah {
 		case .Left: { x = rect.l }
-		case .Middle: { x = rect.l + rect_width_halfed(rect) }
+		case .Middle: { 
+			x = rect.l + rect_width_halfed(rect)
+		}
 		case .Right: { x = rect.r }
 	}
+	// y = rect.t + rect_height_halfed(rect)
 	switch state.av {
 		case .Top: { y = rect.t }
-		case .Middle: { y = rect.t + rect_height_halfed(rect) }
+		case .Middle: { 
+			y = rect.t + rect_height_halfed(rect) 
+			// rect := rect
+			// rect.t = y
+			// rect.b = y + 2
+			// render_rect(target, rect, BLUE)
+		}
 		case .Baseline: { y = rect.t }
 		case .Bottom: { y = rect.b }
 	}
+
+	// render_rect_outline(target, rect, RED)
 
 	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
 	q: fontstash.Quad

@@ -461,16 +461,16 @@ theme_editor_spawn :: proc() {
 
 		LABEL_WIDTH :: 100
 
-		push_sliders :: proc(parent: ^Element, a, b, c: ^^Slider, static: f32) {
+		push_sliders :: proc(parent: ^Element, a, b, c: ^^Slider, static: f32, low: f32, high: f32) {
 			a^ = slider_init(parent, {}, static)
 			a^.formatting = proc(builder: ^strings.Builder, position: f32) {
 				fmt.sbprintf(builder, "Static %.3f", position)
 			}
-			b^ = slider_init(parent, {}, 0)
+			b^ = slider_init(parent, {}, low)
 			b^.formatting = proc(builder: ^strings.Builder, position: f32) {
 				fmt.sbprintf(builder, "Low %.3f", position)
 			}
-			c^ = slider_init(parent, {}, 1)
+			c^ = slider_init(parent, {}, high)
 			c^.formatting = proc(builder: ^strings.Builder, position: f32) {
 				fmt.sbprintf(builder, "High %.3f", position)
 			}
@@ -480,17 +480,17 @@ theme_editor_spawn :: proc() {
 		p1 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p1, {}, "Hue", LABEL_WIDTH)
 		checkbox_hue = checkbox_init(p1, {}, "USE", true)
-		push_sliders(p1, &slider_hue_static, &slider_hue_low, &slider_hue_high, 0)
+		push_sliders(p1, &slider_hue_static, &slider_hue_low, &slider_hue_high, 0, 0, 1)
 		
 		p2 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p2, {}, "Saturation", LABEL_WIDTH)
-		checkbox_sat = checkbox_init(p2, {}, "USE", false)
-		push_sliders(p2, &slider_sat_static, &slider_sat_low, &slider_sat_high, 1)
+		checkbox_sat = checkbox_init(p2, {}, "USE", true)
+		push_sliders(p2, &slider_sat_static, &slider_sat_low, &slider_sat_high, 1, 0.5, 0.75)
 		
 		p3 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
 		label_init(p3, {}, "Value", LABEL_WIDTH)
-		checkbox_value = checkbox_init(p3, {}, "USE", false)
-		push_sliders(p3, &slider_value_static, &slider_value_low, &slider_value_high, 1)
+		checkbox_value = checkbox_init(p3, {}, "USE", true)
+		push_sliders(p3, &slider_value_static, &slider_value_low, &slider_value_high, 1, 0.5, 1)
 	}
 }
 

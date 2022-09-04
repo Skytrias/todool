@@ -26,25 +26,6 @@ TODOOL_RELEASE :: false
 // 	notify.run("Todool Pomodoro Timer Finished", "", "dialog-information")
 // }
 
-// import "../nfd"
-// main2 :: proc() {
-// 	fmt.eprintln("start")
-// 	defer fmt.eprintln("end")
-
-// 	out_path: cstring = "*.c"
-// 	res := nfd.OpenDialog("", "", &out_path)
-// 	fmt.eprintln(res, out_path)
-
-// 	// res := nfd.SaveDialog("", "", &out_path)
-// 	// fmt.eprintln(res, out_path)
-// }
-
-// import "core:c/libc"
-
-// main2 :: proc() {
-// 	libc.system("xdg-open https://www.patreon.com/nakst")	
-// }
-
 // TODO general
 // while search typing set camera to focus atleast search result found
 
@@ -291,6 +272,9 @@ main :: proc() {
 	// tasks_load_tutorial()
 	// tasks_load_default()
 	tasks_load_file()
+
+	// do actual loading later because options might change the path
+	fonts_load_pushed()
 	
 	gs_message_loop()
 }

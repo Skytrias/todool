@@ -1232,7 +1232,7 @@ todool_goto :: proc() {
 	goto_transition_animating = true
 	element_animation_start(p)
 
-	box := cast(^Text_Box) p.panel.children[0]
+	box := cast(^Text_Box) p.panel.children[1]
 	element_focus(box)
 
 	goto_saved_task_head = task_head

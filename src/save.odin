@@ -352,6 +352,9 @@ Misc_Save_Load :: struct {
 		scale: f32,
 		mode_index: int,
 
+		font_regular_path: string,
+		font_bold_path: string,
+
 		window_x: int, 
 		window_y: int,
 		window_width: int,
@@ -454,6 +457,9 @@ json_save_misc :: proc(path: string) -> bool {
 		hidden = {
 			scale =  SCALE,
 			mode_index = int(mode_panel.mode),
+			
+			font_regular_path = gs.font_regular_path,
+			font_bold_path = gs.font_bold_path,
 
 			window_x = window_x,
 			window_y = window_y,
@@ -550,6 +556,10 @@ json_load_misc :: proc(path: string) -> bool {
 		}
 
 		last_save_location = strings.clone(misc.hidden.last_save_location)
+
+		if misc.hidden.font_regular_path != "" && misc.hidden.font_bold_path != "" {
+			fonts_set(misc.hidden.font_regular_path, misc.hidden.font_bold_path)
+		}
 	}
 
 	// tag data

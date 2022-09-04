@@ -46,6 +46,7 @@ Align_Vertical :: enum {
 
 Font :: struct {
 	info: stbtt.fontinfo,
+	free_loaded_data: bool,
 	loaded_data: []byte,
 
 	ascender: f32,
@@ -132,7 +133,10 @@ init :: proc(using ctx: ^Font_Context, w, h: int) {
 
 destroy :: proc(using ctx: ^Font_Context) {
 	for font in &fonts {
-		delete(font.loaded_data)
+		if font.free_loaded_data {
+			delete(font.loaded_data)
+		}
+
 		delete(font.glyphs)
 	}
 
@@ -309,22 +313,36 @@ font_atlas_add_white_rect :: proc(ctx: ^Font_Context, w, h: int) {
 	ctx.dirty_rect[3] = cast(f32) max(int(ctx.dirty_rect[3]), gy + h)
 }
 
+font_push :: proc { font_push_file, font_push_slice }
+
+font_push_file :: proc(
+	ctx: ^Font_Context,
+	path: string,
+	init_default_ascii := false,
+	pixel_size := f32(0),
+) -> (res: ^Font) {
+	data, ok := os.read_entire_file(path)
+
+	if !ok {
+		log.panicf("FONT: failed to read font at %s", path)
+	}
+
+	res = font_push_slice(ctx, data, init_default_ascii, pixel_size)
+	res.free_loaded_data = true
+	return
+}
+
 // push a font to the font stack
 // optionally init with ascii characters at a wanted size
-font_push :: proc(
+font_push_slice :: proc(
 	ctx: ^Font_Context,
-	path: string, 
+	data: []u8, 
 	init_default_ascii := false,
 	pixel_size := f32(0),
 ) -> (res: ^Font) {
 	append(&ctx.fonts, Font {})
-	ok: bool
 	res = &ctx.fonts[len(ctx.fonts) - 1]
-	res.loaded_data, ok = os.read_entire_file(path)
-
-	if !ok {
-		log.errorf("FONT: failed to read font at %s", path)
-	}
+	res.loaded_data = data
 
 	stbtt.InitFont(&res.info, &res.loaded_data[0], 0)
 	a, d, l: i32
@@ -743,26 +761,27 @@ get_vertical_align :: proc(
 	font: ^Font,
 	pixel_size: i16,
 	av: Align_Vertical,
-) -> f32 {
+) -> (res: f32) {
 	switch av {
 		case .Top: {
-			return f32(font.ascender) * f32(pixel_size / 10)
+			res = f32(font.ascender) * f32(pixel_size) / 10
 		}
 
 		case .Middle: {
-			return f32(font.ascender + font.descender) / 2 * f32(pixel_size / 10)
+			res = (font.ascender + font.descender) / 2 * f32(pixel_size) / 10
 		}
 
 		case .Baseline: {
-			return 0
+			res = 0
 		}
 
 		case .Bottom: {
-			return f32(font.descender) * f32(pixel_size / 10)
+			res = f32(font.descender) * f32(pixel_size) / 10
 		}
 	}
 
-	return -1
+	// res = math.round(res)
+	return
 }
 
 //////////////////////////////////////////////

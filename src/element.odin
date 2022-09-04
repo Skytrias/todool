@@ -2635,6 +2635,10 @@ splitter_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 						// keep below half lowest, or hide away
 						if w < low {
 							if w < low / 2 {
+								if split.weight_reset == -1 {
+									split.weight_reset = split.weight_lowest
+								}
+
 								split.weight = reversed ? space : 0
 								element_hide(left, true)
 							} else {
@@ -2653,6 +2657,10 @@ splitter_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 						// keep below half lowest, or hide away
 						if w < low {
 							if w < low / 2 {
+								if split.weight_reset == -1 {
+									split.weight_reset = split.weight_lowest
+								}
+
 								split.weight = reversed ? 1 : 0
 								element_hide(left, true)
 							} else {

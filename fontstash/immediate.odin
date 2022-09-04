@@ -1,5 +1,6 @@
 package fontstash
 
+import "core:math"
 import "core:runtime"
 import "core:mem"
 import "core:log"
@@ -171,7 +172,7 @@ text_iter_init :: proc(
 		case .Left: {}
 		case .Middle: {
 			width := text_bounds(ctx, text, x, y, nil)
-			x -= width * 0.5
+			x = math.round(x - width * 0.5)
 		}
 		case .Right: {
 			width := text_bounds(ctx, text, x, y, nil)
@@ -180,7 +181,7 @@ text_iter_init :: proc(
 	}
 
 	// align vertically
-	y += get_vertical_align(res.font, res.isize, state.av)
+	y = math.round(y + get_vertical_align(res.font, res.isize, state.av))
 
 	// set positions
 	res.x = x

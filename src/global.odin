@@ -29,16 +29,29 @@ HOVER_WIDTH :: 100
 Font :: fontstash.Font
 font_regular: int
 font_bold: int
+data_font_icon := #load("../assets/icofont.ttf")
 font_icon: int
 
 fonts_push :: proc() {
 	ctx := &gs.fc
-	fontstash.font_push(ctx, "Lato-Regular.ttf", true, 20)
 	font_regular = 0
-	fontstash.font_push(ctx, "Lato-Bold.ttf", true, 20)
 	font_bold = 1
-	fontstash.font_push(ctx, "icofont.ttf")
 	font_icon = 2
+}
+
+fonts_load_pushed :: proc() {
+	ctx := &gs.fc
+	fontstash.font_push(ctx, gs.font_regular_path, true, 20)
+	fontstash.font_push(ctx, gs.font_bold_path, true, 20)
+	fontstash.font_push(ctx, data_font_icon)
+}
+
+// delete old one and set new one
+fonts_set :: proc(a, b: string) {
+	delete(gs.font_regular_path)
+	delete(gs.font_bold_path)
+	gs.font_regular_path = strings.clone(a)
+	gs.font_bold_path = strings.clone(b)
 }
 
 Shortcut_Proc :: proc() -> bool
@@ -174,6 +187,9 @@ Global_State :: struct {
 	stored_image_thread: ^thread.Thread,
 	
 	window_hovering_timer: sdl.TimerID,
+
+	font_regular_path: string,
+	font_bold_path: string,
 
 	track: mem.Tracking_Allocator,
 	fc: fontstash.Font_Context,
@@ -1147,6 +1163,9 @@ gs_init :: proc() {
 	sdl.EnableScreenSaver()
 	sdl.SetHint(sdl.HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0")
 
+	font_regular_path = strings.clone("Lato-Regular.ttf")
+	font_bold_path = strings.clone("Lato-Bold.ttf")
+
 	// create cursors
 	cursors[.Arrow] = sdl.CreateSystemCursor(.ARROW)
 	cursors[.IBeam] = sdl.CreateSystemCursor(.IBEAM)
@@ -1304,6 +1323,9 @@ gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
 
 gs_destroy :: proc() {
 	using gs
+
+	delete(font_regular_path)
+	delete(font_bold_path)
 
 	delete(animating)
 	delete(copy_builder.buf)

@@ -97,7 +97,6 @@ Sidebar_Tags :: struct {
 Sidebar_Archive :: struct {
 	panel: ^Panel,
 	buttons: ^Panel,
-
 	head, tail: int,
 }
 
@@ -269,7 +268,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 		panel = shared_panel(enum_panel, "Options")
 
-		slider_tab = slider_init(panel, flags, 0.5)
+		slider_tab = slider_init(panel, flags, 0.25)
 		slider_tab.formatting = proc(builder: ^strings.Builder, position: f32) {
 			fmt.sbprintf(builder, "Tab: %.3f%%", position)
 		}
