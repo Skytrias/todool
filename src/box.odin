@@ -588,6 +588,42 @@ text_box_init :: proc(
 //////////////////////////////////////////////
 
 // just paints the text based on text color
+task_box_paint_default_selection :: proc(box: ^Task_Box) {
+	focused := box.window.focused == box
+	target := box.window.target
+	scaled_size := fcs_element(box)
+
+	color: Color
+	element_message(box, .Box_Text_Color, 0, &color)
+
+	fcs_ahv(.Left, .Top)
+	fcs_color(color)
+
+	group := &target.groups[len(target.groups) - 1]
+	state := fontstash.state_get(&gs.fc)
+	q: fontstash.Quad
+	codepoint_index: int
+	back_color := theme_panel(.Front)
+	low, high := box_low_and_high(box)
+
+	// draw each wrapped line
+	y_offset: f32
+	for wrap_line, i in box.wrapped_lines {
+		iter := fontstash.text_iter_init(&gs.fc, wrap_line, box.bounds.l, box.bounds.t + y_offset)
+
+		for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+			state.color = low <= codepoint_index && codepoint_index < high ? back_color : color
+			render_glyph_quad(target, group, state, &q)
+			codepoint_index += 1 
+		}
+
+		y_offset += f32(scaled_size)
+	}
+
+	fcs_color(color)
+}
+
+// just paints the text based on text color
 task_box_paint_default :: proc(box: ^Task_Box) {
 	focused := box.window.focused == box
 	target := box.window.target
@@ -605,6 +641,8 @@ task_box_paint_default :: proc(box: ^Task_Box) {
 		render_string(target, box.bounds.l, box.bounds.t + y, wrap_line)
 		y += f32(scaled_size)
 	}
+
+	fcs_color(color)
 }
 
 task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

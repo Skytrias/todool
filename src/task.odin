@@ -95,8 +95,6 @@ drag_init :: proc(window: ^Window) {
 	floaty := panel_floaty_init(&window.element, { .Panel_Default_Background })
 	floaty.x = 0
 	floaty.y = 0
-	floaty.width = 50
-	floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 	floaty.z_index = 200
 	p := floaty.panel
 	p.flags |= { .Panel_Expand }
@@ -111,6 +109,8 @@ drag_init :: proc(window: ^Window) {
 			case .Layout: {
 				floaty.x = element.window.cursor_x - 10
 				floaty.y = element.window.cursor_y - 10
+				floaty.width = 50 * SCALE
+				floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 			}
 
 			case .Animate: {
@@ -337,9 +337,10 @@ range_advance_index :: proc(index: ^int, high: int, backwards := false) {
 // editor_pushed_unsaved: bool
 TAB_WIDTH :: 200
 TASK_DATA_GAP :: 5
-TASK_TEXT_OFFSET :: 2
+TASK_TEXT_OFFSET :: 0
 TASK_DATA_MARGIN :: 2
 TASK_BOOKMARK_WIDTH :: 10
+TASK_MARGIN :: 10
 
 Task_State :: enum u8 {
 	Normal,
@@ -943,15 +944,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						// format before taking height
 						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * SCALE
 						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
-						width_limit := rect_width(element.bounds) - tab_size - fold_size
-						width_limit -= cam.offset_x
+						// width_limit := rect_width(element.bounds) - tab_size - fold_size
+						// width_limit -= cam.offset_x
+						// width_limit := rect_width(task.box.bounds)
 						
-						// disable wrap limit
-						if !options_wrapping() {
-							width_limit = max(f32)
-						}
+						// // disable wrap limit
+						// if !options_wrapping() {
+						// 	width_limit = max(f32)
+						// }
 
-						task_box_format_to_lines(task.box, width_limit)
+						// task_box_format_to_lines(task.box, width_limit)
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top_hard(&cut, f32(h))
 						// element_move(task, r)
@@ -1019,7 +1021,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						// format before taking height, predict width
 						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * SCALE
 						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
-						task_box_format_to_lines(task.box, rect_width(kanban_current) - tab_size - fold_size)
+						// task_box_format_to_lines(task.box, rect_width(kanban_current) - tab_size - fold_size)
+						// width_limit := rect_width(task.box.bounds)
+						// task_box_format_to_lines(task.box, width_limit)
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&kanban_current, f32(h))
 						element_move(task, r)
@@ -1321,9 +1325,10 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			if task_head == task_tail && task.visible_index == task_head {
 				fcs_element(task)
 				box_render_selection(target, box, x, y, theme.caret_selection)
+				task_box_paint_default_selection(box)
+			} else {
+				task_box_paint_default(box)
 			}
-
-			task_box_paint_default(box)
 
 			// outline visible selected one
 			if task_head == task_tail && task.visible_index == task_head {
@@ -1437,6 +1442,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			line_size += line_size_addition
 			line_size += math.round(mode_panel.margin_vertical * SCALE)
 			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * SCALE) : 0
+			line_size += TASK_MARGIN * 2
 
 			return int(line_size)
 		}
@@ -1456,6 +1462,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			cut := element.bounds
 			cut.l += offset_indentation
+			cut = rect_margin(cut, TASK_MARGIN)
 
 			if image_display_has_content(task.image_display) {
 				top := rect_cut_top_hard(&cut, IMAGE_DISPLAY_HEIGHT * SCALE)
@@ -1491,17 +1498,17 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				render_rect(target, rect, color, ROUNDNESS)
 			}
 
-			hovered := element.window.hovered == task.box
-			pressed := element.window.pressed == task.box
+			// hovered := element.window.hovered == task.box
+			// pressed := element.window.pressed == task.box
 			
 			if task_head == task.visible_index {
 				color := theme.text_default
 				render_rect_outline(target, rect, color)
 			} 
 
-			if hovered || pressed {
-				render_hovered_highlight(target, rect, hovered && !pressed ? 0.75 : 1)
-			}
+			// if hovered || pressed {
+			// 	render_hovered_highlight(target, rect, hovered && !pressed ? 0.75 : 1)
+			// }
 
 			if task.bookmarked {
 				rect := rect

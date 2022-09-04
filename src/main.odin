@@ -29,6 +29,13 @@ TODOOL_RELEASE :: false
 // TODO general
 // while search typing set camera to focus atleast search result found
 
+// main :: proc() {
+//   // test: ^int = true ? nil : nil
+
+//   test: ^int
+//   test := true ? nil : nil
+// }
+
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -150,7 +157,7 @@ main :: proc() {
 				drag_index_at = -1
 			} else {
 				for task, i in tasks_visible {
-					if task.bounds.t < task.window.cursor_y && task.window.cursor_y < task.bounds.b {
+					if rect_contains(task.bounds, window.cursor_x, window.cursor_y) {
 						drag_index_at = task.visible_index
 						break
 					}
@@ -275,6 +282,7 @@ main :: proc() {
 
 	// do actual loading later because options might change the path
 	fonts_load_pushed()
+	gs_update_after_load()
 	
 	gs_message_loop()
 }

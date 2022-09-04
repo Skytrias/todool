@@ -1577,7 +1577,7 @@ panel_init :: proc(
 	res.gap = gap
 
 	if .Panel_Scrollable in flags {
-		res.scrollbar = scrollbar_init(res, { .Layout_Ignore })
+		res.scrollbar = scrollbar_init(res, { .Layout_Ignore }, allocator)
 	}
 
 	return
@@ -1988,7 +1988,7 @@ table_init :: proc(
 	allocator := context.allocator,
 ) -> (res: ^Table) {
 	res = element_init(Table, parent, flags, table_message, allocator)	
-	res.scrollbar = scrollbar_init(res, {})
+	res.scrollbar = scrollbar_init(res, {}, allocator)
 	res.columns = strings.clone(columns)
 	return
 }

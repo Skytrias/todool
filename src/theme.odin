@@ -151,7 +151,7 @@ theme_editor_spawn :: proc() {
 		return
 	}
 
-	window := window_init(nil, {}, "Todool Theme Editor", i32(700 * SCALE), 900, mem.Megabyte)
+	window := window_init(nil, {}, "Todool Theme Editor", i32(800 * SCALE), 900, mem.Megabyte)
 	window.name = "theme"
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		#partial switch msg {

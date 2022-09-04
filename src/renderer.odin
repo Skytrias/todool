@@ -741,7 +741,7 @@ render_string :: proc(
 		render_glyph_quad(target, group, state, &q)
 	}
 
-  return iter.nextx
+	return iter.nextx
 }
 
 render_icon :: proc(

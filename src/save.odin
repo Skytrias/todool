@@ -557,8 +557,12 @@ json_load_misc :: proc(path: string) -> bool {
 
 		last_save_location = strings.clone(misc.hidden.last_save_location)
 
-		if misc.hidden.font_regular_path != "" && misc.hidden.font_bold_path != "" {
-			fonts_set(misc.hidden.font_regular_path, misc.hidden.font_bold_path)
+		if misc.hidden.font_regular_path != "" {
+			gs.font_regular_path = strings.clone(misc.hidden.font_regular_path)
+		}
+
+		if misc.hidden.font_bold_path != "" {
+			gs.font_bold_path = strings.clone(misc.hidden.font_bold_path)
 		}
 	}
 

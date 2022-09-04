@@ -27,31 +27,35 @@ ROUNDNESS := 5.0 * SCALE
 HOVER_WIDTH :: 100
 
 Font :: fontstash.Font
+data_font_icon := #load("../assets/icofont.ttf")
+data_font_regular := #load("../assets/Lato-Regular.ttf")
+data_font_bold := #load("../assets/Lato-Bold.ttf")
 font_regular: int
 font_bold: int
-data_font_icon := #load("../assets/icofont.ttf")
 font_icon: int
 
 fonts_push :: proc() {
 	ctx := &gs.fc
-	font_regular = 0
-	font_bold = 1
-	font_icon = 2
+	font_icon = 0
+	font_regular = 1
+	font_bold = 2
 }
 
 fonts_load_pushed :: proc() {
 	ctx := &gs.fc
-	fontstash.font_push(ctx, gs.font_regular_path, true, 20)
-	fontstash.font_push(ctx, gs.font_bold_path, true, 20)
 	fontstash.font_push(ctx, data_font_icon)
-}
 
-// delete old one and set new one
-fonts_set :: proc(a, b: string) {
-	delete(gs.font_regular_path)
-	delete(gs.font_bold_path)
-	gs.font_regular_path = strings.clone(a)
-	gs.font_bold_path = strings.clone(b)
+	if gs.font_regular_path != "" {
+		fontstash.font_push(ctx, gs.font_regular_path, true, 20)
+	} else {
+		fontstash.font_push(ctx, data_font_regular, true, 20)
+	}
+
+	if gs.font_bold_path != "" {
+		fontstash.font_push(ctx, gs.font_bold_path, true, 20)
+	} else {
+		fontstash.font_push(ctx, data_font_bold, true, 20)
+	}
 }
 
 Shortcut_Proc :: proc() -> bool
@@ -401,7 +405,7 @@ window_init :: proc(
 	{
 		floaty := panel_floaty_init(&res.element, {})
 		floaty.width = HOVER_WIDTH * SCALE
-		floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+		// floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 		p := floaty.panel
 		p.flags |= { .Panel_Expand }
 		p.shadow = true
@@ -421,6 +425,11 @@ window_init :: proc(
 	}
 
 	return
+}
+
+gs_update_after_load :: proc() {
+	floaty := window_main.hovered_panel
+	floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 }
 
 window_allocator :: proc(window: ^Window) -> mem.Allocator {
@@ -1163,9 +1172,6 @@ gs_init :: proc() {
 	sdl.EnableScreenSaver()
 	sdl.SetHint(sdl.HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0")
 
-	font_regular_path = strings.clone("Lato-Regular.ttf")
-	font_bold_path = strings.clone("Lato-Bold.ttf")
-
 	// create cursors
 	cursors[.Arrow] = sdl.CreateSystemCursor(.ARROW)
 	cursors[.IBeam] = sdl.CreateSystemCursor(.IBEAM)
@@ -1324,8 +1330,13 @@ gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
 gs_destroy :: proc() {
 	using gs
 
-	delete(font_regular_path)
-	delete(font_bold_path)
+	if font_regular_path != "" {
+		delete(font_regular_path)
+	} 
+
+	if font_bold_path != "" {
+		delete(font_bold_path)
+	}
 
 	delete(animating)
 	delete(copy_builder.buf)
