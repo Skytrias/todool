@@ -36,6 +36,9 @@ TODOOL_RELEASE :: false
 //   test := true ? nil : nil
 // }
 
+// layout rect width / height -> height = len(lines) * X
+// lines
+
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -149,9 +152,14 @@ main :: proc() {
 		task_set_children_info()
 		task_set_visible_tasks()
 		task_check_parent_states(nil)
+
+		// just set the font options once here
+		for task in tasks_visible {
+			task.font_options = task.has_children ? &font_options_bold : nil
+		}
 		
 		// find dragging index at
-		if dragging {
+		if drag_running {
 			if !window_mouse_inside(window) {
 				// set index to invalid
 				drag_index_at = -1

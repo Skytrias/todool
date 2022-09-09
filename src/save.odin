@@ -568,6 +568,7 @@ json_load_misc :: proc(path: string) -> bool {
 
 	// tag data
 	sb.tags.tag_show_mode = misc.tags.tag_mode
+	sb.tags.toggle_selector_tag.cell_unit = f32(misc.tags.tag_mode)
 	for i in 0..<8 {
 		tag := sb.tags.names[i]
 		strings.builder_reset(tag)

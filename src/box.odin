@@ -425,7 +425,10 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			target := element.window.target
 			text := strings.to_string(box.builder)
 			scaled_size := fcs_element(element)
-			fcs_ahv(.Left, .Top)
+			color: Color
+			element_message(element, .Box_Text_Color, 0, &color)
+			fcs_color(color)
+			fcs_ahv(.Left, .Middle)
 			caret_x: f32
 			text_bounds := element.bounds
 			text_bounds.l += 5 * SCALE
@@ -454,24 +457,25 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					box.scroll = caret_x - rect_width(text_bounds) + box.scroll + 1
 				}
 
-				// caret_x = estring_width(element, text[:box.head]) - box.scroll
 				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 			}
-
-			// old_bounds := text_bounds
-			// element.bounds.l += offset
-
-			color: Color
-			element_message(element, .Box_Text_Color, 0, &color)
 
 			// selection & caret
 			if focused {
 				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
 				x := text_bounds.l - box.scroll
-				y := text_bounds.t
-				low, high := box_low_and_high(box)
+				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
 				box_render_selection(target, box, x, y, theme.caret_selection)
+			}
 
+			render_rect_outline(target, element.bounds, color)
+
+			// draw each wrapped line
+			render_string_rect(target, text_bounds, text)
+
+			if focused {
+				x := text_bounds.l - box.scroll
+				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
 				caret := rect_wh(
 					x + caret_x,
 					y,
@@ -479,16 +483,6 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					scaled_size,
 				)
 				render_rect(target, caret, theme.caret, 0)
-			}
-
-			render_rect_outline(target, element.bounds, color)
-			fcs_color(color)
-
-			// draw each wrapped line
-			y: f32
-			for wrap_line, i in box.wrapped_lines {
-				render_string(target, text_bounds.l - box.scroll, text_bounds.t + y, wrap_line)
-				y += f32(scaled_size)
 			}
 		}
 
@@ -560,7 +554,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element))
+			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 		}
 	}
 
@@ -1335,7 +1329,7 @@ element_box_mouse_selection :: proc(
 			codepoint_offset += iter.codepoint_count
 
 			// do line end?
-			if relative_x > x {
+			if relative_x > x && !dragging {
 				index := codepoint_offset
 				box_set_caret(b, 0, &index)
 				break search_line

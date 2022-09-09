@@ -590,7 +590,8 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
 				if res == 1 {
 					rect := element.bounds
-					rect.l = rect.r - (4 * SCALE)
+					// rect.l = rect.r - (4 * SCALE)
+					rect.r = rect.l + (4 * SCALE)
 					render_rect(target, rect, text_color, 0)
 				}
 			}
@@ -753,7 +754,8 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 
 	if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
 		rect := button.bounds
-		rect.l = rect.r - (4 * SCALE)
+		// rect.l = rect.r - (4 * SCALE)
+		rect.r = rect.l + (4 * SCALE)
 		render_rect(target, rect, text_color, 0)
 	}
 

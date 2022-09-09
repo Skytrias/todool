@@ -134,8 +134,6 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	res = new(Render_Target)
 	using res
 
-	sdl.GL_SetAttribute(.CONTEXT_MAJOR_VERSION, 3)
-	sdl.GL_SetAttribute(.CONTEXT_MINOR_VERSION, 3)
 	opengl_context = sdl.GL_CreateContext(window)
 	gl.load_up_to(3, 3, sdl.gl_set_proc_address)
 

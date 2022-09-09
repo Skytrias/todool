@@ -75,7 +75,7 @@ task_multi_context: bool
 drag_list: [dynamic]^Task
 drag_panel: ^Panel_Floaty
 drag_label: ^Label
-dragging: bool
+drag_running: bool
 drag_index_at: int
 
 // dirty file
@@ -88,7 +88,7 @@ bookmarks: [dynamic]int
 
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
-	using element: Element
+	using element: Element,
 }
 
 drag_init :: proc(window: ^Window) {
@@ -114,7 +114,7 @@ drag_init :: proc(window: ^Window) {
 			}
 
 			case .Animate: {
-				return int(dragging)
+				return int(drag_running)
 			}
 		}
 
@@ -336,11 +336,7 @@ range_advance_index :: proc(index: ^int, high: int, backwards := false) {
 
 // editor_pushed_unsaved: bool
 TAB_WIDTH :: 200
-TASK_DATA_GAP :: 5
-TASK_TEXT_OFFSET :: 0
-TASK_DATA_MARGIN :: 2
-TASK_BOOKMARK_WIDTH :: 10
-TASK_MARGIN :: 10
+TASK_MARGIN :: 5
 
 Task_State :: enum u8 {
 	Normal,
@@ -371,6 +367,7 @@ Task :: struct {
 
 	// elements
 	button_fold: ^Icon_Button,
+	button_bookmark: ^Element,
 	box: ^Task_Box,
 	image_display: ^Image_Display,
 
@@ -394,6 +391,7 @@ Task :: struct {
 
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: Rect,
+	tags_rect: Rect,
 
 	// wether we want to be able to jump to this task
 	bookmarked: bool,
@@ -417,7 +415,6 @@ Mode_Panel :: struct {
 	kanban_left: f32, // layout seperation
 	gap_vertical: f32,
 	gap_horizontal: f32,
-	margin_vertical: f32, // task text spacing
 
 	cam: [Mode]Pan_Camera,
 	kanban_outlines: [dynamic]Rect,
@@ -481,6 +478,27 @@ task_find_linear :: proc(element: ^Element, start := 0) -> (res: int) {
 	return 
 }
 
+bookmark_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			render_rect(target, element.bounds, theme.text_default, ROUNDNESS)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Clicked: {
+			task := cast(^Task) element.data
+			task.bookmarked = false
+			element_repaint(mode_panel)
+		}
+	}
+
+	return 0
+}
+
 // raw creationg of a task
 // NOTE: need to set the parent afterward!
 task_init :: proc(
@@ -502,6 +520,10 @@ task_init :: proc(
 	res.indentation = indentation
 	res.indentation_smooth = f32(indentation)
 	
+	// TODO init bookmark element only when necessary?
+	res.button_bookmark = element_init(Element, res, {}, bookmark_message, allocator)
+	res.button_bookmark.data = res
+
 	res.button_fold = icon_button_init(res, {}, .Simple_Down, nil, allocator)
 	res.button_fold.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		button := cast(^Icon_Button) element
@@ -520,7 +542,7 @@ task_init :: proc(
 				element_message(element, .Update)
 			}
 
-			case .Update: {
+			case .Paint_Recursive: {
 				button.icon = task.folded ? .Simple_Right : .Simple_Down
 			}
  		}
@@ -601,16 +623,22 @@ task_push_undoable :: proc(
 	return
 }
 
-task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
-	fcs_element(box)
-	fcs_ahv(.Left, .Top)
+// format to lines or append a single line only
+task_box_format_to_lines :: proc(box: ^Task_Box, width: f32, do_wrapping: bool) {
+	if do_wrapping {
+		fcs_element(box)
+		fcs_ahv(.Left, .Top)
 
-	fontstash.wrap_format_to_lines(
-		&gs.fc,
-		strings.to_string(box.builder),
-		max(300 * SCALE, width),
-		&box.wrapped_lines,
-	)
+		fontstash.wrap_format_to_lines(
+			&gs.fc,
+			strings.to_string(box.builder),
+			max(300 * SCALE, width),
+			&box.wrapped_lines,
+		)
+	} else {
+		clear(&box.wrapped_lines)
+		append(&box.wrapped_lines, strings.to_string(box.builder))
+	}
 }
 
 // iter through visible children
@@ -787,8 +815,6 @@ task_set_visible_tasks :: proc() {
 		
 		// just update icon & hide each
 		if task.visible {
-			element_message(task.button_fold, .Update)
-			element_hide(task.button_fold, !task.has_children)
 			task.visible_index = len(tasks_visible)
 			append(&tasks_visible, task)
 		}
@@ -928,6 +954,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.l += cam.offset_x
 			bounds.t += cam.offset_y
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
+			do_wrap := options_wrapping()
 
 			switch panel.mode {
 				case .List: {
@@ -941,25 +968,14 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							continue
 						}
 
-						// format before taking height
-						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * SCALE
-						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
-						// width_limit := rect_width(element.bounds) - tab_size - fold_size
-						// width_limit -= cam.offset_x
-						// width_limit := rect_width(task.box.bounds)
-						
-						// // disable wrap limit
-						// if !options_wrapping() {
-						// 	width_limit = max(f32)
-						// }
+						pseudo_rect := cut
+						box_rect := task_layout(task, &pseudo_rect, false)
+						task_box_format_to_lines(task.box, rect_width(box_rect), do_wrap)
 
-						// task_box_format_to_lines(task.box, width_limit)
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top_hard(&cut, f32(h))
-						// element_move(task, r)
-						task.clip = r
-						task.bounds = r
-						element_message(task, .Layout)
+						element_move(task, r)
+
 						cut.t += gap_vertical_scaled
 					}
 				}
@@ -1018,12 +1034,11 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							cut.l += panel.gap_horizontal * SCALE + KANBAN_MARGIN * 2 * SCALE
 						}
 
-						// format before taking height, predict width
-						tab_size := f32(task.indentation) * options_tab() * TAB_WIDTH * SCALE
-						fold_size := task.has_children ? math.round(DEFAULT_FONT_SIZE * SCALE) : 0
-						// task_box_format_to_lines(task.box, rect_width(kanban_current) - tab_size - fold_size)
-						// width_limit := rect_width(task.box.bounds)
-						// task_box_format_to_lines(task.box, width_limit)
+						// pseudo layout for correct witdth
+						pseudo_rect := kanban_current
+						box_rect := task_layout(task, &pseudo_rect, false)
+						task_box_format_to_lines(task.box, rect_width(box_rect), do_wrap)
+
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&kanban_current, f32(h))
 						element_move(task, r)
@@ -1090,45 +1105,28 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_element_clipped(target, child)
 			}
 
-			// render selection outlines
-			// if task_head != -1 {
-			// 	render_push_clip(target, panel.clip)
-
-			// 	task_head_tail_call_all(target, proc(task: ^Task, data: rawptr) {
-			// 		target := cast(^Render_Target) data
-			// 		color := theme.caret_highlight
-			// 		if task_head != task_tail && task.visible_index == task_head {
-			// 			color = theme.caret
-			// 		}
-
-			// 		rect := task_rect_indented(task)
-			// 		render_rect_outline(target, rect, color)
-			// 	})
-			// }
-
 			// visual line for dragging
-			if task_head != -1 && dragging && drag_index_at != -1 {
+			if task_head != -1 && drag_running && drag_index_at != -1 {
 				render_push_clip(target, panel.clip)
 				
 				drag_task := tasks_visible[drag_index_at]
 				render_underline(target, drag_task.bounds, theme.text_default)
 			}
 
-			// highlight selection
+			// shadow highlight for non selection
 			if task_head != -1 && task_head != task_tail {
 				render_push_clip(target, panel.clip)
-				a := tasks_visible[task_head]
-				b := tasks_visible[task_tail]
-				bounds := rect_bounding(a.bounds, b.bounds)
-
-				rects := rect_cut_out_rect(panel.bounds, bounds)
+				low, high := task_low_and_high()
 				color := color_alpha(theme.background[0], 0.75)
-				render_rect(target, rects[0], color)
-				render_rect(target, rects[1], color)
-				render_rect(target, rects[2], color)
-				render_rect(target, rects[3], color)
+				
+				for t in tasks_visible {
+					if !(low <= t.visible_index && t.visible_index <= high) {
+						render_rect(target, t.bounds, color)
+					}
+				}
 			}
 
+			// draw the fullscreen image on top
 			if image_display_has_content(panel.image_display) {
 				render_push_clip(target, panel.clip)
 				element_message(panel.image_display, .Paint_Recursive)
@@ -1226,21 +1224,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	box := cast(^Task_Box) element
 	task := cast(^Task) element.parent
 
-	// x offset of the task box
-	x_offset :: proc(task: ^Task, box: ^Task_Box) -> (res: f32) {
-		res += TASK_TEXT_OFFSET
-
-		if task.bookmarked {
-			res += math.round(TASK_BOOKMARK_WIDTH * SCALE)
-		}
-		
-		if task.has_children {
-			res += math.round(DEFAULT_FONT_SIZE * SCALE)
-		}
-
-		return
-	}
-
 	#partial switch msg {
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
@@ -1256,10 +1239,10 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Layout: {
 			if task_head == task_tail && task.visible_index == task_head {
-				offset := x_offset(task, box)
+				// offset := x_offset(task, box)
 				scaled_size := efont_size(box)
-				x := box.bounds.l + offset
-				y := box.bounds.t + math.round(mode_panel.margin_vertical / 2 * SCALE)
+				x := box.bounds.l
+				y := box.bounds.t
 				caret_rect = box_layout_caret(box, scaled_size, x, y)
 			}
 		}
@@ -1268,8 +1251,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			target := element.window.target
 			draw_search_results := (.Hide not_in panel_search.flags)
 
-			box.bounds.t += math.round(mode_panel.margin_vertical / 2 * SCALE)
-			box.bounds.l += x_offset(task, box)
 			x := box.bounds.l
 			y := box.bounds.t
 
@@ -1326,6 +1307,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				fcs_element(task)
 				box_render_selection(target, box, x, y, theme.caret_selection)
 				task_box_paint_default_selection(box)
+				// task_box_paint_default(box)
 			} else {
 				task_box_paint_default(box)
 			}
@@ -1340,13 +1322,9 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Left_Down: {
 			// set line to the head
-			if task_head != task.visible_index {
-				element_hide(panel_goto, true)
-
-				task_head_tail_check_begin()
-				task_head = task.visible_index
-				task_head_tail_check_end()
-			} 
+			task_head_tail_check_begin()
+			task_head = task.visible_index
+			task_head_tail_check_end()
 
 			if task_head != task_tail {
 				box_set_caret(task.box, BOX_END, nil)
@@ -1364,10 +1342,31 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Mouse_Drag: {
 			if element.window.pressed_button == MOUSE_LEFT {
-				if task_head == task_tail {
-					element_box_mouse_selection(task.box, task.box, di, true, 0)
-					element_repaint(task)
-					return 1
+				// drag select tasks
+				if element.window.shift {
+					repaint: bool
+
+					// find hovered task and set till
+					for t in tasks_visible {
+						if rect_contains(t.bounds, element.window.cursor_x, element.window.cursor_y) {
+							if task_head != t.visible_index {
+								repaint = true
+							}
+
+							task_head = t.visible_index
+							break
+						}
+					}
+
+					if repaint {
+						element_repaint(task)
+					}
+				} else {
+					if task_head == task_tail {
+						element_box_mouse_selection(task.box, task.box, di, true, 0)
+						element_repaint(task)
+						return 1
+					}
 				}
 			} else if element.window.pressed_button == MOUSE_RIGHT {
 				if task_dragging_check_start(task) {
@@ -1405,25 +1404,81 @@ task_rect_indented :: proc(task: ^Task) -> (res: Rect) {
 	return
 }
 
+// manual layout call so we can predict the proper positioning
+task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
+	tab := options_tab() * TAB_WIDTH * SCALE
+	offset_indentation := math.round(task.indentation_smooth * tab)
+	
+	// manually offset the line rectangle in total while retaining parent clip
+	bounds.t += math.round(task.top_offset)
+	bounds.b += math.round(task.top_offset)
+
+	cut := bounds^
+	cut.l += offset_indentation
+
+	// layout bookmark
+	element_hide(task.button_bookmark, !task.bookmarked)
+	if task.bookmarked {
+		rect := rect_cut_left_hard(&cut, 15 * SCALE)
+		if move {
+			element_move(task.button_bookmark, rect)
+		}
+	}
+
+	// margin after bookmark
+	cut = rect_margin(cut, TASK_MARGIN)
+
+	if image_display_has_content(task.image_display) {
+		top := rect_cut_top_hard(&cut, IMAGE_DISPLAY_HEIGHT * SCALE)
+
+		if move {
+			element_move(task.image_display, top)
+		}
+	}
+
+	tag_mode := options_tag_mode()
+	if tag_mode != TAG_SHOW_NONE && task.tags != 0x00 {
+		rect := rect_cut_bottom_hard(&cut, tag_mode_size(tag_mode))
+		cut.b -= 5 * SCALE  // gap
+
+		if move {
+			task.tags_rect = rect
+		}
+	}
+
+	// fold button
+	element_hide(task.button_fold, !task.has_children)
+	if task.has_children {
+		rect := rect_cut_left_hard(&cut, DEFAULT_FONT_SIZE * SCALE)
+		cut.l += 5 * SCALE
+
+		if move {
+			element_move(task.button_fold, rect)
+		}
+	}
+	
+	task.box.font_options = task.font_options
+	if move {
+		element_move(task.box, cut)
+	}
+
+	return cut
+}
+
+tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
+	if tag_mode == TAG_SHOW_TEXT_AND_COLOR {
+		res = DEFAULT_FONT_SIZE * SCALE
+	} else if tag_mode == TAG_SHOW_COLOR {
+		res = 10 * SCALE
+	} 
+
+	return
+}
+
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
-	tab := options_tab() * TAB_WIDTH * SCALE
 	tag_mode := options_tag_mode()
 	draw_tags := tag_mode != TAG_SHOW_NONE && task.tags != 0x00
-	TAG_COLOR_ONLY :: 10
-
-	additional_size :: proc(task: ^Task, draw_tags: bool) -> (res: f32) {
-		if draw_tags {
-			tag_mode := options_tag_mode()
-			if tag_mode == TAG_SHOW_TEXT_AND_COLOR {
-				res = DEFAULT_FONT_SIZE * SCALE + TASK_DATA_MARGIN * 2 * SCALE
-			} else if tag_mode == TAG_SHOW_COLOR {
-				res = TAG_COLOR_ONLY * SCALE + TASK_DATA_MARGIN * 2 * SCALE
-			}
-		}
-
-		return
-	}
 
 	#partial switch msg {
 		case .Destroy: {
@@ -1435,12 +1490,9 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		}
 
 		case .Get_Height: {
-			task.font_options = task.has_children ? &font_options_bold : nil
 			line_size := efont_size(element) * f32(len(task.box.wrapped_lines))
 
-			line_size_addition := additional_size(task, draw_tags)
-			line_size += line_size_addition
-			line_size += math.round(mode_panel.margin_vertical * SCALE)
+			line_size += draw_tags ? tag_mode_size(tag_mode) + 5 * SCALE : 0
 			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * SCALE) : 0
 			line_size += TASK_MARGIN * 2
 
@@ -1448,44 +1500,13 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		}
 
 		case .Layout: {
-			offset_indentation := math.round(task.indentation_smooth * tab)
 			if task.top_animation_start {
 				task.top_offset = task.top_old - task.bounds.t	
 				task.top_animation_start = false
 			}
-			offset_top := task.top_offset
 
-			// manually offset the line rectangle in total while retaining parent clip
-			element.bounds.t += math.round(offset_top)
-			element.bounds.b += math.round(offset_top)
+			task_layout(task, &element.bounds, true)
 			element.clip = rect_intersection(element.parent.clip, element.bounds)
-
-			cut := element.bounds
-			cut.l += offset_indentation
-			cut = rect_margin(cut, TASK_MARGIN)
-
-			if image_display_has_content(task.image_display) {
-				top := rect_cut_top_hard(&cut, IMAGE_DISPLAY_HEIGHT * SCALE)
-				element_move(task.image_display, top)
-			}
-
-			// fold button
-			if task.has_children {
-				left := cut
-				if task.bookmarked {
-					left.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
-				}
-				left.r = left.l + math.round(DEFAULT_FONT_SIZE * SCALE)
-				scaled_size := i16(f32(task.font_options.size) * SCALE)
-				left.b = left.t + f32(scaled_size)
-				off := math.round(mode_panel.margin_vertical / 2 * SCALE)
-				left.t += off
-				left.b += off
-				element_move(task.button_fold, left)
-			}
-			
-			task.box.font_options = task.font_options
-			element_move(task.box, cut)
 		}
 
 		case .Paint_Recursive: {
@@ -1498,55 +1519,14 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				render_rect(target, rect, color, ROUNDNESS)
 			}
 
-			// hovered := element.window.hovered == task.box
-			// pressed := element.window.pressed == task.box
-			
-			if task_head == task.visible_index {
-				color := theme.text_default
-				render_rect_outline(target, rect, color)
-			} 
-
-			// if hovered || pressed {
-			// 	render_hovered_highlight(target, rect, hovered && !pressed ? 0.75 : 1)
-			// }
-
-			if task.bookmarked {
-				rect := rect
-				rect.r = rect.l + math.round(TASK_BOOKMARK_WIDTH * SCALE)
-				color := theme.text_default
-				render_rect(target, rect, color, ROUNDNESS)
-			}
-
 			// draw tags at an offset
 			if draw_tags {
-				rect := rect
-
-				if task.bookmarked {
-					rect.l += math.round(TASK_BOOKMARK_WIDTH * SCALE)
-				}
-
-				rect = rect_margin(rect, math.round(TASK_DATA_MARGIN * SCALE))
-
-				// offset
-				{
-					add := additional_size(task, true)
-					rect.t = rect.b - add + math.round(TASK_DATA_GAP * SCALE)
-				}
-
-				switch tag_mode {
-					case TAG_SHOW_TEXT_AND_COLOR: {
-						rect.b = rect.t + math.round(DEFAULT_FONT_SIZE * SCALE)
-					}
-
-					case TAG_SHOW_COLOR: {
-						rect.b = rect.t + TAG_COLOR_ONLY * SCALE
-					}
-				}
+				rect := task.tags_rect
 
 				font := font_regular
 				scaled_size := i16(DEFAULT_FONT_SIZE * SCALE)
 				text_margin := math.round(10 * SCALE)
-				gap := math.round(TASK_DATA_GAP * SCALE)
+				gap := math.round(5 * SCALE)
 
 				fcs_element(element)
 				fcs_ahv()
@@ -1589,13 +1569,17 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					}
 				}
 			}
+
+			// outline
+			if task_head == task.visible_index {
+				color := theme.text_default
+				render_rect_outline(target, rect, color)
+			} 
 		}
 
 		case .Middle_Down: {
 			window_set_pressed(element.window, mode_panel, MOUSE_MIDDLE)
 		}
-
-		// case .Right_Down: {}
 
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
@@ -1952,7 +1936,7 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	mode_panel = mode_panel_init(custom_split, {}, window_allocator(window_main))
 	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
-	mode_panel.margin_vertical = 10
+	// mode_panel.margin_vertical = 10
 	search_init(custom_split)
 	
 	return mode_panel
@@ -2228,7 +2212,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 }
 
 task_dragging_check_start :: proc(task: ^Task) -> bool {
-	if task_head == -1 || dragging {
+	if task_head == -1 || drag_running {
 		return true
 	}
 
@@ -2269,7 +2253,7 @@ task_dragging_check_start :: proc(task: ^Task) -> bool {
 		strings.builder_reset(b)
 		fmt.sbprintf(b, "%dx", len(drag_list))
 
-		dragging = true
+		drag_running = true
 		drag_index_at = -1
 		element_hide(drag_panel, false)
 		element_animation_start(drag_panel)
@@ -2279,11 +2263,11 @@ task_dragging_check_start :: proc(task: ^Task) -> bool {
 }
 
 task_dragging_end :: proc() -> bool {
-	if !dragging {
+	if !drag_running {
 		return false
 	}
 
-	dragging = false
+	drag_running = false
 	element_hide(drag_panel, true)
 
 	// remove task on invalid
