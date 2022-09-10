@@ -240,10 +240,15 @@ sidebar_panel_init :: proc(parent: ^Element) {
 }
 
 sidebar_enum_panel_init :: proc(parent: ^Element) {
-	shared_panel :: proc(element: ^Element, title: string) -> ^Panel {
-		panel := panel_init(element, { .Panel_Default_Background, .Tab_Movement_Allowed, .Panel_Scrollable }, 5, 5)
+	shared_panel :: proc(element: ^Element, title: string, scrollable := true) -> ^Panel {
+		flags := Element_Flags { .Panel_Default_Background, .Tab_Movement_Allowed }
+		if scrollable {
+			flags += { .Panel_Scrollable }
+		}
+		panel := panel_init(element, flags, 5, 5)
 		panel.background_index = 1
 		panel.z_index = 2
+		panel.name = "shared panel"
 
 		header := label_init(panel, { .Label_Center }, title)
 		header.font_options = &font_options_header
@@ -404,7 +409,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 	{
 		temp := &sb.archive
 		using temp
-		panel = shared_panel(enum_panel, "Archive")
+		panel = shared_panel(enum_panel, "Archive", false)
 
 		top := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background })
 		top.rounded = true
@@ -438,6 +443,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		}
 
 		buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background, .Panel_Scrollable }, 5, 1)
+		buttons.name = "buttons panel"
 		buttons.background_index = 2
 		buttons.rounded = true
 		buttons.layout_elements_in_reverse = true

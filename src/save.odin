@@ -438,11 +438,10 @@ json_save_misc :: proc(path: string) -> bool {
 	
 	// archive data
 	archive_data := make([]string, len(sb.archive.buttons.children) - 1)
-	
 	// NOTE SKIP THE SCROLLBAR
-	for i in 0..<len(sb.archive.buttons.children) - 1 {
-		button := cast(^Archive_Button) sb.archive.buttons.children[i + 1]
-		archive_data[i] = strings.to_string(button.builder)
+	for i in 1..<len(sb.archive.buttons.children) {
+		button := cast(^Archive_Button) sb.archive.buttons.children[i]
+		archive_data[i - 1] = strings.to_string(button.builder)
 	}
 
 	window_x, window_y := window_get_position(window_main)

@@ -973,7 +973,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						task_box_format_to_lines(task.box, rect_width(box_rect), do_wrap)
 
 						h := element_message(task, .Get_Height)
-						r := rect_cut_top_hard(&cut, f32(h))
+						r := rect_cut_top(&cut, f32(h))
 						element_move(task, r)
 
 						cut.t += gap_vertical_scaled
@@ -1029,7 +1029,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							kanban_width := KANBAN_WIDTH * SCALE
 							kanban_width += math.round(f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE)
 							// NOTE has to be hard cut because of panning
-							kanban_current = rect_cut_left_hard(&cut, kanban_width)
+							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
 							cut.l += panel.gap_horizontal * SCALE + KANBAN_MARGIN * 2 * SCALE
 						}
@@ -1429,6 +1429,7 @@ task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
 	// manually offset the line rectangle in total while retaining parent clip
 	bounds.t += math.round(task.top_offset)
 	bounds.b += math.round(task.top_offset)
+	task.clip = rect_intersection(task.parent.clip, task.bounds)
 
 	cut := bounds^
 	cut.l += offset_indentation
@@ -1436,7 +1437,7 @@ task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
 	// layout bookmark
 	element_hide(task.button_bookmark, !task.bookmarked)
 	if task.bookmarked {
-		rect := rect_cut_left_hard(&cut, 15 * SCALE)
+		rect := rect_cut_left(&cut, 15 * SCALE)
 		if move {
 			element_move(task.button_bookmark, rect)
 		}
@@ -1446,7 +1447,7 @@ task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
 	cut = rect_margin(cut, TASK_MARGIN)
 
 	if image_display_has_content(task.image_display) {
-		top := rect_cut_top_hard(&cut, IMAGE_DISPLAY_HEIGHT * SCALE)
+		top := rect_cut_top(&cut, IMAGE_DISPLAY_HEIGHT * SCALE)
 
 		if move {
 			element_move(task.image_display, top)
@@ -1455,7 +1456,7 @@ task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
 
 	tag_mode := options_tag_mode()
 	if tag_mode != TAG_SHOW_NONE && task.tags != 0x00 {
-		rect := rect_cut_bottom_hard(&cut, tag_mode_size(tag_mode))
+		rect := rect_cut_bottom(&cut, tag_mode_size(tag_mode))
 		cut.b -= 5 * SCALE  // gap
 
 		if move {
@@ -1466,7 +1467,7 @@ task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
 	// fold button
 	element_hide(task.button_fold, !task.has_children)
 	if task.has_children {
-		rect := rect_cut_left_hard(&cut, DEFAULT_FONT_SIZE * SCALE)
+		rect := rect_cut_left(&cut, DEFAULT_FONT_SIZE * SCALE)
 		cut.l += 5 * SCALE
 
 		if move {
@@ -1474,7 +1475,6 @@ task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
 		}
 	}
 	
-	task.clip = rect_intersection(task.parent.clip, task.bounds)
 	task.box.font_options = task.font_options
 	if move {
 		element_move(task.box, cut)
@@ -1545,7 +1545,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				text_margin := math.round(10 * SCALE)
 				gap := math.round(5 * SCALE)
 
-				fcs_element(element)
+				fcs_font(font_regular)
+				fcs_size(DEFAULT_FONT_SIZE * SCALE)
 				fcs_ahv()
 
 				// go through each existing tag, draw each one
@@ -1561,7 +1562,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 								text := strings.to_string(tag^)
 								width := string_width(text)
 								// width := fontstash.string_width(font, scaled_size, text)
-								r := rect_cut_left_hard(&rect, width + text_margin)
+								r := rect_cut_left(&rect, width + text_margin)
 
 								if rect_valid(r) {
 									render_rect(target, r, tag_color, ROUNDNESS)
@@ -1571,7 +1572,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 							}
 
 							case TAG_SHOW_COLOR: {
-								r := rect_cut_left_hard(&rect, 50 * SCALE)
+								r := rect_cut_left(&rect, 50 * SCALE)
 								if rect_valid(r) {
 									render_rect(target, r, tag_color, ROUNDNESS)
 								}

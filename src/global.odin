@@ -108,7 +108,6 @@ Mouse_Coordinates :: [2]f32
 
 Window :: struct {
 	element: Element,
-	name: string,
 	
 	// interactable elements
 	hovered: ^Element,
@@ -417,7 +416,7 @@ window_init :: proc(
 	window_element_flags := flags
 	window_element_flags |= { .Tab_Movement_Allowed, .Sort_By_Z_Index }
 
-	res = cast(^Window) element_init(
+	res = element_init(
 		Window, 
 		nil, 
 		window_element_flags,
@@ -444,6 +443,7 @@ window_init :: proc(
 	res.widthf = f32(w)
 	res.height = int(h)
 	res.heightf = f32(h)
+	res.element.name = "WINDOW"
 	undo_manager_init(&res.manager)
 
 	res.element.window = res
@@ -960,7 +960,7 @@ window_title_push_builder :: proc(window: ^Window, builder: ^strings.Builder) {
 }
 
 window_deallocate :: proc(window: ^Window) {
-	log.info("WINDOW: Destroy START")
+	log.info("WINDOW: Deallocate START")
 	shortcut_state_destroy(&window.shortcut_state)
 
 	free_all(mem.arena_allocator(&window.element_arena))
@@ -974,7 +974,7 @@ window_deallocate :: proc(window: ^Window) {
 	delete(window.title_builder.buf)
 	delete(window.dialog_builder.buf)
 	sdl.DestroyWindow(window.w)
-	log.info("WINDOW: Destroy END")
+	log.info("WINDOW: Deallocate END")
 }
 
 window_layout_update :: proc(window: ^Window) {
@@ -1031,6 +1031,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					gs.ignore_quit = true
 						
 					if element_message(&window.element, .Window_Close) == 0 {
+						log.warn("WINDOW CLOSE EVENT DESTROY")
 						window_destroy(window)
 						gs.ignore_quit = false
 					}
@@ -1509,8 +1510,15 @@ gs_process_events :: proc() {
 		if event.type == .QUIT && !gs.ignore_quit {
 			gs.running = false
 
+			// if gs_window_count() == 1 {
+
+
+			// }
+			log.info("~~~QUIT EVENT~~~")
+
 			gs_windows_iter_init()
 			for w in gs_windows_iter_step() {
+				window_destroy(w)
 				w.dialog_finished = true
 			}
 
@@ -1598,6 +1606,7 @@ gs_draw_and_cleanup :: proc() {
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
+			log.info("WINDOW DEALLOC COUNT DECREASE")
 			window_count -= 1
 			link^ = next
 		} else if window.update_next {

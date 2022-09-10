@@ -37,7 +37,6 @@ main :: proc() {
 	task_data_init()
 
 	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
-	window.name = "main"
 	window.on_resize = proc(window: ^Window) {
 		cam := mode_panel_cam()
 		cam.freehand = true
@@ -238,14 +237,14 @@ main :: proc() {
 		image_load_process_texture_handles(window)
 
 		// update visual indices of archive buttons, to not do lookups
-		if (.Hide not_in sb.enum_panel.flags) && sb.mode == .Archive {
+		if sb.archive.buttons != nil && (.Hide not_in sb.enum_panel.flags) && sb.mode == .Archive {
 			sb.archive.head = clamp(sb.archive.head, 0, len(sb.archive.buttons.children) - 1)
 			sb.archive.tail = clamp(sb.archive.tail, 0, len(sb.archive.buttons.children) - 1)
 
-			for e, i in sb.archive.buttons.children {
-				button := cast(^Archive_Button) e
+			for i in 1..<len(sb.archive.buttons.children) {
+				button := cast(^Archive_Button) sb.archive.buttons.children[i]
 				button.visual_index = len(sb.archive.buttons.children) - 1 - i
- 			}
+			}
 		}
 	}
 

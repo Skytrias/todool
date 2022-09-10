@@ -160,6 +160,7 @@ Element :: struct {
 	// optional data that can be set andd used
 	data: rawptr,
 	allocator: mem.Allocator,
+	name: string,
 }
 
 // default way to call clicked event on tab stop element
@@ -261,7 +262,7 @@ animate_to :: proc(
 }
 
 element_message :: proc(element: ^Element, msg: Message, di: int = 0, dp: rawptr = nil) -> int {
-	if element == nil || (msg != .Destroy && (.Destroy in element.flags)) {
+	if element == nil || (msg != .Deallocate && (.Destroy in element.flags)) {
 		return 0
 	}
 
@@ -393,10 +394,10 @@ element_find_index_linear :: proc(element: ^Element) -> int {
 // mark children for destruction
 // calls .Destroy in case anything should happen already
 // doesnt deallocate!
-element_destroy :: proc(element: ^Element) {
+element_destroy :: proc(element: ^Element) -> bool {
 	// skip flag done
 	if .Destroy in element.flags {
-		return
+		return false
 	}
 
 	// add destroy flag
@@ -424,13 +425,21 @@ element_destroy :: proc(element: ^Element) {
 	if element.parent != nil {
 		element_repaint(element.parent)
 	}
+
+	return true
 }
 
 // NOTE used internally
 element_deallocate :: proc(element: ^Element) -> bool {
+	// if element.name == "WINDOW" {
+	// 	log.warn("FOUND WINDOW IN DEALLOC", (.Destroy_Descendent in element.flags), (.Destroy in element.flags))
+	// }
+	// assert(len(element.children) < 1000, "first")
+	
 	if .Destroy_Descendent in element.flags {
 		// clear flag
 		excl(&element.flags, Element_Flag.Destroy_Descendent)
+		// assert(len(element.children) < 1000)
 
 		// destroy each child, loop from end to pop quickly
 		for i := len(element.children) - 1; i >= 0; i -= 1 {
@@ -453,7 +462,12 @@ element_deallocate :: proc(element: ^Element) -> bool {
 		// }
 	}
 
+	// log.info("DESTROY?", (.Destroy in element.flags), element.name)
 	if .Destroy in element.flags {
+		if element.name == "WINDOW" {
+			log.error("INSIDE DEALLOC FOR WINDOW")
+		}
+
 		// send the destroy message to clear data
 		element_message(element, .Deallocate)
 
@@ -1815,9 +1829,9 @@ scrollbar_init :: proc(
 	allocator := context.allocator,
 ) -> (res: ^Scrollbar) {
 	res = element_init(Scrollbar, parent, flags, scrollbar_message, allocator)
-	element_init(Element, res, flags, scroll_up_down_message, allocator).data = rawptr(SCROLLBAR_UP)
-	element_init(Element, res, flags, scroll_thumb_message, allocator)
-	element_init(Element, res, flags, scroll_up_down_message, allocator).data = rawptr(SCROLLBAR_DOWN)
+	element_init(Element, res, {}, scroll_up_down_message, allocator).data = rawptr(SCROLLBAR_UP)
+	element_init(Element, res, {}, scroll_thumb_message, allocator)
+	element_init(Element, res, {}, scroll_up_down_message, allocator).data = rawptr(SCROLLBAR_DOWN)
 	return
 }
 
@@ -2721,11 +2735,11 @@ Enum_Panel :: struct {
 enum_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Enum_Panel) element 
 	assert(panel.mode != nil)
-	assert(len(element.children) == panel.count)
-	chosen := element.children[panel.mode^]
 
 	#partial switch msg {
 		case .Layout: {
+			chosen := element.children[panel.mode^]
+		
 			for child in element.children {
 				child.clip = {}
 			}
@@ -2734,16 +2748,19 @@ enum_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Update: {
+			chosen := element.children[panel.mode^]
 			element_message(chosen, msg, di, dp)
 		}
 
 		case .Find_By_Point_Recursive: {
+			chosen := element.children[panel.mode^]
 			point := cast(^Find_By_Point) dp
 			element_find_by_point_custom(chosen, point)	
 			return 0
 		}
 
 		case .Paint_Recursive: {
+			chosen := element.children[panel.mode^]
 			target := element.window.target
 			render_element_clipped(target, chosen)
 			return 1
