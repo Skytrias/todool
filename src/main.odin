@@ -26,18 +26,8 @@ TODOOL_RELEASE :: false
 // 	notify.run("Todool Pomodoro Timer Finished", "", "dialog-information")
 // }
 
-// TODO general
-// while search typing set camera to focus atleast search result found
-
-// main :: proc() {
-//   // test: ^int = true ? nil : nil
-
-//   test: ^int
-//   test := true ? nil : nil
-// }
-
-// layout rect width / height -> height = len(lines) * X
-// lines
+// TODO write down which dependencies are now needed... cuz of NFD
+// TODO while search typing set camera to focus atleast search result found
 
 main :: proc() {
 	gs_init()
@@ -72,6 +62,10 @@ main :: proc() {
 					box := tasks_visible[task_head].box
 					
 					if element_message(box, msg, di, dp) == 1 {
+						cam := mode_panel_cam()
+						cam.freehand = false
+						mode_panel_cam_bounds_check_x(false)
+						mode_panel_cam_bounds_check_y()
 						return 1
 					}
 				}
@@ -94,6 +88,10 @@ main :: proc() {
 					task_focused := tasks_visible[task_head]
 					res := element_message(task_focused.box, msg, di, dp)
 					if res == 1 {
+						cam := mode_panel_cam()
+						cam.freehand = false
+						mode_panel_cam_bounds_check_x(false)
+						mode_panel_cam_bounds_check_y()
 						task_tail = task_head
 					}
 					return res

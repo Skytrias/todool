@@ -149,7 +149,7 @@ get_quad :: proc(
 	quad.s1 = x1 * ctx.itw
 	quad.t1 = y1 * ctx.ith
 
-	x^ += f32(int(glyph.xadvance / 10)) + 0.5
+	x^ += f32(int(f32(glyph.xadvance) / 10 + 0.5))
 }
 
 // init text iter struct with settings

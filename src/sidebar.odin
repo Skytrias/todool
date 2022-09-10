@@ -10,7 +10,7 @@ import "core:os"
 import "core:strings"
 import "core:encoding/json"
 
-ARCHIVE_MAX :: 256
+ARCHIVE_MAX :: 32
 
 // push to archive text
 archive_push :: proc(text: string) {
@@ -19,7 +19,8 @@ archive_push :: proc(text: string) {
 		if len(sb.archive.buttons.children) == ARCHIVE_MAX {
 			// TODO optimize
 			// log.info("REMOVING ONE TO STAY IN MAX")
-			ordered_remove(&sb.archive.buttons.children, 0)
+			ordered_remove(&sb.archive.buttons.children, 1)
+			log.warn("REMOVING")
 		} 
 
 		// log.info("LEN", len(sb.archive.buttons.children))
@@ -619,7 +620,8 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
 				if res == 1 {
 					rect := element.bounds
-					rect.l = rect.r - (4 * SCALE)
+					// rect.l = rect.r - (4 * SCALE)
+					rect.r = rect.l + (4 * SCALE)
 					render_rect(target, rect, text_color, 0)
 				}
 			}

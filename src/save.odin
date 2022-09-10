@@ -397,6 +397,13 @@ Misc_Save_Load :: struct {
 
 	theme: Theme_Save_Load,
 
+	custom_sounds: struct {
+		timer_start: string,
+		timer_stop: string,
+		timer_resume: string,
+		timer_ended: string,
+	},
+
 	archive: struct {
 		head: int,
 		tail: int,
@@ -441,7 +448,8 @@ json_save_misc :: proc(path: string) -> bool {
 	window_x, window_y := window_get_position(window_main)
 	window_width := window_main.width
 	window_height := window_main.height
-	
+	// log.warn("WINDOW SAVED", window_x, window_y)
+
 	// adjust by window border
 	{
 		t, l, b, r := window_border_size(window_main)
@@ -503,6 +511,14 @@ json_save_misc :: proc(path: string) -> bool {
 
 		theme = theme_save,
 
+		// just write paths in that might have been set
+		custom_sounds = {
+			gs.sound_paths[.Timer_Start],
+			gs.sound_paths[.Timer_Stop],
+			gs.sound_paths[.Timer_Resume],
+			gs.sound_paths[.Timer_Ended],
+		},
+
 		archive = {
 			sb.archive.head,
 			sb.archive.tail,
@@ -551,6 +567,7 @@ json_load_misc :: proc(path: string) -> bool {
 		mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
+			// log.warn("WINDOW SET POS", misc.hidden.window_x, misc.hidden.window_y)
 			window_set_position(window_main, misc.hidden.window_x, misc.hidden.window_y)
 			window_set_size(window_main, clamp(misc.hidden.window_width, 0, max(int)), clamp(misc.hidden.window_height, 0, max(int)))
 		}
@@ -625,6 +642,12 @@ json_load_misc :: proc(path: string) -> bool {
 	}
 	sb.archive.head = misc.archive.head
 	sb.archive.tail = misc.archive.tail
+
+	// custom sounds path setting
+	sound_path_write(.Timer_Start, misc.custom_sounds.timer_start)
+	sound_path_write(.Timer_Stop, misc.custom_sounds.timer_stop)
+	sound_path_write(.Timer_Resume, misc.custom_sounds.timer_resume)
+	sound_path_write(.Timer_Ended, misc.custom_sounds.timer_ended)
 
 	return true
 }

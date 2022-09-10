@@ -1252,7 +1252,7 @@ todool_search :: proc() {
 	search_saved_task_head = task_head
 	search_saved_task_tail = task_tail
 
-	box := cast(^Text_Box) p.children[0]
+	box := cast(^Text_Box) p.children[1]
 	element_focus(box)
 
 	if task_head != -1 {

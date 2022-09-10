@@ -1027,7 +1027,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							}
 
 							kanban_width := KANBAN_WIDTH * SCALE
-							kanban_width += f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE
+							kanban_width += math.round(f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE)
 							// NOTE has to be hard cut because of panning
 							kanban_current = rect_cut_left_hard(&cut, kanban_width)
 							task.kanban_rect = kanban_current
@@ -1056,6 +1056,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						// TODO maybe need to append this to the last 0 indentation?
 					}
 				}
+			}
+
+			// update caret
+			if task_head != -1 && task_head == task_tail {
+				task := tasks_visible[task_head]
+				fcs_element(task)
+				scaled_size := efont_size(task.box)
+				x := task.box.bounds.l
+				y := task.box.bounds.t
+				caret_rect = box_layout_caret(task.box, scaled_size, x, y)
 			}
 
 			// check on change
@@ -1161,6 +1171,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 		}
 
+		case .Right_Up: {
+			if task_head != task_tail && task_head != -1 {
+				task_context_menu_spawn(nil)
+				return 1
+			}
+		}
+
 		case .Mouse_Scroll_Y: {
 			cam.offset_y += f32(di) * 20
 			cam.freehand = true
@@ -1238,13 +1255,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Layout: {
-			if task_head == task_tail && task.visible_index == task_head {
-				// offset := x_offset(task, box)
-				scaled_size := efont_size(box)
-				x := box.bounds.l
-				y := box.bounds.t
-				caret_rect = box_layout_caret(box, scaled_size, x, y)
-			}
+			// if task_head == task_tail && task.visible_index == task_head {
+			// 	// offset := x_offset(task, box)
+			// 	scaled_size := efont_size(box)
+			// 	x := box.bounds.l
+			// 	y := box.bounds.t
+			// 	caret_rect = box_layout_caret(box, scaled_size, x, y)
+			// }
 		}
 
 		case .Paint_Recursive: {
@@ -1278,7 +1295,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				}
 			}
 
-			// sstrike through line
+			// strike through line
 			if task.state == .Canceled {
 				fcs_element(task)
 				state := fontstash.state_get(&gs.fc)
@@ -1457,6 +1474,7 @@ task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
 		}
 	}
 	
+	task.clip = rect_intersection(task.parent.clip, task.bounds)
 	task.box.font_options = task.font_options
 	if move {
 		element_move(task.box, cut)
@@ -1506,7 +1524,6 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			}
 
 			task_layout(task, &element.bounds, true)
-			element.clip = rect_intersection(element.parent.clip, element.bounds)
 		}
 
 		case .Paint_Recursive: {
@@ -1605,6 +1622,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				1,
 			)
 
+			// fmt.eprintln(task.top_offset)
+
 			return int(handled)
 		}
 
@@ -1627,8 +1646,8 @@ goto_init :: proc(window: ^Window) {
 	panel_goto = p
 	p.panel.background_index = 2
 	p.width = 200
-	p.height = DEFAULT_FONT_SIZE * 2 * SCALE + p.panel.margin * 2
-	p.panel.flags |= { .Panel_Expand }
+	// p.height = DEFAULT_FONT_SIZE * 2 * SCALE + p.panel.margin * 2
+	p.panel.flags |= {}
 	p.panel.margin = 5
 	p.panel.shadow = true
 
@@ -1653,6 +1672,11 @@ goto_init :: proc(window: ^Window) {
 			}
 
 			case .Layout: {
+				floaty.height = 0
+				for c in element.children {
+					floaty.height += f32(element_message(c, .Get_Height))
+				}
+
 				floaty.x = 
 					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - floaty.width / 2
 				
@@ -1697,8 +1721,8 @@ goto_init :: proc(window: ^Window) {
 	}
 
 
-	label_init(p.panel, { .Label_Center }, "Goto Line")
-	box := text_box_init(p.panel, {})
+	label_init(p.panel, { .Label_Center, .HF }, "Goto Line")
+	box := text_box_init(p.panel, { .HF })
 	box.codepoint_numbers_only = true
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
@@ -1726,6 +1750,8 @@ search_init :: proc(parent: ^Element) {
 	p.background_index = 2
 	// p.shadow = true
 	p.z_index = 2
+
+	label_init(p, {}, "Search")
 
 	box := text_box_init(p, { .HF })
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -2101,7 +2127,7 @@ tasks_load_tutorial :: proc() {
 }
 
 task_context_menu_spawn :: proc(task: ^Task) {
-	menu := menu_init(task.window, {})
+	menu := menu_init(mode_panel.window, {})
 
 	task_multi_context := task_head != task_tail
 	
@@ -2176,6 +2202,20 @@ task_context_menu_spawn :: proc(task: ^Task) {
 
 	// deletion
 	{
+		b2 := button_init(p, { .HF }, "Cut")
+		b2.invoke = proc(data: rawptr) {
+			button := cast(^Button) data
+			todool_cut_tasks()
+			menu_close(button.window)
+		}
+
+		b3 := button_init(p, { .HF }, "Copy")
+		b3.invoke = proc(data: rawptr) {
+			button := cast(^Button) data
+			todool_copy_tasks()
+			menu_close(button.window)
+		}
+
 		b1 := button_init(p, { .HF }, "Delete")
 		b1.invoke = proc(data: rawptr) {
 			button := cast(^Button) data
@@ -2183,6 +2223,8 @@ task_context_menu_spawn :: proc(task: ^Task) {
 			menu_close(button.window)
 		}
 	}
+
+	// TODO right click on mode_panel to do multi selection spawn instead task
 
 	// open a link button on link text
 	if task_head == task_tail {

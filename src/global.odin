@@ -33,6 +33,45 @@ data_font_bold := #load("../assets/Lato-Bold.ttf")
 font_regular: int
 font_bold: int
 font_icon: int
+data_sound_timer_start := #load("../assets/sounds/timer_start.wav")
+data_sound_timer_stop := #load("../assets/sounds/timer_stop.wav")
+data_sound_timer_resume := #load("../assets/sounds/timer_resume.wav")
+data_sound_timer_ended := #load("../assets/sounds/timer_ended.wav")
+
+// load wav files from mem or path, optional
+custom_load_wav_path :: mix.LoadWAV
+custom_load_wav_mem :: proc(data: []byte) -> ^mix.Chunk {
+	return mix.LoadWAV_RW(sdl.RWFromMem(raw_data(data), i32(len(data))), false)
+}
+custom_load_wav_opt :: proc(index: Sound_Index, opt_data: []byte) {
+	path := gs.sound_paths[index]
+	res: ^mix.Chunk
+
+	// load from opt path
+	if path != "" {
+		if strings.has_suffix(path, ".wav") {
+			cpath := gs_string_to_cstring(path)
+			res = custom_load_wav_path(cpath)
+		} else {
+			log.info("SOUND: only .wav soundfiles are allowed!")
+		}
+	}
+	
+	// loadfrom default bytes
+	if res == nil {
+		res = custom_load_wav_mem(opt_data)
+	}
+
+	gs.sounds[index] = res
+}
+
+sound_path_write :: proc(index: Sound_Index, text: string) {
+	to := &gs.sound_paths[index] 
+
+	if text != "" {
+		to^ = strings.clone(text)
+	}
+}
 
 fonts_push :: proc() {
 	ctx := &gs.fc
@@ -183,6 +222,8 @@ Global_State :: struct {
 	// event intercepting
 	ignore_quit: bool,
 
+	audio_ok: bool, // true when sdl mix module loaded fine
+	sound_paths: [Sound_Index]string,
 	sounds: [Sound_Index]^mix.Chunk,
 	flux: ease.Flux_Map(f32),
 
@@ -280,18 +321,27 @@ Sound_Index :: enum {
 	Timer_Ended,
 }
 
+// play a single sound
 sound_play :: proc(index: Sound_Index) {	
-	mix.PlayChannel(0, gs.sounds[index], 0)
+	if gs.audio_ok {
+		mix.PlayChannel(0, gs.sounds[index], 0)
+	}
 }
 
 // get volume at 0-128
 mix_volume_get :: proc() -> i32 {
-	return mix.Volume(0, -1)
+	if gs.audio_ok {
+		return mix.Volume(0, -1)
+	} else {
+		return 0
+	}
 }
 
 // set to 0-128
 mix_volume_set :: proc(to: i32) {
-	mix.Volume(0, to)
+	if gs.audio_ok {
+		mix.Volume(0, to)
+	}
 }
 
 window_destroy :: proc(window: ^Window) {
@@ -430,6 +480,13 @@ window_init :: proc(
 gs_update_after_load :: proc() {
 	floaty := window_main.hovered_panel
 	floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+
+	if gs.audio_ok {
+		custom_load_wav_opt(.Timer_Start, data_sound_timer_start)
+		custom_load_wav_opt(.Timer_Stop, data_sound_timer_stop)
+		custom_load_wav_opt(.Timer_Resume, data_sound_timer_resume)
+		custom_load_wav_opt(.Timer_Ended, data_sound_timer_ended)
+	}
 }
 
 window_allocator :: proc(window: ^Window) -> mem.Allocator {
@@ -508,10 +565,10 @@ window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
 	res := sdl.GetWindowBordersSize(window.w, &t, &l, &b, &r)
 	
 	if res == 0 {
-		top = t > 1 ? int(t) : 0 
-		left = l > 1 ? int(l) : 0 
-		bottom = b > 1 ? int(b) : 0 
-		right = r > 1 ? int(r) : 0 
+		top = int(t)
+		left = int(l)
+		bottom = int(b)
+		right = int(r)
 	} else {
 		log.error("WINDOW BORDER SIZE call not supported")
 	}
@@ -1263,19 +1320,16 @@ gs_init :: proc() {
 		// audio support
 		wanted_flags := mix.InitFlags {}
 		init_flags := transmute(mix.InitFlags) mix.Init(wanted_flags)
+		gs.audio_ok = true
+		
 		if wanted_flags != init_flags {
-			log.panic("MIXER: couldnt load audio format")
+			log.error("MIXER: couldnt load audio format")
+			gs.audio_ok = false
 		}
 
 		if mix.OpenAudio(44100, mix.DEFAULT_FORMAT, 2, 1024) == -1 {
-			log.panic("MIXER: failed loading")
-		}
-	
-		sounds = {
-			.Timer_Start = mix.LoadWAV("sounds/timer_start.wav"),
-			.Timer_Stop = mix.LoadWAV("sounds/timer_stop.wav"),
-			.Timer_Resume = mix.LoadWAV("sounds/timer_resume.wav"),
-			.Timer_Ended = mix.LoadWAV("sounds/timer_ended.wav"),
+			log.error("MIXER: failed loading")
+			gs.audio_ok = false
 		}
 	}
 
@@ -1330,6 +1384,13 @@ gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
 gs_destroy :: proc() {
 	using gs
 
+	for index in Sound_Index {
+		path := sound_paths[index]
+		if path != "" {
+			delete(path)
+		}
+	}
+
 	if font_regular_path != "" {
 		delete(font_regular_path)
 	} 
@@ -1383,6 +1444,13 @@ gs_destroy :: proc() {
 
 	sdl.Quit()
 	free(gs)
+}
+
+// build a cstring with a builder
+// NOTE appends a nul byte
+cstring_build :: proc(b: ^strings.Builder) -> cstring {
+	strings.write_byte(b, '\x00')
+	return cstring(raw_data(b.buf))
 }
 
 // build a cstring with a builder

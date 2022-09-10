@@ -735,6 +735,7 @@ render_string :: proc(
 	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
 	q: fontstash.Quad
 
+
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
 		render_glyph_quad(target, group, state, &q)
 	}
