@@ -141,7 +141,7 @@ Window :: struct {
 	w: ^sdl.Window,
 	w_id: u32,
 	cursor: Cursor,
-	bordered: bool,
+	// bordered: bool,
 
 	// key state
 	combo_builder: strings.Builder,
@@ -1933,9 +1933,13 @@ dialog_spawn :: proc(
 // sdl helpers
 //////////////////////////////////////////////
 
-window_border_toggle :: proc(window: ^Window) {
-	sdl.SetWindowBordered(window.w, cast(sdl.bool) window.bordered)
-	window.bordered = !window.bordered
+// window_border_toggle :: proc(window: ^Window) {
+// 	window.bordered = !window.bordered
+// }
+
+window_border_set :: proc(window: ^Window, state: bool) {
+	sdl.SetWindowBordered(window.w, cast(sdl.bool) state)
+	// window.bordered = state
 }
 
 clipboard_has_content :: sdl.HasClipboardText

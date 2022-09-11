@@ -206,7 +206,8 @@ theme_editor_spawn :: proc() {
 							panel_selected_index -= 1
 							window.update_next = true
 							p := theme_editor.panel_list[panel_selected_index]
-							scrollbar_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, true)
+							// TODO
+							// scrollbar_panel_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, true)
 						}
 					}
 
@@ -218,7 +219,7 @@ theme_editor_spawn :: proc() {
 							panel_selected_index += 1
 
 							p := theme_editor.panel_list[panel_selected_index]
-							scrollbar_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, false)
+							// scrollbar_panel_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, false)
 							window.update_next = true
 						}
 					}
@@ -246,7 +247,8 @@ theme_editor_spawn :: proc() {
 	}
 	theme_editor.window = window
 
-	theme_editor.panel = panel_init(&window.element, { .Panel_Scrollable, .Panel_Default_Background })
+	// TODO scrollbar
+	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background })
 	theme_editor.panel.margin = 10
 	
 	label := label_init(theme_editor.panel, {}, "Theme Editor")

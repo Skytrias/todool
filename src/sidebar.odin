@@ -17,16 +17,26 @@ archive_push :: proc(text: string) {
 	if len(text) != 0 {
 		// KEEP AT MAX.
 		if len(sb.archive.buttons.children) == ARCHIVE_MAX {
-			// TODO optimize
-			// log.info("REMOVING ONE TO STAY IN MAX")
-			ordered_remove(&sb.archive.buttons.children, 1)
-			log.warn("REMOVING")
-		} 
+			log.info("REMOVING ONE TO STAY IN MAX")
 
-		// log.info("LEN", len(sb.archive.buttons.children))
-		archive_button_init(sb.archive.buttons, { .HF }, text)
-		sb.archive.head += 1
-		sb.archive.tail += 1
+			// IGNORE SCROLLBAR
+			for i := len(sb.archive.buttons.children) - 1; i >= 2; i -= 1 {
+				a := cast(^Archive_Button) &sb.archive.buttons.children[i]
+				b := cast(^Archive_Button) &sb.archive.buttons.children[i - 1]
+				strings.builder_reset(&a.builder)
+				strings.write_string(&a.builder, strings.to_string(b.builder))
+				// strings.builder_reset(b.builder)
+			}
+
+			c := cast(^Archive_Button) &sb.archive.buttons.children[1]
+			strings.builder_reset(&c.builder)
+			strings.write_string(&c.builder, text)
+		} else {
+			// log.info("LEN", len(sb.archive.buttons.children))
+			archive_button_init(sb.archive.buttons, { .HF }, text)
+			sb.archive.head += 1
+			sb.archive.tail += 1
+		}
 	}
 }
 
@@ -64,6 +74,7 @@ Sidebar_Options :: struct {
 	checkbox_uppercase_word: ^Checkbox,
 	checkbox_use_animations: ^Checkbox,	
 	checkbox_wrapping: ^Checkbox,
+	checkbox_bordered: ^Checkbox,
 	slider_volume: ^Slider,
 
 	slider_pomodoro_work: ^Slider,
@@ -227,25 +238,46 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		b2 := button_init(panel_info, { .HF }, "K", mode_based_button_message)
 		b2.data = new_clone(Mode_Based_Button { 1 })
 		b2.hover_info = "Kanban Mode"
-	}
-
-	// TODO add border
-	// b := button_init(panel_info, { .CT, .Hover_Has_Info }, "b")
-	// b.invoke = proc(data: rawptr) {
-	// 	element := cast(^Element) data
-	// 	window_border_toggle(element.window)
-	// 	element_repaint(element)
-	// }
-	// b.hover_info = "border"		
+	}	
 }
 
 sidebar_enum_panel_init :: proc(parent: ^Element) {
 	shared_panel :: proc(element: ^Element, title: string, scrollable := true) -> ^Panel {
-		flags := Element_Flags { .Panel_Default_Background, .Tab_Movement_Allowed }
-		if scrollable {
-			flags += { .Panel_Scrollable }
+		// if scrollable {
+		// 	flags += { .Panel_Scrollable }
+		// }
+
+		scrollbar := scrollbar_init(element, {})
+		scrollbar.layout_pre = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
+			panel := cast(^Panel) content
+			// max := panel_layout(panel, scrollbar.bounds, true, 0)
+			max := f32(element_message(panel, .Get_Height))
+			// log.info("PRE", scrollbar.bounds, max)
+			scrollbar_panel_side_set(scrollbar, .Vertical, max)
 		}
-		panel := panel_init(element, flags, 5, 5)
+		scrollbar.layout_post = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
+			panel := cast(^Panel) content
+			vertical := &scrollbar.sides[.Vertical]
+			// log.info("POST", scrollbar.bounds, vertical.position)
+			panel_layout(panel, scrollbar.bounds, false, vertical.position)
+			panel.bounds = scrollbar.bounds
+			panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
+		}
+
+		flags := Element_Flags { .Panel_Default_Background, .Tab_Movement_Allowed }
+		panel := panel_init(scrollbar, flags, 5, 5)
+		panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			if msg == .Paint_Recursive {
+				log.info("MSGGGG", element.bounds, element.clip)
+				target := element.window.target
+				// render_rect(target, element.bounds, RED)
+				panel := cast(^Panel) element
+				panel_render_default(target, panel)
+				return 1
+			}
+
+			return 0
+		}
 		panel.background_index = 1
 		panel.z_index = 2
 		panel.name = "shared panel"
@@ -300,6 +332,15 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 		checkbox_wrapping = checkbox_init(panel, flags, "Wrap in List Mode", true)
+		checkbox_bordered = checkbox_init(panel, flags, "Borderless Window", false)
+		checkbox_bordered.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			if msg == .Value_Changed {
+				checkbox := cast(^Checkbox) element
+				window_border_set(checkbox.window, !checkbox.state)
+			}
+
+			return 0
+		}
 
 		// pomodoro
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
@@ -442,7 +483,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			}
 		}
 
-		buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background, .Panel_Scrollable }, 5, 1)
+		buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background }, 5, 1)
 		buttons.name = "buttons panel"
 		buttons.background_index = 2
 		buttons.rounded = true
@@ -553,6 +594,10 @@ archive_button_init :: proc(
 	res.builder = strings.builder_make(0, len(text))
 	strings.write_string(&res.builder, text)
 	return
+}
+
+options_bordered :: #force_inline proc() -> bool {
+	return sb.options.checkbox_bordered.state
 }
 
 options_volume :: #force_inline proc() -> f32 {

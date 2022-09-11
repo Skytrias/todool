@@ -371,6 +371,7 @@ Misc_Save_Load :: struct {
 		uppercase_word: bool,
 		use_animations: bool,
 		wrapping: bool,
+		bordered: bool,
 		volume: f32,
 	},
 
@@ -437,11 +438,11 @@ json_save_misc :: proc(path: string) -> bool {
 	pomodoro_diff := time.stopwatch_duration(pomodoro.stopwatch)
 	
 	// archive data
-	archive_data := make([]string, len(sb.archive.buttons.children) - 1)
+	archive_data := make([]string, len(sb.archive.buttons.children))
 	// NOTE SKIP THE SCROLLBAR
-	for i in 1..<len(sb.archive.buttons.children) {
+	for i in 0..<len(sb.archive.buttons.children) {
 		button := cast(^Archive_Button) sb.archive.buttons.children[i]
-		archive_data[i - 1] = strings.to_string(button.builder)
+		archive_data[i] = strings.to_string(button.builder)
 	}
 
 	window_x, window_y := window_get_position(window_main)
@@ -484,6 +485,7 @@ json_save_misc :: proc(path: string) -> bool {
 			options_uppercase_word(),
 			options_use_animations(),
 			options_wrapping(),
+			options_bordered(),
 			options_volume(),
 		},
 
@@ -599,6 +601,7 @@ json_load_misc :: proc(path: string) -> bool {
 	checkbox_set(sb.options.checkbox_uppercase_word, misc.options.uppercase_word)
 	checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
 	checkbox_set(sb.options.checkbox_wrapping, misc.options.wrapping)
+	checkbox_set(sb.options.checkbox_bordered, misc.options.bordered)
 	slider_set(sb.options.slider_volume, misc.options.volume)
 
 	// theme
