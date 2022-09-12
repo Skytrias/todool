@@ -248,38 +248,38 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		// }
 
 		scrollbar := scrollbar_init(element, {})
-		scrollbar.layout_pre = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
-			panel := cast(^Panel) content
-			// max := panel_layout(panel, scrollbar.bounds, true, 0)
-			max := f32(element_message(panel, .Get_Height))
-			// log.info("PRE", scrollbar.bounds, max)
-			scrollbar_panel_side_set(scrollbar, .Vertical, max)
-		}
-		scrollbar.layout_post = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
-			panel := cast(^Panel) content
-			vertical := &scrollbar.sides[.Vertical]
-			// log.info("POST", scrollbar.bounds, vertical.position)
-			panel_layout(panel, scrollbar.bounds, false, vertical.position)
-			panel.bounds = scrollbar.bounds
-			panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
-		}
+		// scrollbar.layout_pre = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
+		// 	panel := cast(^Panel) content
+		// 	// max := panel_layout(panel, scrollbar.bounds, true, 0)
+		// 	max := f32(element_message(panel, .Get_Height))
+		// 	// log.info("PRE", scrollbar.bounds, max)
+		// 	scrollbar_panel_side_set(scrollbar, .Vertical, max)
+		// }
+		// scrollbar.layout_post = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
+		// 	panel := cast(^Panel) content
+		// 	vertical := &scrollbar.sides[.Vertical]
+		// 	// log.info("POST", scrollbar.bounds, vertical.position)
+		// 	panel_layout(panel, scrollbar.bounds, false, vertical.position)
+		// 	panel.bounds = scrollbar.bounds
+		// 	panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
+		// }
 
 		flags := Element_Flags { .Panel_Default_Background, .Tab_Movement_Allowed }
 		panel := panel_init(scrollbar, flags, 5, 5)
 		panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			if msg == .Paint_Recursive {
 				log.info("MSGGGG", element.bounds, element.clip)
-				target := element.window.target
-				// render_rect(target, element.bounds, RED)
-				panel := cast(^Panel) element
-				panel_render_default(target, panel)
-				return 1
+				// target := element.window.target
+				// // render_rect(target, element.bounds, RED)
+				// panel := cast(^Panel) element
+				// panel_render_default(target, panel)
+				// return 1
 			}
 
 			return 0
 		}
 		panel.background_index = 1
-		panel.z_index = 2
+		// panel.z_index = 2
 		panel.name = "shared panel"
 
 		header := label_init(panel, { .Label_Center }, title)
@@ -621,7 +621,9 @@ options_scroll_x :: #force_inline proc() -> int {
 }
 
 options_scroll_y :: #force_inline proc() -> int {
-	return sb.options.checkbox_invert_y.state ? -1 : 1
+	// TODO reenable
+	return 1
+	// return sb.options.checkbox_invert_y.state ? -1 : 1
 }
 
 options_tag_mode :: #force_inline proc() -> int {

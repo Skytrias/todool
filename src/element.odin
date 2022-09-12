@@ -1645,8 +1645,8 @@ Scrollbar_Panel :: struct {
 	layout_rect: Rect,
 
 	// prelayout to set max / page for wanted sides
-	layout_pre: proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr),
-	layout_post: proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr),
+	// layout_pre: proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr),
+	// layout_post: proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr),
 }
 
 Scrollbar_Side_Type :: enum {
@@ -1696,6 +1696,8 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					render_rect(target, side.rect, BLUE)
 				}
 			}
+
+			log.info("render")
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -1726,32 +1728,41 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Layout: {
 			assert(len(element.children) == 7)
-			content := element.children[6] 
+			panel := cast(^Panel) element.children[6] 
+			assert(panel.message_class == panel_message)
 			scrollbar.layout_rect = scrollbar.bounds
 
-			if scrollbar.layout_pre != nil {
-				scrollbar->layout_pre(content, scrollbar.data)
-
-				{
-					a := element.children[0]
-					b := element.children[1]
-					c := element.children[2]
-					scrollbar_thumb_layout(scrollbar, .Vertical, a, b, c)
-				}
-
-				// {
-				// 	a := element.children[3]
-				// 	b := element.children[4]
-				// 	c := element.children[5]
-				// 	scrollbar_thumb_layout(scrollbar, .Horizontal, a, b, c)
-				// }
+			// pre layout
+			{
+				max := f32(element_message(panel, .Get_Height))
+				scrollbar_panel_side_set(scrollbar, .Vertical, max)
+				log.info("scrollbar pre", scrollbar.bounds)
 			}
 
-			if scrollbar.layout_post != nil {
-				scrollbar->layout_post(content, scrollbar.data)
-			} else {
-				// move the content to default
-				element_move(content, scrollbar.bounds)
+			// layout elements
+			{
+				a := element.children[0]
+				b := element.children[1]
+				c := element.children[2]
+				scrollbar_thumb_layout(scrollbar, .Vertical, a, b, c)
+				log.info("scrollbar mid", scrollbar.bounds)
+			}
+
+			// {
+			// 	a := element.children[3]
+			// 	b := element.children[4]
+			// 	c := element.children[5]
+			// 	scrollbar_thumb_layout(scrollbar, .Horizontal, a, b, c)
+			// }
+			// }
+
+			// post layout
+			{
+				vertical := &scrollbar.sides[.Vertical]
+				log.info("scrollbar post", scrollbar.bounds)
+				panel.bounds = scrollbar.bounds
+				panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
+				panel_layout(panel, scrollbar.bounds, false, vertical.position)
 			}
 		}
 	}

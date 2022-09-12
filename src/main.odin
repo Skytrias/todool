@@ -29,6 +29,38 @@ TODOOL_RELEASE :: false
 // TODO write down which dependencies are now needed... cuz of NFD
 // TODO while search typing set camera to focus atleast search result found
 
+// main :: proc() {
+// 	gs_init()
+// 	context.logger = gs.logger
+// 	context.allocator = gs_allocator()
+// 	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
+// 	window_main = window
+// 	scrollbar := scrollbar_init(&window.element, { .HF, .VF })
+// 	panel := panel_init(scrollbar, { .Panel_Default_Background }, 5)
+// 	panel.background_index = 0
+// 	// scrollbar.panel = panel
+// 	// scrollbar.layout_pre = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
+// 	// 	panel := cast(^Panel) content
+// 	// 	max := f32(element_message(panel, .Get_Height))
+// 	// 	scrollbar_panel_side_set(scrollbar, .Vertical, max)
+// 	// }
+// 	// scrollbar.layout_post = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
+// 	// 	panel := cast(^Panel) content
+// 	// 	vertical := &scrollbar.sides[.Vertical]
+// 	// 	panel_layout(panel, scrollbar.bounds, false, vertical.position)
+// 	// 	panel.bounds = scrollbar.bounds
+// 	// 	panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
+// 	// }
+
+// 	for i in 0..<100 {
+// 		text := fmt.tprintf("Text %d", i)
+// 		button_init(panel, { .HF }, text)
+// 	}
+
+// 	gs_update_after_load()
+// 	gs_message_loop()
+// }
+
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -286,7 +318,6 @@ main :: proc() {
 	tasks_load_file()
 
 	// do actual loading later because options might change the path
-	fonts_load_pushed()
 	gs_update_after_load()
 	
 	gs_message_loop()

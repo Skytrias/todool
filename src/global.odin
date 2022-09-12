@@ -80,23 +80,6 @@ fonts_push :: proc() {
 	font_bold = 2
 }
 
-fonts_load_pushed :: proc() {
-	ctx := &gs.fc
-	fontstash.font_push(ctx, data_font_icon)
-
-	if gs.font_regular_path != "" {
-		fontstash.font_push(ctx, gs.font_regular_path, true, 20)
-	} else {
-		fontstash.font_push(ctx, data_font_regular, true, 20)
-	}
-
-	if gs.font_bold_path != "" {
-		fontstash.font_push(ctx, gs.font_bold_path, true, 20)
-	} else {
-		fontstash.font_push(ctx, data_font_bold, true, 20)
-	}
-}
-
 Shortcut_Proc :: proc() -> bool
 
 HOVER_TIME :: time.Millisecond * 500
@@ -478,6 +461,21 @@ window_init :: proc(
 }
 
 gs_update_after_load :: proc() {
+	ctx := &gs.fc
+	fontstash.font_push(ctx, data_font_icon)
+
+	if gs.font_regular_path != "" {
+		fontstash.font_push(ctx, gs.font_regular_path, true, 20)
+	} else {
+		fontstash.font_push(ctx, data_font_regular, true, 20)
+	}
+
+	if gs.font_bold_path != "" {
+		fontstash.font_push(ctx, gs.font_bold_path, true, 20)
+	} else {
+		fontstash.font_push(ctx, data_font_bold, true, 20)
+	}
+
 	floaty := window_main.hovered_panel
 	floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 
