@@ -10,33 +10,31 @@ import "core:os"
 import "core:strings"
 import "core:encoding/json"
 
-ARCHIVE_MAX :: 32
+ARCHIVE_MAX :: 256
 
 // push to archive text
 archive_push :: proc(text: string) {
-	if len(text) != 0 {
-		// KEEP AT MAX.
-		if len(sb.archive.buttons.children) == ARCHIVE_MAX {
-			log.info("REMOVING ONE TO STAY IN MAX")
+	if len(text) == 0 {
+		return
+	}
 
-			// IGNORE SCROLLBAR
-			for i := len(sb.archive.buttons.children) - 1; i >= 2; i -= 1 {
-				a := cast(^Archive_Button) &sb.archive.buttons.children[i]
-				b := cast(^Archive_Button) &sb.archive.buttons.children[i - 1]
-				strings.builder_reset(&a.builder)
-				strings.write_string(&a.builder, strings.to_string(b.builder))
-				// strings.builder_reset(b.builder)
-			}
-
-			c := cast(^Archive_Button) &sb.archive.buttons.children[1]
-			strings.builder_reset(&c.builder)
-			strings.write_string(&c.builder, text)
-		} else {
-			// log.info("LEN", len(sb.archive.buttons.children))
-			archive_button_init(sb.archive.buttons, { .HF }, text)
-			sb.archive.head += 1
-			sb.archive.tail += 1
+	// KEEP AT MAX.
+	if len(sb.archive.buttons.children) == ARCHIVE_MAX {
+		for i := len(sb.archive.buttons.children) - 1; i >= 1; i -= 1 {
+			a := cast(^Archive_Button) sb.archive.buttons.children[i]
+			b := cast(^Archive_Button) sb.archive.buttons.children[i - 1]
+			strings.builder_reset(&a.builder)
+			strings.write_string(&a.builder, strings.to_string(b.builder))
 		}
+
+		c := cast(^Archive_Button) sb.archive.buttons.children[0]
+		strings.builder_reset(&c.builder)
+		strings.write_string(&c.builder, text)
+	} else {
+		// log.info("LEN", len(sb.archive.buttons.children))
+		archive_button_init(sb.archive.buttons, { .HF }, text)
+		sb.archive.head += 1
+		sb.archive.tail += 1
 	}
 }
 
@@ -243,41 +241,14 @@ sidebar_panel_init :: proc(parent: ^Element) {
 
 sidebar_enum_panel_init :: proc(parent: ^Element) {
 	shared_panel :: proc(element: ^Element, title: string, scrollable := true) -> ^Panel {
-		// if scrollable {
-		// 	flags += { .Panel_Scrollable }
-		// }
-
-		scrollbar := scrollbar_init(element, {})
-		// scrollbar.layout_pre = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
-		// 	panel := cast(^Panel) content
-		// 	// max := panel_layout(panel, scrollbar.bounds, true, 0)
-		// 	max := f32(element_message(panel, .Get_Height))
-		// 	// log.info("PRE", scrollbar.bounds, max)
-		// 	scrollbar_panel_side_set(scrollbar, .Vertical, max)
-		// }
-		// scrollbar.layout_post = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
-		// 	panel := cast(^Panel) content
-		// 	vertical := &scrollbar.sides[.Vertical]
-		// 	// log.info("POST", scrollbar.bounds, vertical.position)
-		// 	panel_layout(panel, scrollbar.bounds, false, vertical.position)
-		// 	panel.bounds = scrollbar.bounds
-		// 	panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
-		// }
+		// dont use scrollbar if not wanted
+		parent := element
+		if scrollable {
+			parent = scrollbar_init(element, {})
+		}
 
 		flags := Element_Flags { .Panel_Default_Background, .Tab_Movement_Allowed }
-		panel := panel_init(scrollbar, flags, 5, 5)
-		panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			if msg == .Paint_Recursive {
-				log.info("MSGGGG", element.bounds, element.clip)
-				// target := element.window.target
-				// // render_rect(target, element.bounds, RED)
-				// panel := cast(^Panel) element
-				// panel_render_default(target, panel)
-				// return 1
-			}
-
-			return 0
-		}
+		panel := panel_init(parent, flags, 5, 5)
 		panel.background_index = 1
 		// panel.z_index = 2
 		panel.name = "shared panel"
@@ -483,12 +454,14 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			}
 		}
 
-		buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background }, 5, 1)
-		buttons.name = "buttons panel"
-		buttons.background_index = 2
-		buttons.rounded = true
-		buttons.layout_elements_in_reverse = true
-		reserve(&buttons.children, ARCHIVE_MAX)
+		{
+			scrollbar := scrollbar_init(panel, { .HF, .VF })
+			buttons = panel_init(scrollbar, { .Panel_Default_Background }, 5, 1)
+			buttons.name = "buttons panel"
+			buttons.background_index = 2
+			buttons.layout_elements_in_reverse = true
+			// buttons.rounded = true
+		}
 	}
 }
 
@@ -549,20 +522,6 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			}
 
 			element_repaint(element)
-
-			// manager := mode_panel_manager_scoped()
-			// task_head_tail_push(manager)
-			
-			// indentation: int
-			// index := -1
-			
-			// if task_head != -1 {
-			// 	prev := tasks_visible[task_head]
-			// 	indentation = prev.indentation
-			// 	index = prev.index + 1
-			// }
-
-			// task_push_undoable(manager, indentation, strings.to_string(button.builder), index)
 		}
 
 		case .Get_Width: {
@@ -593,6 +552,7 @@ archive_button_init :: proc(
 	res = element_init(Archive_Button, parent, flags | { .Tab_Stop }, archive_button_message, allocator)
 	res.builder = strings.builder_make(0, len(text))
 	strings.write_string(&res.builder, text)
+	res.visual_index = len(parent.children) - 1
 	return
 }
 

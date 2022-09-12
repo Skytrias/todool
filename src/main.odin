@@ -14,7 +14,7 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
-TRACK_MEMORY :: false
+TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 
 // import "../notify"
@@ -267,17 +267,6 @@ main :: proc() {
 
 		pomodoro_update()
 		image_load_process_texture_handles(window)
-
-		// update visual indices of archive buttons, to not do lookups
-		if sb.archive.buttons != nil && (.Hide not_in sb.enum_panel.flags) && sb.mode == .Archive {
-			sb.archive.head = clamp(sb.archive.head, 0, len(sb.archive.buttons.children) - 1)
-			sb.archive.tail = clamp(sb.archive.tail, 0, len(sb.archive.buttons.children) - 1)
-
-			for i in 1..<len(sb.archive.buttons.children) {
-				button := cast(^Archive_Button) sb.archive.buttons.children[i]
-				button.visual_index = len(sb.archive.buttons.children) - 1 - i
-			}
-		}
 	}
 
 	// keymap loading

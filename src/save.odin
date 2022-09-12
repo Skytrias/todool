@@ -224,7 +224,6 @@ editor_load_version :: proc(
 			cam := mode_panel_cam()
 			cam.offset_x = f32(header.camera_offset_x)
 			cam.offset_y = f32(header.camera_offset_y)
-			log.info("xy", cam.offset_x, cam.offset_y)
 
 			Save_Task :: struct #packed {
 				indentation: u8,
@@ -313,7 +312,7 @@ editor_load :: proc(file_path: string) -> (err: io.Error) {
 	version_bytes := reader_read_bytes_out(&reader, 8) or_return
 	version := string(version_bytes)
 	block_size := reader_read_type(&reader, u32be) or_return
-	log.info("FOUND VERSION", version)
+	log.info("SAVE FILE FOUND VERSION", version)
 	editor_load_version(&reader, block_size, version) or_return
 	editor_read_opt_tags(&reader) or_return
 
@@ -573,7 +572,8 @@ json_load_misc :: proc(path: string) -> bool {
 			window_set_size(window_main, clamp(misc.hidden.window_width, 0, max(int)), clamp(misc.hidden.window_height, 0, max(int)))
 		}
 
-		last_save_location = strings.clone(misc.hidden.last_save_location)
+		last_save_set(misc.hidden.last_save_location)
+		// last_save_location = strings.clone(misc.hidden.last_save_location)
 
 		if misc.hidden.font_regular_path != "" {
 			gs.font_regular_path = strings.clone(misc.hidden.font_regular_path)
@@ -586,7 +586,7 @@ json_load_misc :: proc(path: string) -> bool {
 
 	// tag data
 	sb.tags.tag_show_mode = misc.tags.tag_mode
-	sb.tags.toggle_selector_tag.cell_unit = f32(misc.tags.tag_mode)
+	// sb.tags.toggle_selector_tag.cell_unit = f32(misc.tags.tag_mode)
 	for i in 0..<8 {
 		tag := sb.tags.names[i]
 		strings.builder_reset(tag)

@@ -196,6 +196,14 @@ task_data_init :: proc() {
 	pomodoro_init()
 }
 
+last_save_set :: proc(next: string) {
+	if last_save_location != "" {
+		delete(last_save_location)
+	}
+	
+	last_save_location = strings.clone(next)
+}
+
 task_data_destroy :: proc() {
 	pomodoro_destroy()
 	delete(tasks_visible)
@@ -604,10 +612,10 @@ task_push :: proc(
 task_insert_at :: proc(manager: ^Undo_Manager, index_at: int, res: ^Task) {
 	if index_at == -1 || index_at == len(mode_panel.children) {
 		item := Undo_Item_Task_Append { res }
-		undo_task_append(manager, &item)
+		undo_task_append(manager, &item, false)
 	} else {
 		item := Undo_Item_Task_Insert_At { index_at, res }
-		undo_task_insert_at(manager, &item)
+		undo_task_insert_at(manager, &item, false)
 	}	
 }
 
@@ -800,7 +808,7 @@ task_set_visible_tasks :: proc() {
 
 			// continue last undo because this happens manually
 			undo_group_continue(manager)
-			undo_u8_set(manager, &item)
+			undo_u8_set(manager, &item, false)
 			undo_group_end(manager)
 		}
 
@@ -1176,6 +1184,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				task_context_menu_spawn(nil)
 				return 1
 			}
+
+			mode_panel_context_menu_spawn()
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -1496,7 +1506,7 @@ tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
 	tag_mode := options_tag_mode()
-	draw_tags := tag_mode != TAG_SHOW_NONE && task.tags != 0x00
+	draw_tags := tag_mode != TAG_SHOW_NONE && task.tags != 0x0
 
 	#partial switch msg {
 		case .Destroy: {
@@ -1989,7 +1999,11 @@ tasks_load_file :: proc() {
 tasks_load_reset :: proc() {
 	// NOTE TEMP
 	// TODO need to cleanup node data
-	clear(&mode_panel.children)
+	element_destroy_children_only(mode_panel)
+	element_deallocate(&window_main.element) // clear mem
+	
+	// mode_panel.flags += { .Destroy_Descendent }
+	// clear(&mode_panel.children)
 	undo_manager_reset(&mode_panel.window.manager)
 	dirty = 0
 	dirty_saved = 0
@@ -2190,12 +2204,12 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		panel := panel_init(p, { .HF, .Panel_Horizontal })
 		panel.outline = true
 
-		b1 := button_init(panel, {}, "<-")
+		b1 := button_init(panel, { .HF }, "<-")
 		b1.invoke = proc(data: rawptr) {
 			todool_indentation_shift(-1)
 		}
 		label := label_init(panel, { .HF, .Label_Center }, "indent")
-		b2 := button_init(panel, {}, "->")
+		b2 := button_init(panel, { .HF }, "->")
 		b2.invoke = proc(data: rawptr) {
 			todool_indentation_shift(1)
 		}
@@ -2356,4 +2370,27 @@ task_dragging_end :: proc() -> bool {
 	element_repaint(mode_panel)
 	window_set_cursor(mode_panel.window, .Arrow)
 	return true
+}
+
+mode_panel_context_menu_spawn :: proc() {
+	menu := menu_init(mode_panel.window, {})
+
+	p := menu.panel
+	p.gap = 5
+	p.shadow = true
+	p.background_index = 2
+
+	button_init(p, { .HF }, "Theme Editor").invoke = proc(data: rawptr) {
+		button := cast(^Button) data
+		theme_editor_spawn()
+		menu_close(button.window)
+	}
+
+	button_init(p, { .HF }, "Generate Changelog").invoke = proc(data: rawptr) {
+		button := cast(^Button) data
+		todool_changelog_generate(false)
+		menu_close(button.window)
+	}
+
+	menu_show(menu)
 }

@@ -339,18 +339,9 @@ window_init :: proc(
 	w, h: i32,
 	arena_cap: int,
 ) -> (res: ^Window) {
-	// TODO other menus close?
-	// menus_close()
-
 	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
-	window_flags: sdl.WindowFlags = { .OPENGL, .HIDDEN }
-
-	if .Window_Menu not_in flags {
-		window_flags |= { .RESIZABLE }
-	} else {
-		window_flags |= { .BORDERLESS }
-	}
+	window_flags: sdl.WindowFlags = { .OPENGL, .HIDDEN, .RESIZABLE }
 
 	if .Window_Center_In_Owner in flags {
 		x_pos	= sdl.WINDOWPOS_CENTERED
@@ -370,10 +361,6 @@ window_init :: proc(
 		log.panic("SDL2: error during window creation %v", sdl.GetError())
 	}
 	window_id := sdl.GetWindowID(window)
-	
-	if .Window_Menu in flags {
-		sdl.RaiseWindow(window)
-	}
 
 	_window_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element
@@ -446,15 +433,6 @@ window_init :: proc(
 		label_init(p, { .Label_Center })
 		res.hovered_panel = floaty
 		element_hide(floaty, true)
-	}
-
-	// menu panel
-	{
-		menu := panel_floaty_init(&res.element, {})
-		// menu.panel.flags ~= { .Panel_Default_Background }
-		// menu.panel.color = RED
-		element_hide(menu, true)
-		res.menu = menu
 	}
 
 	return
@@ -1029,7 +1007,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					gs.ignore_quit = true
 						
 					if element_message(&window.element, .Window_Close) == 0 {
-						log.warn("WINDOW CLOSE EVENT DESTROY")
+						// log.warn("WINDOW CLOSE EVENT DESTROY")
 						window_destroy(window)
 						gs.ignore_quit = false
 					}
@@ -1604,7 +1582,6 @@ gs_draw_and_cleanup :: proc() {
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
-			log.info("WINDOW DEALLOC COUNT DECREASE")
 			window_count -= 1
 			link^ = next
 		} else if window.update_next {
@@ -1640,7 +1617,6 @@ gs_draw_and_cleanup :: proc() {
 
 	if window_count == 0 {
 		gs.running = false
-		log.info("SHOULD QUIT")
 	}
 }
 
@@ -2046,29 +2022,29 @@ bpath_file_read :: proc(path: string, allocator := context.allocator) -> ([]byte
 //////////////////////////////////////////////
 
 // close the current menu when its opened
-menu_close :: proc(window: ^Window) -> (any_closed: bool) {
-	assert(window.menu != nil)
-
-	if element_hide(window.menu, true) {
-		element_repaint(&window.element)
-		any_closed = true
+menu_close :: proc(window: ^Window) -> bool {
+	if window.menu == nil {
+		return false
 	}
 
-	return
+	element_destroy(window.menu)
+	element_repaint(&window.element)
+	window.menu = nil
+	return true
 }
 
-// true when the menu is shown
-menu_open :: proc(window: ^Window) -> bool {
-	assert(window.menu != nil) 
-	return .Hide in window.menu.flags
-}
+// // true when the menu is shown
+// menu_open :: proc(window: ^Window) -> bool {
+// 	return window.menu == nil || (.Hide in window.menu.flags)
+// }
 
 menu_init :: proc(window: ^Window, flags: Element_Flags) -> (menu: ^Panel_Floaty) {
-	menu = window.menu
-	element_hide(menu, false)
-	panel_clear_without_scrollbar(menu.panel)
+	menu = panel_floaty_init(&window.element, {})
+	// menu.panel.flags ~= { .Panel_Default_Background }
+	// menu.panel.color = RED
 	menu.x = window.cursor_x
 	menu.y = window.cursor_y
+	window.menu = menu
 	return
 }
 
@@ -2111,9 +2087,7 @@ menu_show :: proc(menu: ^Panel_Floaty) {
 
 // true wether the requested element is from the menu tree
 element_is_from_menu :: proc(window: ^Window, element: ^Element) -> bool {
-	assert(window.menu != nil)
-
-	if .Hide in window.menu.flags {
+	if window.menu == nil || (.Hide in window.menu.flags) {
 		return false
 	}
 

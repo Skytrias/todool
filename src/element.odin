@@ -127,12 +127,7 @@ Element_Flag :: enum {
 	Split_Pane_Hidable,
 	Split_Pane_Reversed,
 
-	// // Menu
-	// Menu_Place_Above,
-	// Menu_No_Scroll,
-
 	// windowing
-	Window_Menu,
 	Window_Maximize,
 	Window_Center_In_Owner,
 }
@@ -357,6 +352,7 @@ element_find_by_point :: proc(element: ^Element, x, y: f32) -> ^Element {
 	}
 
 	temp, sorted := element_children_sorted_or_unsorted(element)
+	defer if sorted do delete(temp)
 
 	for i := len(temp) - 1; i >= 0; i -= 1 {
 		child := temp[i]
@@ -366,9 +362,6 @@ element_find_by_point :: proc(element: ^Element, x, y: f32) -> ^Element {
 		}
 	}
 
-	if sorted {
-		delete(temp)
-	}
 
 	return element
 }
@@ -386,6 +379,12 @@ element_find_index_linear :: proc(element: ^Element) -> int {
 	}
 
 	return -1
+}
+
+element_destroy_children_only :: proc(element: ^Element) {
+	for child in element.children {
+		element_destroy(child)
+	}
 }
 
 // mark children for destruction
@@ -428,15 +427,9 @@ element_destroy :: proc(element: ^Element) -> bool {
 
 // NOTE used internally
 element_deallocate :: proc(element: ^Element) -> bool {
-	// if element.name == "WINDOW" {
-	// 	log.warn("FOUND WINDOW IN DEALLOC", (.Destroy_Descendent in element.flags), (.Destroy in element.flags))
-	// }
-	// assert(len(element.children) < 1000, "first")
-	
 	if .Destroy_Descendent in element.flags {
 		// clear flag
 		excl(&element.flags, Element_Flag.Destroy_Descendent)
-		// assert(len(element.children) < 1000)
 
 		// destroy each child, loop from end to pop quickly
 		for i := len(element.children) - 1; i >= 0; i -= 1 {
@@ -461,10 +454,6 @@ element_deallocate :: proc(element: ^Element) -> bool {
 
 	// log.info("DESTROY?", (.Destroy in element.flags), element.name)
 	if .Destroy in element.flags {
-		if element.name == "WINDOW" {
-			log.error("INSIDE DEALLOC FOR WINDOW")
-		}
-
 		// send the destroy message to clear data
 		element_message(element, .Deallocate)
 
@@ -534,7 +523,7 @@ element_children_sorted_or_unsorted :: proc(element: ^Element) -> (res: []^Eleme
 	sorted = .Sort_By_Z_Index in element.flags
 
 	if sorted {
-		res = slice.clone(element.children[:])
+		res = slice.clone(res)
 		
 		sort.quick_sort_proc(res, proc(a, b: ^Element) -> int {
 			if a.z_index < b.z_index {
@@ -1687,17 +1676,17 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
+			panel := cast(^Panel) element.children[6]
+			color: Color
+			element_message(panel, .Panel_Color, 0, &color)
 
 			for side_type in Scrollbar_Side_Type {
 				side := &scrollbar.sides[side_type]
 
 				if !side.hidden {
-					// log.info("RENDER", side.rect)
-					render_rect(target, side.rect, BLUE)
+					render_rect(target, side.rect, color)
 				}
 			}
-
-			log.info("render")
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -1721,14 +1710,12 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Update: {
-			assert(len(element.children) == 7)
 			content := element.children[6] 
 			element_message(content, msg, di, dp)
 		}
 
 		case .Layout: {
-			assert(len(element.children) == 7)
-			panel := cast(^Panel) element.children[6] 
+			panel := cast(^Panel) element.children[6]
 			assert(panel.message_class == panel_message)
 			scrollbar.layout_rect = scrollbar.bounds
 
@@ -1736,7 +1723,6 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			{
 				max := f32(element_message(panel, .Get_Height))
 				scrollbar_panel_side_set(scrollbar, .Vertical, max)
-				log.info("scrollbar pre", scrollbar.bounds)
 			}
 
 			// layout elements
@@ -1745,7 +1731,6 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				b := element.children[1]
 				c := element.children[2]
 				scrollbar_thumb_layout(scrollbar, .Vertical, a, b, c)
-				log.info("scrollbar mid", scrollbar.bounds)
 			}
 
 			// {
@@ -1759,7 +1744,6 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			// post layout
 			{
 				vertical := &scrollbar.sides[.Vertical]
-				log.info("scrollbar post", scrollbar.bounds)
 				panel.bounds = scrollbar.bounds
 				panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
 				panel_layout(panel, scrollbar.bounds, false, vertical.position)
@@ -2378,7 +2362,7 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	sv := cast(^Color_Picker_SV) element
-	hue := cast(^Color_Picker_HUE) element.parent.children[1]
+	hue := cast(^Color_Picker_HUE) element.parent.children[0]
 	SV_OUT_SIZE :: 10
 	sv_out_size := math.round(SV_OUT_SIZE * SCALE)
 
@@ -2480,9 +2464,7 @@ Toggle_Selector :: struct {
 
 	// layouted cells and animation
 	cells: []Rect,
-	cell_transition: bool,
-	cell_unit: f32,
-	cell_width: f32, // width per cell
+	cell_gap: f32,
 }
 
 toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -2491,12 +2473,21 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 	#partial switch msg {
 		case .Layout: {
-			toggle.cell_width = rect_width(element.bounds) / f32(toggle.count)
+			point_size := rect_height(element.bounds)
+			fcs_element(element)
 
 			// layout cells
 			cut := element.bounds
 			for i in 0..<toggle.count {
-				toggle.cells[i] = rect_cut_left(&cut, toggle.cell_width)
+				width := point_size + string_width(toggle.names[i])
+				toggle.cells[i] = rect_cut_left(&cut, width)
+			}
+
+			toggle.cell_gap = rect_width(cut) / f32(toggle.count)
+
+			for i in 0..<toggle.count {
+				toggle.cells[i].l += f32(i) * toggle.cell_gap
+				toggle.cells[i].r += f32(i) * toggle.cell_gap
 			}
 		}
 
@@ -2511,11 +2502,11 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
-			// animated cell highlight
-			highlight := toggle.cells[0]
-			highlight.l += toggle.cell_unit * toggle.cell_width 
-			highlight.r = highlight.l + toggle.cell_width
-			render_rect(target, highlight, theme.text_good, ROUNDNESS)
+			// // animated cell highlight
+			// highlight := toggle.cells[0]
+			// highlight.l += toggle.cell_unit * toggle.cell_width 
+			// highlight.r = highlight.l + toggle.cell_width
+			// render_rect(target, highlight, theme.text_good, ROUNDNESS)
 			
 			if hovered {
 				render_hovered_highlight(target, element.bounds)
@@ -2523,17 +2514,27 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			fcs_element(element)
 			fcs_ahv()
+			point_size := rect_height(element.bounds)
 
 			for i in 0..<toggle.count {
-				r := toggle.cells[i]
-				color := text_color
+				cell := toggle.cells[i]
 
-				if !rect_contains(r, element.window.cursor_x, element.window.cursor_y) {
+				color := theme.text_default
+
+				if !rect_contains(cell, element.window.cursor_x, element.window.cursor_y) {
 					color = theme.text_blank
 				}
 
 				fcs_color(color)
-				render_string_rect(target, r, toggle.names[i])
+				rect := cell
+				rect.r = rect.l + point_size
+				rect = rect_margin(rect, 5)
+				render_rect(target, rect, toggle.value^ == i ? theme.text_good : theme.text_default, 10 * SCALE)
+
+				rect.l = cell.l + point_size
+				rect.r = cell.r
+				render_string_rect(target, rect, toggle.names[i])
+				// render_string_rect(target, r, toggle.names[i])
 			}
 			
 			render_rect_outline(target, element.bounds, text_color)
@@ -2542,9 +2543,11 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Get_Width: {
 			sum_width: f32
 			fcs_element(element)
+			// height := f32(element_message(element, .Get_Height))
+			scaled_size := efont_size(element)
 
 			for name in toggle.names {
-				sum_width += string_width(name)
+				sum_width += string_width(name) + scaled_size
 			}
 			
 			return int(sum_width + f32(len(toggle.names)) * 20 * SCALE)
@@ -2566,9 +2569,9 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					if toggle.value^ != i {
 						toggle.value_old = toggle.value^
 						toggle.value^ = i
-						element_message(element, .Value_Changed,)
-						toggle.cell_transition = true
-						element_animation_start(element)
+						element_message(element, .Value_Changed)
+						// toggle.cell_transition = true
+						// element_animation_start(element)
 						element_repaint(element)
 					}
 
@@ -2578,13 +2581,15 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Animate: {
-			handled := animate_to(
-				&toggle.cell_transition,
-				&toggle.cell_unit,
-				f32(toggle.value^),
-				1,
-				0.01,
-			)
+			handled := false
+
+			// handled := animate_to(
+			// 	&toggle.cell_transition,
+			// 	&toggle.cell_unit,
+			// 	f32(toggle.value^),
+			// 	1,
+			// 	0.01,
+			// )
 
 			return int(handled)
 		}
@@ -2609,7 +2614,7 @@ toggle_selector_init :: proc(
 	res.value = value
 	res.count = count
 	res.names = names
-	res.cell_unit = f32(value^)
+	// res.cell_unit = f32(value^)
 	res.cells = make([]Rect, count)
 	return 
 }

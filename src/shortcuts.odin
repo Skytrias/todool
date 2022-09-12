@@ -112,7 +112,7 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "tasks_to_uppercase": todool_tasks_to_uppercase()
 		
 		case "change_task_state": todool_change_task_state(shift)
-		case "changelog_generate": todool_changelog_generate()
+		case "changelog_generate": todool_changelog_generate(false)
 
 		case "selection_stop": todool_selection_stop()
 		
@@ -241,10 +241,10 @@ todool_delete_on_empty :: proc() {
 		
 		if index == len(mode_panel.children) {
 			item := Undo_Item_Task_Pop {}
-			undo_task_pop(manager, &item)
+			undo_task_pop(manager, &item, false)
 		} else {
 			item := Undo_Item_Task_Remove_At { index }
-			undo_task_remove_at(manager, &item)
+			undo_task_remove_at(manager, &item, false)
 		}
 
 		element_repaint(task)
@@ -573,7 +573,9 @@ todool_selection_stop :: proc() {
 	}	
 }
 
-todool_changelog_generate :: proc() {
+todool_changelog_generate :: proc(check_only: bool) {
+	// TODO checked only
+
 	if task_head == -1 {
 		return
 	}
@@ -592,7 +594,7 @@ todool_changelog_generate :: proc() {
 			task_write_text_indentation(b, task, task.indentation)
 
 			item := Undo_Item_Task_Remove_At { i }
-			undo_task_remove_at(manager, &item)
+			undo_task_remove_at(manager, &item, false)
 			
 			i -= 1
 			removed_count += 1
@@ -645,7 +647,7 @@ todool_toggle_folding :: proc() {
 	if task.has_children {
 		task_head_tail_push(manager)
 		item := Undo_Item_Bool_Toggle { &task.folded }
-		undo_bool_toggle(manager, &item)
+		undo_bool_toggle(manager, &item, false)
 		
 		task_tail = task_head
 		element_repaint(mode_panel)
@@ -698,7 +700,7 @@ todool_insert_child :: proc() {
 		// uppercase word
 		if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
 			item := Undo_Builder_Uppercased_Content { builder }
-			undo_box_uppercased_content(manager, &item)
+			undo_box_uppercased_content(manager, &item, false)
 		}
 	}
 
@@ -775,32 +777,38 @@ Undo_Item_Int_Set :: struct {
 	to: int,
 }
 
-undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Int_Set) item
-	output := Undo_Item_Int_Set { data.value, data.value^ }
-	data.value^ = data.to
-	undo_push(manager, undo_int_set, &output, size_of(Undo_Item_Int_Set))
+undo_int_set :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Int_Set) item
+		output := Undo_Item_Int_Set { data.value, data.value^ }
+		data.value^ = data.to
+		undo_push(manager, undo_int_set, &output, size_of(Undo_Item_Int_Set))
+	}
 }
 
 Undo_Item_Dirty_Increase :: struct {}
 
 Undo_Item_Dirty_Decrease :: struct {}
 
-undo_dirty_increase :: proc(manager: ^Undo_Manager, item: rawptr) {
-	dirty += 1
-	output := Undo_Item_Dirty_Decrease {}
-	undo_push(manager, undo_dirty_decrease, &output, size_of(Undo_Item_Dirty_Decrease))
+undo_dirty_increase :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		dirty += 1
+		output := Undo_Item_Dirty_Decrease {}
+		undo_push(manager, undo_dirty_decrease, &output, size_of(Undo_Item_Dirty_Decrease))
+	}
 }
 
-undo_dirty_decrease :: proc(manager: ^Undo_Manager, item: rawptr) {
-	dirty -= 1
-	output := Undo_Item_Dirty_Increase {}
-	undo_push(manager, undo_dirty_increase, &output, size_of(Undo_Item_Dirty_Increase))
+undo_dirty_decrease :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		dirty -= 1
+		output := Undo_Item_Dirty_Increase {}
+		undo_push(manager, undo_dirty_increase, &output, size_of(Undo_Item_Dirty_Increase))
+	}
 }
 
 dirty_push :: proc(manager: ^Undo_Manager) {
 	item := Undo_Item_Dirty_Increase {}
-	undo_dirty_increase(manager, &item)
+	undo_dirty_increase(manager, &item, false)
 }
 
 Undo_Item_Task_Head_Tail :: struct {
@@ -808,16 +816,18 @@ Undo_Item_Task_Head_Tail :: struct {
 	tail: int,
 }
 
-undo_task_head_tail :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Task_Head_Tail) item
-	old_head := task_head
-	old_tail := task_tail
-	task_head = data.head
-	task_tail = data.tail
-	data.head = old_head
-	data.tail = old_tail
+undo_task_head_tail :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Task_Head_Tail) item
+		old_head := task_head
+		old_tail := task_tail
+		task_head = data.head
+		task_tail = data.tail
+		data.head = old_head
+		data.tail = old_tail
 
-	undo_push(manager, undo_task_head_tail, item, size_of(Undo_Item_Task_Head_Tail))
+		undo_push(manager, undo_task_head_tail, item, size_of(Undo_Item_Task_Head_Tail))
+	}
 }
 
 task_head_tail_push :: proc(manager: ^Undo_Manager) {
@@ -834,10 +844,12 @@ Undo_Item_U8_XOR :: struct {
 	bit: u8,
 }
 
-undo_u8_xor :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_U8_XOR) item
-	data.value^ ~= data.bit
-	undo_push(manager, undo_u8_xor, item, size_of(Undo_Item_U8_XOR))
+undo_u8_xor :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_U8_XOR) item
+		data.value^ ~= data.bit
+		undo_push(manager, undo_u8_xor, item, size_of(Undo_Item_U8_XOR))
+	}
 }
 
 u8_xor_push :: proc(manager: ^Undo_Manager, value: ^u8, bit: u8) {
@@ -845,7 +857,7 @@ u8_xor_push :: proc(manager: ^Undo_Manager, value: ^u8, bit: u8) {
 		value = value,
 		bit = bit,
 	}
-	undo_u8_xor(manager, &item)
+	undo_u8_xor(manager, &item, false)
 }
 
 tag_toggle :: proc(bit: u8) {
@@ -869,10 +881,12 @@ Undo_Item_Task_Swap :: struct {
 	a, b: ^^Task,
 }
 
-undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Task_Swap) item
-	data.a^, data.b^ = data.b^, data.a^
-	undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
+undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Task_Swap) item
+		data.a^, data.b^ = data.b^, data.a^
+		undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
+	}
 }
 
 // swap with +1 / -1 offset 
@@ -890,7 +904,7 @@ task_swap :: proc(manager: ^Undo_Manager, a, b: int) {
 		a = aa,
 		b = bb,
 	}
-	undo_task_swap(manager, &item)
+	undo_task_swap(manager, &item, false)
 
 	save(aa^)
 	save(bb^)
@@ -905,10 +919,12 @@ Undo_Item_Bool_Toggle :: struct {
 }
 
 // inverse bool set
-undo_bool_toggle :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Bool_Toggle) item
-	data.value^ = !data.value^
-	undo_push(manager, undo_bool_toggle, item, size_of(Undo_Item_Bool_Toggle))
+undo_bool_toggle :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {	
+		data := cast(^Undo_Item_Bool_Toggle) item
+		data.value^ = !data.value^
+		undo_push(manager, undo_bool_toggle, item, size_of(Undo_Item_Bool_Toggle))
+	}
 }
 
 Undo_Item_U8_Set :: struct {
@@ -916,12 +932,14 @@ Undo_Item_U8_Set :: struct {
 	to: u8,
 }
 
-undo_u8_set :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_U8_Set) item
-	old := data.value^
-	data.value^ = data.to
-	data.to = old
-	undo_push(manager, undo_u8_set, item, size_of(Undo_Item_U8_Set))
+undo_u8_set :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_U8_Set) item
+		old := data.value^
+		data.value^ = data.to
+		data.to = old
+		undo_push(manager, undo_u8_set, item, size_of(Undo_Item_U8_Set))
+	}
 }
 
 task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_State) {
@@ -942,13 +960,15 @@ Undo_Item_Task_Indentation_Set :: struct {
 	set: int,
 }
 
-undo_task_indentation_set :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Task_Indentation_Set) item
-	old_indentation := data.task.indentation
-	data.task.indentation = data.set
-	data.task.indentation_smooth = f32(data.set)
-	data.set = old_indentation
-	undo_push(manager, undo_task_indentation_set, item, size_of(Undo_Item_Task_Indentation_Set))
+undo_task_indentation_set :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Task_Indentation_Set) item
+		old_indentation := data.task.indentation
+		data.task.indentation = data.set
+		data.task.indentation_smooth = f32(data.set)
+		data.set = old_indentation
+		undo_push(manager, undo_task_indentation_set, item, size_of(Undo_Item_Task_Indentation_Set))
+	}
 }
 
 Undo_Item_Task_Remove_At :: struct {
@@ -960,25 +980,29 @@ Undo_Item_Task_Insert_At :: struct {
 	task: ^Task, // the task you want to insert
 }
 
-undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Task_Remove_At) item
+undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Task_Remove_At) item
 
-	output := Undo_Item_Task_Insert_At {
-		data.index, 
-		cast(^Task) mode_panel.children[data.index],
-	} 
+		output := Undo_Item_Task_Insert_At {
+			data.index, 
+			cast(^Task) mode_panel.children[data.index],
+		} 
 
-	// TODO maybe speedup somehow?
-	ordered_remove(&mode_panel.children, data.index)
-	undo_push(manager, undo_task_insert_at, &output, size_of(Undo_Item_Task_Insert_At))
+		// TODO maybe speedup somehow?
+		ordered_remove(&mode_panel.children, data.index)
+		undo_push(manager, undo_task_insert_at, &output, size_of(Undo_Item_Task_Insert_At))
+	}
 }
 
-undo_task_insert_at :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Task_Insert_At) item
-	inject_at(&mode_panel.children, data.index, data.task)
+undo_task_insert_at :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Task_Insert_At) item
+		inject_at(&mode_panel.children, data.index, data.task)
 
-	output := Undo_Item_Task_Remove_At { data.index }
-	undo_push(manager, undo_task_remove_at, &output, size_of(Undo_Item_Task_Remove_At))
+		output := Undo_Item_Task_Remove_At { data.index }
+		undo_push(manager, undo_task_remove_at, &output, size_of(Undo_Item_Task_Remove_At))
+	}
 }
 
 Undo_Item_Task_Append :: struct {
@@ -987,21 +1011,25 @@ Undo_Item_Task_Append :: struct {
 
 Undo_Item_Task_Pop :: struct {}
 
-undo_task_append :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Task_Append) item
-	append(&mode_panel.children, data.task)
-	output := Undo_Item_Task_Pop {}
-	undo_push(manager, undo_task_pop, &output, size_of(Undo_Item_Task_Pop))
+undo_task_append :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Task_Append) item
+		append(&mode_panel.children, data.task)
+		output := Undo_Item_Task_Pop {}
+		undo_push(manager, undo_task_pop, &output, size_of(Undo_Item_Task_Pop))
+	}
 }
 
-undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Task_Pop) item
-	// gather the popped element before
-	output := Undo_Item_Task_Append { 
-		cast(^Task) mode_panel.children[len(mode_panel.children) - 1],
+undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	if !clear {
+		data := cast(^Undo_Item_Task_Pop) item
+		// gather the popped element before
+		output := Undo_Item_Task_Append { 
+			cast(^Task) mode_panel.children[len(mode_panel.children) - 1],
+		}
+		pop(&mode_panel.children)
+		undo_push(manager, undo_task_append, &output, size_of(Undo_Item_Task_Append))
 	}
-	pop(&mode_panel.children)
-	undo_push(manager, undo_task_append, &output, size_of(Undo_Item_Task_Append))
 }
 
 // Undo_Item_Task_Clear :: struct {
@@ -1037,7 +1065,7 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 		item := Undo_Item_Task_Remove_At {
 			task.index - remove_count,
 		}
-		undo_task_remove_at(manager, &item)
+		undo_task_remove_at(manager, &item, false)
 		remove_count += 1
 	}
 
@@ -1217,7 +1245,7 @@ todool_toggle_bookmark :: proc() {
 	for i in low..<high + 1 {
 		task := tasks_visible[i]
 		item := Undo_Item_Bool_Toggle { &task.bookmarked }
-		undo_bool_toggle(manager, &item)
+		undo_bool_toggle(manager, &item, false)
 	}
 
 	element_repaint(mode_panel)
@@ -1392,7 +1420,7 @@ todool_tasks_to_uppercase :: proc() {
 	
 			if len(builder.buf) != 0 {
 				item := Undo_Builder_Uppercased_Content { builder }
-				undo_box_uppercased_content(manager, &item)
+				undo_box_uppercased_content(manager, &item, false)
 			}
 		}
 
@@ -1412,7 +1440,7 @@ todool_tasks_to_lowercase :: proc() {
 	
 			if len(builder.buf) != 0 {
 				item := Undo_Builder_Lowercased_Content { builder }
-				undo_box_lowercased_content(manager, &item)
+				undo_box_lowercased_content(manager, &item, false)
 			}
 		}
 

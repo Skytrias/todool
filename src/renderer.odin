@@ -384,6 +384,7 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
 // 	}
 // }
 
+// no
 render_rect :: proc(
 	target: ^Render_Target,
 	rect: Rect, 
@@ -901,6 +902,7 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 	}
 
 	temp, sorted := element_children_sorted_or_unsorted(element)
+	defer if sorted do delete(temp)
 
 	for child in temp {
 		render_element_clipped(target, child)
@@ -908,9 +910,5 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 		if child.window.focused == child {
 			render_rect_outline(target, child.bounds, theme.text_good)
 		}
-	}
-
-	if sorted {
-		delete(temp)
 	}
 }
