@@ -21,13 +21,13 @@ TODOOL_RELEASE :: false
 // selected all highlight
 // close somehow functions bad
 // options autosave should save or in general changing things on the sidebar should be automatic or seperate?
-// camera x offsetting
+// DONE hovered panel doesnt allow clicking immediatly
+// DONE camera x offsetting
 // DONE fontstash weird glyphs at some point
 // DONE pipe changelog data to archive
 // DONE try tinyfiledialogs
 // DONE save as
 
-// TODO write down which dependencies are now needed... cuz of NFD
 // TODO while search typing set camera to focus atleast search result found
 
 // main :: proc() {

@@ -106,21 +106,12 @@ cam_bounds_check_x :: proc(
 
 	if to_left < focus.l + cam.margin_x {
 		goal = math.round(focus.l - to_left + cam.margin_x)
-
-		if goal == 0 {
-			return
-		}
-
 		direction = 1
+		return
 	} 
 
 	if to_right > focus.r - cam.margin_x {
 		goal = math.round(to_right - focus.r + cam.margin_x)
-
-		if goal == 0 {
-			return
-		}
-
 		direction = -1
 	}
 
@@ -170,9 +161,9 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 
 	switch mode_panel.mode {
 		case .List: {
-			if !options_wrapping() {
+			// if !options_wrapping() {
 				goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
-			}
+			// }
 		}
 
 		case .Kanban: {

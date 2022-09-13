@@ -1123,25 +1123,39 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_element_clipped(target, child)
 			}
 
+			// TODO looks shitty when swapping
+			// shadow highlight for non selection
+			if task_head != -1 && task_head != task_tail {
+				render_push_clip(target, panel.clip)
+				low, high := task_low_and_high()
+				color := color_alpha(theme.background[0], 0.5)
+				
+				for t in tasks_visible {
+					if !(low <= t.visible_index && t.visible_index <= high) {
+						rect := task_rect_indented(t)
+						render_rect(target, rect, color)
+					}
+				}
+			}
+
+			// task outlines
+			{
+				low, high := task_low_and_high()
+				render_push_clip(target, mode_panel.clip)
+				for i in low..<high + 1 {
+					task := tasks_visible[i]
+					rect := task_rect_indented(task)
+					color := task_head == i ? theme.caret : theme.text_default
+					render_rect_outline(target, rect, color)
+				}
+			}
+
 			// visual line for dragging
 			if task_head != -1 && drag_running && drag_index_at != -1 {
 				render_push_clip(target, panel.clip)
 				
 				drag_task := tasks_visible[drag_index_at]
 				render_underline(target, drag_task.bounds, theme.text_default)
-			}
-
-			// shadow highlight for non selection
-			if task_head != -1 && task_head != task_tail {
-				render_push_clip(target, panel.clip)
-				low, high := task_low_and_high()
-				color := color_alpha(theme.background[0], 0.75)
-				
-				for t in tasks_visible {
-					if !(low <= t.visible_index && t.visible_index <= high) {
-						render_rect(target, t.bounds, color)
-					}
-				}
 			}
 
 			// draw the fullscreen image on top
@@ -1604,12 +1618,6 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					}
 				}
 			}
-
-			// outline
-			if task_head == task.visible_index {
-				color := theme.text_default
-				render_rect_outline(target, rect, color)
-			} 
 		}
 
 		case .Middle_Down: {
@@ -2238,17 +2246,17 @@ task_context_menu_spawn :: proc(task: ^Task) {
 			menu_close(button.window)
 		}
 
-		b1 := button_init(p, { .HF }, "Delete")
-		b1.invoke = proc(data: rawptr) {
-			button := cast(^Button) data
-			todool_delete_tasks()
-			menu_close(button.window)
-		}
-
 		b4 := button_init(p, { .HF }, "Paste")
 		b4.invoke = proc(data: rawptr) {
 			button := cast(^Button) data
 			todool_paste_tasks()
+			menu_close(button.window)
+		}
+
+		b1 := button_init(p, { .HF }, "Delete")
+		b1.invoke = proc(data: rawptr) {
+			button := cast(^Button) data
+			todool_delete_tasks()
 			menu_close(button.window)
 		}
 	}

@@ -341,11 +341,6 @@ element_find_by_point_custom :: proc(element: ^Element, p: ^Find_By_Point) -> in
 element_find_by_point :: proc(element: ^Element, x, y: f32) -> ^Element {
 	p := Find_By_Point { x, y, nil }
 
-	// // stop disabled from interacting
-	// if (.Disabled in element.flags) {
-	// 	return nil
-	// }
-
 	// allowing custom find by point calls
 	if element_message(element, .Find_By_Point_Recursive, 0, &p) == 1 {
 		return p.res != nil ? p.res : element
@@ -357,7 +352,7 @@ element_find_by_point :: proc(element: ^Element, x, y: f32) -> ^Element {
 	for i := len(temp) - 1; i >= 0; i -= 1 {
 		child := temp[i]
 
-		if (.Hide not_in child.flags) && rect_contains(child.clip, p.x, p.y) {
+		if (.Disabled not_in child.flags) && (.Hide not_in child.flags) && rect_contains(child.clip, p.x, p.y) {
 			return element_find_by_point(child, x, y)
 		}
 	}
@@ -854,6 +849,12 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			render_string_rect(target, element.bounds, text)
 		}
 		
+		case .Update: {
+			// if label.hover_info != "" {
+			// 	// element_repaint(element)
+			// }
+		}
+
 		case .Destroy: {
 			delete(label.builder.buf)
 		}
@@ -874,9 +875,11 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		// disables label intersection, sets to parent result
 		case .Find_By_Point_Recursive: {
-			point := cast(^Find_By_Point) dp
-			point.res = element.parent
-			return 1
+			// if label.hover_info == "" {
+				point := cast(^Find_By_Point) dp
+				point.res = element.parent
+				return 1
+			// }
 		}
 	}
 
@@ -1599,9 +1602,9 @@ panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			element_move(panel, rect)
 		}
 
-		case .Update: {
-			element_message(panel, msg, di, dp)
-		}
+		// case .Update: {
+		// 	element_message(panel, msg, di, dp)
+		// }
 	}
 
 	return 0

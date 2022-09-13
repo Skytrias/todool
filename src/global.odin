@@ -423,14 +423,14 @@ window_init :: proc(
 
 	// set hovered panel
 	{
-		floaty := panel_floaty_init(&res.element, {})
+		floaty := panel_floaty_init(&res.element, { .Disabled })
 		floaty.width = HOVER_WIDTH * SCALE
 		// floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 		p := floaty.panel
-		p.flags |= { .Panel_Expand }
+		p.flags |= { .Panel_Expand, .Disabled }
 		p.shadow = true
 		p.rounded = true
-		label_init(p, { .Label_Center })
+		label_init(p, { .Label_Center, .Disabled })
 		res.hovered_panel = floaty
 		element_hide(floaty, true)
 	}
@@ -861,9 +861,9 @@ window_hovered_check :: proc(window: ^Window) -> bool {
 			diff := time.tick_since(window.hovered_start)
 
 			if diff > HOVER_TIME {
-				text := e.hover_info
-				window_hovered_panel_spawn(window, e, text)
+				window_hovered_panel_spawn(window, e, e.hover_info)
 				element_repaint(&window.element)
+				log.info("SPAWN")
 				return true
 			}
 		}
@@ -872,12 +872,14 @@ window_hovered_check :: proc(window: ^Window) -> bool {
 		if e.hover_info == "" {
 			element_hide(window.hovered_panel, true)
 			element_repaint(&window.element)
+			log.info("HIDE1")
 			return true
 		}
 
 		if window.pressed_last == e {
 			element_hide(window.hovered_panel, true)
 			element_repaint(&window.element)					
+			log.info("HIDE2")
 			return true
 		}
 	}
@@ -1319,33 +1321,36 @@ gs_init :: proc() {
 		context = runtime.default_context()
 		context.logger = gs.logger
 
-		window := cast(^Window) data
-		if window_hovered_check(window) {
-			sdl_push_empty_event()
+		window := gs.windows
+		for window != nil {
+			if window_hovered_check(window) {
+				sdl_push_empty_event()
+			}
+			window = window.window_next
 		}
 
 		return interval
 	}
 
-	window_hovering_timer = sdl.AddTimer(250, window_hovering_timer_callback, &gs.windows)
+	window_hovering_timer = sdl.AddTimer(500, window_timer_callback, nil)
 	strings.builder_init(&cstring_builder, 0, 128)
 }
 
-window_hovering_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
-	context = runtime.default_context()
-	context.logger = gs.logger
+// window_hovering_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
+// 	context = runtime.default_context()
+// 	context.logger = gs.logger
 
-	window := (cast(^^Window) data)^
-	for window != nil {	
-		if window_hovered_check(window) {
-			sdl_push_empty_event()
-		}
+// 	window := (cast(^^Window) data)^
+// 	for window != nil {	
+// 		if window_hovered_check(window) {
+// 			sdl_push_empty_event()
+// 		}
 
-		window = window.window_next
-	}
+// 		window = window.window_next
+// 	}
 
-	return interval
-}
+// 	return interval
+// }
 
 gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
 	if len(ta.allocation_map) > 0 {
