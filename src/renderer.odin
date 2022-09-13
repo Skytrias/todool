@@ -295,9 +295,7 @@ render_target_end :: proc(
 			gl.BufferData(gl.ARRAY_BUFFER, vertice_count * size_of(Render_Vertex), root, gl.STREAM_DRAW)
 
 			// update uniforms
-			// projection := linalg.matrix_ortho3d(0, f32(width), f32(height), 0, -1, 1)
 			projection := glm.mat4Ortho3d(0, f32(width), f32(height), 0, -1, 1)
-			// projection *= rot
 			gl.UniformMatrix4fv(uniform_projection, 1, false, &projection[0][0])
 			gl.Uniform4f(
 				uniform_shadow_color, 
@@ -572,10 +570,6 @@ texture_update_subimage :: proc(
 	log.info("RENDERER: Update subimage")
 	w := rect[2] - rect[0]
 	h := rect[3] - rect[1]
-
-	// if texture.handle == 0 {
-	// 	return
-	// }
 
 	// Push old values
 	alignment, rowLength, skipPixels, skipRows: i32

@@ -14,17 +14,18 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
-TRACK_MEMORY :: true
+TRACK_MEMORY :: false
 TODOOL_RELEASE :: false
 
-// import "../notify"
-
-// main :: proc() {
-// 	notify.init("todool")
-// 	defer notify.uninit()
-
-// 	notify.run("Todool Pomodoro Timer Finished", "", "dialog-information")
-// }
+// changelog generator output
+// selected all highlight
+// close somehow functions bad
+// options autosave should save or in general changing things on the sidebar should be automatic or seperate?
+// camera x offsetting
+// DONE fontstash weird glyphs at some point
+// DONE pipe changelog data to archive
+// DONE try tinyfiledialogs
+// DONE save as
 
 // TODO write down which dependencies are now needed... cuz of NFD
 // TODO while search typing set camera to focus atleast search result found
@@ -59,6 +60,23 @@ TODOOL_RELEASE :: false
 
 // 	gs_update_after_load()
 // 	gs_message_loop()
+// }
+
+// import "../tfd"
+
+// main :: proc() {
+// 	fmt.eprintln("start")
+// 	defer fmt.eprintln("end")
+
+// 	file_patterns := [?]cstring {
+// 		"*.todool",
+// 	}
+
+// 	// res := tfd.save_file_dialog("Save", "save", file_patterns[:], "")
+// 	// fmt.eprintln(res)
+
+// 	res := tfd.open_file_dialog("Load", "load", file_patterns[:], "", false)
+// 	fmt.eprintln(res)
 // }
 
 main :: proc() {

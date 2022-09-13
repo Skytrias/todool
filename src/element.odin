@@ -1268,16 +1268,16 @@ Panel :: struct {
 	background_index: int,
 }
 
-// clears the panel children, with care for the scrollbar
-panel_clear_without_scrollbar :: proc(panel: ^Panel) {
-	// TODO probably leaks cuz children werent destroyed
-	clear(&panel.children)
-	// if panel.scrollbar == nil {
-	// 	clear(&panel.children)
-	// } else {
-	// 	resize(&panel.children, 1)
-	// }
-}
+// // clears the panel children, with care for the scrollbar
+// panel_clear_without_scrollbar :: proc(panel: ^Panel) {
+// 	// TODO probably leaks cuz children werent destroyed
+// 	clear(&panel.children)
+// 	// if panel.scrollbar == nil {
+// 	// 	clear(&panel.children)
+// 	// } else {
+// 	// 	resize(&panel.children, 1)
+// 	// }
+// }
 
 panel_calculate_per_fill :: proc(panel: ^Panel, hspace, vspace: int) -> (per_fill, count: int) {
 	horizontal := .Panel_Horizontal in panel.flags 
@@ -1632,10 +1632,6 @@ Scrollbar_Panel :: struct {
 	// elements 0-3 for vertical, 3-6 for horizontal
 	sides: [Scrollbar_Side_Type]Scrollbar_Side, 
 	layout_rect: Rect,
-
-	// prelayout to set max / page for wanted sides
-	// layout_pre: proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr),
-	// layout_post: proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr),
 }
 
 Scrollbar_Side_Type :: enum {
@@ -1940,23 +1936,36 @@ scrollbar_init :: proc(
 }
 
 // keep scrollbar in frame when in need for manual panning
-scrollbar_panel_keep_in_frame :: proc(scrollbar: ^Scrollbar_Panel, bounds: Rect, up: bool) {
-	// TDOODDDDDDDD
+scrollbar_panel_keep_in_frame :: proc(
+	scrollbar: ^Scrollbar_Panel, 
+	side_type: Scrollbar_Side_Type, 
+	bounds: Rect, 
+	up: bool,
+) {
+	side := &scrollbar.sides[side_type]
+	scrollbar_size := side_type == .Vertical ? rect_height(scrollbar.bounds) : rect_width(scrollbar.bounds)
 
-	// if !scrollbar_panel_inactive(scrollbar) {
-	// 	// // log.info("SCROLL FRAME", bounds.t, scrollbar.position, scrollbar.page)
-	// 	// MARGIN :: 50
+	if !scrollbar_panel_side_inactive(side, scrollbar_size) {
+		MARGIN :: 50
 
-	// 	// if up && bounds.t - MARGIN <= 0 {
-	// 	// 	scrollbar.position = bounds.t + scrollbar.position - MARGIN
-	// 	// 	// log.info("----")
-	// 	// } 
+		if side_type == .Vertical {
+			if up && bounds.t - MARGIN <= 0 {
+				side.position = bounds.t + side.position - MARGIN
+			} 
 
-	// 	// if !up && bounds.b + scrollbar.position + MARGIN >= scrollbar.page {
-	// 	// 	scrollbar.position = (bounds.b + scrollbar.position) - scrollbar.page + MARGIN
-	// 	// 	// log.info("++++")
-	// 	// }
-	// }
+			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
+				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
+			}
+		} else {			
+			if up && bounds.t - MARGIN <= 0 {
+				side.position = bounds.t + side.position - MARGIN
+			} 
+
+			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
+				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
+			}
+		}
+	}
 }
 
 // wether the scrollbar is currently active
@@ -2470,10 +2479,11 @@ Toggle_Selector :: struct {
 toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	toggle := cast(^Toggle_Selector) element
 	assert(len(toggle.names) == toggle.count)
+	POINT_SIZE :: 20
 
 	#partial switch msg {
 		case .Layout: {
-			point_size := rect_height(element.bounds)
+			point_size := POINT_SIZE * SCALE
 			fcs_element(element)
 
 			// layout cells
@@ -2501,12 +2511,6 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			pressed := element.window.pressed == element
 
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
-
-			// // animated cell highlight
-			// highlight := toggle.cells[0]
-			// highlight.l += toggle.cell_unit * toggle.cell_width 
-			// highlight.r = highlight.l + toggle.cell_width
-			// render_rect(target, highlight, theme.text_good, ROUNDNESS)
 			
 			if hovered {
 				render_hovered_highlight(target, element.bounds)
@@ -2514,7 +2518,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			fcs_element(element)
 			fcs_ahv()
-			point_size := rect_height(element.bounds)
+			point_size := POINT_SIZE * SCALE
 
 			for i in 0..<toggle.count {
 				cell := toggle.cells[i]
@@ -2528,7 +2532,9 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				fcs_color(color)
 				rect := cell
 				rect.r = rect.l + point_size
-				rect = rect_margin(rect, 5)
+				rect.t = rect.t + rect_height_halfed(rect) - point_size / 2
+				rect.b = rect.t + point_size
+				rect = rect_margin(rect, 2)
 				render_rect(target, rect, toggle.value^ == i ? theme.text_good : theme.text_default, 10 * SCALE)
 
 				rect.l = cell.l + point_size
@@ -2550,7 +2556,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				sum_width += string_width(name) + scaled_size
 			}
 			
-			return int(sum_width + f32(len(toggle.names)) * 20 * SCALE)
+			return int(sum_width + 5 * SCALE)
 		}
 
 		case .Get_Height: {

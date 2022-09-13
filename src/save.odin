@@ -638,7 +638,6 @@ json_load_misc :: proc(path: string) -> bool {
 	element_repaint(mode_panel)
 
 	// archive
-	panel_clear_without_scrollbar(sb.archive.buttons)
 	for text, i in misc.archive.data {
 		archive_push(text)
 	}

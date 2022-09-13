@@ -1,5 +1,6 @@
 package src
 
+import "core:log"
 import "core:mem"
 
 // TODO multiple managers and 1 active only
@@ -22,12 +23,14 @@ undo_manager_init :: proc(manager: ^Undo_Manager, cap: int = mem.Kilobyte * 10) 
 }
 
 undo_manager_reset :: proc(manager: ^Undo_Manager) {
-	clear(&manager.undo)
-	clear(&manager.redo)
+	undo_stack_clear(manager, &manager.undo)
+	undo_stack_clear(manager, &manager.redo)
 	manager.state = .Normal
 }
 
-undo_manager_destroy :: proc(manager: Undo_Manager) {
+undo_manager_destroy :: proc(manager: ^Undo_Manager) {
+	undo_stack_clear(manager, &manager.undo)
+	undo_stack_clear(manager, &manager.redo)
 	delete(manager.undo)
 	delete(manager.redo)
 }
@@ -44,15 +47,14 @@ Undo_Item_Footer :: struct {
 
 // intended for clearing the stack and deleting dangling memory outside of the byte array
 // pop a single item and call its clear!
-undo_stack_pop :: proc(manager: ^Undo_Manager, stack: []byte) {
-	stack := manager.state == .Undoing ? &manager.redo : &manager.undo
+undo_stack_pop :: proc(manager: ^Undo_Manager, stack: ^[dynamic]byte) {
 	footer := cast(^Undo_Item_Footer) &stack[len(stack) - size_of(Undo_Item_Footer)]
 	item := &stack[len(stack) - size_of(Undo_Item_Footer) - footer.byte_count]
 	footer.callback(manager, item, true)
 	resize(stack, len(stack) - size_of(Undo_Item_Footer) - footer.byte_count)
 }
 
-undo_stack_clear :: proc(manager: ^Undo_Manager, stack: []byte) {
+undo_stack_clear :: proc(manager: ^Undo_Manager, stack: ^[dynamic]byte) {
 	for len(stack) > 0 {
 		undo_stack_pop(manager, stack)
 	}	

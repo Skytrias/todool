@@ -9,6 +9,7 @@ import "core:fmt"
 
 Theme_Editor :: struct {
 	open: bool,
+	scrollbar: ^Scrollbar_Panel,
 	panel: ^Panel,
 	panel_list: [32]^Panel,
 	panel_list_index: int,
@@ -206,8 +207,7 @@ theme_editor_spawn :: proc() {
 							panel_selected_index -= 1
 							window.update_next = true
 							p := theme_editor.panel_list[panel_selected_index]
-							// TODO
-							// scrollbar_panel_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, true)
+							scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, true)
 						}
 					}
 
@@ -219,7 +219,7 @@ theme_editor_spawn :: proc() {
 							panel_selected_index += 1
 
 							p := theme_editor.panel_list[panel_selected_index]
-							// scrollbar_panel_keep_in_frame(theme_editor.panel.scrollbar, p.bounds, false)
+							scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, false)
 							window.update_next = true
 						}
 					}
@@ -247,11 +247,9 @@ theme_editor_spawn :: proc() {
 	}
 	theme_editor.window = window
 
-	// TODO scrollbar
+	theme_editor.scrollbar = scrollbar_init(&window.element, {})
 
-	scrollbar := scrollbar_init(&window.element, {})
-
-	theme_editor.panel = panel_init(scrollbar, { .Panel_Default_Background })
+	theme_editor.panel = panel_init(theme_editor.scrollbar, { .Panel_Default_Background })
 	theme_editor.panel.margin = 10
 	
 	label := label_init(theme_editor.panel, {}, "Theme Editor")

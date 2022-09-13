@@ -6,7 +6,7 @@ import "core:strings"
 import "core:log"
 import "core:mem"
 import "../cutf8"
-import "../nfd"
+import "../tfd"
 
 // shortcut state that holds all shortcuts
 // key_combo -> command -> command execution
@@ -140,7 +140,8 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 
 		case "undo": todool_undo()
 		case "redo": todool_redo()
-		case "save": todool_save()
+		case "save": todool_save(false)
+		case "save_as": todool_save(true)
 		case "new_file": todool_new_file()
 		case "load": todool_load()
 
@@ -223,6 +224,7 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "undo", "ctrl+z")
 	shortcuts_push_general(s, "redo", "ctrl+y")
 	shortcuts_push_general(s, "save", "ctrl+s")
+	shortcuts_push_general(s, "save_as", "ctrl+shift+s")
 	shortcuts_push_general(s, "new_file", "ctrl+n")
 	shortcuts_push_general(s, "load", "ctrl+o")
 
@@ -243,8 +245,7 @@ todool_delete_on_empty :: proc() {
 			item := Undo_Item_Task_Pop {}
 			undo_task_pop(manager, &item, false)
 		} else {
-			item := Undo_Item_Task_Remove_At { index }
-			undo_task_remove_at(manager, &item, false)
+			task_remove_at_index(manager, index)
 		}
 
 		element_repaint(task)
@@ -592,9 +593,8 @@ todool_changelog_generate :: proc(check_only: bool) {
 
 		if task.state != .Normal {
 			task_write_text_indentation(b, task, task.indentation)
-
-			item := Undo_Item_Task_Remove_At { i }
-			undo_task_remove_at(manager, &item, false)
+			archive_push(strings.to_string(task.box.builder))
+			task_remove_at_index(manager, i)
 			
 			i -= 1
 			removed_count += 1
@@ -973,6 +973,7 @@ undo_task_indentation_set :: proc(manager: ^Undo_Manager, item: rawptr, clear: b
 
 Undo_Item_Task_Remove_At :: struct {
 	index: int,
+	backup: ^Element,
 }
 
 Undo_Item_Task_Insert_At :: struct {
@@ -980,10 +981,15 @@ Undo_Item_Task_Insert_At :: struct {
 	task: ^Task, // the task you want to insert
 }
 
-undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
-	if !clear {
-		data := cast(^Undo_Item_Task_Remove_At) item
+task_remove_at_index :: proc(manager: ^Undo_Manager, index: int) {
+	item := Undo_Item_Task_Remove_At { index, mode_panel.children[index] }
+	undo_task_remove_at(manager, &item, false)
+}
 
+undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
+	data := cast(^Undo_Item_Task_Remove_At) item
+	
+	if !clear {
 		output := Undo_Item_Task_Insert_At {
 			data.index, 
 			cast(^Task) mode_panel.children[data.index],
@@ -992,6 +998,9 @@ undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 		// TODO maybe speedup somehow?
 		ordered_remove(&mode_panel.children, data.index)
 		undo_push(manager, undo_task_insert_at, &output, size_of(Undo_Item_Task_Insert_At))
+	} else {
+		// log.info("CLEAR", data.index)
+		// element_destroy(data.backup)
 	}
 }
 
@@ -1000,7 +1009,7 @@ undo_task_insert_at :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 		data := cast(^Undo_Item_Task_Insert_At) item
 		inject_at(&mode_panel.children, data.index, data.task)
 
-		output := Undo_Item_Task_Remove_At { data.index }
+		output := Undo_Item_Task_Remove_At { data.index, mode_panel.children[data.index] }
 		undo_push(manager, undo_task_remove_at, &output, size_of(Undo_Item_Task_Remove_At))
 	}
 }
@@ -1062,10 +1071,7 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 		// only valid
 		archive_push(strings.to_string(task.box.builder))
 		
-		item := Undo_Item_Task_Remove_At {
-			task.index - remove_count,
-		}
-		undo_task_remove_at(manager, &item, false)
+		task_remove_at_index(manager, task.index - remove_count)
 		remove_count += 1
 	}
 
@@ -1152,13 +1158,14 @@ todool_redo :: proc() {
 	}
 }
 
-todool_save :: proc() {
-	if last_save_location == "" {
-		output: cstring
+todool_save :: proc(force_dialog: bool) {
+	if force_dialog || last_save_location == "" {
+		// output: cstring
 		default_path := gs_string_to_cstring(gs.pref_path)
-		res := nfd.SaveDialog("", default_path, &output)
+		file_patterns := [?]cstring { "*.todool" }
+		output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
 
-		if res == .OKAY {
+		if output != nil {
 			last_save_location = strings.clone(string(output))
 		} else {
 			return
@@ -1193,7 +1200,6 @@ todool_load :: proc() {
 		return
 	}
 
-	output: cstring
 	default_path: cstring
 
 	if last_save_location == "" {
@@ -1214,9 +1220,10 @@ todool_load :: proc() {
 		// log.info("++++", last_save_location, trimmed_path)
 	}
 
-	res := nfd.OpenDialog("", default_path, &output)
-
-	if res != .OKAY {
+	file_patterns := [?]cstring { "*.todool" }
+	output := tfd.open_file_dialog("Open", default_path, file_patterns[:])
+	
+	if output == nil {
 		return
 	}
 
@@ -1457,26 +1464,26 @@ todool_new_file :: proc() {
 
 todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
 	if options_autosave() {
-		todool_save()
+		todool_save(false)
 	} else if dirty != dirty_saved {
 		res := dialog_spawn(
 			window, 
-			"Leave without saving progress?\n%l\n%f%b%C%B",
-			"Close Without Saving",
+			"Save progress?\n%l\n%f%B%b%C",
+			"Yes",
+			"No",
 			"Cancel",
-			"Save",
 		)
 		
 		switch res {
-			case "Save": {
-				todool_save()
+			case "Yes": {
+				todool_save(false)
 			}
 
 			case "Cancel": {
 				canceled = true
 			}
 
-			case "Close Without Saving": {}
+			case "No": {}
 		}
 	}
 

@@ -430,7 +430,8 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		b1 := button_init(top, { .HF }, "Clear")
 		b1.hover_info = "Clear all archive entries"
 		b1.invoke = proc(data: rawptr) {
-			panel_clear_without_scrollbar(sb.archive.buttons)
+			element_destroy_children_only(sb.archive.buttons)
+			// panel_clear_without_scrollbar(sb.archive.buttons)
 			sb.archive.head = -1
 			sb.archive.tail = -1
 		}

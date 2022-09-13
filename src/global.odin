@@ -549,6 +549,7 @@ window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
 		log.error("WINDOW BORDER SIZE call not supported")
 	}
 
+	left, right, top, bottom = 0, 0, 0, 0
 	return 
 }
 
@@ -944,7 +945,7 @@ window_deallocate :: proc(window: ^Window) {
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)
 
-	undo_manager_destroy(window.manager)
+	undo_manager_destroy(&window.manager)
 	render_target_destroy(window.target)
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
@@ -1269,22 +1270,24 @@ gs_init :: proc() {
 	fc.callback_resize = proc(data: rawptr, w, h: int) {
 		if data != nil {
 			// regenerate the texture on all windows
-			window := gs.windows
-			for window != nil {
+			gs_windows_iter_init()
+			for window in gs_windows_iter_step() {
 				// NOTE dunno if this is safe to be called during glyph calls
 				render_target_fontstash_generate(window.target, w, h)
-				window = window.window_next
 			}
 		}
 	}
 	fc.callback_update = proc(data: rawptr, dirty_rect: [4]f32, texture_data: rawptr) {
 		// update the texture on all windows
 		if data != nil {
-			window := cast(^Window) data
-			sdl.GL_MakeCurrent(window.w, window.target.opengl_context)
-			t := &window.target.textures[.Fonts]
-			t.data = texture_data
-			texture_update_subimage(t, dirty_rect, texture_data)
+			// NOTE need to update all window textures apparently
+			gs_windows_iter_init()
+			for window in gs_windows_iter_step() {
+				sdl.GL_MakeCurrent(window.w, window.target.opengl_context)
+				t := &window.target.textures[.Fonts]
+				t.data = texture_data
+				texture_update_subimage(t, dirty_rect, texture_data)
+			}
 		}
 	}
 	fonts_push()
@@ -1598,7 +1601,6 @@ gs_draw_and_cleanup :: proc() {
 				window->update()
 			}
 
-			gs.fc.user_data = window
 			fontstash.state_begin(&gs.fc)
 			render_target_begin(window.target, theme.shadow)
 			element_message(&window.element, .Layout)

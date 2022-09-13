@@ -1,0 +1,1 @@
+cl -c main.c /MT && lib main.obj

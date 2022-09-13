@@ -542,7 +542,7 @@ task_init :: proc(
 				manager := mode_panel_manager_scoped()
 				task_head_tail_push(manager)
 				item := Undo_Item_Bool_Toggle { &task.folded }
-				undo_bool_toggle(manager, &item)
+				undo_bool_toggle(manager, &item, false)
 
 				task_head = task.index
 				task_tail = task.index
@@ -1186,6 +1186,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			mode_panel_context_menu_spawn()
+		}
+
+		case .Left_Up: {
+			if task_head != task_tail {
+				task_tail = task_head
+				return 1
+			}
 		}
 
 		case .Mouse_Scroll_Y: {
@@ -2001,21 +2008,22 @@ tasks_load_reset :: proc() {
 	// TODO need to cleanup node data
 	element_destroy_children_only(mode_panel)
 	element_deallocate(&window_main.element) // clear mem
+	clear(&mode_panel.children)
 	
 	// mode_panel.flags += { .Destroy_Descendent }
-	// clear(&mode_panel.children)
 	undo_manager_reset(&mode_panel.window.manager)
 	dirty = 0
 	dirty_saved = 0
 }
 
 tasks_load_default :: proc() {
-	task_push(0, "one")
-	task_push(1, "two")
-	task_push(2, "three some longer line of text")
-	task_push(2, "just some long line of textjust some long line of textjust some long line of textjust some long line of textjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of text")
-	task_head = 2
-	task_tail = 2
+	// task_push(0, "one")
+	// task_push(1, "two")
+	// task_push(2, "three some longer line of text")
+	// task_push(2, "just some long line of textjust some long line of textjust some long line of textjust some long line of textjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of text")
+	// task_head = 2
+	// task_tail = 2
+	tasks_load_tutorial()
 }
 
 tasks_load_tutorial :: proc() {
@@ -2042,8 +2050,7 @@ tasks_load_tutorial :: proc() {
 	push_scoped_task("Tutorial")
 
 	{
-		push_scoped_task("Tutorial")
-		t("thank you for alpha testing todool")
+		push_scoped_task("Thank You For Alpha Testing!")
 		t("if you have any issues, please post them on the discord")
 		t("tutorial shortcut explanations are based on default key bindings")
 	}
@@ -2237,6 +2244,13 @@ task_context_menu_spawn :: proc(task: ^Task) {
 			todool_delete_tasks()
 			menu_close(button.window)
 		}
+
+		b4 := button_init(p, { .HF }, "Paste")
+		b4.invoke = proc(data: rawptr) {
+			button := cast(^Button) data
+			todool_paste_tasks()
+			menu_close(button.window)
+		}
 	}
 
 	// TODO right click on mode_panel to do multi selection spawn instead task
@@ -2389,6 +2403,18 @@ mode_panel_context_menu_spawn :: proc() {
 	button_init(p, { .HF }, "Generate Changelog").invoke = proc(data: rawptr) {
 		button := cast(^Button) data
 		todool_changelog_generate(false)
+		menu_close(button.window)
+	}
+	
+	button_init(p, { .HF }, "Load Tutorial").invoke = proc(data: rawptr) {
+		button := cast(^Button) data
+
+	  if !todool_check_for_saving(window_main) {
+		  tasks_load_reset()
+		  last_save_location = ""
+		  tasks_load_tutorial()
+	  }
+
 		menu_close(button.window)
 	}
 
