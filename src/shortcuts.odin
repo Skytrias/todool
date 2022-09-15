@@ -1103,9 +1103,19 @@ todool_indentation_shift :: proc(amt: int) {
 	task_head_tail_push(manager)
 	iter := ti_init()
 
+	lowest := tasks_visible[iter.low - 1]
+	unfolded: bool
+
 	for task in ti_step(&iter) {
 		if task.index == 0 {
 			continue
+		}
+
+		// unfold lowest parent
+		if amt > 0 && lowest.folded {
+			item := Undo_Item_Bool_Toggle { &lowest.folded }
+			undo_bool_toggle(manager, &item, false)
+			unfolded = true
 		}
 
 		if task.indentation + amt >= 0 {
@@ -1119,7 +1129,15 @@ todool_indentation_shift :: proc(amt: int) {
 			task.indentation_animating = true
 			element_animation_start(task)
 		}
-	}		
+	}
+
+	// hacky way to offset selection by unfolded content
+	if unfolded {
+		l, h := task_children_range(lowest)
+		size := h - l
+		task_head += size - iter.range + 1
+		task_tail += size - iter.range + 1
+	}
 
 	// set new indentation based task info and push state changes
 	task_set_children_info()

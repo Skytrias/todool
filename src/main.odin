@@ -17,68 +17,55 @@ import "../fontstash"
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 
+// TODO
+// camera offset x
+// camera offset without animations should work
 // header button to fold items
-
-// mouse drag folded include its children?
-// shift include hidden children
-// save automatic state setting by offseting undo in place, instead of everywhere
+// shift folded content properly
+// tab paste from clipboard should also use indentation
+// image display options
+// scrollbar on mode_panel
 
 // system to force push new keybindings for a patch
 // changelog generator output
-// selected all highlight
 // close somehow functions bad
 // options autosave should save or in general changing things on the sidebar should be automatic or seperate?
-
 // while search typing set camera to focus atleast search result found
+// save automatic state setting by offseting undo in place, instead of everywhere
 
-// main :: proc() {
-// 	gs_init()
-// 	context.logger = gs.logger
-// 	context.allocator = gs_allocator()
-// 	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
-// 	window_main = window
-// 	scrollbar := scrollbar_init(&window.element, { .HF, .VF })
-// 	panel := panel_init(scrollbar, { .Panel_Default_Background }, 5)
-// 	panel.background_index = 0
-// 	// scrollbar.panel = panel
-// 	// scrollbar.layout_pre = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
-// 	// 	panel := cast(^Panel) content
-// 	// 	max := f32(element_message(panel, .Get_Height))
-// 	// 	scrollbar_panel_side_set(scrollbar, .Vertical, max)
-// 	// }
-// 	// scrollbar.layout_post = proc(scrollbar: ^Scrollbar_Panel, content: ^Element, data: rawptr) {
-// 	// 	panel := cast(^Panel) content
-// 	// 	vertical := &scrollbar.sides[.Vertical]
-// 	// 	panel_layout(panel, scrollbar.bounds, false, vertical.position)
-// 	// 	panel.bounds = scrollbar.bounds
-// 	// 	panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
-// 	// }
+// DONE
+// shift right opens folded content
+// Commands
+//		select_children ctrl+h
 
-// 	for i in 0..<100 {
-// 		text := fmt.tprintf("Text %d", i)
-// 		button_init(panel, { .HF }, text)
-// 	}
+// FIXES
+// menus automatically close when dialogs (exit) start
+// theme editor color "button" preview crash fixed
+// theme editor color picker value dragging and hue slider
+// multi-selection not including folded content
+//		task dragging
+//		delete selection
+//		shift right/left
+//		state setting
 
-// 	gs_update_after_load()
-// 	gs_message_loop()
-// }
+main2 :: proc() {
+	gs_init()
+	context.logger = gs.logger
+	context.allocator = gs_allocator()
+	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
+	window_main = window
 
-// import "../tfd"
+	tp := toggle_panel_init(&window_main.element, { .HF, .VF }, {}, "Testing")
+	tp.panel.color = BLUE
 
-// main :: proc() {
-// 	fmt.eprintln("start")
-// 	defer fmt.eprintln("end")
+	for i in 0..<10 {
+		text := fmt.tprintf("Text %d", i)
+		button_init(tp.panel, { .HF }, text)
+	}
 
-// 	file_patterns := [?]cstring {
-// 		"*.todool",
-// 	}
-
-// 	// res := tfd.save_file_dialog("Save", "save", file_patterns[:], "")
-// 	// fmt.eprintln(res)
-
-// 	res := tfd.open_file_dialog("Load", "load", file_patterns[:], "", false)
-// 	fmt.eprintln(res)
-// }
+	gs_update_after_load()
+	gs_message_loop()
+}
 
 main :: proc() {
 	gs_init()

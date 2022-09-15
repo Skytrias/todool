@@ -3140,3 +3140,116 @@ image_display_init :: proc(
 image_display_has_content :: #force_inline proc(display: ^Image_Display) -> bool {
 	return display.img != nil && display.img.loaded && display.img.handle_set
 }
+
+//////////////////////////////////////////////
+// Toggle Panel
+// hides its children and shows a preview if it has content
+//////////////////////////////////////////////
+
+Toggle_Panel :: struct {
+	using element: Element,
+	panel: ^Panel,
+	builder: strings.Builder, // label
+}
+
+toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	toggle := cast(^Toggle_Panel) element
+	LABEL_HEIGHT :: 50
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+
+			bounds := element.bounds
+			render_rect(target, bounds, RED)
+
+			// pressed := element.window.pressed == element
+			// hovered := element.window.hovered == element
+
+			// text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			// if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
+			// 	if res == 1 {
+			// 		rect := element.bounds
+			// 		// rect.l = rect.r - (4 * SCALE)
+			// 		rect.r = rect.l + (4 * SCALE)
+			// 		render_rect(target, rect, text_color, 0)
+			// 	}
+			// }
+
+			// if hovered || pressed {
+			// 	render_rect_outline(target, element.bounds, text_color)
+			// 	render_hovered_highlight(target, element.bounds)
+			// }
+
+			top := rect_cut_top(&bounds, LABEL_HEIGHT)
+			fcs_element(toggle)
+			fcs_ahv()
+			text := strings.to_string(toggle.builder)
+			render_string_rect(target, top, text)
+
+			// custom paint the panel
+			render_element_clipped(target, toggle.panel)
+
+			return 1
+		}
+
+		case .Layout: {
+			bounds := element.bounds
+			bounds.t += LABEL_HEIGHT
+			element_move(toggle.panel, bounds)
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Destroy: {
+			delete(toggle.builder.buf)
+		}
+
+		case .Clicked: {
+			element_hide_toggle(toggle.panel)
+
+			// TODO folding
+			// if button.invoke != nil {
+			// 	button.invoke(button.data)
+			// }
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		// case .Get_Width: {
+		// 	fcs_element(element)
+		// 	text := strings.to_string(toggle.builder)
+		// 	width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+
+		// 	return int(width)
+		// }
+
+		// case .Get_Height: {
+		// 	return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+		// }
+	}
+
+	return 0
+}
+
+toggle_panel_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	panel_flags: Element_Flags, 
+	text: string,
+	message_user: Message_Proc = nil,
+	allocator := context.allocator,
+) -> (res: ^Toggle_Panel) {
+	res = element_init(Toggle_Panel, parent, flags, toggle_panel_message, allocator)
+	res.builder = strings.builder_make(0, 32)
+	res.data = res
+	res.panel = panel_init(res, panel_flags)
+	strings.write_string(&res.builder, text)
+	res.message_user = message_user
+	return
+}

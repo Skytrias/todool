@@ -1343,22 +1343,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			color := cast(^Color) dp
 			color^ = theme_task_text(task.state)
 				
+			// TODO do this checking elsewhere
 			text := strings.to_string(box.builder)
 			if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
 				color^ = BLUE
 			}
 
 			return 1
-		}
-
-		case .Layout: {
-			// if task_head == task_tail && task.visible_index == task_head {
-			// 	// offset := x_offset(task, box)
-			// 	scaled_size := efont_size(box)
-			// 	x := box.bounds.l
-			// 	y := box.bounds.t
-			// 	caret_rect = box_layout_caret(box, scaled_size, x, y)
-			// }
 		}
 
 		case .Paint_Recursive: {
@@ -1399,7 +1390,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				font := fontstash.font_get(&gs.fc, state.font)
 				isize := i16(state.size * 10)
 				scaled_size := f32(isize / 10)
-				offset := f32(font.ascender / 2) * scaled_size
+				offset := f32(0) * scaled_size
 
 				for line_text, line_y in box.wrapped_lines {
 					text_width := string_width(line_text)
