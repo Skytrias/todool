@@ -871,21 +871,17 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 }
 
 task_children_range :: proc(parent: ^Task) -> (low, high: int) {
-	low = -1
+	low = min(parent.index + 1, len(mode_panel.children) - 1)
 	high = -1
 
 	for i in parent.index + 1..<len(mode_panel.children) {
 		task := cast(^Task) mode_panel.children[i]
 
-		if task.indentation == parent.indentation + 1 {
-			if low == -1 {
-				low = i
-			}
-
-			high = i
-		} else if task.indentation < parent.indentation {
+		if task.indentation <= parent.indentation {
 			break
 		}
+
+		high = i
 	}
 
 	return
@@ -1089,6 +1085,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds := element.bounds
 			render_rect(target, bounds, theme.background[0], 0)
 
+			if task_head == -1 {
+				fcs_ahv()
+				fcs_font(font_regular)
+				fcs_color(theme.text_default)
+				render_string_rect(target, mode_panel.bounds, "press \"return\" to insert a new task")
+				return 0
+			}
 
 			bounds.l -= cam.offset_x
 			bounds.t -= cam.offset_y

@@ -235,7 +235,7 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "escape", "escape")
 
 	// new ones
-	shortcuts_push_general(s, "select_children", "ctrl+j")
+	shortcuts_push_general(s, "select_children", "ctrl+h")
 }
 
 todool_delete_on_empty :: proc() {
@@ -1468,6 +1468,11 @@ todool_new_file :: proc() {
 }
 
 todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
+	// ignore empty file saving
+	if task_head == -1 {
+		return
+	}
+
 	if options_autosave() {
 		todool_save(false)
 	} else if dirty != dirty_saved {
@@ -1502,10 +1507,15 @@ todool_select_children :: proc() {
 
 	if task_head == task_tail {
 		task := tasks_visible[task_head]
-		length := cutf8.count(strings.to_string(task.box.builder))
 
-		if task.box.head == task.box.tail && task.box.head == length - 1 {
-			log.info("try")
-		}
+		if task.has_children {
+			low, high := task_children_range(task)
+			task_tail = task_head
+			task_head = high
+		}		
+	} else {
+		task_head, task_tail = task_tail, task_head
 	}
+
+	element_repaint(mode_panel)
 }
