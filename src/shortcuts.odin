@@ -739,11 +739,48 @@ todool_shift_down :: proc() {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
+	high += 1
+	task_low_and_high_to_real(&low, &high)
 
-	for i := high + 1; i > low; i -= 1 {
-		a := tasks_visible[i]
-		b := tasks_visible[i - 1]
-		task_swap(manager, a.index, b.index)
+	// a := tasks_visible[low]
+	// b := tasks_visible[high + 1]
+
+	// if low == high {
+	// 	low = a.index
+	// 	high = b.index
+
+	// 	if a.has_children {
+	// 		children_low, children_high := task_children_range(a)
+	// 		high = children_high
+	// 		log.info("---")
+	// 	}
+
+	// 	if b.has_children {
+	// 		log.info("+++")
+	// 		low = a.index
+	// 		children_low, children_high := task_children_range(a)
+	// 		high = children_high
+
+	// 		for i := low; i < high; i += 1 {
+	// 			task_swap(manager, i, i + 1)
+	// 		}
+	// 	} else {
+	// 		for i := high; i > low; i -= 1 {
+	// 			task_swap(manager, i, i - 1)
+	// 		}
+	// 	}
+	// } else {
+	// 	log.info("~~~")
+	// 	low = a.index
+	// 	high = b.index
+
+	// 	for i := high; i > low; i -= 1 {
+	// 		task_swap(manager, i, i - 1)
+	// 	}
+	// }
+
+	for i := high; i > low; i -= 1 {
+		task_swap(manager, i, i - 1)
 	}
 
 	task_head += 1
@@ -760,11 +797,11 @@ todool_shift_up :: proc() {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
+	low -= 1
+	task_low_and_high_to_real(&low, &high)
 
-	for i := low - 1; i < high; i += 1 {
-		a := tasks_visible[i]
-		b := tasks_visible[i + 1]
-		task_swap(manager, a.index, b.index)
+	for i := low; i < high; i += 1 {
+		task_swap(manager, i, i + 1)
 	}
 
 	task_head -= 1
@@ -897,10 +934,13 @@ undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 // swap with +1 / -1 offset 
 task_swap :: proc(manager: ^Undo_Manager, a, b: int) {
 	save :: proc(task: ^Task) {
-		task.top_offset = 0
-		task.top_animation_start = true
-		task.top_animating = true
-		task.top_old = task.bounds.t
+		if task.visible {
+			task.top_offset = 0
+			task.top_animation_start = true
+			task.top_animating = true
+			task.top_old = task.bounds.t
+			element_animation_start(task)
+		}
 	}
 
 	aa := cast(^^Task) &mode_panel.children[a]
@@ -911,10 +951,9 @@ task_swap :: proc(manager: ^Undo_Manager, a, b: int) {
 	}
 	undo_task_swap(manager, &item, false)
 
+	// animate the thing when visible
 	save(aa^)
 	save(bb^)
-	element_animation_start(aa^)
-	element_animation_start(bb^)
 
 	element_repaint(mode_panel)
 }
@@ -1508,10 +1547,21 @@ todool_select_children :: proc() {
 	if task_head == task_tail {
 		task := tasks_visible[task_head]
 
-		if task.has_children {
-			low, high := task_children_range(task)
+		if task.has_children && !task.folded {
 			task_tail = task_head
-			task_head = high
+
+			index := task.visible_index + 1
+			for index < len(tasks_visible) {
+				t := tasks_visible[index]
+
+				if t.indentation <= task.indentation {
+					break
+				}
+
+				index += 1
+			}
+
+			task_head = index - 1
 		}		
 	} else {
 		task_head, task_tail = task_tail, task_head

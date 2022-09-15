@@ -17,6 +17,9 @@ import "../fontstash"
 TRACK_MEMORY :: false
 TODOOL_RELEASE :: false
 
+// mouse drag folded include its children?
+// shift include hidden children
+
 // system to force push new keybindings for a patch
 // changelog generator output
 // selected all highlight

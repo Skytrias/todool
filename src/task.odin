@@ -454,6 +454,34 @@ task_low_and_high :: #force_inline proc() -> (low, high: int) {
 	return
 }
 
+task_low_and_high_to_real :: proc(low, high: ^int) {
+	a := tasks_visible[low^]
+	b := tasks_visible[high^]
+	low^ = a.index
+	high^ = b.index
+}
+
+// task_low_and_high_to_real :: proc(low, high: ^int) {
+// 	a := tasks_visible[low^]
+// 	b := tasks_visible[high^]
+// 	low^ = a.index
+
+// 	if low^ == high^ {
+// 		// include the children
+// 		// select children when hidden
+// 		if (a.has_children && a.folded) || (b.has_children && b.folded) {
+// 			children_low, children_high := task_children_range(b)
+// 			high^ = children_high
+// 			log.info("incl")
+// 		} else {
+// 			log.info("out")
+// 			high^ = a.index
+// 		}
+// 	} else {
+// 		high^ = b.index
+// 	}
+// }
+
 task_head_tail_check_begin :: proc() ->  bool {
 	if !mode_panel.window.shift && task_head != task_tail {
 		task_tail = task_head
@@ -870,6 +898,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 	// log.info("CHECK", changed_any)
 }
 
+// in real indicess
 task_children_range :: proc(parent: ^Task) -> (low, high: int) {
 	low = min(parent.index + 1, len(mode_panel.children) - 1)
 	high = -1
@@ -887,24 +916,24 @@ task_children_range :: proc(parent: ^Task) -> (low, high: int) {
 	return
 }
 
-task_gather_children_strict :: proc(
-	parent: ^Task, 
-	allocator := context.temp_allocator,
-) -> (res: [dynamic]^Task) {
-	res = make([dynamic]^Task, 0, 32)
+// task_gather_children_strict :: proc(
+// 	parent: ^Task, 
+// 	allocator := context.temp_allocator,
+// ) -> (res: [dynamic]^Task) {
+// 	res = make([dynamic]^Task, 0, 32)
 
-	for i in parent.index + 1..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
+// 	for i in parent.index + 1..<len(mode_panel.children) {
+// 		task := cast(^Task) mode_panel.children[i]
 
-		if task.indentation == parent.indentation + 1 {
-			append(&res, task)
-		} else if task.indentation < parent.indentation {
-			break
-		}
-	}
+// 		if task.indentation == parent.indentation + 1 {
+// 			append(&res, task)
+// 		} else if task.indentation < parent.indentation {
+// 			break
+// 		}
+// 	}
 
-	return
-}
+// 	return
+// }
 
 //////////////////////////////////////////////
 // messages
@@ -1017,9 +1046,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							for j in i + 1..<len(element.children) {
 								other := cast(^Task) element.children[j]
 
-								if .Hide in other.flags || !other.visible {
-									continue
-								}
+								// if .Hide in other.flags || !other.visible {
+								// 	continue
+								// }
 
 								max_indentations = max(max_indentations, other.indentation)
 								
