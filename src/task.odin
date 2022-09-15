@@ -1088,6 +1088,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			bounds := element.bounds
 			render_rect(target, bounds, theme.background[0], 0)
+
+
 			bounds.l -= cam.offset_x
 			bounds.t -= cam.offset_y
 
@@ -1139,7 +1141,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// task outlines
-			{
+			if task_head != -1 {
 				low, high := task_low_and_high()
 				render_push_clip(target, mode_panel.clip)
 				for i in low..<high + 1 {

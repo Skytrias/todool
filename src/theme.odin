@@ -132,10 +132,12 @@ theme_selected_panel :: proc() -> ^Panel {
 
 theme_reformat_panel_sliders :: proc(panel: ^Panel) {
 	// reformat sliders		
-	for i in 0..<4 {
-		slider := cast(^Slider) panel.children[2 + i]
-		value := cast(^u8) slider.data
-		slider.position = f32(value^) / 255
+	for child in panel.children {
+		if child.message_class == slider_message {
+			slider := cast(^Slider) child
+			value := cast(^u8) slider.data
+			slider.position = f32(value^) / 255
+		}
 	}
 }
 

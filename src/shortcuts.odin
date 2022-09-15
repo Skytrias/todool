@@ -149,6 +149,8 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "search": todool_search()
 		case "escape": todool_escape()
 
+		case "select_children": todool_select_children()
+
 		case: {
 			handled = false
 		}
@@ -231,6 +233,9 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "goto", "ctrl+g")
 	shortcuts_push_general(s, "search", "ctrl+f")
 	shortcuts_push_general(s, "escape", "escape")
+
+	// new ones
+	shortcuts_push_general(s, "select_children", "ctrl+j")
 }
 
 todool_delete_on_empty :: proc() {
@@ -1488,4 +1493,19 @@ todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
 	}
 
 	return
+}
+
+todool_select_children :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	if task_head == task_tail {
+		task := tasks_visible[task_head]
+		length := cutf8.count(strings.to_string(task.box.builder))
+
+		if task.box.head == task.box.tail && task.box.head == length - 1 {
+			log.info("try")
+		}
+	}
 }

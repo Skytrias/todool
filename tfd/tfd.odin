@@ -6,7 +6,7 @@ when ODIN_OS == .Windows {
 	foreign import lib { "main.lib", "system:user32.lib", "system:ole32.lib", "system:Comdlg32.lib", "system:shell32.lib" }
 }
 when ODIN_OS == .Linux { 
-	// foreign import lib { "libnfd.a", "system:gtk-3", "system:gobject-2.0", "system:glib-2.0" }
+	foreign import lib { "main.a" }
 }
 
 @(default_calling_convention="c", link_prefix="tinyfd_")

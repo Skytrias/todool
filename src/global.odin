@@ -863,7 +863,6 @@ window_hovered_check :: proc(window: ^Window) -> bool {
 			if diff > HOVER_TIME {
 				window_hovered_panel_spawn(window, e, e.hover_info)
 				element_repaint(&window.element)
-				log.info("SPAWN")
 				return true
 			}
 		}
@@ -872,14 +871,12 @@ window_hovered_check :: proc(window: ^Window) -> bool {
 		if e.hover_info == "" {
 			element_hide(window.hovered_panel, true)
 			element_repaint(&window.element)
-			log.info("HIDE1")
 			return true
 		}
 
 		if window.pressed_last == e {
 			element_hide(window.hovered_panel, true)
 			element_repaint(&window.element)					
-			log.info("HIDE2")
 			return true
 		}
 	}
