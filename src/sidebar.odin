@@ -461,7 +461,6 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			buttons.name = "buttons panel"
 			buttons.background_index = 2
 			buttons.layout_elements_in_reverse = true
-			// buttons.rounded = true
 		}
 	}
 }

@@ -458,10 +458,9 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-	low, high := task_low_and_high()
+	iter := ti_init()
 
-	for i in low..<high + 1 {
-		task := tasks_visible[i]
+	for task in ti_step(&iter) {
 		task_set_state_undoable(manager, task, state)
 	}
 }
@@ -473,20 +472,13 @@ todool_change_task_state :: proc(shift: bool) {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-	low, high := task_low_and_high()
+	iter := ti_init()
+	index: int
 
 	// modify all states
-	index: int
-	for i in low..<high + 1 {
-		task := tasks_visible[i]
-
-		if task.has_children {
-			continue
-		}
-
+	for task in ti_step(&iter) {
 		index = int(task.state)
 		range_advance_index(&index, len(Task_State) - 1, shift)
-
 		// save old set
 		task_set_state_undoable(manager, task, Task_State(index))
 	}
@@ -742,42 +734,6 @@ todool_shift_down :: proc() {
 	high += 1
 	task_low_and_high_to_real(&low, &high)
 
-	// a := tasks_visible[low]
-	// b := tasks_visible[high + 1]
-
-	// if low == high {
-	// 	low = a.index
-	// 	high = b.index
-
-	// 	if a.has_children {
-	// 		children_low, children_high := task_children_range(a)
-	// 		high = children_high
-	// 		log.info("---")
-	// 	}
-
-	// 	if b.has_children {
-	// 		log.info("+++")
-	// 		low = a.index
-	// 		children_low, children_high := task_children_range(a)
-	// 		high = children_high
-
-	// 		for i := low; i < high; i += 1 {
-	// 			task_swap(manager, i, i + 1)
-	// 		}
-	// 	} else {
-	// 		for i := high; i > low; i -= 1 {
-	// 			task_swap(manager, i, i - 1)
-	// 		}
-	// 	}
-	// } else {
-	// 	log.info("~~~")
-	// 	low = a.index
-	// 	high = b.index
-
-	// 	for i := high; i > low; i -= 1 {
-	// 		task_swap(manager, i, i - 1)
-	// 	}
-	// }
 
 	for i := high; i > low; i -= 1 {
 		task_swap(manager, i, i - 1)
@@ -907,12 +863,11 @@ tag_toggle :: proc(bit: u8) {
 		return
 	}
 
-	low, high := task_low_and_high()
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
+	iter := ti_init()
 
-	for i in low..<high + 1 {
-		task := tasks_visible[i]
+	for task in ti_step(&iter) {
 		u8_xor_push(manager, &task.tags, bit)
 	}
 
@@ -1106,22 +1061,17 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 
 // removes selected region and pushes them to the undo stack
 task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
-	low, high := task_low_and_high()
-	remove_count: int
+	iter := ti_init()
 	
-	for i := low; i < high + 1; i += 1 {
-		task := tasks_visible[i]
-
-		// only valid
-		archive_push(strings.to_string(task.box.builder))
-		
-		task_remove_at_index(manager, task.index - remove_count)
-		remove_count += 1
+	for _ in ti_step(&iter) {
+		task := cast(^Task) mode_panel.children[iter.offset]
+		archive_push(strings.to_string(task.box.builder)) // only valid
+		task_remove_at_index(manager, iter.offset)
 	}
 
 	if move {
-		task_head = low - 1
-		task_tail = low - 1
+		task_head = iter.low - 1
+		task_tail = iter.low - 1
 	}
 }
 
@@ -1149,14 +1099,12 @@ todool_indentation_shift :: proc(amt: int) {
 		return
 	}
 
-	low, high := task_low_and_high()
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
+	iter := ti_init()
 
-	for i in low..<high + 1 {
-		task := tasks_visible[i]
-
-		if i == 0 {
+	for task in ti_step(&iter) {
+		if task.index == 0 {
 			continue
 		}
 
@@ -1461,12 +1409,11 @@ todool_center :: proc() {
 
 todool_tasks_to_uppercase :: proc() {
 	if task_head != -1 {
-		low, high := task_low_and_high()
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
+		iter := ti_init()
 
-		for i in low..<high + 1 {
-			task := tasks_visible[i]
+		for task in ti_step(&iter) {
 			builder := &task.box.builder
 	
 			if len(builder.buf) != 0 {
@@ -1481,12 +1428,11 @@ todool_tasks_to_uppercase :: proc() {
 
 todool_tasks_to_lowercase :: proc() {
 	if task_head != -1 {
-		low, high := task_low_and_high()
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
+		iter := ti_init()
 
-		for i in low..<high + 1 {
-			task := tasks_visible[i]
+		for task in ti_step(&iter) {
 			builder := &task.box.builder
 	
 			if len(builder.buf) != 0 {

@@ -461,6 +461,38 @@ task_low_and_high_to_real :: proc(low, high: ^int) {
 	high^ = b.index
 }
 
+// step through real values from hidden
+
+Task_Iter :: struct {
+	offset: int,
+	index: int,
+	range: int,
+
+	low, high: int,
+}
+
+ti_init :: proc() -> (res: Task_Iter) {
+	res.low, res.high = task_low_and_high()
+	res.high += 1
+	a := tasks_visible[res.low].index
+	b := tasks_visible[res.high].index
+	res.offset = a
+	res.range = b - a
+	return
+}
+
+ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
+	res = cast(^Task) mode_panel.children[ti.offset + ti.index]
+	index = ti.offset + ti.index
+	
+	if ti.index < ti.range {
+		ti.index += 1
+		ok = true
+	}
+
+	return
+}
+
 // task_low_and_high_to_real :: proc(low, high: ^int) {
 // 	a := tasks_visible[low^]
 // 	b := tasks_visible[high^]
@@ -987,7 +1019,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.l += cam.offset_x
 			bounds.t += cam.offset_y
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
-			do_wrap := options_wrapping()
+			do_wrap := (panel.mode == .List && options_wrapping()) || panel.mode == .Kanban
 
 			switch panel.mode {
 				case .List: {
@@ -2348,8 +2380,8 @@ task_dragging_check_start :: proc(task: ^Task) -> bool {
 	task_head_tail_push(manager)
 
 	// push removal tasks to array before
-	for i in low..<high + 1 {
-		task := tasks_visible[i]
+	iter := ti_init()
+	for task in ti_step(&iter) {
 		append(&drag_list, task)
 	}
 
@@ -2385,11 +2417,11 @@ task_dragging_end :: proc() -> bool {
 
 	// remove task on invalid
 	if drag_index_at == -1 {
-		return false
+		return true
 	}
 
 	// find lowest indentation 
-	lowest_indentation := 255
+	lowest_indentation := max(int)
 	for i in 0..<len(drag_list) {
 		task := drag_list[i]
 		lowest_indentation = min(lowest_indentation, task.indentation)
@@ -2405,8 +2437,10 @@ task_dragging_end :: proc() -> bool {
 	task_head_tail_push(manager)
 
 	// paste lines with indentation change saved
+	visible_count: int
 	for i in 0..<len(drag_list) {
 		t := drag_list[i]
+		visible_count += int(t.visible)
 		relative_indentation := drag_indentation + int(t.indentation) - lowest_indentation
 		
 		item := Undo_Item_Task_Indentation_Set {
@@ -2421,7 +2455,7 @@ task_dragging_end :: proc() -> bool {
 	}
 
 	task_tail = drag_index_at + 1
-	task_head = drag_index_at + len(drag_list)
+	task_head = drag_index_at + visible_count
 
 	element_repaint(mode_panel)
 	window_set_cursor(mode_panel.window, .Arrow)

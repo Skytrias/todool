@@ -14,25 +14,22 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
-TRACK_MEMORY :: false
+TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
+
+// header button to fold items
 
 // mouse drag folded include its children?
 // shift include hidden children
+// save automatic state setting by offseting undo in place, instead of everywhere
 
 // system to force push new keybindings for a patch
 // changelog generator output
 // selected all highlight
 // close somehow functions bad
 // options autosave should save or in general changing things on the sidebar should be automatic or seperate?
-// DONE hovered panel doesnt allow clicking immediatly
-// DONE camera x offsetting
-// DONE fontstash weird glyphs at some point
-// DONE pipe changelog data to archive
-// DONE try tinyfiledialogs
-// DONE save as
 
-// TODO while search typing set camera to focus atleast search result found
+// while search typing set camera to focus atleast search result found
 
 // main :: proc() {
 // 	gs_init()

@@ -375,9 +375,9 @@ theme_editor_spawn :: proc() {
 	picker := color_picker_init(bot_panel, {}, 0)
 	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		sv := cast(^Color_Picker_SV) element
-		hue := cast(^Color_Picker_HUE) element.parent.children[0]
 
 		if msg == .Value_Changed {
+			hue := cast(^Color_Picker_HUE) element.parent.children[1]
 			p := theme_selected_panel()
 			color_mod := cast(^Color) p.data
 			

@@ -224,6 +224,7 @@ editor_load_version :: proc(
 			cam := mode_panel_cam()
 			cam.offset_x = f32(header.camera_offset_x)
 			cam.offset_y = f32(header.camera_offset_y)
+			log.info("CAM OFFSET", cam.offset_x, cam.offset_y)
 
 			Save_Task :: struct #packed {
 				indentation: u8,

@@ -1749,6 +1749,8 @@ dialog_spawn :: proc(
 		return ""
 	}
 
+	menu_close(window)
+
 	window.dialog = element_init(Element, &window.element, {}, dialog_message, mem.arena_allocator(&window.element_arena))
 	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
 	panel.background_index = 2

@@ -2374,12 +2374,12 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	sv := cast(^Color_Picker_SV) element
-	hue := cast(^Color_Picker_HUE) element.parent.children[0]
 	SV_OUT_SIZE :: 10
 	sv_out_size := math.round(SV_OUT_SIZE * SCALE)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
+			hue := cast(^Color_Picker_HUE) element.parent.children[1]
 			target := element.window.target
 			color := color_hsv_to_rgb(hue.y, 1, 1)
 			render_texture_from_kind(target, .SV, element.bounds, color)
@@ -2402,6 +2402,7 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Value_Changed: {
+			hue := cast(^Color_Picker_HUE) element.parent.children[1]
 			picker := cast(^Color_Picker) sv.parent
 			sv.output = color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
 
