@@ -18,7 +18,6 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 
 // TODO
-//multiselection highight didnt shift camera offset right
 //camera offset x bug
 //camera offset without animations should work
 //shift folded content properly
@@ -70,6 +69,16 @@ main2 :: proc() {
 	gs_update_after_load()
 	gs_message_loop()
 }
+
+// import "core:slice"
+// main :: proc() {
+// 	values := [?]int { 1, 2, 3, 4, 5 }
+
+// 	fmt.eprintln(values)
+// 	// slice.ptr_swap_overlapping(&values[0], &values[1], 1)
+// 	slice.ptr_rotate(2, &values[2], 3)
+// 	fmt.eprintln(values)
+// }
 
 main :: proc() {
 	gs_init()

@@ -910,6 +910,21 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 }
 
 // in real indicess
+task_children_count :: proc(parent: ^Task) -> (count: int) {
+	for i in parent.index + 1..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+
+		if task.indentation <= parent.indentation {
+			break
+		}
+
+		count += 1
+	}
+
+	return
+}
+
+// in real indicess
 task_children_range :: proc(parent: ^Task) -> (low, high: int) {
 	low = min(parent.index + 1, len(mode_panel.children) - 1)
 	high = -1

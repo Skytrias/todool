@@ -2,6 +2,7 @@ package src
 
 import "core:os"
 import "core:fmt"
+import "core:slice"
 import "core:strings"
 import "core:log"
 import "core:mem"
@@ -722,25 +723,98 @@ todool_mode_kanban :: proc() {
 }
 
 todool_shift_down :: proc() {
-	selection := task_has_selection()
-	low, high := task_low_and_high()
+	// selection := task_has_selection()
+	// low, high := task_low_and_high()
 
-	if high + 1 >= len(tasks_visible) {
+	// if high + 1 >= len(tasks_visible) {
+	// 	return
+	// }
+
+	// manager := mode_panel_manager_scoped()
+	// task_head_tail_push(manager)
+	// high += 1
+	// task_low_and_high_to_real(&low, &high)
+
+
+	// for i := high; i > low; i -= 1 {
+	// 	task_swap(manager, i, i - 1)
+	// }
+
+	// task_head += 1
+	// task_tail += 1
+
+	if task_head == -1 {
 		return
 	}
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-	high += 1
-	task_low_and_high_to_real(&low, &high)
+	
+	// single
+	if task_head == task_tail {
+		fmt.eprintln("single")
 
+		a := tasks_visible[task_head]
+		aa := a.index
+		aa_count := task_children_count(a)
+		
+		// need to jump further till the children end
+		b := cast(^Task) mode_panel.children[aa + aa_count + 1]
+		bb := b.index
+		bb_count := task_children_count(b)
 
-	for i := high; i > low; i -= 1 {
-		task_swap(manager, i, i - 1)
+		if aa_count == 0 && bb_count == 0 {
+			fmt.eprintln(1)
+			task_swap(manager, aa, bb)
+		} else if aa_count != 0 && bb_count == 0 {
+			for i in 0..<aa_count + 1 {
+				task_swap(manager, bb - i, bb - i - 1)
+			}
+
+			fmt.eprintln(2, aa, bb)
+		} else if aa_count == 0 && bb_count != 0 {
+			// c := make([]^Task, 2 + bb_count)
+			// defer delete(c)
+			// temp := c[aa]
+
+			// text :: proc(element: ^Element) {
+			// 	task := cast(^Task) element
+			// 	fmt.eprintln(strings.to_string(task.box.builder))
+			// }
+			// text(temp)
+
+			// mem.copy(&c[aa], &c[bb], bb_count)
+			// text(temp)
+			// c[bb + bb_count] = temp
+
+			// fmt.eprintln(aa, bb, bb_count + 1)
+
+			// for i in aa..<bb + bb_count {
+			// 	task := cast(^Task) mode_panel.children[i]
+			// 	task_swap_animation(task)
+			// }
+
+			for i in 0..<bb_count + 1 {
+				fmt.eprintln("~", aa, bb + i)
+				task_swap(manager, aa + i, aa + i + 1)
+			}
+
+			// ptr_rotate(aa, mode_panel.children bb)
+			// slice.rotate_right(mode_panel.children[aa:bb + bb_count], bb)
+			// slice.swap_between(mode_panel.children[aa:aa + bb_count], mode_panel.children[bb:bb + bb_count])
+
+			fmt.eprintln(3, bb_count)
+		} else {
+
+			fmt.eprintln(4)
+		}
+	} else {
+		// multi
+		fmt.eprintln("multi")
+
 	}
 
-	task_head += 1
-	task_tail += 1
+	element_repaint(mode_panel)
 }
 
 todool_shift_up :: proc() {
@@ -886,18 +960,18 @@ undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 	}
 }
 
+task_swap_animation :: proc(task: ^Task) {
+	if task.visible {
+		task.top_offset = 0
+		task.top_animation_start = true
+		task.top_animating = true
+		task.top_old = task.bounds.t
+		element_animation_start(task)
+	}
+}
+
 // swap with +1 / -1 offset 
 task_swap :: proc(manager: ^Undo_Manager, a, b: int) {
-	save :: proc(task: ^Task) {
-		if task.visible {
-			task.top_offset = 0
-			task.top_animation_start = true
-			task.top_animating = true
-			task.top_old = task.bounds.t
-			element_animation_start(task)
-		}
-	}
-
 	aa := cast(^^Task) &mode_panel.children[a]
 	bb := cast(^^Task) &mode_panel.children[b]
 	item := Undo_Item_Task_Swap {
@@ -907,8 +981,8 @@ task_swap :: proc(manager: ^Undo_Manager, a, b: int) {
 	undo_task_swap(manager, &item, false)
 
 	// animate the thing when visible
-	save(aa^)
-	save(bb^)
+	task_swap_animation(aa^)
+	task_swap_animation(bb^)
 
 	element_repaint(mode_panel)
 }
