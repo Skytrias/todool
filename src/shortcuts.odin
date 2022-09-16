@@ -1063,7 +1063,7 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	iter := ti_init()
 	
-	for _ in ti_step(&iter) {
+	for i in 0..<iter.range {
 		task := cast(^Task) mode_panel.children[iter.offset]
 		archive_push(strings.to_string(task.box.builder)) // only valid
 		task_remove_at_index(manager, iter.offset)
@@ -1392,27 +1392,58 @@ todool_paste_tasks :: proc() {
 
 todool_paste_tasks_from_clipboard :: proc() {
 	if clipboard_has_content() {
-		text := clipboard_get_with_builder()
+		clipboard_text := clipboard_get_with_builder()
+		
+		// indentation
+		indentation_per_line := make([dynamic]u16, 0, 256)
+		defer delete(indentation_per_line)
+
+		// find indentation per line
+		{
+			text := clipboard_text
+			count: u16
+			for line in strings.split_lines_iterator(&text) {
+				count = 0
+
+				// simple byte traversal
+				for i in 0..<len(line) {
+					if line[i] == '\t' {
+						count += 1
+					} else {
+						break
+					}
+				}
+
+				append(&indentation_per_line, count)
+			}
+		}
+
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
 
-		low, high := task_low_and_high()
-		index := high + 1
-
+		// have to make this work for non task case
+		task_index: int
 		indentation: int
+		
 		if task_head != -1 {
-			indentation = tasks_visible[task_head].indentation
+			low, high := task_low_and_high()
+			highest_task := tasks_visible[high]
+			task_index = highest_task.index + 1
+			indentation = highest_task.indentation
 		}
 
-		// TODO could interpret \t or spaces as indentation but could lead to unexpected results
-		// e.g. when mixing spaces and tabs
+		// insert line at correct index
+		line_index: int
+		text := clipboard_text
 		for line in strings.split_lines_iterator(&text) {
-			task_push_undoable(manager, indentation, strings.trim_space(line), index)
-			index += 1
+			off := indentation_per_line[line_index]
+			task_push_undoable(manager, indentation + int(off), strings.trim_space(line), task_index)
+			task_index += 1
+			line_index += 1
 		}
 
-		task_tail = high + 1
-		task_head = index - 1
+		task_tail = task_head + 1
+		task_head = task_head + line_index
 		element_repaint(mode_panel)
 	}
 }

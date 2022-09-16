@@ -464,55 +464,34 @@ task_low_and_high_to_real :: proc(low, high: ^int) {
 // step through real values from hidden
 
 Task_Iter :: struct {
+	// real
 	offset: int,
 	index: int,
 	range: int,
 
+	// visual
 	low, high: int,
 }
 
 ti_init :: proc() -> (res: Task_Iter) {
 	res.low, res.high = task_low_and_high()
-	res.high += 1
 	a := tasks_visible[res.low].index
 	b := tasks_visible[res.high].index
 	res.offset = a
-	res.range = b - a
+	res.range = b - a + 1
 	return
 }
 
 ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
-	res = cast(^Task) mode_panel.children[ti.offset + ti.index]
-	index = ti.offset + ti.index
-	
-	if ti.index < ti.range {
+	if ti.index < ti.range && ti.offset + ti.index < len(mode_panel.children) {
+		res = cast(^Task) mode_panel.children[ti.offset + ti.index]
+		index = ti.offset + ti.index
 		ti.index += 1
 		ok = true
 	}
 
 	return
 }
-
-// task_low_and_high_to_real :: proc(low, high: ^int) {
-// 	a := tasks_visible[low^]
-// 	b := tasks_visible[high^]
-// 	low^ = a.index
-
-// 	if low^ == high^ {
-// 		// include the children
-// 		// select children when hidden
-// 		if (a.has_children && a.folded) || (b.has_children && b.folded) {
-// 			children_low, children_high := task_children_range(b)
-// 			high^ = children_high
-// 			log.info("incl")
-// 		} else {
-// 			log.info("out")
-// 			high^ = a.index
-// 		}
-// 	} else {
-// 		high^ = b.index
-// 	}
-// }
 
 task_head_tail_check_begin :: proc() ->  bool {
 	if !mode_panel.window.shift && task_head != task_tail {
@@ -1124,7 +1103,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// update caret
-			if task_head != -1 && task_head == task_tail {
+			if task_head != -1 {
 				task := tasks_visible[task_head]
 				fcs_element(task)
 				scaled_size := efont_size(task.box)
@@ -1390,7 +1369,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				font := fontstash.font_get(&gs.fc, state.font)
 				isize := i16(state.size * 10)
 				scaled_size := f32(isize / 10)
-				offset := f32(0) * scaled_size
+				offset := f32(font.ascender * 3 / 4) * scaled_size
 
 				for line_text, line_y in box.wrapped_lines {
 					text_width := string_width(line_text)

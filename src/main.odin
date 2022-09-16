@@ -18,35 +18,39 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 
 // TODO
-// camera offset x
-// camera offset without animations should work
-// header button to fold items
-// shift folded content properly
-// tab paste from clipboard should also use indentation
-// image display options
-// scrollbar on mode_panel
+//multiselection highight didnt shift camera offset right
+//camera offset x bug
+//camera offset without animations should work
+//shift folded content properly
+//header button to fold items
+//image display options
+//scrollbar or minimap on mode_panel
 
-// system to force push new keybindings for a patch
-// changelog generator output
-// close somehow functions bad
-// options autosave should save or in general changing things on the sidebar should be automatic or seperate?
-// while search typing set camera to focus atleast search result found
-// save automatic state setting by offseting undo in place, instead of everywhere
+//system to force push new keybindings for a patch
+//changelog generator output
+//close somehow functions bad
+//options autosave should save or in general changing things on the sidebar should be automatic or seperate?
+//while search typing set camera to focus atleast search result found
+//save automatic state setting by offseting undo in place, instead of everywhere
 
-// DONE
-// shift right opens folded content
-// Commands
-//		select_children ctrl+h
+//DONE
+//paste_from_clipboard extracts tab information
+//shift right opens folded content
+//Commands
+//	select_children ctrl+h
 
-// FIXES
-// menus automatically close when dialogs (exit) start
-// theme editor color "button" preview crash fixed
-// theme editor color picker value dragging and hue slider
-// multi-selection not including folded content
-//		task dragging
-//		delete selection
-//		shift right/left
-//		state setting
+//FIXES
+//menus automatically close when dialogs (exit) start
+//theme editor color "button" preview crash fixed
+//theme editor color picker value dragging and hue slider
+//multi-selection not including folded content
+//	task dragging
+//	delete selection
+//	shift right/left
+//	state setting
+
+//TWEAKS
+//text strike-through y position adjusted
 
 main2 :: proc() {
 	gs_init()
