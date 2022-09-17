@@ -2106,8 +2106,6 @@ tasks_load_tutorial :: proc() {
 		task_push(max(load_indent, 0), text)
 	}
 
-	push_scoped_task("Tutorial")
-
 	{
 		push_scoped_task("Thank You For Alpha Testing!")
 		t("if you have any issues, please post them on the discord")
@@ -2148,12 +2146,6 @@ tasks_load_tutorial :: proc() {
 	}
 
 	{
-		push_scoped_task("Text Manipulation")
-		t("ctrl+shift+j -> uppercase the starting words of the selected tasks")
-		t("ctrl+shift+l -> lowercase all letters of the selected tasks")
-	}
-
-	{
 		push_scoped_task("Task Properties")
 		t("tab -> increase the selected tasks indentation")
 		t("shift+tab -> decrease the selected tasks indentation")
@@ -2164,8 +2156,12 @@ tasks_load_tutorial :: proc() {
 	{
 		push_scoped_task("Tags")
 		t("ctrl+(1-8) -> toggle the selected tasks tag (1-8)")
-		t("ctrl+(1-8) -> toggle the selected tasks tag (1-8)")
-		t("ctrl+(1-8) -> toggle the selected tasks tag (1-8)")
+	}
+
+	{
+		push_scoped_task("Text Manipulation")
+		t("ctrl+shift+j -> uppercase the starting words of the selected tasks")
+		t("ctrl+shift+l -> lowercase all letters of the selected tasks")
 	}
 
 	{
@@ -2193,7 +2189,8 @@ tasks_load_tutorial :: proc() {
 
 	{
 		push_scoped_task("Miscellaneous")
-		t("ctrl+s -> save to a file")
+		t("ctrl+s -> save to a file or last saved location")
+		t("ctrl+shift+s -> save to a file")
 		t("ctrl+o -> load from a file")
 		t("ctrl+n -> new file")
 		t("ctrl+z -> undo")

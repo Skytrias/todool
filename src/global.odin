@@ -2024,6 +2024,24 @@ bpath_file_read :: proc(path: string, allocator := context.allocator) -> ([]byte
 }
 
 //////////////////////////////////////////////
+// more safeful writing to temp file first
+//////////////////////////////////////////////
+
+gs_write_safely :: proc(path: string, content: []byte) -> bool {
+	temp_path := fmt.tprintf("%s.temp", path)
+	os.write_entire_file(temp_path, content) or_return
+
+	// no error
+	when os.OS == .Windows {
+		os.rename(temp_path, path)
+	} else when os.OS == .Linux {
+		os.rename(temp_path, path)
+	}
+
+	return true
+}
+
+//////////////////////////////////////////////
 // menus
 //////////////////////////////////////////////
 

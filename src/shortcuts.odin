@@ -240,6 +240,10 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 }
 
 todool_delete_on_empty :: proc() {
+	if task_head == -1 {
+		return
+	}
+
 	task := tasks_visible[task_head]
 	
 	if len(task.box.builder.buf) == 0 {

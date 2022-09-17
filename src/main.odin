@@ -18,6 +18,7 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 
 // TODO
+//drag last task on empty file doesnt reinsert
 //camera offset x bug
 //camera offset without animations should work
 //shift folded content properly
@@ -47,6 +48,8 @@ TODOOL_RELEASE :: false
 //	delete selection
 //	shift right/left
 //	state setting
+//OOB backspace on empty file crash fixed 
+
 
 //TWEAKS
 //text strike-through y position adjusted

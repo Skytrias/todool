@@ -188,7 +188,7 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 		}
 	}
 
-	ok := os.write_entire_file(file_path, buffer.buf[:])
+	ok := gs_write_safely(file_path, buffer.buf[:])
 	if !ok {
 		err = .Invalid_Write
 	}
@@ -538,8 +538,10 @@ json_save_misc :: proc(path: string) -> bool {
 	)
 
 	if err == nil {
-		ok := bpath_file_write(path, result[:])
-		return ok
+		// ok := bpath_file_write(path, result[:])
+		file_path := bpath_temp(path)
+		return gs_write_safely(file_path, result[:])
+		// return ok
 	}
 
 	return false
@@ -694,7 +696,8 @@ keymap_save :: proc(path: string) -> bool {
 	strings.write_byte(&b, '\n')
 	write_content(&b, "[TODOOL]", s.general)
 
-	ok := bpath_file_write(path, b.buf[:])
+	file_path := bpath_temp(path)
+	ok := gs_write_safely(file_path, b.buf[:])
 	if !ok {
 		log.error("SAVE: Keymap save failed")
 		return false
