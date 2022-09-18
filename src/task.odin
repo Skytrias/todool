@@ -1267,6 +1267,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Right_Up: {
+			if task_head == -1 {
+				if task_dragging_end() {
+					return 1
+				}
+			}
+
 			if task_head != task_tail && task_head != -1 {
 				task_context_menu_spawn(nil)
 				return 1
@@ -2409,9 +2415,10 @@ task_dragging_end :: proc() -> bool {
 
 	drag_running = false
 	element_hide(drag_panel, true)
+	force_push := task_head == -1
 
 	// remove task on invalid
-	if drag_index_at == -1 {
+	if drag_index_at == -1 && !force_push {
 		return true
 	}
 
@@ -2423,10 +2430,15 @@ task_dragging_end :: proc() -> bool {
 	}
 
 	drag_indentation: int
+	drag_index := -1
 
-	task_drag_at := tasks_visible[drag_index_at]
-	if task_head != -1 {
-		drag_indentation = task_drag_at.indentation
+	if drag_index_at != -1 {
+		task_drag_at := tasks_visible[drag_index_at]
+		drag_index = task_drag_at.index
+
+		if task_head != -1 {
+			drag_indentation = task_drag_at.indentation
+		}
 	}
 
 	manager := mode_panel_manager_scoped()
@@ -2447,7 +2459,7 @@ task_dragging_end :: proc() -> bool {
 
 		t.indentation = relative_indentation
 		t.indentation_smooth = f32(t.indentation)
-		task_insert_at(manager, task_drag_at.index + i + 1, t)
+		task_insert_at(manager, drag_index + i + 1, t)
 	}
 
 	task_tail = drag_index_at + 1

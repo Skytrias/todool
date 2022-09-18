@@ -19,7 +19,6 @@ TODOOL_RELEASE :: false
 
 //~~~~~TODO~~~~~
 //fix memory leaks
-//drag last task on empty file doesnt reinsert
 //camera offset x bug
 //camera offsetting without animations should work
 //header button to fold items
@@ -52,6 +51,7 @@ TODOOL_RELEASE :: false
 //OOB backspace on empty file crash fixed 
 //shift content up / down refactored, keeps indentation & folded, skips folded content
 //task dragging end isnt offset by folded content
+//task dragging onto empty file works now
 
 //~~~~~TWEAKS~~~~~
 //text strike-through y position adjusted
