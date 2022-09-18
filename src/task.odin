@@ -454,11 +454,8 @@ task_low_and_high :: #force_inline proc() -> (low, high: int) {
 	return
 }
 
-task_low_and_high_to_real :: proc(low, high: ^int) {
-	a := tasks_visible[low^]
-	b := tasks_visible[high^]
-	low^ = a.index
-	high^ = b.index
+task_xy_to_real :: proc(low, high: int) -> (x, y: int) #no_bounds_check {
+	return tasks_visible[low].index, tasks_visible[high].index
 }
 
 // step through real values from hidden
@@ -494,7 +491,7 @@ ti_init_children_included :: proc() -> (res: Task_Iter) {
 	bb_count := task_children_count(b)
 
 	res.offset = aa
-	res.range = bb_count + aa_count + 1
+	res.range = bb_count + aa_count + 2
 	return
 }
 
@@ -2427,8 +2424,9 @@ task_dragging_end :: proc() -> bool {
 
 	drag_indentation: int
 
+	task_drag_at := tasks_visible[drag_index_at]
 	if task_head != -1 {
-		drag_indentation = tasks_visible[drag_index_at].indentation
+		drag_indentation = task_drag_at.indentation
 	}
 
 	manager := mode_panel_manager_scoped()
@@ -2449,7 +2447,7 @@ task_dragging_end :: proc() -> bool {
 
 		t.indentation = relative_indentation
 		t.indentation_smooth = f32(t.indentation)
-		task_insert_at(manager, drag_index_at + i + 1, t)
+		task_insert_at(manager, task_drag_at.index + i + 1, t)
 	}
 
 	task_tail = drag_index_at + 1

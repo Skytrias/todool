@@ -727,47 +727,25 @@ todool_mode_kanban :: proc() {
 }
 
 todool_shift_down :: proc() {
-	// selection := task_has_selection()
-	// low, high := task_low_and_high()
-
-	// if high + 1 >= len(tasks_visible) {
-	// 	return
-	// }
-
-	// manager := mode_panel_manager_scoped()
-	// task_head_tail_push(manager)
-	// high += 1
-	// task_low_and_high_to_real(&low, &high)
-
-
-	// for i := high; i > low; i -= 1 {
-	// 	task_swap(manager, i, i - 1)
-	// }
-
-	if task_head == -1 {
+	low, high := task_low_and_high()
+	if task_head == -1 || high + 1 >= len(tasks_visible) {
 		return
 	}
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-	
-	iter := ti_init() 
-	fmt.eprintln(iter)
 
-	for _, index in ti_step(&iter) {
-		i := iter.offset + iter.range - iter.index + 1
-		// fmt.eprintln(i, i - 1)
-		task_swap(manager, i, i - 1)
+	for i := high + 1; i > low; i -= 1 {
+		x, y := task_xy_to_real(i, i - 1)
+		task_swap(manager, x, y)
 	}
 
 	task_head += 1
 	task_tail += 1
-
-	// element_repaint(mode_panel)
+	element_repaint(mode_panel)
 }
 
 todool_shift_up :: proc() {
-	selection := task_has_selection()
 	low, high := task_low_and_high()
 
 	if low - 1 < 0 {
@@ -777,14 +755,15 @@ todool_shift_up :: proc() {
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 	low -= 1
-	task_low_and_high_to_real(&low, &high)
 
-	for i := low; i < high; i += 1 {
-		task_swap(manager, i, i + 1)
+	for i in low..<high {
+		x, y := task_xy_to_real(i, i + 1)
+		task_swap(manager, x, y)
 	}
 
 	task_head -= 1
 	task_tail -= 1
+	element_repaint(mode_panel)
 }
 
 todool_select_all :: proc() {
@@ -901,7 +880,7 @@ Undo_Item_Task_Swap :: struct {
 	a, b: ^^Task,
 }
 
-task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: int) {
+task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: int, folded: bool) {
 	item := Undo_Item_Task_Indentation_Set {
 		task = task,
 		set = task.indentation,
@@ -910,18 +889,21 @@ task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: i
 
 	task.indentation = set
 	task.indentation_animating = true
+	task.folded = folded
 	element_animation_start(task)
 }
 
 undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 	if !clear {
 		data := cast(^Undo_Item_Task_Swap) item
-		a := data.a^.indentation
-		b := data.b^.indentation
+		a_indentation := data.a^.indentation
+		b_indentation := data.b^.indentation
+		a_folded := data.a^.folded
+		b_folded := data.b^.folded
 		data.a^, data.b^ = data.b^, data.a^
 
-		task_indentation_set_animate(manager, data.a^, a)
-		task_indentation_set_animate(manager, data.b^, b)
+		task_indentation_set_animate(manager, data.a^, a_indentation, a_folded)
+		task_indentation_set_animate(manager, data.b^, b_indentation, b_folded)
 
 		undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
 	}
@@ -947,6 +929,7 @@ task_swap :: proc(manager: ^Undo_Manager, a, b: int) {
 	}
 	undo_task_swap(manager, &item, false)
 
+	// or dont swap indentation? could be optional
 	// animate the thing when visible
 	task_swap_animation(aa^)
 	task_swap_animation(bb^)
@@ -1160,7 +1143,7 @@ todool_indentation_shift :: proc(amt: int) {
 		}
 
 		if task.indentation + amt >= 0 {
-			task_indentation_set_animate(manager, task, task.indentation + amt)
+			task_indentation_set_animate(manager, task, task.indentation + amt, task.folded)
 		}
 	}
 

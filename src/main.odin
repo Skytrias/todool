@@ -17,11 +17,11 @@ import "../fontstash"
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 
-// TODO
+//~~~~~TODO~~~~~
+//fix memory leaks
 //drag last task on empty file doesnt reinsert
 //camera offset x bug
-//camera offset without animations should work
-//shift folded content properly
+//camera offsetting without animations should work
 //header button to fold items
 //image display options
 //scrollbar or minimap on mode_panel
@@ -32,14 +32,15 @@ TODOOL_RELEASE :: false
 //options autosave should save or in general changing things on the sidebar should be automatic or seperate?
 //while search typing set camera to focus atleast search result found
 //save automatic state setting by offseting undo in place, instead of everywhere
+//text based format
 
-//DONE
+//~~~~~DONE~~~~~
 //paste_from_clipboard extracts tab information
 //shift right opens folded content
 //Commands
-//	select_children ctrl+h
+//	"select_children" ctrl+h -> selects children, opens folded task, rotates head / tail
 
-//FIXES
+//~~~~~FIXES~~~~~
 //menus automatically close when dialogs (exit) start
 //theme editor color "button" preview crash fixed
 //theme editor color picker value dragging and hue slider
@@ -49,9 +50,10 @@ TODOOL_RELEASE :: false
 //	shift right/left
 //	state setting
 //OOB backspace on empty file crash fixed 
+//shift content up / down refactored, keeps indentation & folded, skips folded content
+//task dragging end isnt offset by folded content
 
-
-//TWEAKS
+//~~~~~TWEAKS~~~~~
 //text strike-through y position adjusted
 
 main2 :: proc() {
@@ -72,16 +74,6 @@ main2 :: proc() {
 	gs_update_after_load()
 	gs_message_loop()
 }
-
-// import "core:slice"
-// main :: proc() {
-// 	values := [?]int { 1, 2, 3, 4, 5 }
-
-// 	fmt.eprintln(values)
-// 	// slice.ptr_swap_overlapping(&values[0], &values[1], 1)
-// 	slice.ptr_rotate(2, &values[2], 3)
-// 	fmt.eprintln(values)
-// }
 
 main :: proc() {
 	gs_init()
