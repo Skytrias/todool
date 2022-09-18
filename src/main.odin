@@ -16,12 +16,14 @@ import "../fontstash"
 
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
+ALLOW_SCALE :: true
 
 //~~~~~TODO~~~~~
 //fix memory leaks
-//camera offset x bug
+//camera offset x bug zooming into distance
+//camera offset x jiggling in kanban when too small
 //camera offsetting without animations should work
-//header button to fold items
+//header button to fold items, Theme editor
 //image display options
 //scrollbar or minimap on mode_panel
 
@@ -35,11 +37,12 @@ TODOOL_RELEASE :: false
 
 //~~~~~DONE~~~~~
 //paste_from_clipboard extracts tab information
-//shift right opens folded content
+//shift_right opens folded content
 //Commands
 //	"select_children" ctrl+h -> selects children, opens folded task, rotates head / tail
 
 //~~~~~FIXES~~~~~
+//wrapping option only applies to List mode again
 //menus automatically close when dialogs (exit) start
 //theme editor color "button" preview crash fixed
 //theme editor color picker value dragging and hue slider
@@ -52,6 +55,9 @@ TODOOL_RELEASE :: false
 //shift content up / down refactored, keeps indentation & folded, skips folded content
 //task dragging end isnt offset by folded content
 //task dragging onto empty file works now
+//task paste tasks replacing existing tasks till empty crash fixed
+//task paste into empty file
+//camera crash on empty file
 
 //~~~~~TWEAKS~~~~~
 //text strike-through y position adjusted
@@ -95,6 +101,20 @@ main :: proc() {
 			case .Key_Combination: {
 				handled := true
 				combo := (cast(^string) dp)^
+
+				when ALLOW_SCALE {
+					if combo == "ctrl++" {
+						scaling_set(SCALE + 0.1)
+						element_repaint(element)
+						return 1
+					}
+
+					if combo == "ctrl+-" {
+						scaling_set(SCALE - 0.1)
+						element_repaint(element)
+						return 1
+					}
+				}
 
 				if window_focused_shown(window) {
 					return 0

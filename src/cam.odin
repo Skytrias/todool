@@ -168,14 +168,16 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 
 		case .Kanban: {
 			// find indent 0 task and get its rect
-			index := task_head
 			t: ^Task
-			for t == nil || (t.indentation != 0 && index >= 0) {
-				t = tasks_visible[index]
-				index -= 1
+			if task_head != -1 {
+				index := task_head
+				for t == nil || (t.indentation != 0 && index >= 0) {
+					t = tasks_visible[index]
+					index -= 1
+				}
 			}
 
-			if t.kanban_rect != {} {
+			if t != nil && t.kanban_rect != {} {
 				// check if larger than kanban size
 				if rect_width(t.kanban_rect) < rect_width(mode_panel.bounds) - cam.margin_x * 2 {
 					to_left = t.kanban_rect.l

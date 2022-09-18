@@ -458,6 +458,17 @@ task_xy_to_real :: proc(low, high: int) -> (x, y: int) #no_bounds_check {
 	return tasks_visible[low].index, tasks_visible[high].index
 }
 
+// returns index / indentation if possible from head
+task_head_safe_index_indentation :: proc(init := -1) -> (index, indentation: int) {
+	index = init
+	if task_head != -1 {
+		task := tasks_visible[task_head]
+		index = task.index
+		indentation = task.indentation
+	}
+	return
+}
+
 // step through real values from hidden
 
 Task_Iter :: struct {

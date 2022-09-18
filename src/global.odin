@@ -26,6 +26,12 @@ LINE_WIDTH := max(2, 2 * SCALE)
 ROUNDNESS := 5.0 * SCALE
 HOVER_WIDTH :: 100
 
+scaling_set :: proc(value: f32) {
+	SCALE = value
+	LINE_WIDTH = max(2, 2 * SCALE)
+	ROUNDNESS = 5 * SCALE
+}
+
 Font :: fontstash.Font
 data_font_icon := #load("../assets/icofont.ttf")
 data_font_regular := #load("../assets/Lato-Regular.ttf")

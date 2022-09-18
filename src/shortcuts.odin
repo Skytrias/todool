@@ -437,7 +437,7 @@ todool_copy_tasks_to_clipboard :: proc() {
 	low, high := task_low_and_high()
 
 	// get lowest
-	lowest_indentation := 255
+	lowest_indentation := max(int)
 	for i in low..<high + 1 {
 		task := tasks_visible[i]
 		lowest_indentation = min(lowest_indentation, task.indentation)
@@ -1367,7 +1367,7 @@ todool_cut_tasks :: proc() {
 }
 
 todool_paste_tasks :: proc() {
-	if task_head == -1 || copy_empty() {
+	if copy_empty() {
 		return
 	}
 
@@ -1375,14 +1375,14 @@ todool_paste_tasks :: proc() {
 	task_head_tail_push(manager)
 
 	// no selection
-	if task_head == task_tail {
-		task := tasks_visible[task_head]
-		copy_paste_at(manager, task.index + 1, task.indentation)
+	if task_head == -1 || task_head == task_tail {
+		index, indentation := task_head_safe_index_indentation()
+		copy_paste_at(manager, index + 1, indentation)
 		
-		task_head += len(copy_task_data)
-		task_tail = task_head
+		task_head = max(task_head, 0) + len(copy_task_data)
+		task_tail = max(task_head, 0)
 	} else {
-		indentation := 255
+		indentation := max(int)
 
 		// get lowest indentation of removal selection
 		{
@@ -1395,8 +1395,8 @@ todool_paste_tasks :: proc() {
 
 		task_remove_selection(manager, true)
 
-		task := tasks_visible[task_head]
-		index := task.index + 1
+		index, _ := task_head_safe_index_indentation()
+		index += 1
 		copy_paste_at(manager, index, indentation)
 		
 		task_head += len(copy_task_data)

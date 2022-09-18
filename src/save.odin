@@ -563,10 +563,7 @@ json_load_misc :: proc(path: string) -> bool {
 	// hidden
 	{
 		// TODO hook this up properly?
-		SCALE = misc.hidden.scale
-		LINE_WIDTH = max(2, 2 * SCALE)
-		ROUNDNESS = 5 * SCALE
-
+		scaling_set(misc.hidden.scale)
 		mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
