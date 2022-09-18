@@ -945,12 +945,12 @@ window_deallocate :: proc(window: ^Window) {
 	log.info("WINDOW: Deallocate START")
 	shortcut_state_destroy(&window.shortcut_state)
 
+	undo_manager_destroy(&window.manager)
 	free_all(mem.arena_allocator(&window.element_arena))
 	delete(window.element_arena_backing)
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)
 
-	undo_manager_destroy(&window.manager)
 	render_target_destroy(window.target)
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)

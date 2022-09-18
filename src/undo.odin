@@ -1,5 +1,6 @@
 package src
 
+import "core:fmt"
 import "core:log"
 import "core:mem"
 
@@ -52,9 +53,11 @@ undo_stack_pop :: proc(manager: ^Undo_Manager, stack: ^[dynamic]byte) {
 	item := &stack[len(stack) - size_of(Undo_Item_Footer) - footer.byte_count]
 	footer.callback(manager, item, true)
 	resize(stack, len(stack) - size_of(Undo_Item_Footer) - footer.byte_count)
+	// fmt.eprintln("~~~POP~~~")	
 }
 
 undo_stack_clear :: proc(manager: ^Undo_Manager, stack: ^[dynamic]byte) {
+	// fmt.eprintln("~~~CLEAR~~~")	
 	for len(stack) > 0 {
 		undo_stack_pop(manager, stack)
 	}	

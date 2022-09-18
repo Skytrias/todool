@@ -1605,6 +1605,14 @@ tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
 	return
 }
 
+// test deallocation as this data is easily replacable but still needs to be dynamic by default
+task_deallocate_by_hand :: proc(task: ^Task) {
+  delete(task.search_results)
+  delete(task.box.wrapped_lines)
+  delete(task.box.builder.buf)
+  delete(task.children) // as this is allocated on heap too
+}
+
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
 	tag_mode := options_tag_mode()
@@ -2506,7 +2514,7 @@ mode_panel_context_menu_spawn :: proc() {
 
 	  if !todool_check_for_saving(window_main) {
 		  tasks_load_reset()
-		  last_save_location = ""
+		  last_save_set("")
 		  tasks_load_tutorial()
 	  }
 

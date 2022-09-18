@@ -19,7 +19,6 @@ TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
 //~~~~~TODO~~~~~
-//fix memory leaks
 //camera offset x bug zooming into distance
 //camera offset x jiggling in kanban when too small
 //camera offsetting without animations should work
@@ -28,11 +27,11 @@ ALLOW_SCALE :: true
 //scrollbar or minimap on mode_panel
 
 //system to force push new keybindings for a patch
-//changelog generator output
-//close somehow functions bad
+//keymap setting window
+//changelog generator output window
 //options autosave should save or in general changing things on the sidebar should be automatic or seperate?
 //while search typing set camera to focus atleast search result found
-//save automatic state setting by offseting undo in place, instead of everywhere
+//save automatic state setting by offsetting undo in place, instead of everywhere
 //text based format
 
 //~~~~~DONE~~~~~
@@ -40,6 +39,7 @@ ALLOW_SCALE :: true
 //shift_right opens folded content
 //Commands
 //	"select_children" ctrl+h -> selects children, opens folded task, rotates head / tail
+//task dynamic data properly deallocated
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again

@@ -1018,12 +1018,19 @@ undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 			cast(^Task) mode_panel.children[data.index],
 		} 
 
+		task_deallocate_by_hand(cast(^Task) mode_panel.children[data.index])
+
 		// TODO maybe speedup somehow?
 		ordered_remove(&mode_panel.children, data.index)
 		undo_push(manager, undo_task_insert_at, &output, size_of(Undo_Item_Task_Insert_At))
 	} else {
-		// log.info("CLEAR", data.index)
+		// fmt.eprintln("CLEAR", data.index)
 		// element_destroy(data.backup)
+
+		// search results
+		// box wrapped lines
+
+		// task_deallocate(cast(^Task) data.backup)
 	}
 }
 
@@ -1513,7 +1520,7 @@ todool_tasks_to_lowercase :: proc() {
 todool_new_file :: proc() {
   if !todool_check_for_saving(window_main) {
 	  tasks_load_reset()
-	  last_save_location = ""
+	  last_save_set("")
   }
 }
 
