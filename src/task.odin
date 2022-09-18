@@ -482,6 +482,22 @@ ti_init :: proc() -> (res: Task_Iter) {
 	return
 }
 
+ti_init_children_included :: proc() -> (res: Task_Iter) {
+	res.low, res.high = task_low_and_high()
+	a := tasks_visible[res.low]
+	aa := a.index
+	aa_count := task_children_count(a)
+	
+	// need to jump further till the children end
+	b := cast(^Task) mode_panel.children[aa + aa_count + 1]
+	bb := b.index
+	bb_count := task_children_count(b)
+
+	res.offset = aa
+	res.range = bb_count + aa_count + 1
+	return
+}
+
 ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
 	if ti.index < ti.range && ti.offset + ti.index < len(mode_panel.children) {
 		res = cast(^Task) mode_panel.children[ti.offset + ti.index]

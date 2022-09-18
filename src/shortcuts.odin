@@ -744,9 +744,6 @@ todool_shift_down :: proc() {
 	// 	task_swap(manager, i, i - 1)
 	// }
 
-	// task_head += 1
-	// task_tail += 1
-
 	if task_head == -1 {
 		return
 	}
@@ -754,71 +751,19 @@ todool_shift_down :: proc() {
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 	
-	// single
-	if task_head == task_tail {
-		fmt.eprintln("single")
+	iter := ti_init() 
+	fmt.eprintln(iter)
 
-		a := tasks_visible[task_head]
-		aa := a.index
-		aa_count := task_children_count(a)
-		
-		// need to jump further till the children end
-		b := cast(^Task) mode_panel.children[aa + aa_count + 1]
-		bb := b.index
-		bb_count := task_children_count(b)
-
-		if aa_count == 0 && bb_count == 0 {
-			fmt.eprintln(1)
-			task_swap(manager, aa, bb)
-		} else if aa_count != 0 && bb_count == 0 {
-			for i in 0..<aa_count + 1 {
-				task_swap(manager, bb - i, bb - i - 1)
-			}
-
-			fmt.eprintln(2, aa, bb)
-		} else if aa_count == 0 && bb_count != 0 {
-			// c := make([]^Task, 2 + bb_count)
-			// defer delete(c)
-			// temp := c[aa]
-
-			// text :: proc(element: ^Element) {
-			// 	task := cast(^Task) element
-			// 	fmt.eprintln(strings.to_string(task.box.builder))
-			// }
-			// text(temp)
-
-			// mem.copy(&c[aa], &c[bb], bb_count)
-			// text(temp)
-			// c[bb + bb_count] = temp
-
-			// fmt.eprintln(aa, bb, bb_count + 1)
-
-			// for i in aa..<bb + bb_count {
-			// 	task := cast(^Task) mode_panel.children[i]
-			// 	task_swap_animation(task)
-			// }
-
-			for i in 0..<bb_count + 1 {
-				fmt.eprintln("~", aa, bb + i)
-				task_swap(manager, aa + i, aa + i + 1)
-			}
-
-			// ptr_rotate(aa, mode_panel.children bb)
-			// slice.rotate_right(mode_panel.children[aa:bb + bb_count], bb)
-			// slice.swap_between(mode_panel.children[aa:aa + bb_count], mode_panel.children[bb:bb + bb_count])
-
-			fmt.eprintln(3, bb_count)
-		} else {
-
-			fmt.eprintln(4)
-		}
-	} else {
-		// multi
-		fmt.eprintln("multi")
-
+	for _, index in ti_step(&iter) {
+		i := iter.offset + iter.range - iter.index + 1
+		// fmt.eprintln(i, i - 1)
+		task_swap(manager, i, i - 1)
 	}
 
-	element_repaint(mode_panel)
+	task_head += 1
+	task_tail += 1
+
+	// element_repaint(mode_panel)
 }
 
 todool_shift_up :: proc() {
@@ -956,10 +901,28 @@ Undo_Item_Task_Swap :: struct {
 	a, b: ^^Task,
 }
 
+task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: int) {
+	item := Undo_Item_Task_Indentation_Set {
+		task = task,
+		set = task.indentation,
+	}	
+	undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+
+	task.indentation = set
+	task.indentation_animating = true
+	element_animation_start(task)
+}
+
 undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool) {
 	if !clear {
 		data := cast(^Undo_Item_Task_Swap) item
+		a := data.a^.indentation
+		b := data.b^.indentation
 		data.a^, data.b^ = data.b^, data.a^
+
+		task_indentation_set_animate(manager, data.a^, a)
+		task_indentation_set_animate(manager, data.b^, b)
+
 		undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
 	}
 }
@@ -1197,15 +1160,7 @@ todool_indentation_shift :: proc(amt: int) {
 		}
 
 		if task.indentation + amt >= 0 {
-			item := Undo_Item_Task_Indentation_Set {
-				task = task,
-				set = task.indentation,
-			}	
-			undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
-
-			task.indentation += amt
-			task.indentation_animating = true
-			element_animation_start(task)
+			task_indentation_set_animate(manager, task, task.indentation + amt)
 		}
 	}
 
@@ -1620,7 +1575,13 @@ todool_select_children :: proc() {
 	if task_head == task_tail {
 		task := tasks_visible[task_head]
 
-		if task.has_children && !task.folded {
+		if task.has_children {
+			if task.folded {
+				todool_toggle_folding()
+				task_set_visible_tasks()
+				task_check_parent_states(nil)
+			}
+
 			task_tail = task_head
 
 			index := task.visible_index + 1
