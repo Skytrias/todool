@@ -18,7 +18,17 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
+//~~~~~MEMORY REFACTORING~~~~~
+//task allocated on heap
+//task should maybe have its own memory space
+//search results should be seperate
+
+//~~~~~VISUAL STYLING~~~~~
+// allow doing a single white background -> issue with wrapped content, maybe dotted outline
+// visual highlight parents only
+
 //~~~~~TODO~~~~~
+//allow scrolling while dragging or panning
 //camera offset x bug zooming into distance
 //camera offset x jiggling in kanban when too small
 //camera offsetting without animations should work

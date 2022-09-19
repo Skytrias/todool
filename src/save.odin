@@ -179,7 +179,7 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 		if image_display_has_content(task.image_display) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Image_Path) or_return
-			buffer_write_string(&buffer, task.image_display.img.cloned_path)
+			buffer_write_string(&buffer, task.image_display.img.cloned_path) or_return
 		}
 
 		// write finish flag

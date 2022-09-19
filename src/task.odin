@@ -36,27 +36,10 @@ goto_transition_hide: bool
 
 // search state
 panel_search: ^Panel
-search_index := -1
-search_saved_task_head: int
-search_saved_task_tail: int
-search_saved_box_head: int
-search_saved_box_tail: int
-search_draw_index: int // gets reset & used to highlight search index current
 
 // copy state
 copy_text_data: strings.Builder
 copy_task_data: [dynamic]Copy_Task
-
-Search_Result :: struct #packed {
-	low, high: u16,
-}
-
-Search_Result_Mixed :: struct #packed {
-	task: ^Task,
-	low, high: u16,
-}
-
-search_results_mixed: [dynamic]Search_Result_Mixed
 
 // font options used
 font_options_header: Font_Options
@@ -177,7 +160,7 @@ task_head_tail_call :: proc(
 task_data_init :: proc() {
 	tasks_visible = make([dynamic]^Task, 0, 128)
 	bookmarks = make([dynamic]int, 0, 32)
-	search_results_mixed = make([dynamic]Search_Result_Mixed, 0, 32)
+	ss_init()
 
 	font_options_header = {
 		font = font_bold,
@@ -206,9 +189,9 @@ last_save_set :: proc(next: string) {
 
 task_data_destroy :: proc() {
 	pomodoro_destroy()
+	ss_destroy()
 	delete(tasks_visible)
 	delete(bookmarks)
-	delete(search_results_mixed)
 	delete(copy_text_data.buf)
 	delete(copy_task_data)
 	delete(drag_list)
@@ -395,7 +378,6 @@ Task :: struct {
 	folded: bool,
 	has_children: bool,
 	state_count: [Task_State]int,
-	search_results: [dynamic]Search_Result,
 
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: Rect,
@@ -576,7 +558,8 @@ task_init :: proc(
 	indentation: int,
 	text: string,
 ) -> (res: ^Task) { 
-	allocator := window_allocator(window_main)
+	allocator := context.allocator
+	// allocator := window_allocator(window_main)
 	res = new(Task, allocator)
 	element := cast(^Element) res
 	element.message_class = task_message
@@ -648,7 +631,6 @@ task_init :: proc(
 
 	res.box = task_box_init(res, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
-	res.search_results = make([dynamic]Search_Result, 0, 8)
 
 	return
 }
@@ -1175,8 +1157,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.l -= cam.offset_x
 			bounds.t -= cam.offset_y
 
-			search_draw_index = 0
-
 			switch panel.mode {
 				case .List: {
 
@@ -1206,6 +1186,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				render_element_clipped(target, child)
 			}
+
+			ss_draw_highlights(target, panel)
 
 			// TODO looks shitty when swapping
 			// shadow highlight for non selection
@@ -1383,29 +1365,29 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			x := box.bounds.l
 			y := box.bounds.t
 
-			// draw the search results outline
-			if draw_search_results && len(task.search_results) != 0 {
-				fcs_element(task)
+			// // draw the search results outline
+			// if draw_search_results && len(task.search_results) != 0 {
+			// 	fcs_element(task)
 
-				for res in task.search_results {
-					state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines[:], int(res.low), int(res.high))
-					scaled_size := f32(state.isize / 10)
+			// 	for res in task.search_results {
+			// 		state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines[:], int(res.low), int(res.high))
+			// 		scaled_size := f32(state.isize / 10)
 
-					for fontstash.wrap_state_iter(&gs.fc, &state) {
-						rect := Rect {
-							x + state.x_from,
-							x + state.x_to,
-							y + f32(state.y - 1) * scaled_size,
-							y + f32(state.y) * scaled_size,
-						}
+			// 		for fontstash.wrap_state_iter(&gs.fc, &state) {
+			// 			rect := Rect {
+			// 				x + state.x_from,
+			// 				x + state.x_to,
+			// 				y + f32(state.y - 1) * scaled_size,
+			// 				y + f32(state.y) * scaled_size,
+			// 			}
 						
-						color := search_index == search_draw_index ? theme.text_good : theme.text_bad
-						render_rect_outline(target, rect, color, 0)
-					}
+			// 			color := search_index == search_draw_index ? theme.text_good : theme.text_bad
+			// 			render_rect_outline(target, rect, color, 0)
+			// 		}
 
-					search_draw_index += 1
-				}
-			}
+			// 		search_draw_index += 1
+			// 	}
+			// }
 
 			// strike through line
 			if task.state == .Canceled {
@@ -1607,10 +1589,9 @@ tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
 
 // test deallocation as this data is easily replacable but still needs to be dynamic by default
 task_deallocate_by_hand :: proc(task: ^Task) {
-  delete(task.search_results)
-  delete(task.box.wrapped_lines)
-  delete(task.box.builder.buf)
-  delete(task.children) // as this is allocated on heap too
+	delete(task.box.wrapped_lines)
+	delete(task.box.builder.buf)
+	delete(task.children) // as this is allocated on heap too
 }
 
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1620,7 +1601,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 	#partial switch msg {
 		case .Destroy: {
-			delete(task.search_results)
+
 		}
 
 		case .Get_Width: {
@@ -1875,7 +1856,9 @@ search_init :: proc(parent: ^Element) {
 		#partial switch msg {
 			case .Value_Changed: {
 				query := strings.to_string(box.builder)
-				search_update_results(query)
+				ss_update(query)
+				// data, diff := ss_data()
+				// fmt.eprintf("search data: %dB ~ %dKB\n", diff, diff / 1024)
 			}
 
 			case .Key_Combination: {
@@ -1886,8 +1869,8 @@ search_init :: proc(parent: ^Element) {
 					case "escape": {
 						element_hide(panel_search, true)
 						element_repaint(panel_search)
-						task_head = search_saved_task_head
-						task_tail = search_saved_task_tail
+						task_head = ss.saved_task_head
+						task_tail = ss.saved_task_tail
 					}
 
 					case "return": {
@@ -1897,12 +1880,12 @@ search_init :: proc(parent: ^Element) {
 
 					// next
 					case "f3", "ctrl+n": {
-						search_find_next()
+						ss_find_next()
 					}
 
 					// prev 
 					case "shift+f3", "ctrl+shift+n": {
-						search_find_prev()
+						ss_find_prev()
 					}
 
 					case: {
@@ -1919,136 +1902,15 @@ search_init :: proc(parent: ^Element) {
 
 	b1 := button_init(p, {}, "Find Next")
 	b1.invoke = proc(data: rawptr) {
-		search_find_next()
+		ss_find_next()
 	}
 	b2 := button_init(p, {}, "Find Prev")
 	b2.invoke = proc(data: rawptr) {
-		search_find_prev()
+		ss_find_prev()
 	}
 
 	panel_search = p
 	element_hide(panel_search, true)
-}
-
-search_update_results :: proc(query: string) {
-	// clear all panel based search results, even hidden
-	for i in 0..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
-		clear(&task.search_results)
-	}
-	search_index = -1
-
-	// skip empty query
-	if query == "" {
-		return
-	}
-
-	// find results
-	for i in 0..<len(tasks_visible) {
-		task := tasks_visible[i]
-		text := strings.to_string(task.box.builder)
-		index: int
-
-		// find results and insert
-		for rune_start, rune_end in contains_multiple_iterator(text, query, &index) {
-			append(&task.search_results, Search_Result {
-				rune_start,
-				rune_end,
-			})
-		}
-	}
-}
-
-search_find_next :: proc() {
-	// fill mixed results
-	clear(&search_results_mixed)
-	for i in 0..<len(tasks_visible) {
-		task := tasks_visible[i]
-
-		if len(task.search_results) != 0 {
-			for res in task.search_results {
-				append(&search_results_mixed, Search_Result_Mixed {
-					task,
-					res.low,
-					res.high,
-				})
-			}
-		}
-	}
-
-	if len(search_results_mixed) == 0 {
-		return
-	}
-
-	range_advance_index(&search_index, len(search_results_mixed) - 1, false)
-	res := search_results_mixed[search_index]
-	task_head = res.task.visible_index
-	task_tail = res.task.visible_index
-	res.task.box.head = int(res.high)
-	res.task.box.tail = int(res.low)
-
-	element_repaint(mode_panel)
-}
-
-search_find_prev :: proc() {
-	// fill mixed results
-	clear(&search_results_mixed)
-	for i in 0..<len(tasks_visible) {
-		task := tasks_visible[i]
-
-		if len(task.search_results) != 0 {
-			for res in task.search_results {
-				append(&search_results_mixed, Search_Result_Mixed {
-					task,
-					res.low,
-					res.high,
-				})
-			}
-		}
-	}
-
-	if len(search_results_mixed) == 0 {
-		return
-	}
-
-	range_advance_index(&search_index, len(search_results_mixed) - 1, true)
-	res := search_results_mixed[search_index]
-	task_head = res.task.visible_index
-	task_tail = res.task.visible_index
-	res.task.box.head = int(res.high)
-	res.task.box.tail = int(res.low)
-
-	element_repaint(mode_panel)
-}
-
-// iterator approach to finding a subtr
-contains_multiple_iterator :: proc(s, substr: string, index: ^int) -> (rune_start, rune_end: u16, ok: bool) {
-	for {
-		if index^ > len(s) {
-			break
-		}
-
-		search := s[index^:]
-		
-		// TODO could maybe be optimized by using cutf8!
-		if res := strings.index(search, substr); res >= 0 {
-			// NOTE: start & end are in rune offsets!
-			start := strings.rune_count(s[:index^ + res])
-
-			ok = true
-			rune_start = u16(start)
-			rune_end = u16(start + strings.rune_count(substr))
-
-			// index moves by bytes
-			index^ += res + len(substr)
-			return
-		} else {
-			break
-		}
-	}
-
-	ok = false
-	return
 }
 
 custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

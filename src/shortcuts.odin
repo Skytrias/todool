@@ -1317,8 +1317,8 @@ todool_search :: proc() {
 	element_hide(p, false)
 
 	// save info
-	search_saved_task_head = task_head
-	search_saved_task_tail = task_tail
+	ss.saved_task_head = task_head
+	ss.saved_task_tail = task_tail
 
 	box := cast(^Text_Box) p.children[1]
 	element_focus(box)
@@ -1341,11 +1341,11 @@ todool_search :: proc() {
 			strings.builder_reset(&box.builder)
 			strings.write_string(&box.builder, text)
 
-			search_update_results(text)
+			ss_update(text)
 		}
 
-		search_saved_box_head = task.box.head
-		search_saved_box_tail = task.box.tail
+		ss.saved_box_head = task.box.head
+		ss.saved_box_tail = task.box.tail
 	}		
 
 	element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
