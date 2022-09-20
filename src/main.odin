@@ -18,16 +18,12 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
-//~~~~~MEMORY REFACTORING~~~~~
-//task allocated on heap
-//task should maybe have its own memory space
-//search results should be seperate
-
 //~~~~~VISUAL STYLING~~~~~
 // allow doing a single white background -> issue with wrapped content, maybe dotted outline
 // visual highlight parents only
 
 //~~~~~TODO~~~~~
+//better image zoom/control mode
 //allow scrolling while dragging or panning
 //camera offset x bug zooming into distance
 //camera offset x jiggling in kanban when too small
@@ -50,6 +46,8 @@ ALLOW_SCALE :: true
 //Commands
 //	"select_children" ctrl+h -> selects children, opens folded task, rotates head / tail
 //task dynamic data properly deallocated
+//refactored search internals to be more memory effecient
+//task allocation strategy changed -> fixed leaks
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again
@@ -76,7 +74,7 @@ main2 :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
-	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
+	window := window_init(nil, {}, "Todool", 900, 900)
 	window_main = window
 
 	tp := toggle_panel_init(&window_main.element, { .HF, .VF }, {}, "Testing")
@@ -98,7 +96,7 @@ main :: proc() {
 
 	task_data_init()
 
-	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 20)
+	window := window_init(nil, {}, "Todool", 900, 900)
 	window.on_resize = proc(window: ^Window) {
 		cam := mode_panel_cam()
 		cam.freehand = true
@@ -215,6 +213,10 @@ main :: proc() {
 				}
 
 				element_repaint(mode_panel)
+			}
+
+			case .Deallocate: {
+				tasks_clear_left_over()
 			}
 		}
 

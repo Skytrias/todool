@@ -161,10 +161,6 @@ Window :: struct {
 	drop_indices: [dynamic]int, // indices into the file name builder
 	drop_file_name_builder: strings.Builder,
 
-	// arena
-	element_arena: mem.Arena,
-	element_arena_backing: []byte,
-
 	// callbacks
 	on_resize: proc(window: ^Window),
 
@@ -284,7 +280,7 @@ image_load_process_on_thread :: proc(t: ^thread.Thread) {
 		if !img.loaded {
 			img.backing = image_load_from_file(key)
 			img.loaded = true
-			fmt.eprintln("image load finished", key, img.backing == nil)
+			// fmt.eprintln("image load finished", key, img.backing == nil)
 		}
 	}
 
@@ -295,7 +291,7 @@ image_load_process_on_thread :: proc(t: ^thread.Thread) {
 image_load_process_texture_handles :: proc(window: ^Window) {
 	for key, img in &gs.stored_images {
 		if img.backing != nil && img.loaded && !img.handle_set {
-			fmt.eprintln("generated handle on main thread", img.handle)
+			// fmt.eprintln("generated handle on main thread", img.handle)
 			img.handle = shallow_texture_init(window.target, img.backing)
 			img.handle_set = true
 		}
@@ -343,7 +339,6 @@ window_init :: proc(
 	flags: Element_Flags,
 	title: cstring, 
 	w, h: i32,
-	arena_cap: int,
 ) -> (res: ^Window) {
 	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
@@ -387,8 +382,6 @@ window_init :: proc(
 		return 0
 	}
 
-	// spawn an arena
-
 	window_element_flags := flags
 	window_element_flags |= { .Tab_Movement_Allowed, .Sort_By_Z_Index }
 
@@ -399,9 +392,6 @@ window_init :: proc(
 		_window_message,
 		context.allocator,
 	)
-
-	res.element_arena_backing = make([]byte, arena_cap)
-	mem.arena_init(&res.element_arena, res.element_arena_backing)
 
 	res.w = window
 	res.w_id = window_id
@@ -469,10 +459,6 @@ gs_update_after_load :: proc() {
 		custom_load_wav_opt(.Timer_Resume, data_sound_timer_resume)
 		custom_load_wav_opt(.Timer_Ended, data_sound_timer_ended)
 	}
-}
-
-window_allocator :: proc(window: ^Window) -> mem.Allocator {
-	return mem.arena_allocator(&window.element_arena)
 }
 
 window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: string) {
@@ -946,8 +932,6 @@ window_deallocate :: proc(window: ^Window) {
 	shortcut_state_destroy(&window.shortcut_state)
 
 	undo_manager_destroy(&window.manager)
-	free_all(mem.arena_allocator(&window.element_arena))
-	delete(window.element_arena_backing)
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)
 
@@ -1485,22 +1469,8 @@ gs_process_events :: proc() {
 	// iterate events
 	event: sdl.Event
 	for sdl.PollEvent(&event) {
-		// if event.type == .KEYDOWN {
-		// 	// if event.key.keysym.scancode == .ESCAPE {
-		// 		gs_windows_iter_init()
-		// 		for w in gs_windows_iter_step() {
-		// 			menu_close(w)
-		// 		}
-		// 	// }
-		// }
-
 		if event.type == .QUIT && !gs.ignore_quit {
 			gs.running = false
-
-			// if gs_window_count() == 1 {
-
-
-			// }
 			log.info("~~~QUIT EVENT~~~")
 
 			gs_windows_iter_init()
@@ -1757,7 +1727,7 @@ dialog_spawn :: proc(
 
 	menu_close(window)
 
-	window.dialog = element_init(Element, &window.element, {}, dialog_message, mem.arena_allocator(&window.element_arena))
+	window.dialog = element_init(Element, &window.element, {}, dialog_message, context.allocator)
 	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
 	panel.background_index = 2
 	panel.shadow = true

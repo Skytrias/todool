@@ -24,43 +24,24 @@ undo_manager_init :: proc(manager: ^Undo_Manager, cap: int = mem.Kilobyte * 10) 
 }
 
 undo_manager_reset :: proc(manager: ^Undo_Manager) {
-	undo_stack_clear(manager, &manager.undo)
-	undo_stack_clear(manager, &manager.redo)
+	clear(&manager.undo)
+	clear(&manager.redo)
 	manager.state = .Normal
 }
 
 undo_manager_destroy :: proc(manager: ^Undo_Manager) {
-	undo_stack_clear(manager, &manager.undo)
-	undo_stack_clear(manager, &manager.redo)
 	delete(manager.undo)
 	delete(manager.redo)
 }
 
 // callback type
-Undo_Callback :: proc(manager: ^Undo_Manager, item: rawptr, clear: bool)
+Undo_Callback :: proc(manager: ^Undo_Manager, item: rawptr)
 
 // footer used to describe the item region coming before this footer in bytes
 Undo_Item_Footer :: struct {
 	callback: Undo_Callback, // callback that will be called on invoke
 	byte_count: int, // item byte count
 	group_end: bool, // wether this item means the end of undo steps
-}
-
-// intended for clearing the stack and deleting dangling memory outside of the byte array
-// pop a single item and call its clear!
-undo_stack_pop :: proc(manager: ^Undo_Manager, stack: ^[dynamic]byte) {
-	footer := cast(^Undo_Item_Footer) &stack[len(stack) - size_of(Undo_Item_Footer)]
-	item := &stack[len(stack) - size_of(Undo_Item_Footer) - footer.byte_count]
-	footer.callback(manager, item, true)
-	resize(stack, len(stack) - size_of(Undo_Item_Footer) - footer.byte_count)
-	// fmt.eprintln("~~~POP~~~")	
-}
-
-undo_stack_clear :: proc(manager: ^Undo_Manager, stack: ^[dynamic]byte) {
-	// fmt.eprintln("~~~CLEAR~~~")	
-	for len(stack) > 0 {
-		undo_stack_pop(manager, stack)
-	}	
 }
 
 // push an item with its size and a callback
@@ -143,7 +124,7 @@ undo_invoke :: proc(manager: ^Undo_Manager, redo: bool) {
 		first = false
 
 		item_root := &stack[old_length - footer.byte_count - size_of(Undo_Item_Footer)]
-		footer.callback(manager, item_root, false)
+		footer.callback(manager, item_root)
 		resize(stack, old_length - footer.byte_count - size_of(Undo_Item_Footer))
 	}
 

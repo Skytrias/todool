@@ -20,11 +20,13 @@ last_save_location: string
 
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
+custom_split: ^Custom_Split
 window_main: ^Window
 caret_rect: Rect
 caret_lerp_speed_y := f32(1)
 caret_lerp_speed_x := f32(1)
 last_was_task_copy := false
+task_clear_checking: map[^Task]u8
 
 // goto state
 panel_goto: ^Panel_Floaty
@@ -72,6 +74,8 @@ bookmarks: [dynamic]int
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
 	using element: Element,
+	
+	image_display: ^Image_Display, // fullscreen display
 }
 
 drag_init :: proc(window: ^Window) {
@@ -158,6 +162,7 @@ task_head_tail_call :: proc(
 }
 
 task_data_init :: proc() {
+	task_clear_checking = make(map[^Task]u8, 128)
 	tasks_visible = make([dynamic]^Task, 0, 128)
 	bookmarks = make([dynamic]int, 0, 32)
 	ss_init()
@@ -188,6 +193,8 @@ last_save_set :: proc(next: string) {
 }
 
 task_data_destroy :: proc() {
+	delete(task_clear_checking)
+
 	pomodoro_destroy()
 	ss_destroy()
 	delete(tasks_visible)
@@ -400,8 +407,6 @@ Mode_Panel :: struct {
 	using element: Element,
 	mode: Mode,
 
-	image_display: ^Image_Display,
-
 	kanban_left: f32, // layout seperation
 	gap_vertical: f32,
 	gap_horizontal: f32,
@@ -515,22 +520,7 @@ task_head_tail_check_end :: proc() {
 	}
 }
 
-// find a line linearly in the panel children
-task_find_linear :: proc(element: ^Element, start := 0) -> (res: int) {
-	res = -1
-
-	for i in start..<len(mode_panel.children) {
-		child := mode_panel.children[i]
-
-		if element == child {
-			res = i
-			return
-		}
-	}
-
-	return 
-}
-
+// 
 bookmark_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -559,7 +549,6 @@ task_init :: proc(
 	text: string,
 ) -> (res: ^Task) { 
 	allocator := context.allocator
-	// allocator := window_allocator(window_main)
 	res = new(Task, allocator)
 	element := cast(^Element) res
 	element.message_class = task_message
@@ -588,7 +577,7 @@ task_init :: proc(
 				manager := mode_panel_manager_scoped()
 				task_head_tail_push(manager)
 				item := Undo_Item_Bool_Toggle { &task.folded }
-				undo_bool_toggle(manager, &item, false)
+				undo_bool_toggle(manager, &item)
 
 				task_head = task.index
 				task_tail = task.index
@@ -617,7 +606,7 @@ task_init :: proc(
 			}
 
 			case .Clicked: {
-				mode_panel.image_display.img = display.img
+				custom_split.image_display.img = display.img
 				element_repaint(display)
 			}
 
@@ -657,10 +646,10 @@ task_push :: proc(
 task_insert_at :: proc(manager: ^Undo_Manager, index_at: int, res: ^Task) {
 	if index_at == -1 || index_at == len(mode_panel.children) {
 		item := Undo_Item_Task_Append { res }
-		undo_task_append(manager, &item, false)
+		undo_task_append(manager, &item)
 	} else {
 		item := Undo_Item_Task_Insert_At { index_at, res }
-		undo_task_insert_at(manager, &item, false)
+		undo_task_insert_at(manager, &item)
 	}	
 }
 
@@ -732,24 +721,6 @@ mode_panel_init :: proc(
 ) -> (res: ^Mode_Panel) {
 	res = element_init(Mode_Panel, parent, flags, mode_panel_message, allocator)
 	res.kanban_outlines = make([dynamic]Rect, 0, 64)
-	res.image_display = image_display_init(res, {}, nil, allocator)
-	res.image_display.aspect = .Mix
-	res.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		display := cast(^Image_Display) element
-
-		#partial switch msg {
-			case .Clicked: {
-				display.img = nil
-				element_repaint(display)
-			}
-
-			case .Get_Cursor: {
-				return int(Cursor.Hand)
-			}
-		}
-
-		return 0
-	}
 
 	cam_init(&res.cam[.List], 100, 100)
 	cam_init(&res.cam[.Kanban], 100, 100)
@@ -853,7 +824,7 @@ task_set_visible_tasks :: proc() {
 
 			// continue last undo because this happens manually
 			undo_group_continue(manager)
-			undo_u8_set(manager, &item, false)
+			undo_u8_set(manager, &item)
 			undo_group_end(manager)
 		}
 
@@ -971,16 +942,38 @@ task_children_range :: proc(parent: ^Task) -> (low, high: int) {
 // messages
 //////////////////////////////////////////////
 
+tasks_eliminate_wanted_clear_tasks :: proc(panel: ^Mode_Panel) {
+	// eliminate tasks set up for manual clearing
+	for i in 0..<len(panel.children) {
+		task := cast(^Task) panel.children[i]
+		if task in task_clear_checking {
+			delete_key(&task_clear_checking, task)
+		}
+	}
+}
+
+tasks_clear_left_over :: proc() {
+	for key, value in task_clear_checking {
+		element_destroy_and_deallocate(key)
+	}
+	clear(&task_clear_checking)
+}
+
 mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Mode_Panel) element
 	cam := &panel.cam[panel.mode]
 
 	#partial switch msg {
+		case .Destroy: {
+			tasks_eliminate_wanted_clear_tasks(panel)
+			delete(panel.kanban_outlines)
+		}
+
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
 
-			if image_display_has_content(panel.image_display) {
-				child := panel.image_display
+			if image_display_has_content(custom_split.image_display) {
+				child := custom_split.image_display
 
 				if (.Hide not_in child.flags) && rect_contains(child.bounds, p.x, p.y) {
 					p.res = child
@@ -1005,16 +998,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		// NOTE custom layout based on mode
 		case .Layout: {
-			// element.bounds = window_rect(window)
-			// element.clip = element.bounds
-			
 			bounds := element.bounds
-
-			if image_display_has_content(panel.image_display) {
-				rect := rect_margin(element.bounds, 20 * SCALE)
-				element_move(panel.image_display, rect)
-				// log.info(rect)
-			}
 
 			bounds.l += cam.offset_x
 			bounds.t += cam.offset_y
@@ -1225,16 +1209,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// draw the fullscreen image on top
-			if image_display_has_content(panel.image_display) {
+			if image_display_has_content(custom_split.image_display) {
 				render_push_clip(target, panel.clip)
-				element_message(panel.image_display, .Paint_Recursive)
+				element_message(custom_split.image_display, .Paint_Recursive)
 			}
 
 			return 1
-		}
-
-		case .Destroy: {
-			delete(panel.kanban_outlines)
 		}
 
 		case .Middle_Down: {
@@ -1588,11 +1568,11 @@ tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
 }
 
 // test deallocation as this data is easily replacable but still needs to be dynamic by default
-task_deallocate_by_hand :: proc(task: ^Task) {
-	delete(task.box.wrapped_lines)
-	delete(task.box.builder.buf)
-	delete(task.children) // as this is allocated on heap too
-}
+// task_deallocate_by_hand :: proc(task: ^Task) {
+// 	delete(task.box.wrapped_lines)
+// 	delete(task.box.builder.buf)
+// 	delete(task.children) // as this is allocated on heap too
+// }
 
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
@@ -1600,10 +1580,6 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 	draw_tags := tag_mode != TAG_SHOW_NONE && task.tags != 0x0
 
 	#partial switch msg {
-		case .Destroy: {
-
-		}
-
 		case .Get_Width: {
 			return int(SCALE * 200)
 		}
@@ -1857,8 +1833,6 @@ search_init :: proc(parent: ^Element) {
 			case .Value_Changed: {
 				query := strings.to_string(box.builder)
 				ss_update(query)
-				// data, diff := ss_data()
-				// fmt.eprintf("search data: %dB ~ %dKB\n", diff, diff / 1024)
 			}
 
 			case .Key_Combination: {
@@ -1925,6 +1899,10 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			element_move(panel_search, bot)
 		}
 
+		if image_display_has_content(split.image_display) {
+			element_move(split.image_display, rect_margin(bounds, math.round(20 * SCALE)))
+		}
+
 		element_move(mode_panel, bounds)
 	}
 
@@ -1934,9 +1912,27 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := window_rect(split.window)
 
-	custom_split := element_init(Custom_Split, split, {}, custom_split_message, context.allocator,)
+	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
+	custom_split.image_display = image_display_init(custom_split, {}, nil)
+	custom_split.image_display.aspect = .Mix
+	custom_split.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		display := cast(^Image_Display) element
 
-	mode_panel = mode_panel_init(custom_split, {}, window_allocator(window_main))
+		#partial switch msg {
+			case .Clicked: {
+				display.img = nil
+				element_repaint(display)
+			}
+
+			case .Get_Cursor: {
+				return int(Cursor.Hand)
+			}
+		}
+
+		return 0
+	}
+
+	mode_panel = mode_panel_init(custom_split, {})
 	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
 	// mode_panel.margin_vertical = 10
@@ -1965,8 +1961,10 @@ tasks_load_file :: proc() {
 tasks_load_reset :: proc() {
 	// NOTE TEMP
 	// TODO need to cleanup node data
+	tasks_eliminate_wanted_clear_tasks(mode_panel)
 	element_destroy_children_only(mode_panel)
 	element_deallocate(&window_main.element) // clear mem
+	tasks_clear_left_over()
 	clear(&mode_panel.children)
 	
 	// mode_panel.flags += { .Destroy_Descendent }

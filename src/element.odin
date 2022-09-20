@@ -382,6 +382,18 @@ element_destroy_children_only :: proc(element: ^Element) {
 	}
 }
 
+// dont set any signals or flags
+element_destroy_and_deallocate :: proc(element: ^Element) {
+	element_message(element, .Destroy)
+
+	// recurse to destroy all children
+	for child in element.children {
+		element_destroy_and_deallocate(child)
+	}
+
+	element_deallocate_raw(element)
+}
+
 // mark children for destruction
 // calls .Destroy in case anything should happen already
 // doesnt deallocate!
@@ -420,6 +432,30 @@ element_destroy :: proc(element: ^Element) -> bool {
 	return true
 }
 
+element_deallocate_raw :: proc(element: ^Element) {
+	// if this element is being pressed -> clear the pressed field
+	if element.window.pressed == element {
+		window_set_pressed(element.window, nil, 0)
+	}
+
+	// reset to window element when this element was hovered
+	if element.window.hovered == element {
+		element.window.hovered = &element.window.element
+	}
+
+	// reset focused element
+	if element.window.focused == element {
+		element.window.focused = nil
+	}
+
+	// stop animation
+	element_animation_stop(element)
+	// free data
+	delete(element.children)
+	// TODO is everything freed here? even higher memory?
+	free(element, element.allocator)
+}
+
 // NOTE used internally
 element_deallocate :: proc(element: ^Element) -> bool {
 	if .Destroy_Descendent in element.flags {
@@ -434,45 +470,13 @@ element_deallocate :: proc(element: ^Element) -> bool {
 				unordered_remove(&element.children, i)
 			}
 		}
-
-		// // TODO use memmove?
-		// for i := 0; i < len(element.children); i += 1 {
-		// 	child := element.children[i]
-
-		// 	if element_deallocate(child) {
-		// 		ordered_remove(&element.children, i)
-		// 		// element_message(element, .Destroy_Child_Finished, i)
-		// 		i -= 1
-		// 	}
-		// }
 	}
 
 	// log.info("DESTROY?", (.Destroy in element.flags), element.name)
 	if .Destroy in element.flags {
 		// send the destroy message to clear data
 		element_message(element, .Deallocate)
-
-		// if this element is being pressed -> clear the pressed field
-		if element.window.pressed == element {
-			window_set_pressed(element.window, nil, 0)
-		}
-
-		// reset to window element when this element was hovered
-		if element.window.hovered == element {
-			element.window.hovered = &element.window.element
-		}
-
-		// reset focused element
-		if element.window.focused == element {
-			element.window.focused = nil
-		}
-
-		// stop animation
-		element_animation_stop(element)
-		// free data
-		delete(element.children)
-		// TODO is everything freed here? even higher memory?
-		free(element, element.allocator)
+		element_deallocate_raw(element)
 		return true
 	} else {
 		// wasnt destroyed
