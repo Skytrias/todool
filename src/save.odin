@@ -278,7 +278,7 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 
 					path := string(byte_content[:])
 					handle := image_load_push(path)
-					task.image_display.img = handle
+					task_set_img(task, handle)
 				}
 			}
 		}

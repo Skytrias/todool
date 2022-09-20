@@ -3134,15 +3134,17 @@ image_display_init :: proc(
 	parent: ^Element,
 	flags: Element_Flags,
 	img: ^Stored_Image,
+	message_user: Message_Proc = nil,
 	allocator := context.allocator,
 ) -> (res: ^Image_Display) {
 	res = element_init(Image_Display, parent, flags, image_display_message, allocator)
 	res.img = img
+	res.message_user = message_user
 	return
 }
 
 image_display_has_content :: #force_inline proc(display: ^Image_Display) -> bool {
-	return display.img != nil && display.img.loaded && display.img.handle_set
+	return display != nil && display.img != nil && display.img.loaded && display.img.handle_set
 }
 
 //////////////////////////////////////////////

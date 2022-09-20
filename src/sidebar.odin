@@ -581,9 +581,7 @@ options_scroll_x :: #force_inline proc() -> int {
 }
 
 options_scroll_y :: #force_inline proc() -> int {
-	// TODO reenable
-	return 1
-	// return sb.options.checkbox_invert_y.state ? -1 : 1
+	return sb.options.checkbox_invert_y.state ? -1 : 1
 }
 
 options_tag_mode :: #force_inline proc() -> int {
@@ -605,6 +603,7 @@ Mode_Based_Button :: struct {
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Button) element
 	info := cast(^Mode_Based_Button) element.data
+	kind: Texture_Kind = info.index == 1 ? .Kanban : .List
 
 	#partial switch msg {
 		case .Button_Highlight: {
@@ -628,7 +627,6 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			hovered := element.window.hovered == element
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
-			kind: Texture_Kind = info.index == 1 ? .Kanban : .List
 
 			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
 				if res == 1 {

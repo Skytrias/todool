@@ -240,7 +240,7 @@ copy_push_task :: proc(task: ^Task) {
 		task.tags,
 		task.folded,
 		task.bookmarked,
-		task.image_display.img,
+		task.image_display == nil ? nil : task.image_display.img,
 	})
 }
 
@@ -272,7 +272,10 @@ copy_paste_at :: proc(
 		task.state = t.state
 		task.bookmarked = t.bookmarked
 		task.tags = t.tags
-		task.image_display.img = t.stored_image
+
+		if t.stored_image != nil {
+			task_set_img(task, t.stored_image)
+		}
 	}
 }
 
@@ -542,6 +545,39 @@ bookmark_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 	return 0
 }
 
+task_image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	display := cast(^Image_Display) element
+
+	#partial switch msg {
+		case .Right_Down: {
+			display.img = nil
+			display.clip = {}
+			display.bounds = {}
+			element_repaint(display)
+		}
+
+		case .Clicked: {
+			custom_split.image_display.img = display.img
+			element_repaint(display)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+	}
+
+	return 0
+}
+
+task_set_img :: proc(task: ^Task, handle: ^Stored_Image) {
+	if task.image_display == nil {
+		task.image_display = image_display_init(task, {}, handle, task_image_display_message, context.allocator)
+	} else {
+		task.image_display.img = handle
+	}
+}
+
+
 // raw creationg of a task
 // NOTE: need to set the parent afterward!
 task_init :: proc(
@@ -589,31 +625,6 @@ task_init :: proc(
 				button.icon = task.folded ? .Simple_Right : .Simple_Down
 			}
  		}
-
-		return 0
-	}
-
-	res.image_display = image_display_init(res, {}, nil, allocator)
-	res.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		display := cast(^Image_Display) element
-
-		#partial switch msg {
-			case .Right_Down: {
-				display.img = nil
-				display.clip = {}
-				display.bounds = {}
-				element_repaint(display)
-			}
-
-			case .Clicked: {
-				custom_split.image_display.img = display.img
-				element_repaint(display)
-			}
-
-			case .Get_Cursor: {
-				return int(Cursor.Hand)
-			}
-		}
 
 		return 0
 	}

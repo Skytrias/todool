@@ -19,17 +19,21 @@ TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
 //~~~~~VISUAL STYLING~~~~~
-// allow doing a single white background -> issue with wrapped content, maybe dotted outline
-// visual highlight parents only
+//allow doing a single white background -> issue with wrapped content, maybe dotted outline
+//visual highlight parents only
+//task dragging looks like shit
+
+//BUGS
+//line breaks for long word dont work
 
 //~~~~~TODO~~~~~
-//better image zoom/control mode
+//header button to fold items, Theme editor
 //allow scrolling while dragging or panning
 //camera offset x bug zooming into distance
 //camera offset x jiggling in kanban when too small
 //camera offsetting without animations should work
-//header button to fold items, Theme editor
 //image display options
+//better image zoom/control mode
 //scrollbar or minimap on mode_panel
 
 //system to force push new keybindings for a patch
@@ -48,6 +52,7 @@ ALLOW_SCALE :: true
 //task dynamic data properly deallocated
 //refactored search internals to be more memory effecient
 //task allocation strategy changed -> fixed leaks
+//save files get written to temp file again in case of errors, then renamed
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again
@@ -188,7 +193,7 @@ main :: proc() {
 						if task_head != -1 {
 							task := tasks_visible[task_head]
 							handle := image_load_push(file_path)
-							task.image_display.img = handle
+							task_set_img(task, handle)
 						}
 					} else {
 						if !had_imports {
