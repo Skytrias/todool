@@ -202,29 +202,24 @@ theme_editor_spawn :: proc() {
 						}
 					}
 
-					// case "up": {
-					// 	using theme_editor
+					case "up": {
+						using theme_editor
 
-					// 	if panel_selected_index > 0 {
-					// 		panel_selected_index -= 1
-					// 		window.update_next = true
-					// 		p := theme_editor.panel_list[panel_selected_index]
-					// 		scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, true)
-					// 	}
-					// }
+						if panel_selected_index > 0 {
+							panel_selected_index -= 1
+							window.update_next = true
+						}
+					}
 
-					// case "down": {
-					// 	using theme_editor
-					// 	color_amount := size_of(Theme) / size_of(Color)
+					case "down": {
+						using theme_editor
+						color_amount := size_of(Theme) / size_of(Color)
 						
-					// 	if panel_selected_index < color_amount - 1 {
-					// 		panel_selected_index += 1
-
-					// 		p := theme_editor.panel_list[panel_selected_index]
-					// 		scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, false)
-					// 		window.update_next = true
-					// 	}
-					// }
+						if panel_selected_index < color_amount - 1 {
+							panel_selected_index += 1
+							window.update_next = true
+						}
+					}
 
 					case "space": {
 						p := theme_selected_panel()
@@ -344,7 +339,7 @@ theme_editor_spawn :: proc() {
 	}
 
 	p := theme_editor.panel
-	SPACER_WIDTH :: 20
+	SPACER_WIDTH :: 10
 	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	
 	{

@@ -24,8 +24,8 @@ ALLOW_SCALE :: true
 //task dragging looks like shit
 
 //~~~~~TODO~~~~~
+//always on top option, needs SDL 2.0.16
 //left sidebar doesnt scale nicely
-//header button to fold items, Theme editor
 //allow scrolling while dragging or panning
 //image display options
 //better image zoom/control mode
@@ -48,6 +48,7 @@ ALLOW_SCALE :: true
 //refactored search internals to be more memory effecient
 //task allocation strategy changed -> fixed leaks
 //save files get written to temp file again in case of errors, then renamed
+//added foldable header panels for theme editor
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again
@@ -180,7 +181,17 @@ main :: proc() {
 			}
 
 			case .Window_Close: {
-				return int(todool_check_for_saving(window_main))
+				handled := int(todool_check_for_saving(window_main))
+		
+				// on non handle just destroy all windows
+				if handled == 0 {
+					gs_windows_iter_init()
+					for w in gs_windows_iter_step() {
+						window_destroy(w)
+					}
+				}
+
+				return handled
 			}
 
 			case .Dropped_Files: {

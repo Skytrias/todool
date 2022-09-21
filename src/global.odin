@@ -997,7 +997,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					gs.ignore_quit = true
 						
 					if element_message(&window.element, .Window_Close) == 0 {
-						// log.warn("WINDOW CLOSE EVENT DESTROY")
+						log.warn("~~~WINDOW CLOSE EVENT~~~")
 						window_destroy(window)
 						gs.ignore_quit = false
 					}
@@ -1471,7 +1471,7 @@ gs_process_events :: proc() {
 	for sdl.PollEvent(&event) {
 		if event.type == .QUIT && !gs.ignore_quit {
 			gs.running = false
-			log.info("~~~QUIT EVENT~~~")
+			log.warn("~~~QUIT EVENT~~~")
 
 			gs_windows_iter_init()
 			for w in gs_windows_iter_step() {

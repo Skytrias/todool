@@ -2302,8 +2302,8 @@ color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Paint_Recursive: {
 			target := element.window.target
-			render_rect(target, element.bounds, theme.background[0], 0)
-			render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
+			// render_rect(target, element.bounds, theme.background[0], 0)
+			// render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 		}
 	}
 
@@ -2318,7 +2318,6 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 		case .Paint_Recursive: {
 			target := element.window.target
 			render_texture_from_kind(target, .HUE, element.bounds)
-			defer render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			OUT_SIZE :: 10
 			out_size := math.round(OUT_SIZE * SCALE)
@@ -2387,7 +2386,6 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			target := element.window.target
 			color := color_hsv_to_rgb(hue.y, 1, 1)
 			render_texture_from_kind(target, .SV, element.bounds, color)
-			defer render_rect_outline(target, element.bounds, theme.text_default, 0, LINE_WIDTH)
 
 			sv_out := rect_wh(
 				element.bounds.l + sv.x * rect_width(element.bounds) - sv_out_size / 2, 

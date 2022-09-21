@@ -16,6 +16,7 @@ uniform sampler2D u_sampler_sv;
 uniform sampler2D u_sampler_hue;
 uniform sampler2D u_sampler_kanban;
 uniform sampler2D u_sampler_list;
+uniform sampler2D u_sampler_drag;
 uniform sampler2D u_sampler_custom;
 uniform vec4 u_shadow_color;
 
@@ -47,7 +48,8 @@ float sigmoid(float t) {
 #define RK_HUE uint(5)
 #define RK_Kanban uint(6)
 #define RK_List uint(7)
-#define RK_TEXTURE uint(8)
+#define RK_Drag uint(8)
+#define RK_TEXTURE uint(9)
 
 void main(void) {
 	vec4 color_goal = v_color;
@@ -101,6 +103,9 @@ void main(void) {
 		color_goal *= texture_color;
 	} else if (v_kind == RK_List) {
 		vec4 texture_color = texture(u_sampler_list, v_uv);
+		color_goal *= texture_color;
+	} else if (v_kind == RK_Drag) {
+		vec4 texture_color = texture(u_sampler_drag, v_uv);
 		color_goal *= texture_color;
 	}
 

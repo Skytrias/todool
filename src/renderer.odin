@@ -22,6 +22,7 @@ png_sv := #load("../assets/sv.png")
 png_hue := #load("../assets/hue.png")
 png_mode_icon_kanban := #load("../assets/Kanban Mode Icon.png")
 png_mode_icon_list := #load("../assets/List Mode Icon.png")
+png_mode_icon_drag := #load("../assets/Task Drag Icon.png")
 Align_Horizontal :: fontstash.Align_Horizontal
 Align_Vertical :: fontstash.Align_Vertical
 DROP_SHADOW :: 20
@@ -94,6 +95,7 @@ Texture_Kind :: enum {
 	HUE,
 	Kanban,
 	List,
+	Drag,
 }
 
 Render_Texture :: struct {
@@ -178,6 +180,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	texture_generate_from_png(res, .HUE, png_hue, "_hue")
 	texture_generate_from_png(res, .Kanban, png_mode_icon_kanban, "_kanban")
 	texture_generate_from_png(res, .List, png_mode_icon_list, "_list")
+	texture_generate_from_png(res, .Drag, png_mode_icon_drag, "_drag")
 
 	res.shallow_uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_custom")
 	// log.info("bind slots", gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)
