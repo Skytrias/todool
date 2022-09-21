@@ -2548,7 +2548,6 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				rect.l = cell.l + point_size
 				rect.r = cell.r
 				render_string_rect(target, rect, toggle.names[i])
-				// render_string_rect(target, r, toggle.names[i])
 			}
 			
 			render_rect_outline(target, element.bounds, text_color)
@@ -3160,18 +3159,33 @@ Toggle_Panel :: struct {
 
 toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	toggle := cast(^Toggle_Panel) element
+	MARGIN :: 0
 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
 
 			bounds := element.bounds
-			render_rect(target, bounds, RED)
 
 			text_height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			render_rect(target, bounds, theme.background[1], ROUNDNESS)
+
 			top := rect_cut_top(&bounds, f32(text_height))
+			fcs_ahv(.Left, .Middle)
+			fcs_color(theme.text_default)
+			fcs_icon()
+
+			hovered := element.window.hovered == element
+			pressed := element.window.pressed == element
+			if hovered {
+				// render_hovered_highlight(target, top)
+			}
+
+			top.l += math.round(MARGIN * SCALE)
+			icon: Icon = (.Hide in toggle.panel.flags) ? .Simple_Right : .Simple_Down
+			top.l += math.round(render_icon_rect(target, top, icon) + 5 * SCALE)
+			
 			fcs_element(toggle)
-			fcs_ahv()
 			text := strings.to_string(toggle.builder)
 			render_string_rect(target, top, text)
 		}
@@ -3180,7 +3194,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			bounds := element.bounds
 			text_height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 			bounds.t += f32(text_height)
-			element_move(toggle.panel, bounds)
+			element_move(toggle.panel, rect_margin(bounds, MARGIN * SCALE))
 		}
 
 		case .Update: {
@@ -3203,7 +3217,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
 			
 			if .Hide not_in toggle.panel.flags {
-				height += element_message(toggle.panel, .Get_Height)
+				height += element_message(toggle.panel, .Get_Height) + MARGIN * 2
 			}
 
 			return height
@@ -3225,6 +3239,7 @@ toggle_panel_init :: proc(
 	flags: Element_Flags, 
 	panel_flags: Element_Flags, 
 	text: string,
+	hide: bool = false,
 	message_user: Message_Proc = nil,
 	allocator := context.allocator,
 ) -> (res: ^Toggle_Panel) {
@@ -3234,5 +3249,6 @@ toggle_panel_init :: proc(
 	res.panel = panel_init(res, panel_flags)
 	strings.write_string(&res.builder, text)
 	res.message_user = message_user
+	element_hide(res.panel, hide)
 	return
 }

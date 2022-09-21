@@ -811,7 +811,7 @@ render_icon_rect :: proc(
 		render_glyph_quad(target, group, state, &q)
 	}
 
-  return x
+  return q.x1 - q.x0
 }
 
 render_texture_from_kind :: proc(

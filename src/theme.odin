@@ -154,7 +154,7 @@ theme_editor_spawn :: proc() {
 		return
 	}
 
-	window := window_init(nil, {}, "Todool Theme Editor", i32(800 * SCALE), 900)
+	window := window_init(nil, {}, "Todool Theme Editor", i32(700 * SCALE), 700)
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		#partial switch msg {
 			case .Key_Combination: {
@@ -202,29 +202,29 @@ theme_editor_spawn :: proc() {
 						}
 					}
 
-					case "up": {
-						using theme_editor
+					// case "up": {
+					// 	using theme_editor
 
-						if panel_selected_index > 0 {
-							panel_selected_index -= 1
-							window.update_next = true
-							p := theme_editor.panel_list[panel_selected_index]
-							scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, true)
-						}
-					}
+					// 	if panel_selected_index > 0 {
+					// 		panel_selected_index -= 1
+					// 		window.update_next = true
+					// 		p := theme_editor.panel_list[panel_selected_index]
+					// 		scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, true)
+					// 	}
+					// }
 
-					case "down": {
-						using theme_editor
-						color_amount := size_of(Theme) / size_of(Color)
+					// case "down": {
+					// 	using theme_editor
+					// 	color_amount := size_of(Theme) / size_of(Color)
 						
-						if panel_selected_index < color_amount - 1 {
-							panel_selected_index += 1
+					// 	if panel_selected_index < color_amount - 1 {
+					// 		panel_selected_index += 1
 
-							p := theme_editor.panel_list[panel_selected_index]
-							scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, false)
-							window.update_next = true
-						}
-					}
+					// 		p := theme_editor.panel_list[panel_selected_index]
+					// 		scrollbar_panel_keep_in_frame(theme_editor.scrollbar, .Vertical, p.bounds, false)
+					// 		window.update_next = true
+					// 	}
+					// }
 
 					case "space": {
 						p := theme_selected_panel()
@@ -251,14 +251,11 @@ theme_editor_spawn :: proc() {
 
 	theme_editor.scrollbar = scrollbar_init(&window.element, {})
 
-	theme_editor.panel = panel_init(theme_editor.scrollbar, { .Panel_Default_Background })
+	theme_editor.panel = panel_init(theme_editor.scrollbar, { .Panel_Default_Background }, 0, 5)
 	theme_editor.panel.margin = 10
 	
 	label := label_init(theme_editor.panel, {}, "Theme Editor")
 	label.font_options = &font_options_header
-
-	SPACER_WIDTH :: 20
-	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	
 	Color_Pair :: struct {
 		color: ^Color,
@@ -347,58 +344,76 @@ theme_editor_spawn :: proc() {
 	}
 
 	p := theme_editor.panel
-	color_slider(p, &theme.background[0], "background 0")
-	color_slider(p, &theme.background[1], "background 1")
-	color_slider(p, &theme.background[2], "background 2")
-	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(p, &theme.panel[0], "panel parent")
-	color_slider(p, &theme.panel[1], "panel front")
-	color_slider(p, &theme.shadow, "shadow")
-	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(p, &theme.text_default, "text default")
-	color_slider(p, &theme.text_blank, "text blank")
-	color_slider(p, &theme.text_good, "text good")
-	color_slider(p, &theme.text_bad, "text bad")
-	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
-	color_slider(p, &theme.caret, "caret")
-	color_slider(p, &theme.caret_highlight, "caret highlight")
-	color_slider(p, &theme.caret_selection, "caret selection")
-	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
-	
-	for i in 0..<8 {
-		color_slider(p, &theme.tags[i], fmt.tprintf("tag %d", i))
-	}
-
-	spacer_init(p, { .HF }, 0, SPACER_WIDTH, .Thin)
-	bot_panel := panel_init(p, { .Panel_Horizontal, .HF })
-
-	picker := color_picker_init(bot_panel, {}, 0)
-	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		sv := cast(^Color_Picker_SV) element
-
-		if msg == .Value_Changed {
-			hue := cast(^Color_Picker_HUE) element.parent.children[1]
-			p := theme_selected_panel()
-			color_mod := cast(^Color) p.data
-			
-			output := color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
-			color_mod^ = output
-
-			theme_reformat_panel_sliders(p)
-			gs_update_all_windows()
-		}
-
-		return 0
-	}
-	theme_editor.picker = picker
-	theme_editor.panel.data = picker
-	window.element.data = picker
+	SPACER_WIDTH :: 20
+	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	
 	{
-		right_panel := panel_init(bot_panel, { .HF })
+		t := toggle_panel_init(p, { .HF }, {}, "Background", true)
+		color_slider(t.panel, &theme.background[0], "background 0")
+		color_slider(t.panel, &theme.background[1], "background 1")
+		color_slider(t.panel, &theme.background[2], "background 2")
+	}
+	
+	{
+		t := toggle_panel_init(p, { .HF }, {}, "Panel", true)
+		color_slider(t.panel, &theme.panel[0], "panel parent")
+		color_slider(t.panel, &theme.panel[1], "panel front")
+		color_slider(t.panel, &theme.shadow, "shadow")
+	}
 
+	{
+		t := toggle_panel_init(p, { .HF }, {}, "Text", true)
+		color_slider(t.panel, &theme.text_default, "text default")
+		color_slider(t.panel, &theme.text_blank, "text blank")
+		color_slider(t.panel, &theme.text_good, "text good")
+		color_slider(t.panel, &theme.text_bad, "text bad")
+	}
 
-		button_panel := panel_init(right_panel, { .Panel_Default_Background, .Panel_Horizontal }, 5, 0)
+	{
+		t := toggle_panel_init(p, { .HF }, {}, "Caret", true)
+		color_slider(t.panel, &theme.caret, "caret")
+		color_slider(t.panel, &theme.caret_highlight, "caret highlight")
+		color_slider(t.panel, &theme.caret_selection, "caret selection")
+	}
+	
+	{
+		t := toggle_panel_init(p, { .HF }, {}, "Tags", true)
+		for i in 0..<8 {
+			color_slider(t.panel, &theme.tags[i], fmt.tprintf("tag %d", i))
+		}
+	}
+
+	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	{
+		panel := panel_init(p, { .HF })
+		picker := color_picker_init(panel, {}, 0)
+		picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			sv := cast(^Color_Picker_SV) element
+
+			if msg == .Value_Changed {
+				hue := cast(^Color_Picker_HUE) element.parent.children[1]
+				p := theme_selected_panel()
+				color_mod := cast(^Color) p.data
+				
+				output := color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
+				color_mod^ = output
+
+				theme_reformat_panel_sliders(p)
+				gs_update_all_windows()
+			}
+
+			return 0
+		}
+		theme_editor.picker = picker
+		theme_editor.panel.data = picker
+		window.element.data = picker
+	}
+	
+	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	{
+		panel_current := panel_init(p, { .HF })
+
+		button_panel := panel_init(panel_current, { .Panel_Default_Background, .Panel_Horizontal }, 5, 0)
 		button_panel.background_index = 1
 		button_panel.rounded = true
 
@@ -482,17 +497,17 @@ theme_editor_spawn :: proc() {
 		}
 		using theme_editor
 
-		p1 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
+		p1 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
 		label_init(p1, {}, "Hue", LABEL_WIDTH)
 		checkbox_hue = checkbox_init(p1, {}, "USE", true)
 		push_sliders(p1, &slider_hue_static, &slider_hue_low, &slider_hue_high, 0, 0, 1)
 		
-		p2 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
+		p2 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
 		label_init(p2, {}, "Saturation", LABEL_WIDTH)
 		checkbox_sat = checkbox_init(p2, {}, "USE", true)
 		push_sliders(p2, &slider_sat_static, &slider_sat_low, &slider_sat_high, 1, 0.5, 0.75)
 		
-		p3 := panel_init(right_panel, { .Panel_Horizontal }, 5, 5)
+		p3 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
 		label_init(p3, {}, "Value", LABEL_WIDTH)
 		checkbox_value = checkbox_init(p3, {}, "USE", true)
 		push_sliders(p3, &slider_value_static, &slider_value_low, &slider_value_high, 1, 0.5, 1)

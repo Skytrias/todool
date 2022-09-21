@@ -784,6 +784,13 @@ get_vertical_align :: proc(
 	return
 }
 
+valign :: proc(ctx: ^Font_Context) -> f32 {
+	state := state_get(ctx)
+	font := font_get(ctx, state.font)
+	isize := i16(state.size * 10)
+	return math.round(get_vertical_align(font, isize, state.av))
+}
+
 //////////////////////////////////////////////
 // line wrapping helpers
 //////////////////////////////////////////////
