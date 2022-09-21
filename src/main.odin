@@ -23,15 +23,10 @@ ALLOW_SCALE :: true
 //visual highlight parents only
 //task dragging looks like shit
 
-//BUGS
-//line breaks for long word dont work
-
 //~~~~~TODO~~~~~
+//left sidebar doesnt scale nicely
 //header button to fold items, Theme editor
 //allow scrolling while dragging or panning
-//camera offset x bug zooming into distance
-//camera offset x jiggling in kanban when too small
-//camera offsetting without animations should work
 //image display options
 //better image zoom/control mode
 //scrollbar or minimap on mode_panel
@@ -56,6 +51,7 @@ ALLOW_SCALE :: true
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again
+//wrapping words corretly that are bigger than the width limit itself
 //menus automatically close when dialogs (exit) start
 //theme editor color "button" preview crash fixed
 //theme editor color picker value dragging and hue slider
@@ -71,6 +67,9 @@ ALLOW_SCALE :: true
 //task paste tasks replacing existing tasks till empty crash fixed
 //task paste into empty file
 //camera crash on empty file
+//camera works with global scale now -> no jiggle when scaled in kanban
+//camera offsetting on animations-disabled fixed to end directly
+//option "invert_y" scroll direction works again
 
 //~~~~~TWEAKS~~~~~
 //text strike-through y position adjusted
@@ -82,12 +81,16 @@ main2 :: proc() {
 	window := window_init(nil, {}, "Todool", 900, 900)
 	window_main = window
 
-	tp := toggle_panel_init(&window_main.element, { .HF, .VF }, {}, "Testing")
-	tp.panel.color = BLUE
+	panel := panel_init(&window.element, {}, 5)
 
-	for i in 0..<10 {
-		text := fmt.tprintf("Text %d", i)
-		button_init(tp.panel, { .HF }, text)
+	for i in 0..<3 {
+		tp := toggle_panel_init(panel, { .HF }, {}, "Testing")
+		tp.panel.color = i == 0 ? BLUE : GREEN
+
+		for i in 0..<10 {
+			text := fmt.tprintf("Text %d", i)
+			button_init(tp.panel, { .HF }, text)
+		}
 	}
 
 	gs_update_after_load()

@@ -28,8 +28,8 @@ HOVER_WIDTH :: 100
 
 scaling_set :: proc(value: f32) {
 	SCALE = value
-	LINE_WIDTH = max(2, 2 * SCALE)
-	ROUNDNESS = 5 * SCALE
+	LINE_WIDTH = math.round(max(2, 2 * SCALE))
+	ROUNDNESS = math.round(5 * SCALE)
 }
 
 Font :: fontstash.Font

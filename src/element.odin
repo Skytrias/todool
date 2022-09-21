@@ -3160,7 +3160,6 @@ Toggle_Panel :: struct {
 
 toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	toggle := cast(^Toggle_Panel) element
-	LABEL_HEIGHT :: 50
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -3169,40 +3168,18 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			bounds := element.bounds
 			render_rect(target, bounds, RED)
 
-			// pressed := element.window.pressed == element
-			// hovered := element.window.hovered == element
-
-			// text_color := hovered || pressed ? theme.text_default : theme.text_blank
-
-			// if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
-			// 	if res == 1 {
-			// 		rect := element.bounds
-			// 		// rect.l = rect.r - (4 * SCALE)
-			// 		rect.r = rect.l + (4 * SCALE)
-			// 		render_rect(target, rect, text_color, 0)
-			// 	}
-			// }
-
-			// if hovered || pressed {
-			// 	render_rect_outline(target, element.bounds, text_color)
-			// 	render_hovered_highlight(target, element.bounds)
-			// }
-
-			top := rect_cut_top(&bounds, LABEL_HEIGHT)
+			text_height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			top := rect_cut_top(&bounds, f32(text_height))
 			fcs_element(toggle)
 			fcs_ahv()
 			text := strings.to_string(toggle.builder)
 			render_string_rect(target, top, text)
-
-			// custom paint the panel
-			render_element_clipped(target, toggle.panel)
-
-			return 1
 		}
 
 		case .Layout: {
 			bounds := element.bounds
-			bounds.t += LABEL_HEIGHT
+			text_height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			bounds.t += f32(text_height)
 			element_move(toggle.panel, bounds)
 		}
 
@@ -3216,28 +3193,28 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Clicked: {
 			element_hide_toggle(toggle.panel)
-
-			// TODO folding
-			// if button.invoke != nil {
-			// 	button.invoke(button.data)
-			// }
 		}
 
 		case .Get_Cursor: {
 			return int(Cursor.Hand)
 		}
 
-		// case .Get_Width: {
-		// 	fcs_element(element)
-		// 	text := strings.to_string(toggle.builder)
-		// 	width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+		case .Get_Height: {
+			height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			
+			if .Hide not_in toggle.panel.flags {
+				height += element_message(toggle.panel, .Get_Height)
+			}
 
-		// 	return int(width)
-		// }
+			return height
+		}
 
-		// case .Get_Height: {
-		// 	return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
-		// }
+		case .Get_Width: {
+			fcs_element(element)
+			text := strings.to_string(toggle.builder)
+			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			return int(width)
+		}
 	}
 
 	return 0

@@ -829,9 +829,16 @@ wrap_format_to_lines :: proc(
 		
 		if width_line > width_limit {
 			if !unicode.is_space(iter.codepoint) {
-				append(lines, text[index_line_start:index_word_start])
-				index_line_start = index_word_start
-				width_line = width_word
+				// when full word is longer than limit, just seperate like whitespace
+				if width_word > width_limit {
+					append(lines, text[index_line_start:iter.byte_offset])
+					index_line_start = iter.byte_offset
+					width_line = 0
+				} else {
+					append(lines, text[index_line_start:index_word_start])
+					index_line_start = index_word_start
+					width_line = width_word
+				}
 			} else {
 				append(lines, text[index_line_start:iter.byte_offset])
 				index_line_start = iter.byte_offset

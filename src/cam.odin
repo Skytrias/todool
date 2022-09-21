@@ -1,5 +1,6 @@
 package src
 
+import "core:fmt"
 import "core:log"
 import "core:math"
 
@@ -45,7 +46,7 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 	}
 
 	real_goal := direction == CAM_CENTER ? goal : math.floor(off^ + f32(direction) * goal)
-	// log.info("real_goal", x ? "x" : "y", direction == 0, real_goal, off^)
+	// fmt.eprintln("real_goal", x ? "x" : "y", direction == 0, real_goal, off^, direction)
 	res := animate_to(
 		&animating,
 		off,
@@ -57,7 +58,7 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 	lerp^ = res ? lerp^ + 0.5 : 1
 
 	// if !res {
-	// 	log.info("done", x ? "x" : "y", off^, goal)
+	// 	fmt.eprintln("done", x ? "x" : "y", off^, goal)
 	// }
 
 	return res
@@ -74,18 +75,21 @@ cam_bounds_check_y :: proc(
 		return
 	}
 
-	to_top := to_top * SCALE
-	to_bottom := to_bottom * SCALE
-
 	if to_top < focus.t + cam.margin_y {
 		goal = math.round(focus.t - to_top + cam.margin_y)
-		direction = 1
-		return
+	
+		if goal != 0 {
+			direction = 1
+			return
+		}
 	} 
 
 	if to_bottom > focus.b - cam.margin_y {
 		goal = math.round(to_bottom - focus.b + cam.margin_y)
-		direction = -1
+
+		if goal != 0 {
+			direction = -1
+		}
 	}
 
 	return
@@ -97,22 +101,25 @@ cam_bounds_check_x :: proc(
 	to_left: f32,
 	to_right: f32,
 ) -> (goal: f32, direction: int) {
-	if cam.margin_x * 2 > rect_width(focus) {
+	if cam.margin_x * 2 >= rect_width(focus) {
 		return
 	}
 
-	to_left := to_left * SCALE
-	to_right := to_right * SCALE
-
 	if to_left < focus.l + cam.margin_x {
 		goal = math.round(focus.l - to_left + cam.margin_x)
-		direction = 1
-		return
+
+		if goal != 0 {
+			direction = 1
+			return
+		}
 	} 
 
-	if to_right > focus.r - cam.margin_x {
+	if to_right >= focus.r - cam.margin_x {
 		goal = math.round(to_right - focus.r + cam.margin_x)
-		direction = -1
+		
+		if goal != 0 {
+			direction = -1
+		}
 	}
 
 	return
@@ -161,9 +168,7 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 
 	switch mode_panel.mode {
 		case .List: {
-			// if !options_wrapping() {
-				goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
-			// }
+			goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
 		}
 
 		case .Kanban: {
@@ -182,16 +187,19 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 				if rect_width(t.kanban_rect) < rect_width(mode_panel.bounds) - cam.margin_x * 2 {
 					to_left = t.kanban_rect.l
 					to_right = t.kanban_rect.r
-				}
-
-				goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
+				} 
 			}
+
+			goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
 		}
 	} 
 
 	if check_stop {
 		if direction == 0 {
 			cam.ax.animating = false
+			// fmt.eprintln("FORCE STOP")
+		} else {
+			// fmt.eprintln("HAD DIRECTION X", goal, direction)
 		}
 	} else if direction != 0 {
 		element_animation_start(mode_panel)

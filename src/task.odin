@@ -1303,27 +1303,20 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			handled |= y_handled
 
 			// check y afterwards
-			if y_handled {
-				goal_y, direction_y := cam_bounds_check_y(cam, mode_panel.bounds, caret_rect.t, caret_rect.b)
+			goal_y, direction_y := cam_bounds_check_y(cam, mode_panel.bounds, caret_rect.t, caret_rect.b)
 
-				if cam.ay.direction != CAM_CENTER && direction_y == 0 {
-					cam.ay.animating = false
-				}
+			if cam.ay.direction != CAM_CENTER && direction_y == 0 {
+				cam.ay.animating = false
 			}
 
 			x_handled := cam_animate(cam, true)
 			handled |= x_handled
 
 			// check x afterwards
-			if x_handled {
-				mode_panel_cam_bounds_check_x(true)
-			}
+			// NOTE just check this everytime due to inconsistency
+			mode_panel_cam_bounds_check_x(true)
 
-			// if !handled {
-			// 	log.info("-----------------------")
-			// }
-
-			// log.info("animating!", handled, cam.offset_y, cam.animation_y_goal, cam.animation_y_direction)
+			// fmt.eprintln("animating!", handled, cam.offset_y, cam.offset_x)
 			return int(handled)
 		}
 	}
