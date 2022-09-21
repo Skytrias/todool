@@ -1,5 +1,7 @@
 package src
 
+import "core:math"
+
 Rect :: struct {
 	l, r, t, b: f32,
 }
@@ -195,4 +197,13 @@ rect_cut_out_rect :: proc(a, b: Rect) -> (res: [4]Rect) {
 	res[3] = last
 	res[3].l = b.r
 	return
+}
+
+rect_rounded :: proc(using a: Rect) -> Rect {
+	return {
+		math.round(l),
+		math.round(r),
+		math.round(t),
+		math.round(b),
+	}
 }

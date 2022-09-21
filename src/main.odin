@@ -24,6 +24,7 @@ ALLOW_SCALE :: true
 //task dragging looks like shit
 
 //~~~~~TODO~~~~~
+//drag 100px away from origin in circle to drag out
 //always on top option, needs SDL 2.0.16
 //left sidebar doesnt scale nicely
 //allow scrolling while dragging or panning

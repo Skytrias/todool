@@ -60,6 +60,7 @@ task_multi_context: bool
 drag_list: [dynamic]^Task
 drag_running: bool
 drag_index_at: int
+drag_goals: [3][2]f32
 
 // dirty file
 dirty := 0
@@ -1181,20 +1182,26 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_underline(target, drag_task.bounds, theme.text_default)
 			}
 
+			// render dragged tasks
 			if drag_running {
 				render_push_clip(target, panel.clip)
 
 				texture := &target.textures[.Drag]
 				width := math.round(100 * SCALE)
 				height := math.round(100 * SCALE)
-				rect := rect_wh(
-					element.window.cursor_x - f32(width / 2),
-					element.window.cursor_y - f32(height / 2),
-					width,
-					height,
-				)
+				x := element.window.cursor_x - f32(width / 2)
+				y := element.window.cursor_y - f32(height / 2)
 
-				render_texture_from_kind(target, .Drag, rect, WHITE)
+				for i := 2; i >= 0; i -= 1 {
+					pos := &drag_goals[i]
+					state := true
+					goal_x := math.round(x + f32(i) * 5 * SCALE)
+					goal_y := math.round(y + f32(i) * 5 * SCALE)
+					animate_to(&state, &pos.x, goal_x, 1 - f32(i) * 0.1)
+					animate_to(&state, &pos.y, goal_y, 1 - f32(i) * 0.1)
+					r := rect_rounded(rect_wh(pos.x, pos.y, width, height))
+					render_texture_from_kind(target, .Drag, r, theme_panel(.Front))
+				}
 			}
 
 			// draw the fullscreen image on top

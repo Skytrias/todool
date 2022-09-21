@@ -36,6 +36,10 @@ float sdArc(in vec2 p, in vec2 sc, in float ra, float rb) {
 	return (sc.y*p.x > sc.x*p.y) ? length(p - ra*sc) - rb : abs(length(p) - ra) - rb;
 }
 
+float sdCircle(vec2 p, float r) {
+	return length(p)-r;
+}
+
 float sigmoid(float t) {
 	return 1.0 / (1.0 + exp(-t));
 }
@@ -44,12 +48,13 @@ float sigmoid(float t) {
 #define RK_Rect uint(1)
 #define RK_Glyph uint(2)
 #define RK_Drop_Shadow uint(3)
-#define RK_SV uint(4)
-#define RK_HUE uint(5)
-#define RK_Kanban uint(6)
-#define RK_List uint(7)
-#define RK_Drag uint(8)
-#define RK_TEXTURE uint(9)
+#define RK_Circle uint(4)
+#define RK_SV uint(5)
+#define RK_HUE uint(6)
+#define RK_Kanban uint(7)
+#define RK_List uint(8)
+#define RK_Drag uint(9)
+#define RK_TEXTURE uint(10)
 
 void main(void) {
 	vec4 color_goal = v_color;
@@ -88,6 +93,11 @@ void main(void) {
 		color_goal = u_shadow_color;
 		color_goal.a = drop_alpha;
 		color_goal = mix(color_goal, v_color, rect_alpha);
+	} else if (v_kind == RK_Circle) {
+		float distance = sdCircle(v_pos - v_uv, v_roundness / 2);
+
+		float alpha = 1.0 - smoothstep(-1.0, 0.0, distance);
+		color_goal.a *= alpha;		
 	} else if (v_kind == RK_SV) {
 		vec4 texture_color = texture(u_sampler_sv, v_uv);
 		color_goal = mix(color_goal, texture_color, texture_color.a);

@@ -69,7 +69,6 @@ Render_Target :: struct {
 	attribute_uv: u32,
 	attribute_color: u32,
 	attribute_roundness_and_thickness: u32,
-	// attribute_additional: u32,
 	attribute_kind: u32,
 
 	// texture atlas
@@ -114,6 +113,7 @@ Render_Kind :: enum u32 {
 	Rectangle,
 	Glyph,
 	Drop_Shadow,
+	Circle,
 	SV,
 	HUE,
 	Texture,
@@ -160,7 +160,6 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	attribute_uv = u32(gl.GetAttribLocation(shader_program, "i_uv"))
 	attribute_color = u32(gl.GetAttribLocation(shader_program, "i_color"))
 	attribute_roundness_and_thickness = u32(gl.GetAttribLocation(shader_program, "i_roundness_and_thickness"))
-	// attribute_additional = u32(gl.GetAttribLocation(shader_program, "i_additional"))
 	attribute_kind = u32(gl.GetAttribLocation(shader_program, "i_kind"))
 
 	gl.GenVertexArrays(1, &vao)
@@ -180,7 +179,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	texture_generate_from_png(res, .HUE, png_hue, "_hue")
 	texture_generate_from_png(res, .Kanban, png_mode_icon_kanban, "_kanban")
 	texture_generate_from_png(res, .List, png_mode_icon_list, "_list")
-	texture_generate_from_png(res, .Drag, png_mode_icon_drag, "_drag")
+	texture_generate_from_png(res, .Drag, png_mode_icon_drag, "_drag", gl.LINEAR)
 
 	res.shallow_uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_custom")
 	// log.info("bind slots", gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)
@@ -386,6 +385,40 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
 // }
 
 // no
+render_circle :: proc(
+	target: ^Render_Target,
+	x_origin, y_origin: f32,
+	radius: f32,
+	color: Color,
+	centered := false,
+) {
+	group := &target.groups[len(target.groups) - 1]
+	vertices := render_target_push_vertices(target, group, 6)
+	
+	x := x_origin - (centered ? radius / 2 : 0)
+	y := y_origin - (centered ? radius / 2 : 0)
+	xx := x + radius
+	yy := y + radius
+	vertices[0].pos_xy = { x, y }
+	vertices[1].pos_xy = { xx, y }
+	vertices[2].pos_xy = { x, yy }
+	
+	vertices[3].pos_xy = { xx, y }
+	vertices[4].pos_xy = { x, yy }
+	vertices[5].pos_xy = { xx, yy }
+
+	center_x, center_y := x_origin + (centered ? 0 : radius / 2), y_origin + (centered ? 0 : radius / 2)
+	
+	// TODO: SPEED UP
+	for i in 0..<6 {
+		vertices[i].uv_xy = { center_x, center_y }
+		vertices[i].color = color
+		vertices[i].kind = .Circle
+		vertices[i].roundness = u16(radius)
+	}
+}
+
+// no
 render_rect :: proc(
 	target: ^Render_Target,
 	rect: Rect, 
@@ -513,6 +546,7 @@ texture_generate :: proc(
 	target: ^Render_Target, 
 	kind: Texture_Kind, 
 	mode := i32(gl.CLAMP_TO_EDGE),
+	param := i32(gl.NEAREST),
 ) {
 	texture := &target.textures[kind]
 	using texture 
@@ -540,8 +574,8 @@ texture_generate :: proc(
 	)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, mode)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, mode)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, param)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, param)
 	
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	return
