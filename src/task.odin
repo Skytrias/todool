@@ -58,8 +58,6 @@ task_multi_context: bool
 
 // drag state
 drag_list: [dynamic]^Task
-drag_panel: ^Panel_Floaty
-drag_label: ^Label
 drag_running: bool
 drag_index_at: int
 
@@ -76,41 +74,6 @@ Custom_Split :: struct {
 	using element: Element,
 	
 	image_display: ^Image_Display, // fullscreen display
-}
-
-drag_init :: proc(window: ^Window) {
-	floaty := panel_floaty_init(&window.element, { .Panel_Default_Background })
-	floaty.x = 0
-	floaty.y = 0
-	floaty.z_index = 200
-	p := floaty.panel
-	p.flags |= { .Panel_Expand }
-	p.margin = 10
-	p.background_index = 2
-	p.rounded = true
-	p.shadow = true
-	floaty.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		floaty := cast(^Panel_Floaty) element
-
-		#partial switch msg {
-			case .Layout: {
-				floaty.x = element.window.cursor_x - 10
-				floaty.y = element.window.cursor_y - 10
-				floaty.width = 50 * SCALE
-				floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
-			}
-
-			case .Animate: {
-				return int(drag_running)
-			}
-		}
-
-		return 0
-	}
-	
-	drag_label = label_init(p, { .Label_Center }, "3x")
-	drag_panel = floaty
-	element_hide(floaty, true)
 }
 
 // simply write task text with indentation into a builder
@@ -523,7 +486,6 @@ task_head_tail_check_end :: proc() {
 	}
 }
 
-// 
 bookmark_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -1219,6 +1181,22 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_underline(target, drag_task.bounds, theme.text_default)
 			}
 
+			if drag_running {
+				render_push_clip(target, panel.clip)
+
+				texture := &target.textures[.Drag]
+				width := math.round(100 * SCALE)
+				height := math.round(100 * SCALE)
+				rect := rect_wh(
+					element.window.cursor_x - f32(width / 2),
+					element.window.cursor_y - f32(height / 2),
+					width,
+					height,
+				)
+
+				render_texture_from_kind(target, .Drag, rect, WHITE)
+			}
+
 			// draw the fullscreen image on top
 			if image_display_has_content(custom_split.image_display) {
 				render_push_clip(target, panel.clip)
@@ -1299,6 +1277,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Animate: {
 			handled := false
 
+			if drag_running {
+				handled = true
+			}
+
 			y_handled := cam_animate(cam, false)
 			handled |= y_handled
 
@@ -1348,30 +1330,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			x := box.bounds.l
 			y := box.bounds.t
-
-			// // draw the search results outline
-			// if draw_search_results && len(task.search_results) != 0 {
-			// 	fcs_element(task)
-
-			// 	for res in task.search_results {
-			// 		state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines[:], int(res.low), int(res.high))
-			// 		scaled_size := f32(state.isize / 10)
-
-			// 		for fontstash.wrap_state_iter(&gs.fc, &state) {
-			// 			rect := Rect {
-			// 				x + state.x_from,
-			// 				x + state.x_to,
-			// 				y + f32(state.y - 1) * scaled_size,
-			// 				y + f32(state.y) * scaled_size,
-			// 			}
-						
-			// 			color := search_index == search_draw_index ? theme.text_good : theme.text_bad
-			// 			render_rect_outline(target, rect, color, 0)
-			// 		}
-
-			// 		search_draw_index += 1
-			// 	}
-			// }
 
 			// strike through line
 			if task.state == .Canceled {
@@ -2277,16 +2235,9 @@ task_dragging_check_start :: proc(task: ^Task) -> bool {
 		task_tail = low
 	}
 
-	{
-		b := &drag_label.builder
-		strings.builder_reset(b)
-		fmt.sbprintf(b, "%dx", len(drag_list))
-
-		drag_running = true
-		drag_index_at = -1
-		element_hide(drag_panel, false)
-		element_animation_start(drag_panel)
-	}
+	drag_running = true
+	drag_index_at = -1
+	element_animation_start(mode_panel)
 
 	return true
 }
@@ -2297,7 +2248,7 @@ task_dragging_end :: proc() -> bool {
 	}
 
 	drag_running = false
-	element_hide(drag_panel, true)
+	element_animation_stop(mode_panel)
 	force_push := task_head == -1
 
 	// remove task on invalid

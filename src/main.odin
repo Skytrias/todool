@@ -358,7 +358,6 @@ main :: proc() {
 	task_panel_init(sb.split)
 
 	goto_init(window) 
-	drag_init(window)
 
 	if loaded := json_load_misc("save.sjson"); loaded {
 		log.info("JSON: Load Successful")
