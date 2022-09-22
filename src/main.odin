@@ -21,19 +21,14 @@ ALLOW_SCALE :: true
 //~~~~~VISUAL STYLING~~~~~
 //allow doing a single white background -> issue with wrapped content, maybe dotted outline
 //visual highlight parents only
-//task dragging looks like shit
 
 //~~~~~TODO~~~~~
-//animate drag_index_at rect
+//scrollbar or minimap on mode_panel
 //better link detection, maybe scan words once, then on text insertion or undo
-//cam scroll in direction where drag mouse is at
-//task drag highlight 100px away from origin in circle to drag out
 //always on top option, needs SDL 2.0.16
 //left sidebar doesnt scale nicely
-//allow scrolling while dragging or panning
 //image display options
 //better image zoom/control mode
-//scrollbar or minimap on mode_panel
 
 //system to force push new keybindings for a patch
 //keymap setting window
@@ -45,16 +40,19 @@ ALLOW_SCALE :: true
 //text based format
 
 //~~~~~DONE~~~~~
-//paste_from_clipboard extracts tab information
 //shift_right opens folded content
 //Commands
 //	"select_children" ctrl+h -> selects children, opens folded task, rotates head / tail
-//task dynamic data properly deallocated
-//refactored search internals to be more memory effecient
+//	"paste_from_clipboard" now extracts tab information
 //task allocation strategy changed -> fixed leaks
-//save files get written to temp file again in case of errors, then renamed
-//added foldable header panels for theme editor
-//task dragging floating icon
+//refactored search internals to be more memory effecient
+//save files get written to a temp file again in case of errors, then renamed
+//theme editor has foldable header panels
+//task dragging 
+//	visuals polished + animations
+//	floating icons
+//	camera scrolls in mouse direction
+//	circle outline visualized when pulling tasks out
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again
@@ -80,6 +78,7 @@ ALLOW_SCALE :: true
 
 //~~~~~TWEAKS~~~~~
 //text strike-through y position adjusted
+//shadow offset slightly
 
 main2 :: proc() {
 	gs_init()
@@ -317,6 +316,28 @@ main :: proc() {
 					task.indentation_animating = true
 					element_animation_start(task)
 				}
+			}
+		}
+
+		// shadow animation
+		{
+			// animate up
+			if 
+				task_head != task_tail &&
+				!task_shadow_alpha_animating && 
+				task_shadow_alpha == 0 {
+				// task_shadow_alpha 
+				task_shadow_alpha_animating = true
+				element_animation_start(mode_panel)
+			}
+
+			// animate down
+			if 
+				task_head == task_tail &&
+				!task_shadow_alpha_animating && 
+				task_shadow_alpha != 0 {
+				task_shadow_alpha_animating = true
+				element_animation_start(mode_panel)
 			}
 		}
 

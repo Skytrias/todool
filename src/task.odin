@@ -56,12 +56,20 @@ old_task_tail := 0
 tasks_visible: [dynamic]^Task
 task_multi_context: bool
 
+// shadowing
+TASK_SHADOW_ALPHA :: 0.5
+task_shadow_alpha: f32
+task_shadow_alpha_animating: bool
+
 // drag state
 drag_list: [dynamic]^Task
 drag_running: bool
 drag_index_at: int
 drag_goals: [3][2]f32
 drag_rect_lerp: Rect
+drag_circle: bool
+drag_circle_pos: [2]f32
+DRAG_CIRCLE :: 30
 
 // dirty file
 dirty := 0
@@ -368,7 +376,6 @@ Mode :: enum {
 	// Agenda,
 }
 KANBAN_WIDTH :: 300
-KANBAN_MARGIN :: 10
 
 // element to custom layout based on internal mode
 Mode_Panel :: struct {
@@ -380,7 +387,6 @@ Mode_Panel :: struct {
 	gap_horizontal: f32,
 
 	cam: [Mode]Pan_Camera,
-	kanban_outlines: [dynamic]Rect,
 }
 
 // scoped version so you dont forget to call
@@ -695,7 +701,6 @@ mode_panel_init :: proc(
 	allocator := context.allocator,
 ) -> (res: ^Mode_Panel) {
 	res = element_init(Mode_Panel, parent, flags, mode_panel_message, allocator)
-	res.kanban_outlines = make([dynamic]Rect, 0, 64)
 
 	cam_init(&res.cam[.List], 100, 100)
 	cam_init(&res.cam[.Kanban], 100, 100)
@@ -894,25 +899,6 @@ task_children_range :: proc(parent: ^Task) -> (low, high: int) {
 	return
 }
 
-// task_gather_children_strict :: proc(
-// 	parent: ^Task, 
-// 	allocator := context.temp_allocator,
-// ) -> (res: [dynamic]^Task) {
-// 	res = make([dynamic]^Task, 0, 32)
-
-// 	for i in parent.index + 1..<len(mode_panel.children) {
-// 		task := cast(^Task) mode_panel.children[i]
-
-// 		if task.indentation == parent.indentation + 1 {
-// 			append(&res, task)
-// 		} else if task.indentation < parent.indentation {
-// 			break
-// 		}
-// 	}
-
-// 	return
-// }
-
 //////////////////////////////////////////////
 // messages
 //////////////////////////////////////////////
@@ -941,7 +927,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 	#partial switch msg {
 		case .Destroy: {
 			tasks_eliminate_wanted_clear_tasks(panel)
-			delete(panel.kanban_outlines)
 		}
 
 		case .Find_By_Point_Recursive: {
@@ -975,8 +960,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Layout: {
 			bounds := element.bounds
 
-			bounds.l += cam.offset_x
-			bounds.t += cam.offset_y
+			bounds.l += math.round(cam.offset_x)
+			bounds.t += math.round(cam.offset_y)
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
 			do_wrap := (panel.mode == .List && options_wrapping()) || panel.mode == .Kanban
 
@@ -1006,7 +991,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				case .Kanban: {
 					cut := bounds
-					clear(&panel.kanban_outlines)
 					
 					// cutoff a rect left
 					kanban_current: Rect
@@ -1026,7 +1010,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 								rect := kanban_current
 								rect.b = rect.t
 								rect.t = bounds.t
-								append(&panel.kanban_outlines, rect)
+								// append(&panel.kanban_outlines, rect)
 							}
 
 							// get max indentations till same line is found
@@ -1055,7 +1039,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							// NOTE has to be hard cut because of panning
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
-							cut.l += panel.gap_horizontal * SCALE + KANBAN_MARGIN * 2 * SCALE
+							cut.l += panel.gap_horizontal * SCALE
 						}
 
 						// pseudo layout for correct witdth
@@ -1070,14 +1054,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						if i - kanban_children_start < kanban_children_count - 1 {
 							kanban_current.t += gap_vertical_scaled
 						}
-					}
-
-					if kanban_current != {} {
-						rect := kanban_current
-						rect.b = rect.t
-						rect.t = bounds.t
-						append(&panel.kanban_outlines, rect)
-						// TODO maybe need to append this to the last 0 indentation?
 					}
 				}
 			}
@@ -1122,14 +1098,14 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 
 				case .Kanban: {
-					// draw outlines
-					color := theme_panel(.Parent)
-					// color := color_blend(mix, BLACK, 0.9, false)
-					for outline in panel.kanban_outlines {
-						rect := rect_margin(outline, -KANBAN_MARGIN * SCALE)
-						// render_rect(target, rect, color, ROUNDNESS)
-						render_rect_outline(target, rect, color, ROUNDNESS)
-					}
+					// // draw outlines
+					// color := theme_panel(.Parent)
+					// // color := color_blend(mix, BLACK, 0.9, false)
+					// for outline in panel.kanban_outlines {
+					// 	rect := rect_margin(outline, -KANBAN_MARGIN * SCALE)
+					// 	// render_rect(target, rect, color, ROUNDNESS)
+					// 	render_rect_outline(target, rect, color, ROUNDNESS)
+					// }
 				}
 			}
 
@@ -1150,10 +1126,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// TODO looks shitty when swapping
 			// shadow highlight for non selection
-			if task_head != -1 && task_head != task_tail {
+			if task_head != -1 && (task_shadow_alpha_animating || task_shadow_alpha != 0) {
 				render_push_clip(target, panel.clip)
 				low, high := task_low_and_high()
-				color := color_alpha(theme.background[0], 0.5)
+				color := color_alpha(theme.background[0], task_shadow_alpha)
 				
 				for t in tasks_visible {
 					if !(low <= t.visible_index && t.visible_index <= high) {
@@ -1173,6 +1149,17 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					color := task_head == i ? theme.caret : theme.text_default
 					render_rect_outline(target, rect, color)
 				}
+			}
+
+			// drag visualizing circle
+			if !drag_running && drag_circle {
+				render_push_clip(target, panel.clip)
+				circle_size := DRAG_CIRCLE * SCALE
+				render_circle_outline(target, drag_circle_pos.x, drag_circle_pos.y, circle_size, 2, theme.text_default, true)
+				diff_x := abs(drag_circle_pos.x - element.window.cursor_x)
+				diff_y := abs(drag_circle_pos.y - element.window.cursor_y)
+				diff := max(diff_x, diff_y)
+				render_circle(target, drag_circle_pos.x, drag_circle_pos.y, diff, theme.text_bad, true)
 			}
 
 			// drag visualizer line
@@ -1254,6 +1241,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Right_Up: {
+			drag_circle = false
+			
 			if task_head == -1 {
 				if task_dragging_end() {
 					return 1
@@ -1301,6 +1290,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Animate: {
 			handled := false
+
+			if task_shadow_alpha_animating {
+				down := task_head == task_tail
+				handled |= animate_to(
+					&task_shadow_alpha_animating,
+					&task_shadow_alpha,
+					down ? 0 : TASK_SHADOW_ALPHA,
+					down ? 2 : 1,
+				)
+			}
 
 			// drag animation and camera panning
 			if drag_running {
@@ -1436,6 +1435,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Mouse_Drag: {
+			mouse := (cast(^Mouse_Coordinates) dp)^
+
 			if element.window.pressed_button == MOUSE_LEFT {
 				// drag select tasks
 				if element.window.shift {
@@ -1464,7 +1465,11 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					}
 				}
 			} else if element.window.pressed_button == MOUSE_RIGHT {
-				if task_dragging_check_start(task) {
+				element_repaint(element)
+				drag_circle = true
+				drag_circle_pos = mouse
+
+				if task_dragging_check_start(task, mouse) {
 					return 1
 				}
 			}
@@ -1473,6 +1478,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Right_Up: {
+			drag_circle = false
+
 			if task_dragging_end() {
 				return 1
 			}
@@ -1565,13 +1572,6 @@ tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
 
 	return
 }
-
-// test deallocation as this data is easily replacable but still needs to be dynamic by default
-// task_deallocate_by_hand :: proc(task: ^Task) {
-// 	delete(task.box.wrapped_lines)
-// 	delete(task.box.builder.buf)
-// 	delete(task.children) // as this is allocated on heap too
-// }
 
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
@@ -2235,12 +2235,37 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	menu_show(menu)
 }
 
-task_dragging_check_start :: proc(task: ^Task) -> bool {
+// Check if point is inside circle
+check_collision_point_circle :: proc(point, center: [2]f32, radius: f32) -> bool {
+	return check_collision_point_circles(point, 0, center, radius)
+}
+
+// Check collision between two circles
+check_collision_point_circles :: proc(
+	center1: [2]f32, 
+	radius1: f32, 
+	center2: [2]f32, 
+	radius2: f32,
+) -> (collision: bool) {
+	dx := center2.x - center1.x	// X distance between centers
+	dy := center2.y - center1.y	// Y distance between centers
+	distance := math.sqrt(dx * dx + dy * dy) // Distance between centers
+
+	if distance <= (radius1 + radius2) {
+		collision = true
+	}
+
+	return
+}
+
+task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool {
 	if task_head == -1 || drag_running {
 		return true
 	}
 
-	if rect_contains(task.bounds, task.window.cursor_x, task.window.cursor_y) {
+	pos := [2]f32 { task.window.cursor_x, task.window.cursor_y }
+	circle_size := DRAG_CIRCLE * SCALE
+	if check_collision_point_circle(mouse, pos, circle_size) {
 		return false
 	}
 
@@ -2284,6 +2309,7 @@ task_dragging_end :: proc() -> bool {
 		return false
 	}
 
+	drag_circle = false
 	drag_running = false
 	element_animation_stop(mode_panel)
 	force_push := task_head == -1

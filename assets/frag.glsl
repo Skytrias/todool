@@ -40,6 +40,10 @@ float sdCircle(vec2 p, float r) {
 	return length(p)-r;
 }
 
+float opOnion(float distance, float r) {
+  return abs(distance) - r;
+}
+
 float sigmoid(float t) {
 	return 1.0 / (1.0 + exp(-t));
 }
@@ -49,12 +53,13 @@ float sigmoid(float t) {
 #define RK_Glyph uint(2)
 #define RK_Drop_Shadow uint(3)
 #define RK_Circle uint(4)
-#define RK_SV uint(5)
-#define RK_HUE uint(6)
-#define RK_Kanban uint(7)
-#define RK_List uint(8)
-#define RK_Drag uint(9)
-#define RK_TEXTURE uint(10)
+#define RK_Circle_Outline uint(5)
+#define RK_SV uint(6)
+#define RK_HUE uint(7)
+#define RK_Kanban uint(8)
+#define RK_List uint(9)
+#define RK_Drag uint(10)
+#define RK_TEXTURE uint(11)
 
 void main(void) {
 	vec4 color_goal = v_color;
@@ -81,7 +86,7 @@ void main(void) {
 		vec2 center = v_uv;
 		vec2 drop_size = vec2(20, 20);
 
-		float drop_distance = sdBox(v_pos - center, v_adjusted_half_dimensions - drop_size);
+		float drop_distance = sdBox(v_pos - center - vec2(2, 2), v_adjusted_half_dimensions - drop_size);
 		drop_distance -= v_roundness;
 		drop_distance = sigmoid(drop_distance * 0.25);
 		float drop_alpha = 1 - smoothstep(0, 1, drop_distance);
@@ -95,9 +100,14 @@ void main(void) {
 		color_goal = mix(color_goal, v_color, rect_alpha);
 	} else if (v_kind == RK_Circle) {
 		float distance = sdCircle(v_pos - v_uv, v_roundness / 2);
+		float alpha = 1.0 - smoothstep(-1.0, 0.0, distance);
+		color_goal.a *= alpha;
+	} else if (v_kind == RK_Circle_Outline) {
+		float thickness = v_thickness;
+		float distance = opOnion(sdCircle(v_pos - v_uv, v_roundness / 2) + thickness, thickness);
 
 		float alpha = 1.0 - smoothstep(-1.0, 0.0, distance);
-		color_goal.a *= alpha;		
+		color_goal.a *= alpha;
 	} else if (v_kind == RK_SV) {
 		vec4 texture_color = texture(u_sampler_sv, v_uv);
 		color_goal = mix(color_goal, texture_color, texture_color.a);

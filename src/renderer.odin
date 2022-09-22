@@ -114,6 +114,7 @@ Render_Kind :: enum u32 {
 	Glyph,
 	Drop_Shadow,
 	Circle,
+	Circle_Outline,
 	SV,
 	HUE,
 	Texture,
@@ -395,6 +396,7 @@ render_circle :: proc(
 	group := &target.groups[len(target.groups) - 1]
 	vertices := render_target_push_vertices(target, group, 6)
 	
+	radius := radius * 2
 	x := x_origin - (centered ? radius / 2 : 0)
 	y := y_origin - (centered ? radius / 2 : 0)
 	xx := x + radius
@@ -415,6 +417,42 @@ render_circle :: proc(
 		vertices[i].color = color
 		vertices[i].kind = .Circle
 		vertices[i].roundness = u16(radius)
+	}
+}
+
+render_circle_outline :: proc(
+	target: ^Render_Target,
+	x_origin, y_origin: f32,
+	radius: f32,
+	thickness: f32,
+	color: Color,
+	centered := false,
+) {
+	group := &target.groups[len(target.groups) - 1]
+	vertices := render_target_push_vertices(target, group, 6)
+	
+	radius := radius * 2
+	x := x_origin - (centered ? radius / 2 : 0)
+	y := y_origin - (centered ? radius / 2 : 0)
+	xx := x + radius
+	yy := y + radius
+	vertices[0].pos_xy = { x, y }
+	vertices[1].pos_xy = { xx, y }
+	vertices[2].pos_xy = { x, yy }
+	
+	vertices[3].pos_xy = { xx, y }
+	vertices[4].pos_xy = { x, yy }
+	vertices[5].pos_xy = { xx, yy }
+
+	center_x, center_y := x_origin + (centered ? 0 : radius / 2), y_origin + (centered ? 0 : radius / 2)
+	
+	// TODO: SPEED UP
+	for i in 0..<6 {
+		vertices[i].uv_xy = { center_x, center_y }
+		vertices[i].color = color
+		vertices[i].kind = .Circle_Outline
+		vertices[i].roundness = u16(radius)
+		vertices[i].thickness = u16(thickness)
 	}
 }
 

@@ -1454,7 +1454,6 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		case .Custom_Clip: {
 			if panel.shadow {
 				rect := cast(^Rect) dp
-				before := rect^
 				rect^ = rect_margin(element.clip, -DROP_SHADOW)
 			}
 		}
