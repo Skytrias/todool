@@ -207,3 +207,10 @@ rect_rounded :: proc(using a: Rect) -> Rect {
 		math.round(b),
 	}
 }
+
+rect_lerp :: proc(a: ^Rect, b: Rect, rate: f32) {
+	a.l = math.lerp(a.l, b.l, rate)
+	a.r = math.lerp(a.r, b.r, rate)
+	a.t = math.lerp(a.t, b.t, rate)
+	a.b = math.lerp(a.b, b.b, rate)
+}

@@ -126,24 +126,29 @@ cam_bounds_check_x :: proc(
 }
 
 // check animation on caret bounds
-mode_panel_cam_bounds_check_y :: proc() {
+mode_panel_cam_bounds_check_y :: proc(
+	to_top: f32,
+	to_bottom: f32,
+	use_task: bool, // use task boundary
+) {
 	cam := mode_panel_cam()
 
 	if cam.freehand {
 		return
 	}
 
+	to_top := to_top
+	to_bottom := to_bottom
+
 	goal: f32
 	direction: int
-	if task_head != -1 {
-		to_top := caret_rect.t
-		to_bottom := caret_rect.b
+	if task_head != -1 && use_task {
 		task := tasks_visible[task_head]
 		to_top = task.bounds.t
 		to_bottom = task.bounds.b
-
-		goal, direction = cam_bounds_check_y(cam, mode_panel.bounds, to_top, to_bottom)
 	}
+
+	goal, direction = cam_bounds_check_y(cam, mode_panel.bounds, to_top, to_bottom)
 
 	if direction != 0 {
 		element_animation_start(mode_panel)
@@ -154,7 +159,12 @@ mode_panel_cam_bounds_check_y :: proc() {
 }
 
 // check animation on caret bounds
-mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
+mode_panel_cam_bounds_check_x :: proc(
+	to_left: f32,
+	to_right: f32,
+	check_stop: bool,
+	use_kanban: bool,
+) {
 	cam := mode_panel_cam()
 
 	if cam.freehand {
@@ -163,8 +173,8 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 
 	goal: f32
 	direction: int
-	to_left := caret_rect.l
-	to_right := caret_rect.r
+	to_left := to_left
+	to_right := to_right
 
 	switch mode_panel.mode {
 		case .List: {
@@ -174,7 +184,7 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 		case .Kanban: {
 			// find indent 0 task and get its rect
 			t: ^Task
-			if task_head != -1 {
+			if task_head != -1 && use_kanban {
 				index := task_head
 				for t == nil || (t.indentation != 0 && index >= 0) {
 					t = tasks_visible[index]
@@ -182,7 +192,7 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 				}
 			}
 
-			if t != nil && t.kanban_rect != {} {
+			if t != nil && t.kanban_rect != {} && use_kanban {
 				// check if larger than kanban size
 				if rect_width(t.kanban_rect) < rect_width(mode_panel.bounds) - cam.margin_x * 2 {
 					to_left = t.kanban_rect.l
@@ -193,6 +203,8 @@ mode_panel_cam_bounds_check_x :: proc(check_stop: bool) {
 			goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
 		}
 	} 
+
+	// fmt.eprintln(goal, direction)
 
 	if check_stop {
 		if direction == 0 {

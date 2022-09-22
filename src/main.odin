@@ -24,7 +24,10 @@ ALLOW_SCALE :: true
 //task dragging looks like shit
 
 //~~~~~TODO~~~~~
-//drag 100px away from origin in circle to drag out
+//animate drag_index_at rect
+//better link detection, maybe scan words once, then on text insertion or undo
+//cam scroll in direction where drag mouse is at
+//task drag highlight 100px away from origin in circle to drag out
 //always on top option, needs SDL 2.0.16
 //left sidebar doesnt scale nicely
 //allow scrolling while dragging or panning
@@ -35,6 +38,7 @@ ALLOW_SCALE :: true
 //system to force push new keybindings for a patch
 //keymap setting window
 //changelog generator output window
+//options animation speed slider
 //options autosave should save or in general changing things on the sidebar should be automatic or seperate?
 //while search typing set camera to focus atleast search result found
 //save automatic state setting by offsetting undo in place, instead of everywhere
@@ -50,6 +54,7 @@ ALLOW_SCALE :: true
 //task allocation strategy changed -> fixed leaks
 //save files get written to temp file again in case of errors, then renamed
 //added foldable header panels for theme editor
+//task dragging floating icon
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again
@@ -147,8 +152,8 @@ main :: proc() {
 					if element_message(box, msg, di, dp) == 1 {
 						cam := mode_panel_cam()
 						cam.freehand = false
-						mode_panel_cam_bounds_check_x(false)
-						mode_panel_cam_bounds_check_y()
+						mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r, false, false)
+						mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b, true)
 						return 1
 					}
 				}
@@ -173,8 +178,8 @@ main :: proc() {
 					if res == 1 {
 						cam := mode_panel_cam()
 						cam.freehand = false
-						mode_panel_cam_bounds_check_x(false)
-						mode_panel_cam_bounds_check_y()
+						mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r, false, true)
+						mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b, true)
 						task_tail = task_head
 					}
 					return res

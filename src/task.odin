@@ -61,6 +61,7 @@ drag_list: [dynamic]^Task
 drag_running: bool
 drag_index_at: int
 drag_goals: [3][2]f32
+drag_rect_lerp: Rect
 
 // dirty file
 dirty := 0
@@ -1093,8 +1094,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// check on change
 			if task_head != -1 {
-				mode_panel_cam_bounds_check_x(false)
-				mode_panel_cam_bounds_check_y()
+				mode_panel_cam_bounds_check_x(caret_rect.r, caret_rect.r, false, true)
+				mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b, true)
 			}
 		}
 
@@ -1174,12 +1175,29 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
-			// visual line for dragging
+			// drag visualizer line
 			if task_head != -1 && drag_running && drag_index_at != -1 {
 				render_push_clip(target, panel.clip)
 				
 				drag_task := tasks_visible[drag_index_at]
-				render_underline(target, drag_task.bounds, theme.text_default)
+				bounds := drag_task.bounds
+				margin := math.round(4 * SCALE)
+				bounds.t = bounds.b - margin
+				rect_lerp(&drag_rect_lerp, bounds, 0.5)
+				bounds = drag_rect_lerp
+
+				// inner
+				{
+					b := bounds
+					b.t += margin / 2
+					b.b += margin / 2
+					render_rect(target, b, theme.text_default, ROUNDNESS)
+				}
+
+				bounds.b += margin
+				bounds.l -= margin / 2
+				bounds.r += margin / 2
+				render_rect(target, bounds, color_alpha(theme.text_default, .5), ROUNDNESS)
 			}
 
 			// render dragged tasks
@@ -1187,8 +1205,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 
 				texture := &target.textures[.Drag]
-				width := math.round(100 * SCALE)
-				height := math.round(100 * SCALE)
+				width := math.round(80 * SCALE)
+				height := math.round(80 * SCALE)
 				x := element.window.cursor_x - f32(width / 2)
 				y := element.window.cursor_y - f32(height / 2)
 
@@ -1284,7 +1302,24 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Animate: {
 			handled := false
 
+			// drag animation and camera panning
 			if drag_running {
+				// just check for bounds
+				x := element.window.cursor_x
+				y := element.window.cursor_y
+				ygoal, ydirection := cam_bounds_check_y(cam, mode_panel.bounds, y, y)
+				xgoal, xdirection := cam_bounds_check_x(cam, mode_panel.bounds, x, x)
+
+				if ydirection != 0 {
+					cam.freehand = true
+					cam.offset_y += ygoal * 0.1 * f32(ydirection)
+				}
+
+				if xdirection != 0 {
+					cam.freehand = true
+					cam.offset_x += xgoal * 0.1 * f32(xdirection)
+				}
+
 				handled = true
 			}
 
@@ -1303,7 +1338,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// check x afterwards
 			// NOTE just check this everytime due to inconsistency
-			mode_panel_cam_bounds_check_x(true)
+			mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r, true, true)
 
 			// fmt.eprintln("animating!", handled, cam.offset_y, cam.offset_x)
 			return int(handled)
@@ -1445,13 +1480,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			task_context_menu_spawn(task)
 		}
 
-		case .Right_Down: {
-			// task_dragging_check_start(task)
-		}
-
 		case .Value_Changed: {
 			dirty_push(&element.window.manager)
-			// editor_set_unsaved_changes_title(&element.window.manager)
 		}
 	}
 
