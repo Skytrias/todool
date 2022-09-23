@@ -9,7 +9,7 @@ import "core:fmt"
 
 Theme_Editor :: struct {
 	open: bool,
-	scrollbar: ^Scrollbar_Panel,
+	// scrollbar: ^Scrollbar,
 	panel: ^Panel,
 	panel_list: [32]^Panel,
 	panel_list_index: int,
@@ -244,9 +244,9 @@ theme_editor_spawn :: proc() {
 	}
 	theme_editor.window = window
 
-	theme_editor.scrollbar = scrollbar_init(&window.element, {})
+	// theme_editor.scrollbar = scrollbar_init(&window.element, {})
 
-	theme_editor.panel = panel_init(theme_editor.scrollbar, { .Panel_Default_Background }, 0, 5)
+	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background }, 0, 5)
 	theme_editor.panel.margin = 10
 	
 	label := label_init(theme_editor.panel, {}, "Theme Editor")

@@ -1899,7 +1899,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 }
 
 task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
-	rect := window_rect(split.window)
+	rect := split.window.rect
 
 	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
 	custom_split.image_display = image_display_init(custom_split, {}, nil)

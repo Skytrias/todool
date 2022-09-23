@@ -109,7 +109,6 @@ Element_Flag :: enum {
 	VF, // Vertical Fill
 	HF, // Horizontal Fill
 
-	Panel_Expand,
 	Tab_Movement_Allowed, // wether or not movement is allowed for the parent  
 	Tab_Stop, // wether the element acts as a tab stop
 
@@ -119,6 +118,10 @@ Element_Flag :: enum {
 	Label_Center,
 	Box_Can_Focus,
 
+	Panel_Expand,
+	Panel_Scroll_XY,
+	Panel_Scroll_Horizontal,
+	Panel_Scroll_Vertical,
 	Panel_Horizontal,
 	Panel_Default_Background,
 
@@ -310,11 +313,28 @@ element_init :: proc(
 }
 
 // reposition element and cal layout to children
-element_move :: proc(element: ^Element, bounds: Rect) {
+element_move_old :: proc(element: ^Element, bounds: Rect) {
 	// move to new position - msg children to layout
 	element.clip = rect_intersection(element.parent.clip, bounds)
 	element.bounds = bounds
 	element_message(element, .Layout)
+}
+
+element_move :: proc(element: ^Element, bounds: Rect) {
+	clip := element.parent != nil ? rect_intersection(element.parent.clip, bounds) : bounds
+	moved := element.bounds != bounds || element.clip != clip
+	layout: bool
+
+	if moved {
+		layout = true
+		element.clip = clip
+		element.bounds = bounds
+	}
+
+	if layout {
+		// move to new position - msg children to layout
+		element_message(element, .Layout)
+	}
 }
 
 // issue repaints for children
@@ -1251,6 +1271,8 @@ spacer_init :: proc(
 
 Panel :: struct {
 	using element: Element,
+	hscrollbar: ^Scrollbar,
+	vscrollbar: ^Scrollbar,
 
 	// good to have
 	layout_elements_in_reverse: bool,
@@ -1259,12 +1281,6 @@ Panel :: struct {
 	margin: f32,
 	color: Color,
 	gap: f32,
-
-	// offset if panel is scrollable
-	// drag_x: f32,
-	// drag_y: f32,
-	// offset_x: f32,
-	// offset_y: f32,
 
 	// shadow + roundness
 	shadow: bool,
@@ -1347,17 +1363,19 @@ panel_layout :: proc(
 	panel: ^Panel, 
 	bounds: Rect, 
 	measure: bool, 
-	offset_x: f32,
-	offset_y: f32,
 ) -> f32 {
 	horizontal := .Panel_Horizontal in panel.flags
 	scaled_margin := math.round(panel.margin * SCALE)
 	position_x := f32(0)
 	position_y := scaled_margin
 	
-	if !measure {
-		position_x -= offset_x
-		position_y -= offset_y
+	// TODO check for scrollbar hide flag?
+	if !measure && scrollbar_valid(panel.vscrollbar) {
+		position_y -= panel.vscrollbar.position
+	}
+
+	if !measure && scrollbar_valid(panel.hscrollbar) {
+		position_x -= panel.hscrollbar.position
 	}
 	
 	hspace := rect_width(bounds) - scaled_margin * 2
@@ -1454,7 +1472,39 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Layout: {
-			panel_layout(panel, element.bounds, false, 0, 0)
+			bounds := element.bounds
+
+			if panel.vscrollbar != nil {
+				scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+				bounds_before := bounds
+				scrollbar_bounds := rect_cut_right(&bounds, scrollbar_size)
+				panel.vscrollbar.maximum = panel_layout(panel, bounds, true)
+				panel.vscrollbar.page = rect_height(bounds)
+				element_move(panel.vscrollbar, scrollbar_bounds)
+
+				// reset bounds if hidden
+				if .Hide in panel.vscrollbar.flags {
+					bounds = bounds_before
+				} 
+			}
+
+			if panel.hscrollbar != nil {
+				scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+				bounds_before := bounds
+				scrollbar_bounds := rect_cut_bottom(&bounds, scrollbar_size)
+				// TODO double check max 
+				panel.hscrollbar.maximum = f32(element_message(panel, .Get_Width))
+				panel.hscrollbar.page = rect_width(bounds)
+				element_move(panel.hscrollbar, scrollbar_bounds)
+
+				// reset bounds if hidden
+				if .Hide in panel.hscrollbar.flags {
+					bounds = bounds_before
+				} 
+			}
+
+			// panel.clip = bounds
+			panel_layout(panel, bounds, false)
 		}
 
 		case .Update: {
@@ -1469,7 +1519,15 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Get_Width: {
 			if .Panel_Horizontal in element.flags {
-				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true, 0, 0))
+				height := f32(di)
+
+				// take out horizontal scrollbar
+				if scrollbar_valid(panel.hscrollbar) {
+					scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+					height -= scrollbar_size					
+				}
+
+				return int(panel_layout(panel, { 0, 0, 0, height }, true))
 			} else {
 				return panel_measure(panel, di)
 			}
@@ -1480,7 +1538,14 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				return panel_measure(panel, di)
 			} else {
 				width := f32(di)
-				return int(panel_layout(panel, { 0, width, 0, 0 }, true, 0, 0))
+		
+				// take out vertical scrollbar
+				if scrollbar_valid(panel.vscrollbar) {
+					scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+					width -= scrollbar_size
+				}
+		
+				return int(panel_layout(panel, { 0, width, 0, 0 }, true))
 			}
 		}
 
@@ -1501,6 +1566,18 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			target := element.window.target
 			panel_render_default(target, panel)
 		}
+
+		case .Mouse_Scroll_X: {
+			if scrollbar_valid(panel.hscrollbar) {
+				return element_message(panel.hscrollbar, msg, di, dp)
+			}
+		}
+
+		case .Mouse_Scroll_Y: {
+			if scrollbar_valid(panel.vscrollbar) {
+				return element_message(panel.vscrollbar, msg, di, dp)
+			}
+		}
 	}
 
 	return 0
@@ -1519,9 +1596,20 @@ panel_init :: proc(
 	res.color = color
 	res.gap = gap
 
-	// if .Panel_Scrollable in flags {
-	// 	res.scrollbar = scrollbar_init(res, { .Layout_Ignore }, allocator)
-	// }
+	// TODO use bitset magic instead
+	if 
+		(.Panel_Scroll_XY in flags) ||
+		(.Panel_Scroll_Horizontal in flags) ||
+		(.Panel_Scroll_Vertical in flags) {
+
+		if (.Panel_Scroll_XY in flags) || (.Panel_Scroll_Vertical in flags) {
+			res.vscrollbar = scrollbar_init(res, { .Layout_Ignore }, false, allocator)
+		}
+
+		if (.Panel_Scroll_XY in flags) || (.Panel_Scroll_Horizontal in flags) {
+			res.hscrollbar = scrollbar_init(res, { .Layout_Ignore }, true, allocator)
+		}
+	}
 
 	return
 }
@@ -1576,123 +1664,120 @@ panel_floaty_init :: proc(
 // scrollbar
 //////////////////////////////////////////////
 
-// panel that layouts a sub element next to its scrollbar
-Scrollbar_Panel :: struct {
+// scrollbar can be horizontal or vertically set
+// elements 0&2 are buttons
+// element 1 is the thumb that can be dragged
+Scrollbar :: struct {
 	using element: Element,
-	// elements 0-3 for vertical, 3-6 for horizontal
-	sides: [Scrollbar_Side_Type]Scrollbar_Side, 
-	layout_rect: Rect,
-}
-
-Scrollbar_Side_Type :: enum {
-	Vertical,
-	Horizontal,
-}
-
-Scrollbar_Side :: struct {
+	horizontal: bool,
 	// TODO force opened option
 
-	rect: Rect, // cut size of scrollbar
-	hidden: bool,
 	maximum: f32,
+	page: f32,
 	drag_offset: f32,
 	position: f32,
 	in_drag: bool,	
 }
 
 // clamp position
-scrollbar_panel_side_position_clamp :: proc(
-	side: ^Scrollbar_Side, 
-	size: f32,
-) -> (diff: f32) {
-	diff = side.maximum - size
+scrollbar_position_clamp :: proc(scrollbar: ^Scrollbar) -> (diff: f32) {
+	diff = scrollbar.maximum - scrollbar.page
 
-	if side.position < 0 {
-		side.position = 0
-	} else if side.position > diff {
-		side.position = diff
+	if scrollbar.position < 0 {
+		scrollbar.position = 0
+	} else if scrollbar.position > diff {
+		scrollbar.position = diff
 	}
 
 	return
 }
 
-scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	scrollbar := cast(^Scrollbar_Panel) element
+scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	scrollbar := cast(^Scrollbar) element
 
 	#partial switch msg {
 		case .Paint_Recursive: {
-			target := element.window.target
-			panel := cast(^Panel) element.children[6]
-			color: Color
-			element_message(panel, .Panel_Color, 0, &color)
+			rect := element.bounds
+			render_rect(element.window.target, rect, theme.background[0])
+		}
 
-			for side_type in Scrollbar_Side_Type {
-				side := &scrollbar.sides[side_type]
-
-				if !side.hidden {
-					render_rect(target, side.rect, color)
-				}
-			}
+		case .Get_Width, .Get_Height: {
+			scaled_size := SCROLLBAR_SIZE * SCALE
+			return int(scaled_size)
 		}
 
 		case .Mouse_Scroll_X, .Mouse_Scroll_Y: {
 			handled: int
-			type: Scrollbar_Side_Type = msg == .Mouse_Scroll_X ? .Horizontal : .Vertical
-			side := &scrollbar.sides[type]
 
-			if !side.hidden {
-				side.position -= f32(di) * 20
-				size := type == .Vertical ? rect_height(side.rect) : rect_width(side.rect)
-				scrollbar_panel_side_position_clamp(side, size)
-
-				element_repaint(scrollbar)
-				element_message(scrollbar.parent, .Scrolled)
-				handled = 1
+			// avoid unwanted scroll
+			if 
+				(msg == .Mouse_Scroll_X && !scrollbar.horizontal) || 
+				(msg == .Mouse_Scroll_Y && scrollbar.horizontal) || 
+				(.Hide in scrollbar.flags) {
+				return 0
 			}
 
-			return handled
-		}
+			scrollbar.position -= f32(di) * 20
+			scrollbar_position_clamp(scrollbar)
 
-		case .Update: {
-			content := element.children[6] 
-			element_message(content, msg, di, dp)
+			element_repaint(scrollbar)
+			element_message(scrollbar.parent, .Scrolled)
+			return 1
 		}
 
 		case .Layout: {
-			panel := cast(^Panel) element.children[6]
-			assert(panel.message_class == panel_message)
-			scrollbar.layout_rect = scrollbar.bounds
+			a := scrollbar.children[0]
+			b := scrollbar.children[1]
+			c := scrollbar.children[2]
+			
+			if scrollbar_inactive(scrollbar) {
+				scrollbar.position = 0
+				incl(&element.flags, Element_Flag.Hide)
+				incl(&a.flags, Element_Flag.Hide)
+				incl(&b.flags, Element_Flag.Hide)
+				incl(&c.flags, Element_Flag.Hide)
+			} else {
+				element_hide(scrollbar, false)
+				excl(&element.flags, Element_Flag.Hide)
+				excl(&a.flags, Element_Flag.Hide)
+				excl(&b.flags, Element_Flag.Hide)
+				excl(&c.flags, Element_Flag.Hide)
 
-			// pre layout
-			{
-				max_height := f32(element_message(panel, .Get_Height))
-				scrollbar_panel_side_set(scrollbar, .Vertical, max_height)
-				max_width := f32(element_message(panel, .Get_Width))
-				scrollbar_panel_side_set(scrollbar, .Horizontal, max_width)
-			}
+				// layout each element
+				scrollbar_size := scrollbar.horizontal ? rect_width(element.bounds) : rect_height(element.bounds) 
+				thumb_size := scrollbar_size * scrollbar.page / scrollbar.maximum
+				// thumb_size = max(SCROLLBAR_SIZE / 2, thumb_size)
 
-			// layout elements
-			{
-				a := element.children[0]
-				b := element.children[1]
-				c := element.children[2]
-				scrollbar_thumb_layout(scrollbar, .Vertical, a, b, c)
-			}
+				// clamp position
+				diff := scrollbar_position_clamp(scrollbar)
 
-			{
-				a := element.children[3]
-				b := element.children[4]
-				c := element.children[5]
-				scrollbar_thumb_layout(scrollbar, .Horizontal, a, b, c)
-			}
+				// clamp
+				thumb_position := scrollbar.position / diff * (scrollbar_size - thumb_size)
+				if scrollbar.position == diff {
+					thumb_position = scrollbar_size - thumb_size
+				}
 
-			// post layout
-			{
-				vertical := &scrollbar.sides[.Vertical]
-				horizontal := &scrollbar.sides[.Horizontal]
-				panel.bounds = scrollbar.bounds
-				panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
-				panel_layout(panel, scrollbar.bounds, false, horizontal.position, vertical.position)
+				if !scrollbar.horizontal {
+					r := element.bounds
+					r.b = r.t + thumb_position
+					element_move(a, r) // button
+					r.t = r.b
+					r.b = r.t + thumb_size
+					element_move(b, r) // thumb
+					r.t = r.b
+					r.b = element.bounds.b
+					element_move(c, r) // button
+				} else {
+					r := element.bounds
+					r.r = r.l + thumb_position
+					element_move(a, r) // button
+					r.l = r.r
+					r.r = r.l + thumb_size
+					element_move(b, r) // thumb
+					r.l = r.r
+					r.r = element.bounds.r
+					element_move(c, r) // button
+				}
 			}
 		}
 	}
@@ -1700,69 +1785,10 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	return 0
 }
 
-scrollbar_thumb_layout :: proc(
-	scrollbar: ^Scrollbar_Panel,
-	side_type: Scrollbar_Side_Type,
-	a, b, c: ^Element,
-) {
-	side := &scrollbar.sides[side_type]
-	size := side_type == .Vertical ? rect_height(scrollbar.bounds) : rect_width(scrollbar.bounds)
-
-	if scrollbar_panel_side_inactive(side, size) {
-		side.position = 0
-		side.hidden = true
-	} else {
-		side.hidden = false
-		if side_type == .Vertical {
-			side.rect = rect_cut_right(&scrollbar.bounds, SCROLLBAR_SIZE * SCALE)
-		} else {
-			side.rect = rect_cut_bottom(&scrollbar.bounds, SCROLLBAR_SIZE * SCALE)
-		}
-
-		// layout each element
-		thumb_size := size * size / side.maximum
-		// thumb_size = max(SCROLLBAR_SIZE / 2, thumb_size)
-
-		// clamp position
-		diff := scrollbar_panel_side_position_clamp(side, size)
-
-		// clamp
-		thumb_position := side.position / diff * (size - thumb_size)
-		if side.position == diff {
-			thumb_position = size - thumb_size
-		}
-
-		if side_type == .Vertical {
-			r := side.rect
-			r.b = r.t + thumb_position
-			element_move(a, r) // button
-			r.t = r.b
-			r.b = r.t + thumb_size
-			element_move(b, r) // thumb
-			r.t = r.b
-			r.b = side.rect.b
-			element_move(c, r) // button
-		} else {
-			r := side.rect
-			r.r = r.l + thumb_position
-			element_move(a, r) // button
-			r.l = r.r
-			r.r = r.l + thumb_size
-			element_move(b, r) // thumb
-			r.l = r.r
-			r.r = side.rect.r
-			element_move(c, r) // button
-		}
-	}
-}
-
 scrollbar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Scrollbar_Button) element
-	scrollbar := cast(^Scrollbar_Panel) element.parent
+	scrollbar := cast(^Scrollbar) element.parent
 	is_down := button.direction_down
-	side_type: Scrollbar_Side_Type = uintptr(element.data) == SCROLLBAR_VERTICAL ? .Vertical : .Horizontal
-	side := &scrollbar.sides[side_type]
-	scrollbar_size := side_type == .Vertical ? rect_height(scrollbar.bounds) : rect_width(scrollbar.bounds)
 
 	#partial switch msg {
 		// case .Paint_Recursive: {
@@ -1785,7 +1811,7 @@ scrollbar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 		case .Animate: {
 			direction: f32 = is_down ? 1 : -1
-			side.position += direction * 0.01 * scrollbar_size
+			scrollbar.position += direction * 0.01 * scrollbar.page
 			element_repaint(scrollbar)
 			return 1
 		}
@@ -1795,10 +1821,7 @@ scrollbar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 }
 
 scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	scrollbar := cast(^Scrollbar_Panel) element.parent
-	side_type: Scrollbar_Side_Type = uintptr(element.data) == SCROLLBAR_VERTICAL ? .Vertical : .Horizontal
-	side := &scrollbar.sides[side_type]
-	scrollbar_size := side_type == .Vertical ? rect_height(scrollbar.bounds) : rect_width(scrollbar.bounds)
+	scrollbar := cast(^Scrollbar) element.parent
 	
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -1816,28 +1839,30 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Mouse_Drag: {
+			fmt.eprintln("try drag")
 			if element.window.pressed_button == MOUSE_LEFT {
-				if !side.in_drag {
-					side.in_drag = true
+				if !scrollbar.in_drag {
+					scrollbar.in_drag = true
 
-					if side_type == .Vertical {
-						side.drag_offset = element.bounds.t - scrollbar.bounds.t - f32(element.window.cursor_y)
+					if !scrollbar.horizontal {
+						scrollbar.drag_offset = element.bounds.t - scrollbar.bounds.t - f32(element.window.cursor_y)
 					} else {
-						side.drag_offset = element.bounds.l - scrollbar.bounds.l - f32(element.window.cursor_x)
+						scrollbar.drag_offset = element.bounds.l - scrollbar.bounds.l - f32(element.window.cursor_x)
 					}
 				}
 
-				thumb_position := (side_type == .Vertical ? element.window.cursor_y : element.window.cursor_x) + side.drag_offset
-				thumb_size := side_type == .Vertical ? rect_height(element.bounds) : rect_width(element.bounds)
-				thumb_diff := scrollbar_size - thumb_size
-				side.position = thumb_position / thumb_diff * (side.maximum - scrollbar_size)
+				thumb_position := (!scrollbar.horizontal ? element.window.cursor_y : element.window.cursor_x) + scrollbar.drag_offset
+				thumb_size := !scrollbar.horizontal ? rect_height(element.bounds) : rect_width(element.bounds)
+				thumb_diff := scrollbar.page - thumb_size
+				scrollbar.position = thumb_position / thumb_diff * (scrollbar.maximum - scrollbar.page)
 				element_repaint(scrollbar)
 				element_message(scrollbar.parent, .Scrolled)
 			}
 		}
 
 		case .Left_Up: {
-			side.in_drag = false
+			fmt.eprintln("click")
+			scrollbar.in_drag = false
 		}
 	}
 
@@ -1847,90 +1872,85 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 Scrollbar_Button :: struct {
 	using element: Element,
 	direction_down: bool,
-	side_type: Scrollbar_Side_Type,
+	horizontal: bool,
 }
 
 scrollbar_button_init :: proc(
 	parent: ^Element,
 	direction_down: bool,
-	side_type: Scrollbar_Side_Type,
+	horizontal: bool,
 	allocator := context.allocator,
 ) -> (res: ^Scrollbar_Button) {
 	res = element_init(Scrollbar_Button, parent, {}, scrollbar_button_message, allocator)
 	res.direction_down = direction_down
-	res.side_type = side_type
+	res.horizontal = horizontal
 	return
 }
-
-SCROLLBAR_VERTICAL :: uintptr(0)
-SCROLLBAR_HORIZONTAL :: uintptr(1)
 
 scrollbar_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags,
+	horizontal: bool,
 	allocator := context.allocator,
-) -> (res: ^Scrollbar_Panel) {
-	res = element_init(Scrollbar_Panel, parent, flags, scrollbar_panel_message, allocator)
-	v := Scrollbar_Side_Type.Vertical
-	h := Scrollbar_Side_Type.Horizontal
+) -> (res: ^Scrollbar) {
+	res = element_init(Scrollbar, parent, flags, scrollbar_message, allocator)
+	res.horizontal = horizontal
 
-	scrollbar_button_init(res, false, v, allocator).data = rawptr(SCROLLBAR_VERTICAL)
-	element_init(Element, res, {}, scroll_thumb_message, allocator).data = rawptr(SCROLLBAR_VERTICAL)
-	scrollbar_button_init(res, true, v, allocator).data = rawptr(SCROLLBAR_VERTICAL)
-	
-	scrollbar_button_init(res, false, h, allocator).data = rawptr(SCROLLBAR_HORIZONTAL)
-	element_init(Element, res, {}, scroll_thumb_message, allocator).data = rawptr(SCROLLBAR_HORIZONTAL)
-	scrollbar_button_init(res, true, h, allocator).data = rawptr(SCROLLBAR_HORIZONTAL)
+	scrollbar_button_init(res, false, horizontal, allocator)
+	element_init(Element, res, {}, scroll_thumb_message, allocator)
+	scrollbar_button_init(res, true, horizontal, allocator)
 
 	return
 }
 
-// keep scrollbar in frame when in need for manual panning
-scrollbar_panel_keep_in_frame :: proc(
-	scrollbar: ^Scrollbar_Panel, 
-	side_type: Scrollbar_Side_Type, 
-	bounds: Rect, 
-	up: bool,
-) {
-	side := &scrollbar.sides[side_type]
-	scrollbar_size := side_type == .Vertical ? rect_height(scrollbar.bounds) : rect_width(scrollbar.bounds)
+// // keep scrollbar in frame when in need for manual panning
+// scrollbar_keep_in_frame :: proc(
+// 	scrollbar: ^Scrollbar, 
+// 	bounds: Rect, 
+// 	up: bool,
+// ) {
+// 	side := &scrollbar.sides[side_type]
+// 	scrollbar_size := side_type == .Vertical ? rect_height(scrollbar.bounds) : rect_width(scrollbar.bounds)
 
-	if !scrollbar_panel_side_inactive(side, scrollbar_size) {
-		MARGIN :: 50
+// 	if !scrollbar_side_inactive(side, scrollbar_size) {
+// 		MARGIN :: 50
 
-		if side_type == .Vertical {
-			if up && bounds.t - MARGIN <= 0 {
-				side.position = bounds.t + side.position - MARGIN
-			} 
+// 		if side_type == .Vertical {
+// 			if up && bounds.t - MARGIN <= 0 {
+// 				side.position = bounds.t + side.position - MARGIN
+// 			} 
 
-			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
-				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
-			}
-		} else {			
-			if up && bounds.t - MARGIN <= 0 {
-				side.position = bounds.t + side.position - MARGIN
-			} 
+// 			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
+// 				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
+// 			}
+// 		} else {			
+// 			if up && bounds.t - MARGIN <= 0 {
+// 				side.position = bounds.t + side.position - MARGIN
+// 			} 
 
-			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
-				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
-			}
-		}
-	}
-}
+// 			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
+// 				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
+// 			}
+// 		}
+// 	}
+// }
 
 // wether the scrollbar is currently active
-scrollbar_panel_side_inactive :: proc(side: ^Scrollbar_Side, size: f32) -> bool {
-	return size >= side.maximum || side.maximum <= 0 || size == 0
+scrollbar_inactive :: proc(scrollbar: ^Scrollbar) -> bool {
+	return scrollbar.page >= scrollbar.maximum || scrollbar.maximum <= 0 || scrollbar.page == 0
 }
 
-scrollbar_panel_side_set :: proc(
-	scrollbar: ^Scrollbar_Panel,
-	side_type: Scrollbar_Side_Type, 
-	maximum: f32,
-) {
-	side := &scrollbar.sides[side_type]
-	side.maximum = maximum
+scrollbar_valid :: proc(scrollbar: ^Scrollbar) -> bool {
+	return scrollbar != nil && (.Hide not_in scrollbar.flags)
 }
+
+// scrollbar_side_set :: proc(
+// 	scrollbar: ^Scrollbar,
+// 	maximum: f32,
+// ) {
+// 	side := &scrollbar.sides[side_type]
+// 	side.maximum = maximum
+// }
 
 //////////////////////////////////////////////
 // table

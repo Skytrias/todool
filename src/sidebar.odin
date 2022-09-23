@@ -244,7 +244,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		// dont use scrollbar if not wanted
 		parent := element
 		if scrollable {
-			parent = scrollbar_init(element, {})
+			parent = scrollbar_init(element, {}, false)
 		}
 
 		flags := Element_Flags { .Panel_Default_Background, .Tab_Movement_Allowed }
@@ -456,7 +456,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		}
 
 		{
-			scrollbar := scrollbar_init(panel, { .HF, .VF })
+			scrollbar := scrollbar_init(panel, { .HF, .VF }, false)
 			buttons = panel_init(scrollbar, { .Panel_Default_Background }, 5, 1)
 			buttons.name = "buttons panel"
 			buttons.background_index = 2
@@ -577,11 +577,11 @@ options_tab :: #force_inline proc() -> f32 {
 }
 
 options_scroll_x :: #force_inline proc() -> int {
-	return sb.options.checkbox_invert_x.state ? -1 : 1
+	return sb.options.checkbox_invert_x == nil ? 1 : sb.options.checkbox_invert_x.state ? -1 : 1
 }
 
 options_scroll_y :: #force_inline proc() -> int {
-	return sb.options.checkbox_invert_y.state ? -1 : 1
+	return sb.options.checkbox_invert_y == nil ? 1 : sb.options.checkbox_invert_y.state ? -1 : 1
 }
 
 options_tag_mode :: #force_inline proc() -> int {

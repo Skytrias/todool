@@ -119,8 +119,12 @@ Window :: struct {
 	down_left: Mouse_Coordinates,
 	down_right: Mouse_Coordinates,
 	pressed_button: int,
+	
+	// window sizing
 	width, height: int,
 	widthf, heightf: f32,
+	rect: Rect,
+	paint_clip: Rect,
 	
 	// rendering
 	update_next: bool,
@@ -409,6 +413,7 @@ window_init :: proc(
 	res.widthf = f32(w)
 	res.height = int(h)
 	res.heightf = f32(h)
+	res.rect = rect_wh(0, 0, f32(w), f32(h))
 	res.element.name = "WINDOW"
 	undo_manager_init(&res.manager)
 
@@ -499,15 +504,11 @@ window_poll_size :: proc(window: ^Window) {
 	window.widthf = f32(window.width)
 	window.height = int(h)
 	window.heightf = f32(window.height)
-}
-
-window_rect :: #force_inline proc(window: ^Window) -> Rect {
-	return { 0, window.widthf, 0, window.heightf }
+	window.rect = rect_wh(0, 0, window.widthf, window.heightf)
 }
 
 window_mouse_inside :: proc(window: ^Window) -> bool {
-	rect := window_rect(window)
-	return rect_contains(rect, window.cursor_x, window.cursor_y)
+	return rect_contains(window.rect, window.cursor_x, window.cursor_y)
 }
 
 // get xy
@@ -1008,6 +1009,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					window.widthf = f32(window.width)
 					window.height = int(e.window.data2)
 					window.heightf = f32(window.height)	
+					window.rect = rect_wh(0, 0, window.widthf, window.heightf)
 					window.update_next = true
 
 					if window.on_resize != nil {
@@ -1582,6 +1584,7 @@ gs_draw_and_cleanup :: proc() {
 			fontstash.state_begin(&gs.fc)
 			render_target_begin(window.target, theme.shadow)
 			element_message(&window.element, .Layout)
+			window.paint_clip = window.rect
 			render_element_clipped(window.target, &window.element)
 			fontstash.state_end(&gs.fc)
 			render_target_end(window.target, window.w, window.width, window.height)
@@ -2077,7 +2080,7 @@ menu_show :: proc(menu: ^Panel_Floaty) {
 	menu.width = f32(width)
 	menu.height = f32(height)
 
-	full := window_rect(menu.window)
+	full := menu.window.rect
 
 	// keep x & y in frame with a margin
 	margin := 10 * SCALE

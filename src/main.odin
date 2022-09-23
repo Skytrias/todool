@@ -19,6 +19,7 @@ TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
 //~~~~~TODO~~~~~
+//shadow animations for fluxmap
 //scrollbar or minimap on mode_panel
 //better link detection, maybe scan words once, then on text insertion or undo
 //always on top option, needs SDL 2.0.16
@@ -77,30 +78,35 @@ ALLOW_SCALE :: true
 //text strike-through y position adjusted
 //shadow offset slightly
 
-main2 :: proc() {
+main :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
 	window := window_init(nil, {}, "Todool", 900, 900)
 	window_main = window
 
-	panel := panel_init(&window.element, {}, 5)
+	panel := panel_init(&window.element, { .Panel_Scroll_XY }, 5)
+	panel.color = RED
 
-	for i in 0..<3 {
-		tp := toggle_panel_init(panel, { .HF }, {}, "Testing")
-		tp.panel.color = i == 0 ? BLUE : GREEN
-
-		for i in 0..<10 {
-			text := fmt.tprintf("Text %d", i)
-			button_init(tp.panel, { .HF }, text)
-		}
+	for i in 0..<100 {
+		button_init(panel, { }, fmt.tprintf("Textddddddddddddddddddxxxxxxxxxxxxx %d", i))
 	}
+
+	// for i in 0..<3 {
+	// 	tp := toggle_panel_init(panel, { .HF }, {}, "Testing")
+	// 	tp.panel.color = i == 0 ? BLUE : GREEN
+
+	// 	for i in 0..<10 {
+	// 		text := fmt.tprintf("Text %d", i)
+	// 		button_init(tp.panel, { .HF }, text)
+	// 	}
+	// }
 
 	gs_update_after_load()
 	gs_message_loop()
 }
 
-main :: proc() {
+main2 :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
@@ -372,7 +378,7 @@ main :: proc() {
 	sidebar_panel_init(panel)
 
 	{
-		rect := window_rect(window)
+		rect := window.rect
 		split := split_pane_init(panel, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)
 		split.pixel_based = true
 		sb.split = split

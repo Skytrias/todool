@@ -951,7 +951,7 @@ render_texture_from_handle :: proc(
 }
 
 // paint children, dont use this yourself
-render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
+render_element_clipped_old :: proc(target: ^Render_Target, element: ^Element) {
 	// skip hidden element
 	if .Hide in element.flags {
 		return
@@ -974,6 +974,41 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 	defer if sorted do delete(temp)
 
 	for child in temp {
+		render_element_clipped(target, child)
+		
+		if child.window.focused == child {
+			render_rect_outline(target, child.bounds, theme.text_good)
+		}
+	}
+}
+
+// paint children, dont use this yourself
+render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
+	// skip hidden element
+	if .Hide in element.flags {
+		return
+	}
+
+
+	// do default clipping when element doesnt expose clip event
+	element.window.paint_clip = rect_intersection(element.clip, element.window.paint_clip)
+	
+	if rect_invalid(element.window.paint_clip) {
+		return
+	}
+	
+	// element_message(element, .Custom_Clip, 0, &clip)
+	render_push_clip(target, element.window.paint_clip)
+	element_message(element, .Paint_Recursive)
+	// 	return
+	// }
+
+	temp, sorted := element_children_sorted_or_unsorted(element)
+	defer if sorted do delete(temp)
+
+	previous_clip := element.window.paint_clip
+	for child in temp {
+		element.window.paint_clip = previous_clip
 		render_element_clipped(target, child)
 		
 		if child.window.focused == child {
