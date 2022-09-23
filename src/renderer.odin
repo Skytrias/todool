@@ -951,7 +951,7 @@ render_texture_from_handle :: proc(
 }
 
 // paint children, dont use this yourself
-render_element_clipped_old :: proc(target: ^Render_Target, element: ^Element) {
+render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 	// skip hidden element
 	if .Hide in element.flags {
 		return
@@ -983,12 +983,11 @@ render_element_clipped_old :: proc(target: ^Render_Target, element: ^Element) {
 }
 
 // paint children, dont use this yourself
-render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
+render_element_clipped_old :: proc(target: ^Render_Target, element: ^Element) {
 	// skip hidden element
 	if .Hide in element.flags {
 		return
 	}
-
 
 	// do default clipping when element doesnt expose clip event
 	element.window.paint_clip = rect_intersection(element.clip, element.window.paint_clip)

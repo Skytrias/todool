@@ -10,7 +10,7 @@ import "core:os"
 import "core:strings"
 import "core:encoding/json"
 
-ARCHIVE_MAX :: 256
+ARCHIVE_MAX :: 32
 
 // push to archive text
 archive_push :: proc(text: string) {
@@ -18,20 +18,23 @@ archive_push :: proc(text: string) {
 		return
 	}
 
+	c := panel_children(sb.archive.buttons)
+
+	// TODO check direction
 	// KEEP AT MAX.
-	if len(sb.archive.buttons.children) == ARCHIVE_MAX {
-		for i := len(sb.archive.buttons.children) - 1; i >= 1; i -= 1 {
-			a := cast(^Archive_Button) sb.archive.buttons.children[i]
-			b := cast(^Archive_Button) sb.archive.buttons.children[i - 1]
+	if len(c) == ARCHIVE_MAX {
+		for i := len(c) - 1; i >= 1; i -= 1 {
+			a := cast(^Archive_Button) c[i]
+			b := cast(^Archive_Button) c[i - 1]
 			strings.builder_reset(&a.builder)
 			strings.write_string(&a.builder, strings.to_string(b.builder))
 		}
 
-		c := cast(^Archive_Button) sb.archive.buttons.children[0]
+		c := cast(^Archive_Button) c[0]
 		strings.builder_reset(&c.builder)
 		strings.write_string(&c.builder, text)
 	} else {
-		// log.info("LEN", len(sb.archive.buttons.children))
+		// log.info("LEN", len(c))
 		archive_button_init(sb.archive.buttons, { .HF }, text)
 		sb.archive.head += 1
 		sb.archive.tail += 1
@@ -242,13 +245,11 @@ sidebar_panel_init :: proc(parent: ^Element) {
 sidebar_enum_panel_init :: proc(parent: ^Element) {
 	shared_panel :: proc(element: ^Element, title: string, scrollable := true) -> ^Panel {
 		// dont use scrollbar if not wanted
-		parent := element
-		if scrollable {
-			parent = scrollbar_init(element, {}, false)
-		}
-
 		flags := Element_Flags { .Panel_Default_Background, .Tab_Movement_Allowed }
-		panel := panel_init(parent, flags, 5, 5)
+		if scrollable {
+			flags += Element_Flags { .Panel_Scroll_Vertical }
+		}
+		panel := panel_init(element, flags, 5, 5)
 		panel.background_index = 1
 		// panel.z_index = 2
 		panel.name = "shared panel"
@@ -430,8 +431,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		b1 := button_init(top, { .HF }, "Clear")
 		b1.hover_info = "Clear all archive entries"
 		b1.invoke = proc(data: rawptr) {
-			element_destroy_children_only(sb.archive.buttons)
-			// panel_clear_without_scrollbar(sb.archive.buttons)
+			element_destroy_descendents(sb.archive.buttons, true)
 			sb.archive.head = -1
 			sb.archive.tail = -1
 		}
@@ -443,7 +443,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			}
 
 			low, high := archive_low_and_high()
-			c := sb.archive.buttons.children
+			c := panel_children(sb.archive.buttons)
 			
 			copy_reset()
 			last_was_task_copy = true
@@ -456,8 +456,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		}
 
 		{
-			scrollbar := scrollbar_init(panel, { .HF, .VF }, false)
-			buttons = panel_init(scrollbar, { .Panel_Default_Background }, 5, 1)
+			buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background, .Panel_Scroll_Vertical }, 5, 1)
 			buttons.name = "buttons panel"
 			buttons.background_index = 2
 			buttons.layout_elements_in_reverse = true

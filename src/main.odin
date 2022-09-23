@@ -78,7 +78,7 @@ ALLOW_SCALE :: true
 //text strike-through y position adjusted
 //shadow offset slightly
 
-main :: proc() {
+main2 :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
@@ -106,7 +106,7 @@ main :: proc() {
 	gs_message_loop()
 }
 
-main2 :: proc() {
+main :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()

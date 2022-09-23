@@ -1325,22 +1325,6 @@ gs_init :: proc() {
 	strings.builder_init(&cstring_builder, 0, 128)
 }
 
-// window_hovering_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
-// 	context = runtime.default_context()
-// 	context.logger = gs.logger
-
-// 	window := (cast(^^Window) data)^
-// 	for window != nil {	
-// 		if window_hovered_check(window) {
-// 			sdl_push_empty_event()
-// 		}
-
-// 		window = window.window_next
-// 	}
-
-// 	return interval
-// }
-
 gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
 	if len(ta.allocation_map) > 0 {
 		for _, v in ta.allocation_map {

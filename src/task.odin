@@ -86,6 +86,7 @@ Custom_Split :: struct {
 	using element: Element,
 	
 	image_display: ^Image_Display, // fullscreen display
+	vscrollbar: ^Scrollbar,
 }
 
 // simply write task text with indentation into a builder
@@ -1224,6 +1225,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				cam.offset_y = cam.start_y + diff_y
 				cam.freehand = true
 
+				custom_split_update_based_on_cam_offset()
 				window_set_cursor(element.window, .Crosshair)
 				element_repaint(element)
 				return 1
@@ -1257,6 +1259,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Mouse_Scroll_Y: {
 			cam.offset_y += f32(di) * 20
 			cam.freehand = true
+			custom_split_update_based_on_cam_offset()
 			element_repaint(element)
 			return 1
 		}
@@ -1876,23 +1879,56 @@ search_init :: proc(parent: ^Element) {
 	element_hide(panel_search, true)
 }
 
+custom_split_update_based_on_cam_offset :: proc() {
+	if custom_split.vscrollbar != nil {
+		cam := &mode_panel.cam[mode_panel.mode]
+		custom_split.vscrollbar.position = -cam.offset_y
+	}
+}
+
 custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	split := cast(^Custom_Split) element
 
-	if msg == .Layout {
-		bounds := element.bounds
-		// log.info("BOUNDS", element.bounds, window_rect(window_main))
+	#partial switch msg {
+		case .Layout: {
+			bounds := element.bounds
+			// log.info("BOUNDS", element.bounds, window_rect(window_main))
 
-		if .Hide not_in panel_search.flags {
-			bot := rect_cut_bottom(&bounds, math.round(50 * SCALE))
-			element_move(panel_search, bot)
+			if .Hide not_in panel_search.flags {
+				bot := rect_cut_bottom(&bounds, math.round(50 * SCALE))
+				element_move(panel_search, bot)
+			}
+
+			if image_display_has_content(split.image_display) {
+				element_move(split.image_display, rect_margin(bounds, math.round(20 * SCALE)))
+			}
+
+			if split.vscrollbar != nil {
+				scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+				right := rect_cut_right(&bounds, scrollbar_size)
+
+				bot := -max(f32)
+				top := max(f32)
+				for task in tasks_visible {
+					bot = max(task.bounds.t, bot)
+					top = min(task.bounds.b, top)
+				}
+
+				split.vscrollbar.maximum = (bot - top)
+				split.vscrollbar.page = rect_height(bounds)
+				// fmt.eprintln("scroll", split.vscrollbar.maximum, rect_height(bounds))
+				element_move(split.vscrollbar, right)
+			}
+
+			element_move(mode_panel, bounds)
 		}
 
-		if image_display_has_content(split.image_display) {
-			element_move(split.image_display, rect_margin(bounds, math.round(20 * SCALE)))
+		case .Scrolled: {
+			cam := &mode_panel.cam[mode_panel.mode]
+			// cam.offset_y = clamp(split.vscrollbar.position)
+			cam.offset_y = -split.vscrollbar.position
+			cam.freehand = true
 		}
-
-		element_move(mode_panel, bounds)
 	}
 
 	return 0  	
@@ -1902,6 +1938,7 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := split.window.rect
 
 	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
+	custom_split.vscrollbar = scrollbar_init(custom_split, {}, false, context.allocator)
 	custom_split.image_display = image_display_init(custom_split, {}, nil)
 	custom_split.image_display.aspect = .Mix
 	custom_split.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1951,7 +1988,7 @@ tasks_load_reset :: proc() {
 	// NOTE TEMP
 	// TODO need to cleanup node data
 	tasks_eliminate_wanted_clear_tasks(mode_panel)
-	element_destroy_children_only(mode_panel)
+	element_destroy_descendents(mode_panel, false)
 	element_deallocate(&window_main.element) // clear mem
 	tasks_clear_left_over()
 	clear(&mode_panel.children)

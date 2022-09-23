@@ -244,9 +244,7 @@ theme_editor_spawn :: proc() {
 	}
 	theme_editor.window = window
 
-	// theme_editor.scrollbar = scrollbar_init(&window.element, {})
-
-	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background }, 0, 5)
+	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background, .Panel_Scroll_Vertical }, 0, 5)
 	theme_editor.panel.margin = 10
 	
 	label := label_init(theme_editor.panel, {}, "Theme Editor")

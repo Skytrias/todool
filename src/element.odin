@@ -104,7 +104,7 @@ Element_Flag :: enum {
 	Destroy,
 	Destroy_Descendent,
 	Disabled, // cant receive any input messages
-	Layout_Ignore, // non client elements
+	Non_Client, // non client elements
 
 	VF, // Vertical Fill
 	HF, // Horizontal Fill
@@ -313,14 +313,14 @@ element_init :: proc(
 }
 
 // reposition element and cal layout to children
-element_move_old :: proc(element: ^Element, bounds: Rect) {
+element_move :: proc(element: ^Element, bounds: Rect) {
 	// move to new position - msg children to layout
 	element.clip = rect_intersection(element.parent.clip, bounds)
 	element.bounds = bounds
 	element_message(element, .Layout)
 }
 
-element_move :: proc(element: ^Element, bounds: Rect) {
+element_moveold :: proc(element: ^Element, bounds: Rect) {
 	clip := element.parent != nil ? rect_intersection(element.parent.clip, bounds) : bounds
 	moved := element.bounds != bounds || element.clip != clip
 	layout: bool
@@ -395,12 +395,6 @@ element_find_index_linear :: proc(element: ^Element) -> int {
 	return -1
 }
 
-element_destroy_children_only :: proc(element: ^Element) {
-	for child in element.children {
-		element_destroy(child)
-	}
-}
-
 // dont set any signals or flags
 element_destroy_and_deallocate :: proc(element: ^Element) {
 	element_message(element, .Destroy)
@@ -411,6 +405,15 @@ element_destroy_and_deallocate :: proc(element: ^Element) {
 	}
 
 	element_deallocate_raw(element)
+}
+
+element_destroy_descendents :: proc(element: ^Element, top_level: bool) {
+	// recurse to destroy all children
+	for child in element.children {
+		if !top_level || (.Non_Client not_in child.flags) {
+			element_destroy(child)
+		}
+	}
 }
 
 // mark children for destruction
@@ -438,10 +441,7 @@ element_destroy :: proc(element: ^Element) -> bool {
 		ancestor = ancestor.parent
 	}
 
-	// recurse to destroy all children
-	for child in element.children {
-		element_destroy(child)
-	}
+	element_destroy_descendents(element, false)
 
 	// push repaint
 	if element.parent != nil {
@@ -1307,7 +1307,7 @@ panel_calculate_per_fill :: proc(panel: ^Panel, hspace, vspace: int) -> (per_fil
 	fill: int
 
 	for child in panel.children {
-		if (.Hide in child.flags) || (.Layout_Ignore) in child.flags {
+		if (.Hide in child.flags) || (.Non_Client) in child.flags {
 			continue;
 		}
 
@@ -1345,7 +1345,7 @@ panel_measure :: proc(panel: ^Panel, di: int) -> int {
 	size := 0
 
 	for child, i in panel.children {
-		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
+		if (.Hide in child.flags) || (.Non_Client in child.flags) {
 			continue
 		}
 
@@ -1367,17 +1367,18 @@ panel_layout :: proc(
 	horizontal := .Panel_Horizontal in panel.flags
 	scaled_margin := math.round(panel.margin * SCALE)
 	position_x := f32(0)
-	position_y := scaled_margin
-	
+	position_y := f32(0)
+	position_layout := scaled_margin
+
 	// TODO check for scrollbar hide flag?
+	if !measure && scrollbar_valid(panel.hscrollbar) {
+		position_x -= panel.hscrollbar.position
+	}
+
 	if !measure && scrollbar_valid(panel.vscrollbar) {
 		position_y -= panel.vscrollbar.position
 	}
 
-	if !measure && scrollbar_valid(panel.hscrollbar) {
-		position_x -= panel.hscrollbar.position
-	}
-	
 	hspace := rect_width(bounds) - scaled_margin * 2
 	vspace := rect_height(bounds) - scaled_margin * 2
 	per_fill, count := panel_calculate_per_fill(panel, int(hspace), int(vspace))
@@ -1387,7 +1388,7 @@ panel_layout :: proc(
 		child := panel.children[panel.layout_elements_in_reverse ? len(panel.children) - 1 - i : i]
 		// child := panel.children[i]
 
-		if (.Hide in child.flags) || (.Layout_Ignore in child.flags) {
+		if (.Hide in child.flags) || (.Non_Client in child.flags) {
 			continue
 		}
 
@@ -1396,8 +1397,8 @@ panel_layout :: proc(
 			width := (.HF in child.flags) ? per_fill : element_message(child, .Get_Width, int(height))
 
 			relative := Rect {
-				position_x,
-				position_x + f32(width),
+				position_layout + position_x,
+				position_layout + position_x + f32(width),
 				position_y + scaled_margin + (vspace - height) / 2,
 				position_y + scaled_margin + (vspace + height) / 2,
 			}
@@ -1406,7 +1407,7 @@ panel_layout :: proc(
 				element_move(child, rect_translate(relative, bounds))
 			}
 
-			position_x += f32(width) + panel.gap * SCALE
+			position_layout += f32(width) + panel.gap * SCALE
 		} else {
 			width := (.HF in child.flags) || expand ? hspace : f32(element_message(child, .Get_Width, (.VF in child.flags) ? per_fill : 0))
 			height := (.VF in child.flags) ? per_fill : element_message(child, .Get_Height, int(width))
@@ -1414,20 +1415,19 @@ panel_layout :: proc(
 			relative := Rect {
 				position_x + scaled_margin + (hspace - width) / 2,
 				position_x + scaled_margin + (hspace + width) / 2,
-				position_y,
-				position_y + f32(height),
+				position_layout + position_y,
+				position_layout + position_y + f32(height),
 			}
 
 			if !measure {
 				element_move(child, rect_translate(relative, bounds))
 			}
 
-			position_y += f32(height) + panel.gap * SCALE
+			position_layout += f32(height) + panel.gap * SCALE
 		}
 	}
 
-	p := horizontal ? position_x : position_y
-	return p - (count != 0 ? panel.gap : 0) * SCALE + scaled_margin
+	return position_layout - (count != 0 ? panel.gap : 0) * SCALE + scaled_margin
 }
 
 panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
@@ -1473,13 +1473,15 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Layout: {
 			bounds := element.bounds
+			scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+			scrollbar_both := scrollbar_valid(panel.vscrollbar) && scrollbar_valid(panel.hscrollbar)
 
 			if panel.vscrollbar != nil {
-				scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
 				bounds_before := bounds
 				scrollbar_bounds := rect_cut_right(&bounds, scrollbar_size)
 				panel.vscrollbar.maximum = panel_layout(panel, bounds, true)
 				panel.vscrollbar.page = rect_height(bounds)
+				panel.vscrollbar.shorted = scrollbar_both
 				element_move(panel.vscrollbar, scrollbar_bounds)
 
 				// reset bounds if hidden
@@ -1489,7 +1491,6 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			}
 
 			if panel.hscrollbar != nil {
-				scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
 				bounds_before := bounds
 				scrollbar_bounds := rect_cut_bottom(&bounds, scrollbar_size)
 				// TODO double check max 
@@ -1583,6 +1584,15 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 	return 0
 }	
 
+// check for scrolling flags
+scroll_flags :: proc(flags: Element_Flags) -> bool {
+	return (.Panel_Scroll_XY in flags) ||
+		(.Panel_Scroll_Horizontal in flags) ||
+		(.Panel_Scroll_Vertical in flags) 
+}
+
+// panel destroy elements besides 
+
 panel_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
@@ -1591,27 +1601,36 @@ panel_init :: proc(
 	color: Color = TRANSPARENT,
 	allocator := context.allocator,
 ) -> (res: ^Panel) {
+	has_scroll_flags := scroll_flags(flags)
+	flags := flags
+
+	if has_scroll_flags {
+		flags += { .Sort_By_Z_Index }
+	}
+
 	res = element_init(Panel, parent, flags, panel_message, allocator)
 	res.margin = margin
 	res.color = color
 	res.gap = gap
 
-	// TODO use bitset magic instead
-	if 
-		(.Panel_Scroll_XY in flags) ||
-		(.Panel_Scroll_Horizontal in flags) ||
-		(.Panel_Scroll_Vertical in flags) {
-
+	if has_scroll_flags {
 		if (.Panel_Scroll_XY in flags) || (.Panel_Scroll_Vertical in flags) {
-			res.vscrollbar = scrollbar_init(res, { .Layout_Ignore }, false, allocator)
+			res.vscrollbar = scrollbar_init(res, { .Non_Client }, false, allocator)
 		}
 
 		if (.Panel_Scroll_XY in flags) || (.Panel_Scroll_Horizontal in flags) {
-			res.hscrollbar = scrollbar_init(res, { .Layout_Ignore }, true, allocator)
+			res.hscrollbar = scrollbar_init(res, { .Non_Client }, true, allocator)
 		}
 	}
 
 	return
+}
+
+// offset by scrollbar
+panel_children :: proc(panel: ^Panel) -> []^Element {
+	off := int(panel.vscrollbar != nil) + int(panel.hscrollbar != nil)
+	// fmt.eprintln("~~~", off)
+	return panel.children[off:]
 }
 
 //////////////////////////////////////////////
@@ -1677,6 +1696,7 @@ Scrollbar :: struct {
 	drag_offset: f32,
 	position: f32,
 	in_drag: bool,	
+	shorted: bool,
 }
 
 // clamp position
@@ -1745,8 +1765,12 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 				// layout each element
 				scrollbar_size := scrollbar.horizontal ? rect_width(element.bounds) : rect_height(element.bounds) 
+				// if !scrollbar.horizontal && scrollbar.shorted {
+				// 	scrollbar_size -= math.round(SCROLLBAR_SIZE * SCALE)
+				// }
+
 				thumb_size := scrollbar_size * scrollbar.page / scrollbar.maximum
-				// thumb_size = max(SCROLLBAR_SIZE / 2, thumb_size)
+				thumb_size = max(SCROLLBAR_SIZE * 2 * SCALE, thumb_size)
 
 				// clamp position
 				diff := scrollbar_position_clamp(scrollbar)
@@ -1813,6 +1837,7 @@ scrollbar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			direction: f32 = is_down ? 1 : -1
 			scrollbar.position += direction * 0.01 * scrollbar.page
 			element_repaint(scrollbar)
+			element_message(scrollbar.parent, .Scrolled)
 			return 1
 		}
 	}
@@ -1839,7 +1864,6 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Mouse_Drag: {
-			fmt.eprintln("try drag")
 			if element.window.pressed_button == MOUSE_LEFT {
 				if !scrollbar.in_drag {
 					scrollbar.in_drag = true
@@ -1861,7 +1885,6 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Left_Up: {
-			fmt.eprintln("click")
 			scrollbar.in_drag = false
 		}
 	}
@@ -1895,6 +1918,7 @@ scrollbar_init :: proc(
 ) -> (res: ^Scrollbar) {
 	res = element_init(Scrollbar, parent, flags, scrollbar_message, allocator)
 	res.horizontal = horizontal
+	res.z_index = 255
 
 	scrollbar_button_init(res, false, horizontal, allocator)
 	element_init(Element, res, {}, scroll_thumb_message, allocator)
@@ -1943,14 +1967,6 @@ scrollbar_inactive :: proc(scrollbar: ^Scrollbar) -> bool {
 scrollbar_valid :: proc(scrollbar: ^Scrollbar) -> bool {
 	return scrollbar != nil && (.Hide not_in scrollbar.flags)
 }
-
-// scrollbar_side_set :: proc(
-// 	scrollbar: ^Scrollbar,
-// 	maximum: f32,
-// ) {
-// 	side := &scrollbar.sides[side_type]
-// 	side.maximum = maximum
-// }
 
 //////////////////////////////////////////////
 // table
