@@ -120,7 +120,6 @@ Element_Flag :: enum {
 	Box_Can_Focus,
 
 	Panel_Horizontal,
-	Panel_Panable,
 	Panel_Default_Background,
 
 	Split_Pane_Vertical,
@@ -1262,10 +1261,10 @@ Panel :: struct {
 	gap: f32,
 
 	// offset if panel is scrollable
-	drag_x: f32,
-	drag_y: f32,
-	offset_x: f32,
-	offset_y: f32,
+	// drag_x: f32,
+	// drag_y: f32,
+	// offset_x: f32,
+	// offset_y: f32,
 
 	// shadow + roundness
 	shadow: bool,
@@ -1348,14 +1347,17 @@ panel_layout :: proc(
 	panel: ^Panel, 
 	bounds: Rect, 
 	measure: bool, 
+	offset_x: f32,
 	offset_y: f32,
 ) -> f32 {
 	horizontal := .Panel_Horizontal in panel.flags
 	scaled_margin := math.round(panel.margin * SCALE)
-	position := scaled_margin
+	position_x := f32(0)
+	position_y := scaled_margin
 	
 	if !measure {
-		position -= offset_y
+		position_x -= offset_x
+		position_y -= offset_y
 	}
 	
 	hspace := rect_width(bounds) - scaled_margin * 2
@@ -1376,41 +1378,41 @@ panel_layout :: proc(
 			width := (.HF in child.flags) ? per_fill : element_message(child, .Get_Width, int(height))
 
 			relative := Rect {
-				position,
-				position + f32(width),
-				scaled_margin + (vspace - height) / 2,
-				scaled_margin + (vspace + height) / 2,
+				position_x,
+				position_x + f32(width),
+				position_y + scaled_margin + (vspace - height) / 2,
+				position_y + scaled_margin + (vspace + height) / 2,
 			}
 
 			if !measure {
 				element_move(child, rect_translate(relative, bounds))
 			}
 
-			position += f32(width) + panel.gap * SCALE
+			position_x += f32(width) + panel.gap * SCALE
 		} else {
 			width := (.HF in child.flags) || expand ? hspace : f32(element_message(child, .Get_Width, (.VF in child.flags) ? per_fill : 0))
 			height := (.VF in child.flags) ? per_fill : element_message(child, .Get_Height, int(width))
 
 			relative := Rect {
-				scaled_margin + (hspace - width) / 2,
-				scaled_margin + (hspace + width) / 2,
-				position,
-				position + f32(height),
+				position_x + scaled_margin + (hspace - width) / 2,
+				position_x + scaled_margin + (hspace + width) / 2,
+				position_y,
+				position_y + f32(height),
 			}
 
 			if !measure {
 				element_move(child, rect_translate(relative, bounds))
 			}
 
-			position += f32(height) + panel.gap * SCALE
+			position_y += f32(height) + panel.gap * SCALE
 		}
 	}
 
-	return position - (count != 0 ? panel.gap : 0) * SCALE + scaled_margin
+	p := horizontal ? position_x : position_y
+	return p - (count != 0 ? panel.gap : 0) * SCALE + scaled_margin
 }
 
 panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
-	panable := (.Panel_Panable in panel.flags)
 	color: Color
 	element_message(panel, .Panel_Color, 0, &color)
 
@@ -1423,11 +1425,6 @@ panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
 	}
 
 	bounds := panel.bounds
-
-	if panable {
-		bounds.l -= panel.offset_x
-		bounds.t -= panel.offset_y
-	}
 
 	roundness := panel.rounded ? ROUNDNESS : 0
 	if panel.shadow {
@@ -1447,8 +1444,6 @@ panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
 
 panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Panel) element
-	panable := (.Panel_Panable in element.flags)
-	// has_scrollbar := panel.scrollbar != nil && .Hide not_in panel.scrollbar.flags
 
 	#partial switch msg {
 		case .Custom_Clip: {
@@ -1459,7 +1454,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Layout: {
-			panel_layout(panel, element.bounds, false, 0)
+			panel_layout(panel, element.bounds, false, 0, 0)
 		}
 
 		case .Update: {
@@ -1468,62 +1463,13 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			}
 		}
 
-		case .Mouse_Drag: {
-			mouse := (cast(^Mouse_Coordinates) dp)^
-			
-			if panable && element.window.pressed_button == MOUSE_MIDDLE {
-				diff_x := element.window.cursor_x - mouse.x
-				diff_y := element.window.cursor_y - mouse.y
-
-				panel.offset_x = panel.drag_x + diff_x
-				panel.offset_y = panel.drag_y + diff_y
-				// log.info("drag", diff_x, diff_y, panel.offset_x, panel.offset_y)
-
-				window_set_cursor(element.window, .Crosshair)
-				element_repaint(element)
-			}
-		}
-
 		case .Left_Down: {
 			element_reset_focus(element.window)
 		}
 
-		case .Middle_Down: {
-			// store temp position
-			if panable {
-				panel.drag_x = panel.offset_x
-				panel.drag_y = panel.offset_y
-			}
-		}
-
-		case .Mouse_Scroll_Y: {
-			handled := false
-
-			if panable {
-				panel.offset_y += f32(di) * 20
-				element_repaint(element)
-				handled = true
-			}
-
-			// send msg to scrollbar
-			// if has_scrollbar {
-			// 	element_message(panel.scrollbar, msg, di, dp)
-			// 	handled = true
-			// }
-
-			return int(handled)
-		}
-
-		case .Mouse_Scroll_X: {
-			if panable {
-				panel.offset_x += f32(di) * 20
-				element_repaint(element)
-			}
-		}
-
 		case .Get_Width: {
 			if .Panel_Horizontal in element.flags {
-				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true, 0))
+				return int(panel_layout(panel, { 0, 0, 0, f32(di) }, true, 0, 0))
 			} else {
 				return panel_measure(panel, di)
 			}
@@ -1533,10 +1479,8 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if .Panel_Horizontal in element.flags {
 				return panel_measure(panel, di)
 			} else {
-				// width := di != 0 && has_scrollbar ? (f32(di) - SCROLLBAR_SIZE * SCALE) : f32(di)
-				// return int(panel_layout(panel, { 0, width, 0, 0 }, true))
 				width := f32(di)
-				return int(panel_layout(panel, { 0, width, 0, 0 }, true, 0))
+				return int(panel_layout(panel, { 0, width, 0, 0 }, true, 0, 0))
 			}
 		}
 
@@ -1691,21 +1635,19 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 		}
 
-		case .Mouse_Scroll_Y: {
+		case .Mouse_Scroll_X, .Mouse_Scroll_Y: {
 			handled: int
+			type: Scrollbar_Side_Type = msg == .Mouse_Scroll_X ? .Horizontal : .Vertical
+			side := &scrollbar.sides[type]
 
-			for side_type in Scrollbar_Side_Type {
-				side := &scrollbar.sides[side_type]
+			if !side.hidden {
+				side.position -= f32(di) * 20
+				size := type == .Vertical ? rect_height(side.rect) : rect_width(side.rect)
+				scrollbar_panel_side_position_clamp(side, size)
 
-				if !side.hidden {
-					side.position -= f32(di) * 20
-					size := side_type == .Vertical ? rect_height(side.rect) : rect_width(side.rect)
-					scrollbar_panel_side_position_clamp(side, size)
-
-					element_repaint(scrollbar)
-					element_message(scrollbar.parent, .Scrolled)
-					handled = 1
-				}
+				element_repaint(scrollbar)
+				element_message(scrollbar.parent, .Scrolled)
+				handled = 1
 			}
 
 			return handled
@@ -1723,8 +1665,10 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			// pre layout
 			{
-				max := f32(element_message(panel, .Get_Height))
-				scrollbar_panel_side_set(scrollbar, .Vertical, max)
+				max_height := f32(element_message(panel, .Get_Height))
+				scrollbar_panel_side_set(scrollbar, .Vertical, max_height)
+				max_width := f32(element_message(panel, .Get_Width))
+				scrollbar_panel_side_set(scrollbar, .Horizontal, max_width)
 			}
 
 			// layout elements
@@ -1735,20 +1679,20 @@ scrollbar_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				scrollbar_thumb_layout(scrollbar, .Vertical, a, b, c)
 			}
 
-			// {
-			// 	a := element.children[3]
-			// 	b := element.children[4]
-			// 	c := element.children[5]
-			// 	scrollbar_thumb_layout(scrollbar, .Horizontal, a, b, c)
-			// }
-			// }
+			{
+				a := element.children[3]
+				b := element.children[4]
+				c := element.children[5]
+				scrollbar_thumb_layout(scrollbar, .Horizontal, a, b, c)
+			}
 
 			// post layout
 			{
 				vertical := &scrollbar.sides[.Vertical]
+				horizontal := &scrollbar.sides[.Horizontal]
 				panel.bounds = scrollbar.bounds
 				panel.clip = rect_intersection(panel.parent.clip, scrollbar.bounds)
-				panel_layout(panel, scrollbar.bounds, false, vertical.position)
+				panel_layout(panel, scrollbar.bounds, false, horizontal.position, vertical.position)
 			}
 		}
 	}
@@ -1883,7 +1827,7 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 					}
 				}
 
-				thumb_position := element.window.cursor_y + side.drag_offset
+				thumb_position := (side_type == .Vertical ? element.window.cursor_y : element.window.cursor_x) + side.drag_offset
 				thumb_size := side_type == .Vertical ? rect_height(element.bounds) : rect_width(element.bounds)
 				thumb_diff := scrollbar_size - thumb_size
 				side.position = thumb_position / thumb_diff * (side.maximum - scrollbar_size)

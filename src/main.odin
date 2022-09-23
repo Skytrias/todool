@@ -18,10 +18,6 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
-//~~~~~VISUAL STYLING~~~~~
-//allow doing a single white background -> issue with wrapped content, maybe dotted outline
-//visual highlight parents only
-
 //~~~~~TODO~~~~~
 //scrollbar or minimap on mode_panel
 //better link detection, maybe scan words once, then on text insertion or undo
@@ -53,6 +49,7 @@ ALLOW_SCALE :: true
 //	floating icons
 //	camera scrolls in mouse direction
 //	circle outline visualized when pulling tasks out
+//multi-selection shadowing transition now animated
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again

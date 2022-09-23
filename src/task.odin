@@ -18,6 +18,8 @@ import "../fontstash"
 // last save
 last_save_location: string
 
+TAB_WIDTH :: 200
+TASK_MARGIN :: 5
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
 custom_split: ^Custom_Split
@@ -307,10 +309,6 @@ range_advance_index :: proc(index: ^int, high: int, backwards := false) {
 		}
 	}
 }
-
-// editor_pushed_unsaved: bool
-TAB_WIDTH :: 200
-TASK_MARGIN :: 5
 
 Task_State :: enum u8 {
 	Normal,
@@ -1089,25 +1087,17 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				return 0
 			}
 
-			bounds.l -= cam.offset_x
-			bounds.t -= cam.offset_y
+			bounds.l -= math.round(cam.offset_x)
+			bounds.t -= math.round(cam.offset_y)
 
-			switch panel.mode {
-				case .List: {
+			// switch panel.mode {
+			// 	case .List: {
 
-				}
+			// 	}
 
-				case .Kanban: {
-					// // draw outlines
-					// color := theme_panel(.Parent)
-					// // color := color_blend(mix, BLACK, 0.9, false)
-					// for outline in panel.kanban_outlines {
-					// 	rect := rect_margin(outline, -KANBAN_MARGIN * SCALE)
-					// 	// render_rect(target, rect, color, ROUNDNESS)
-					// 	render_rect_outline(target, rect, color, ROUNDNESS)
-					// }
-				}
-			}
+			// 	case .Kanban: {
+			// 	}
+			// }
 
 			mode_panel_draw_verticals(target)
 
