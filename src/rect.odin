@@ -6,6 +6,21 @@ Rect :: struct {
 	l, r, t, b: f32,
 }
 
+RECT_INF :: Rect {
+	max(f32),
+	-max(f32),
+	max(f32),
+	-max(f32),
+}
+
+// build a rectangle from multiple
+rect_inf_push :: proc(rect: ^Rect, other: Rect) {
+	rect.t = min(rect.t, other.t)
+	rect.l = min(rect.l, other.l)
+	rect.b = max(rect.b, other.b)
+	rect.r = max(rect.r, other.r)
+}
+
 rect_one :: #force_inline proc(a: f32) -> Rect {
 	return { a, a, a, a }
 }

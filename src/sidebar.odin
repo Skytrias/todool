@@ -617,6 +617,7 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			if set^ != info.index {
 				set^ = info.index
 				element_repaint(element)
+				// custom_split_update_based_on_cam_offset()
 			}
 		}
 

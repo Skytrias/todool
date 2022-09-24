@@ -61,7 +61,8 @@ Message :: enum {
 
 	// get wanted hover cursor
 	Get_Cursor,
-	Scrolled, // wether the element has scrolled
+	Scrolled_X, // wether the element has scrolled
+	Scrolled_Y, // wether the element has scrolled
 	Dropped_Files, // dp = ^string continuos
 
 	Key_Combination, // dp = ^string, return 1 if handled
@@ -1476,6 +1477,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
 			scrollbar_both := scrollbar_valid(panel.vscrollbar) && scrollbar_valid(panel.hscrollbar)
 
+
 			if panel.vscrollbar != nil {
 				bounds_before := bounds
 				scrollbar_bounds := rect_cut_right(&bounds, scrollbar_size)
@@ -1629,7 +1631,6 @@ panel_init :: proc(
 // offset by scrollbar
 panel_children :: proc(panel: ^Panel) -> []^Element {
 	off := int(panel.vscrollbar != nil) + int(panel.hscrollbar != nil)
-	// fmt.eprintln("~~~", off)
 	return panel.children[off:]
 }
 
@@ -1691,6 +1692,7 @@ Scrollbar :: struct {
 	horizontal: bool,
 	// TODO force opened option
 
+	force_visible: bool,
 	maximum: f32,
 	page: f32,
 	drag_offset: f32,
@@ -1719,6 +1721,11 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		case .Paint_Recursive: {
 			rect := element.bounds
 			render_rect(element.window.target, rect, theme.background[0])
+
+			// leave early when rendering and forced visible
+			if scrollbar_inactive(scrollbar) && scrollbar.force_visible {
+				return 1
+			}
 		}
 
 		case .Get_Width, .Get_Height: {
@@ -1741,7 +1748,8 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			scrollbar_position_clamp(scrollbar)
 
 			element_repaint(scrollbar)
-			element_message(scrollbar.parent, .Scrolled)
+			out: Message = msg == .Mouse_Scroll_X ? .Scrolled_X : .Scrolled_Y
+			element_message(scrollbar.parent, out)
 			return 1
 		}
 
@@ -1750,14 +1758,13 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			b := scrollbar.children[1]
 			c := scrollbar.children[2]
 			
-			if scrollbar_inactive(scrollbar) {
+			if scrollbar_inactive(scrollbar) && !scrollbar.force_visible {
 				scrollbar.position = 0
 				incl(&element.flags, Element_Flag.Hide)
 				incl(&a.flags, Element_Flag.Hide)
 				incl(&b.flags, Element_Flag.Hide)
 				incl(&c.flags, Element_Flag.Hide)
 			} else {
-				element_hide(scrollbar, false)
 				excl(&element.flags, Element_Flag.Hide)
 				excl(&a.flags, Element_Flag.Hide)
 				excl(&b.flags, Element_Flag.Hide)
@@ -1837,7 +1844,8 @@ scrollbar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			direction: f32 = is_down ? 1 : -1
 			scrollbar.position += direction * 0.01 * scrollbar.page
 			element_repaint(scrollbar)
-			element_message(scrollbar.parent, .Scrolled)
+			out: Message = scrollbar.horizontal ? .Scrolled_X : .Scrolled_Y
+			element_message(scrollbar.parent, out)
 			return 1
 		}
 	}
@@ -1880,7 +1888,8 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 				thumb_diff := scrollbar.page - thumb_size
 				scrollbar.position = thumb_position / thumb_diff * (scrollbar.maximum - scrollbar.page)
 				element_repaint(scrollbar)
-				element_message(scrollbar.parent, .Scrolled)
+				out: Message = scrollbar.horizontal ? .Scrolled_X : .Scrolled_Y
+				element_message(scrollbar.parent, out)
 			}
 		}
 

@@ -19,8 +19,8 @@ TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
 //~~~~~TODO~~~~~
+//ctrl+home/ctrl+end to jump back and forth between levels like a stack till any other task is entered
 //shadow animations for fluxmap
-//scrollbar or minimap on mode_panel
 //better link detection, maybe scan words once, then on text insertion or undo
 //always on top option, needs SDL 2.0.16
 //left sidebar doesnt scale nicely
@@ -51,6 +51,7 @@ ALLOW_SCALE :: true
 //	camera scrolls in mouse direction
 //	circle outline visualized when pulling tasks out
 //multi-selection shadowing transition now animated
+//scrollbars for task panel (vertical & horizontal)
 
 //~~~~~FIXES~~~~~
 //wrapping option only applies to List mode again
@@ -327,20 +328,17 @@ main :: proc() {
 			// animate up
 			if 
 				task_head != task_tail &&
-				!task_shadow_alpha_animating && 
 				task_shadow_alpha == 0 {
-				// task_shadow_alpha 
-				task_shadow_alpha_animating = true
-				element_animation_start(mode_panel)
+				gs_animate_forced(&task_shadow_alpha, TASK_SHADOW_ALPHA, .Quadratic_Out, time.Millisecond * 100)
+				// fmt.eprintln("up")
 			}
 
 			// animate down
 			if 
 				task_head == task_tail &&
-				!task_shadow_alpha_animating && 
 				task_shadow_alpha != 0 {
-				task_shadow_alpha_animating = true
-				element_animation_start(mode_panel)
+				gs_animate_forced(&task_shadow_alpha, 0, .Exponential_Out, time.Millisecond * 50)
+				// fmt.eprintln("down")
 			}
 		}
 

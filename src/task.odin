@@ -61,7 +61,6 @@ task_multi_context: bool
 // shadowing
 TASK_SHADOW_ALPHA :: 0.5
 task_shadow_alpha: f32
-task_shadow_alpha_animating: bool
 
 // drag state
 drag_list: [dynamic]^Task
@@ -87,6 +86,7 @@ Custom_Split :: struct {
 	
 	image_display: ^Image_Display, // fullscreen display
 	vscrollbar: ^Scrollbar,
+	hscrollbar: ^Scrollbar,
 }
 
 // simply write task text with indentation into a builder
@@ -1117,7 +1117,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// TODO looks shitty when swapping
 			// shadow highlight for non selection
-			if task_head != -1 && (task_shadow_alpha_animating || task_shadow_alpha != 0) {
+			if task_head != -1 && task_shadow_alpha != 0 {
 				render_push_clip(target, panel.clip)
 				low, high := task_low_and_high()
 				color := color_alpha(theme.background[0], task_shadow_alpha)
@@ -1221,11 +1221,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				diff_x := element.window.cursor_x - mouse.x
 				diff_y := element.window.cursor_y - mouse.y
 
-				cam.offset_x = cam.start_x + diff_x
-				cam.offset_y = cam.start_y + diff_y
+				cam_set_x(cam, cam.start_x + diff_x)
+				cam_set_y(cam, cam.start_y + diff_y)
 				cam.freehand = true
 
-				custom_split_update_based_on_cam_offset()
 				window_set_cursor(element.window, .Crosshair)
 				element_repaint(element)
 				return 1
@@ -1257,16 +1256,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Mouse_Scroll_Y: {
-			cam.offset_y += f32(di) * 20
+			cam_inc_y(cam, f32(di) * 20)
 			cam.freehand = true
-			custom_split_update_based_on_cam_offset()
 			element_repaint(element)
 			return 1
 		}
 
 		case .Mouse_Scroll_X: {
+			cam_inc_x(cam, f32(di) * 20)
 			cam.freehand = true
-			cam.offset_x += f32(di) * 20
 			element_repaint(element)
 			return 1
 		}
@@ -1284,15 +1282,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Animate: {
 			handled := false
 
-			if task_shadow_alpha_animating {
-				down := task_head == task_tail
-				handled |= animate_to(
-					&task_shadow_alpha_animating,
-					&task_shadow_alpha,
-					down ? 0 : TASK_SHADOW_ALPHA,
-					down ? 2 : 1,
-				)
-			}
+			// if task_shadow_alpha_animating {
+			// 	down := task_head == task_tail
+			// 	handled |= animate_to(
+			// 		&task_shadow_alpha_animating,
+			// 		&task_shadow_alpha,
+			// 		down ? 0 : TASK_SHADOW_ALPHA,
+			// 		down ? 2 : 1,
+			// 	)
+			// }
 
 			// drag animation and camera panning
 			if drag_running {
@@ -1304,12 +1302,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				if ydirection != 0 {
 					cam.freehand = true
-					cam.offset_y += ygoal * 0.1 * f32(ydirection)
+					cam_inc_y(cam, ygoal * 0.1 * f32(ydirection))
 				}
 
 				if xdirection != 0 {
 					cam.freehand = true
-					cam.offset_x += xgoal * 0.1 * f32(xdirection)
+					cam_inc_x(cam, xgoal * 0.1 * f32(xdirection))
 				}
 
 				handled = true
@@ -1879,11 +1877,10 @@ search_init :: proc(parent: ^Element) {
 	element_hide(panel_search, true)
 }
 
-custom_split_update_based_on_cam_offset :: proc() {
-	if custom_split.vscrollbar != nil {
-		cam := &mode_panel.cam[mode_panel.mode]
-		custom_split.vscrollbar.position = -cam.offset_y
-	}
+custom_split_set_scrollbars :: proc(split: ^Custom_Split) {
+	cam := mode_panel_cam()
+	split.vscrollbar.position = -cam.offset_y
+	split.hscrollbar.position = -cam.offset_x
 }
 
 custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1903,29 +1900,45 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 				element_move(split.image_display, rect_margin(bounds, math.round(20 * SCALE)))
 			}
 
+			scrollbar_right: Rect
+			scrollbar_bottom: Rect
+			scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
 			if split.vscrollbar != nil {
-				scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
-				right := rect_cut_right(&bounds, scrollbar_size)
-
-				bot := -max(f32)
-				top := max(f32)
-				for task in tasks_visible {
-					bot = max(task.bounds.t, bot)
-					top = min(task.bounds.b, top)
-				}
-
-				split.vscrollbar.maximum = (bot - top)
-				split.vscrollbar.page = rect_height(bounds)
-				// fmt.eprintln("scroll", split.vscrollbar.maximum, rect_height(bounds))
-				element_move(split.vscrollbar, right)
+				scrollbar_right = rect_cut_right(&bounds, scrollbar_size)
+			}
+			if split.hscrollbar != nil {
+				scrollbar_bottom = rect_cut_bottom(&bounds, scrollbar_size)
 			}
 
 			element_move(mode_panel, bounds)
+
+			// scrollbar depends on result after mode panel layouting
+			task_bounds := RECT_INF
+			for task in tasks_visible {
+				rect_inf_push(&task_bounds, task.bounds)
+			}
+
+			if split.vscrollbar != nil {
+				split.vscrollbar.maximum = rect_height(task_bounds)
+				split.vscrollbar.page = rect_height(bounds)
+				element_move(split.vscrollbar, scrollbar_right)
+			}
+
+			if split.hscrollbar != nil {
+				split.hscrollbar.maximum = rect_width(task_bounds)
+				split.hscrollbar.page = rect_width(bounds)
+				element_move(split.hscrollbar, scrollbar_bottom)
+			}
 		}
 
-		case .Scrolled: {
+		case .Scrolled_X: {
 			cam := &mode_panel.cam[mode_panel.mode]
-			// cam.offset_y = clamp(split.vscrollbar.position)
+			cam.offset_x = -split.hscrollbar.position
+			cam.freehand = true
+		}
+
+		case .Scrolled_Y: {
+			cam := &mode_panel.cam[mode_panel.mode]
 			cam.offset_y = -split.vscrollbar.position
 			cam.freehand = true
 		}
@@ -1939,6 +1952,9 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 
 	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
 	custom_split.vscrollbar = scrollbar_init(custom_split, {}, false, context.allocator)
+	custom_split.vscrollbar.force_visible = true	
+	custom_split.hscrollbar = scrollbar_init(custom_split, {}, true, context.allocator)
+	custom_split.hscrollbar.force_visible = true	
 	custom_split.image_display = image_display_init(custom_split, {}, nil)
 	custom_split.image_display.aspect = .Mix
 	custom_split.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

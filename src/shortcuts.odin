@@ -715,6 +715,7 @@ todool_insert_child :: proc() {
 todool_mode_list :: proc() {
 	if mode_panel.mode != .List {
 		mode_panel.mode = .List
+		custom_split_set_scrollbars(custom_split)
 		element_repaint(mode_panel)
 	}
 }
@@ -722,6 +723,7 @@ todool_mode_list :: proc() {
 todool_mode_kanban :: proc() {
 	if mode_panel.mode != .Kanban {
 		mode_panel.mode = .Kanban
+		custom_split_set_scrollbars(custom_split)
 		element_repaint(mode_panel)
 	}
 }

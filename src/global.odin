@@ -1,5 +1,6 @@
 package src
 
+import "core:intrinsics"
 import "core:thread"
 import "core:image"
 import "core:image/png"
@@ -1535,6 +1536,58 @@ gs_process_animations :: proc() {
 		// NOTE repaint even on last frame
 		element_repaint(element)
 	}
+}
+ 
+gs_animate_forced :: proc(
+	value: ^f32,
+	to: f32,
+	type: ease.Ease = .Quadratic_Out,
+	duration: time.Duration = time.Second,
+	delay: f64 = 0,
+) {
+	flux_to_restricted(&gs.flux, value, to, type, duration, delay)
+}
+
+gs_animate :: proc(
+	value: ^f32,
+	to: f32,
+	type: ease.Ease = .Quadratic_Out,
+	duration: time.Duration = time.Second,
+	delay: f64 = 0,
+) {
+	ease.flux_to(&gs.flux, value, to, type, duration, delay)
+}
+
+flux_to_restricted :: proc(
+	flux: ^ease.Flux_Map($T),
+	value: ^T, 
+	goal: T, 
+	type: ease.Ease = .Quadratic_Out,
+	duration: time.Duration = time.Second, 
+	delay: f64 = 0,
+) -> (tween: ^ease.Flux_Tween(T)) where intrinsics.type_is_float(T) {
+	if res, ok := &flux.values[value]; ok {
+		// return on same goal
+		if res.goal == goal {
+			return
+		}
+
+		tween = res
+	} else {
+		flux.values[value] = {}
+		tween = &flux.values[value]
+	}
+
+	tween^ = { 
+		value = value, 
+		goal = goal, 
+		duration = duration,
+		delay = delay,
+		type = type,
+		data = value,
+	}
+
+	return
 }
 
 gs_draw_and_cleanup :: proc() {
