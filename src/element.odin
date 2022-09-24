@@ -1936,6 +1936,36 @@ scrollbar_init :: proc(
 	return
 }
 
+scrollbars_layout_prior :: proc(
+	bounds: ^Rect,
+	hscrollbar: ^Scrollbar,
+	vscrollbar: ^Scrollbar,
+) -> (bottom, right: Rect) {
+	scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+	
+	if vscrollbar != nil {
+		right = rect_cut_right(bounds, scrollbar_size)
+	}
+
+	if hscrollbar != nil {
+		bottom = rect_cut_bottom(bounds, scrollbar_size)
+	}
+
+	return
+}
+
+scrollbar_layout_post :: proc(
+	scrollbar: ^Scrollbar,
+	rect: Rect,
+	max: f32,
+) {
+	if scrollbar != nil {
+		scrollbar.maximum = max
+		scrollbar.page = scrollbar.horizontal ? rect_width(rect) : rect_height(rect)
+		element_move(scrollbar, rect)
+	}
+}
+
 // // keep scrollbar in frame when in need for manual panning
 // scrollbar_keep_in_frame :: proc(
 // 	scrollbar: ^Scrollbar, 

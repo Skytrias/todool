@@ -20,21 +20,20 @@ ALLOW_SCALE :: true
 
 //~~~~~TODO~~~~~
 //ctrl+home/ctrl+end to jump back and forth between levels like a stack till any other task is entered
-//shadow animations for fluxmap
 //better link detection, maybe scan words once, then on text insertion or undo
 //always on top option, needs SDL 2.0.16
 //left sidebar doesnt scale nicely
 //image display options
 //better image zoom/control mode
+//relative file paths?
 
 //system to force push new keybindings for a patch
 //keymap setting window
-//changelog generator output window
 //options animation speed slider
 //options autosave should save or in general changing things on the sidebar should be automatic or seperate?
 //while search typing set camera to focus atleast search result found
 //save automatic state setting by offsetting undo in place, instead of everywhere
-//text based format
+//text based save format
 
 //~~~~~DONE~~~~~
 //shift_right opens folded content

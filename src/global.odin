@@ -168,6 +168,7 @@ Window :: struct {
 
 	// callbacks
 	on_resize: proc(window: ^Window),
+	on_focus_gained: proc(window: ^Window),
 
 	// next window
 	window_next: ^Window,
@@ -1029,6 +1030,10 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				}
 
 				case .FOCUS_GAINED: {
+					if window != nil && window.on_focus_gained != nil {
+						window->on_focus_gained()
+					}
+
 					// flush key event when gained
 					sdl.FlushEvent(.KEYDOWN)
 				}
@@ -1558,6 +1563,7 @@ gs_animate :: proc(
 	ease.flux_to(&gs.flux, value, to, type, duration, delay)
 }
 
+// version that stops ongoing animation on different goal
 flux_to_restricted :: proc(
 	flux: ^ease.Flux_Map($T),
 	value: ^T, 
@@ -2228,4 +2234,17 @@ fcs_ahv :: #force_inline proc(ah: Align_Horizontal = .Middle, av: Align_Vertical
 
 font_get :: #force_inline proc(font_index: int, loc := #caller_location) -> ^Font {
 	return fontstash.font_get(&gs.fc, font_index, loc)
+}
+
+// counts first beginning tabs
+tabs_count :: proc(text: string) -> (count: int) {
+	for i in 0..<len(text) {
+		if text[i] == '\t' {
+			count += 1
+		} else {
+			return
+		}
+	}
+
+	return
 }

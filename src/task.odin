@@ -1380,7 +1380,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 						x,
 						x + text_width,
 						real_y,
-						real_y + LINE_WIDTH * SCALE,
+						real_y + LINE_WIDTH,
 					}
 					
 					render_rect(target, rect, theme.text_bad, 0)
@@ -1900,16 +1900,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 				element_move(split.image_display, rect_margin(bounds, math.round(20 * SCALE)))
 			}
 
-			scrollbar_right: Rect
-			scrollbar_bottom: Rect
-			scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
-			if split.vscrollbar != nil {
-				scrollbar_right = rect_cut_right(&bounds, scrollbar_size)
-			}
-			if split.hscrollbar != nil {
-				scrollbar_bottom = rect_cut_bottom(&bounds, scrollbar_size)
-			}
-
+			bottom, right := scrollbars_layout_prior(&bounds, split.hscrollbar, split.vscrollbar)
 			element_move(mode_panel, bounds)
 
 			// scrollbar depends on result after mode panel layouting
@@ -1917,18 +1908,8 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			for task in tasks_visible {
 				rect_inf_push(&task_bounds, task.bounds)
 			}
-
-			if split.vscrollbar != nil {
-				split.vscrollbar.maximum = rect_height(task_bounds)
-				split.vscrollbar.page = rect_height(bounds)
-				element_move(split.vscrollbar, scrollbar_right)
-			}
-
-			if split.hscrollbar != nil {
-				split.hscrollbar.maximum = rect_width(task_bounds)
-				split.hscrollbar.page = rect_width(bounds)
-				element_move(split.hscrollbar, scrollbar_bottom)
-			}
+			scrollbar_layout_post(split.hscrollbar, bottom, rect_width(task_bounds))
+			scrollbar_layout_post(split.vscrollbar, right, rect_height(task_bounds))
 		}
 
 		case .Scrolled_X: {
@@ -2426,7 +2407,7 @@ mode_panel_context_menu_spawn :: proc() {
 
 	button_init(p, { .HF }, "Generate Changelog").invoke = proc(data: rawptr) {
 		button := cast(^Button) data
-		todool_changelog_generate(false)
+		changelog_spawn()
 		menu_close(button.window)
 	}
 	

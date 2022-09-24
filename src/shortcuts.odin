@@ -113,7 +113,7 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "tasks_to_uppercase": todool_tasks_to_uppercase()
 		
 		case "change_task_state": todool_change_task_state(shift)
-		case "changelog_generate": todool_changelog_generate(false)
+		case "changelog_generate": changelog_spawn()
 
 		case "selection_stop": todool_selection_stop()
 		
@@ -574,43 +574,6 @@ todool_selection_stop :: proc() {
 		task_tail = task_head
 		element_repaint(mode_panel)
 	}	
-}
-
-todool_changelog_generate :: proc(check_only: bool) {
-	// TODO checked only
-
-	if task_head == -1 {
-		return
-	}
-
-	b := clipboard_set_prepare()
-	removed_count: int
-	
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
-
-	// write tasks out 
-	for i := 0; i < len(mode_panel.children); i += 1 {
-		task := cast(^Task) mode_panel.children[i]
-
-		if task.state != .Normal {
-			task_write_text_indentation(b, task, task.indentation)
-			archive_push(strings.to_string(task.box.builder))
-			task_remove_at_index(manager, i)
-			
-			i -= 1
-			removed_count += 1
-		} else if task.has_children {
-			if task.state_count[.Done] != 0 || task.state_count[.Canceled] != 0 {
-				task_write_text_indentation(b, task, task.indentation)
-			}
-		}
-	}
-
-	if removed_count != 0 {
-		clipboard_set_with_builder_prefilled()
-		element_repaint(mode_panel)
-	}
 }
 
 todool_escape :: proc() {
@@ -1393,20 +1356,8 @@ todool_paste_tasks_from_clipboard :: proc() {
 		// find indentation per line
 		{
 			text := clipboard_text
-			count: u16
 			for line in strings.split_lines_iterator(&text) {
-				count = 0
-
-				// simple byte traversal
-				for i in 0..<len(line) {
-					if line[i] == '\t' {
-						count += 1
-					} else {
-						break
-					}
-				}
-
-				append(&indentation_per_line, count)
+				append(&indentation_per_line, u16(tabs_count(line)))
 			}
 		}
 
