@@ -160,7 +160,7 @@ task_data_init :: proc() {
 	pomodoro_init()
 }
 
-last_save_set :: proc(next: string) {
+last_save_set :: proc(next: string = "") {
 	if last_save_location != "" {
 		delete(last_save_location)
 	}
@@ -649,19 +649,13 @@ task_push_undoable :: proc(
 task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
 	fcs_element(box)
 	fcs_ahv(.Left, .Top)
-	// wanted_width := clamp(width, KANBAN_WIDTH * SCALE, 100_000)
-	wanted_width := width
 
 	fontstash.wrap_format_to_lines(
 		&gs.fc,
 		strings.to_string(box.builder),
-		wanted_width,
+		max(width, 100),
 		&box.wrapped_lines,
 	)
-
-	if len(box.wrapped_lines) == 0 {
-		log.info("SOMETHING WENT WRONG", strings.to_string(box.builder), wanted_width)
-	}
 }
 
 // iter through visible children
@@ -702,8 +696,8 @@ mode_panel_init :: proc(
 ) -> (res: ^Mode_Panel) {
 	res = element_init(Mode_Panel, parent, flags, mode_panel_message, allocator)
 
-	cam_init(&res.cam[.List], 100, 100)
-	cam_init(&res.cam[.Kanban], 100, 100)
+	cam_init(&res.cam[.List], 25, 50)
+	cam_init(&res.cam[.Kanban], 25, 50)
 
 	return
 }
@@ -966,7 +960,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.b += math.round(cam.offset_y)
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
 			tab_scaling := options_tab() * TAB_WIDTH * SCALE
-			task_min_width := rect_width(mode_panel.bounds) - math.round(20 * SCALE)
+			task_min_width := rect_width(mode_panel.bounds) - math.round(50 * SCALE)
 
 			switch panel.mode {
 				case .List: {
@@ -1957,7 +1951,6 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	mode_panel = mode_panel_init(custom_split, {})
 	mode_panel.gap_vertical = 1
 	mode_panel.gap_horizontal = 10
-	// mode_panel.margin_vertical = 10
 	search_init(custom_split)
 	
 	return mode_panel
@@ -1973,8 +1966,9 @@ tasks_load_file :: proc() {
 	// on error reset and load default
 	if err != nil {
 		log.info("TODOOL: Loading failed -> Loading default")
+		last_save_set()
 		tasks_load_reset()
-		tasks_load_default()
+		tasks_load_tutorial()
 	} else {
 		log.info("TODOOL: Loading success")
 	}
@@ -1995,15 +1989,15 @@ tasks_load_reset :: proc() {
 	dirty_saved = 0
 }
 
-tasks_load_default :: proc() {
-	// task_push(0, "one")
-	// task_push(1, "two")
-	// task_push(2, "three some longer line of text")
-	// task_push(2, "just some long line of textjust some long line of textjust some long line of textjust some long line of textjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of text")
-	// task_head = 2
-	// task_tail = 2
-	tasks_load_tutorial()
-}
+// tasks_load_default :: proc() {
+// 	// task_push(0, "one")
+// 	// task_push(1, "two")
+// 	// task_push(2, "three some longer line of text")
+// 	// task_push(2, "just some long line of textjust some long line of textjust some long line of textjust some long line of textjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of text")
+// 	// task_head = 2
+// 	// task_tail = 2
+// 	tasks_load_tutorial()
+// }
 
 tasks_load_tutorial :: proc() {
 	@static load_indent := 0
