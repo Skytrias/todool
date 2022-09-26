@@ -74,7 +74,6 @@ Sidebar_Options :: struct {
 	checkbox_invert_y: ^Checkbox,
 	checkbox_uppercase_word: ^Checkbox,
 	checkbox_use_animations: ^Checkbox,	
-	checkbox_wrapping: ^Checkbox,
 	checkbox_bordered: ^Checkbox,
 	slider_volume: ^Slider,
 
@@ -303,7 +302,6 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		checkbox_invert_x = checkbox_init(panel, flags, "Invert Scroll X", false)
 		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
-		checkbox_wrapping = checkbox_init(panel, flags, "Wrap in List Mode", true)
 		checkbox_bordered = checkbox_init(panel, flags, "Borderless Window", false)
 		checkbox_bordered.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			if msg == .Value_Changed {
@@ -565,10 +563,6 @@ options_volume :: #force_inline proc() -> f32 {
 
 options_autosave :: #force_inline proc() -> bool {
 	return sb.options.checkbox_autosave.state
-}
-
-options_wrapping :: #force_inline proc() -> bool {
-	return sb.options.checkbox_wrapping.state
 }
 
 options_tab :: #force_inline proc() -> f32 {

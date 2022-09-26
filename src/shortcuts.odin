@@ -1181,7 +1181,7 @@ todool_load :: proc() {
 			}
 		}
 
-		default_path = gs_string_to_cstring(trimmed_path)
+		default_path = gs_string_to_cstring(last_save_location)
 		// log.info("++++", last_save_location, trimmed_path)
 	}
 

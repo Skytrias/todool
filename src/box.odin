@@ -1144,6 +1144,9 @@ box_layout_caret :: proc(
 	scaled_size: f32,
 	x, y: f32,
 ) -> Rect {
+	if len(box.wrapped_lines) == 0 {
+		log.info("yoooooo", strings.to_string(box.builder))
+	}
 	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 	return rect_wh(
 		x + caret_x,

@@ -646,20 +646,21 @@ task_push_undoable :: proc(
 }
 
 // format to lines or append a single line only
-task_box_format_to_lines :: proc(box: ^Task_Box, width: f32, do_wrapping: bool) {
-	if do_wrapping {
-		fcs_element(box)
-		fcs_ahv(.Left, .Top)
+task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
+	fcs_element(box)
+	fcs_ahv(.Left, .Top)
+	// wanted_width := clamp(width, KANBAN_WIDTH * SCALE, 100_000)
+	wanted_width := width
 
-		fontstash.wrap_format_to_lines(
-			&gs.fc,
-			strings.to_string(box.builder),
-			max(300 * SCALE, width),
-			&box.wrapped_lines,
-		)
-	} else {
-		clear(&box.wrapped_lines)
-		append(&box.wrapped_lines, strings.to_string(box.builder))
+	fontstash.wrap_format_to_lines(
+		&gs.fc,
+		strings.to_string(box.builder),
+		wanted_width,
+		&box.wrapped_lines,
+	)
+
+	if len(box.wrapped_lines) == 0 {
+		log.info("SOMETHING WENT WRONG", strings.to_string(box.builder), wanted_width)
 	}
 }
 
@@ -722,7 +723,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			bound_rect: Rect
 
 			for child in task_visible_children_iter(p.indentation, &index) {
-				rect := task_rect_indented(child)
+				rect := child.bounds
 
 				if bound_rect == {} {
 					bound_rect = rect
@@ -960,14 +961,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds := element.bounds
 
 			bounds.l += math.round(cam.offset_x)
+			bounds.r += math.round(cam.offset_x)
 			bounds.t += math.round(cam.offset_y)
+			bounds.b += math.round(cam.offset_y)
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
-			do_wrap := (panel.mode == .List && options_wrapping()) || panel.mode == .Kanban
+			tab_scaling := options_tab() * TAB_WIDTH * SCALE
+			task_min_width := rect_width(mode_panel.bounds) - math.round(20 * SCALE)
 
 			switch panel.mode {
 				case .List: {
 					cut := bounds
-					cut.b = 100_000
 
 					for child in element.children {
 						task := cast(^Task) child
@@ -977,11 +980,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						}
 
 						pseudo_rect := cut
-						box_rect := task_layout(task, &pseudo_rect, false)
-						task_box_format_to_lines(task.box, rect_width(box_rect), do_wrap)
+						pseudo_rect.l += math.round(f32(task.indentation) * tab_scaling)
+						pseudo_rect.r = pseudo_rect.l + task_min_width
+						box_rect := task_layout(task, pseudo_rect, false)
+						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&cut, f32(h))
+						r.l = r.l + math.round(task.indentation_smooth * tab_scaling)
+						r.r = r.l + task_min_width
 						element_move(task, r)
 
 						cut.t += gap_vertical_scaled
@@ -1005,13 +1012,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						}
 
 						if task.indentation == 0 {
-							if kanban_current != {} {
-								rect := kanban_current
-								rect.b = rect.t
-								rect.t = bounds.t
-								// append(&panel.kanban_outlines, rect)
-							}
-
 							// get max indentations till same line is found
 							max_indentations: int
 							kanban_children_start = i
@@ -1019,11 +1019,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 							for j in i + 1..<len(element.children) {
 								other := cast(^Task) element.children[j]
-
-								// if .Hide in other.flags || !other.visible {
-								// 	continue
-								// }
-
 								max_indentations = max(max_indentations, other.indentation)
 								
 								if other.indentation == 0 {
@@ -1035,7 +1030,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 							kanban_width := KANBAN_WIDTH * SCALE
 							kanban_width += math.round(f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE)
-							// NOTE has to be hard cut because of panning
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
 							cut.l += panel.gap_horizontal * SCALE
@@ -1043,11 +1037,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 						// pseudo layout for correct witdth
 						pseudo_rect := kanban_current
-						box_rect := task_layout(task, &pseudo_rect, false)
-						task_box_format_to_lines(task.box, rect_width(box_rect), do_wrap)
+						box_rect := task_layout(task, pseudo_rect, false)
+						box_rect.l += math.round(f32(task.indentation) * tab_scaling)
+						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&kanban_current, f32(h))
+						r.l += math.round(task.indentation_smooth * tab_scaling)
 						element_move(task, r)
 
 						if i - kanban_children_start < kanban_children_count - 1 {
@@ -1089,7 +1085,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			bounds.l -= math.round(cam.offset_x)
+			bounds.r -= math.round(cam.offset_x)
 			bounds.t -= math.round(cam.offset_y)
+			bounds.b -= math.round(cam.offset_y)
 
 			// switch panel.mode {
 			// 	case .List: {
@@ -1124,7 +1122,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				
 				for t in tasks_visible {
 					if !(low <= t.visible_index && t.visible_index <= high) {
-						rect := task_rect_indented(t)
+						rect := t.bounds
 						render_rect(target, rect, color)
 					}
 				}
@@ -1136,7 +1134,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, mode_panel.clip)
 				for i in low..<high + 1 {
 					task := tasks_visible[i]
-					rect := task_rect_indented(task)
+					rect := task.bounds
 					color := task_head == i ? theme.caret : theme.text_default
 					render_rect_outline(target, rect, color)
 				}
@@ -1486,24 +1484,23 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	return 0
 }
 
-task_rect_indented :: proc(task: ^Task) -> (res: Rect) {
-	res = task.bounds
-	res.l += math.round(task.indentation_smooth * options_tab() * TAB_WIDTH * SCALE)
-	return
+task_indentation_width :: proc(indentation: f32) -> f32 {
+	return math.round(indentation * options_tab() * TAB_WIDTH * SCALE)
 }
 
 // manual layout call so we can predict the proper positioning
-task_layout :: proc(task: ^Task, bounds: ^Rect, move: bool) -> Rect {
+task_layout :: proc(task: ^Task, bounds: Rect, move: bool) -> Rect {
 	tab := options_tab() * TAB_WIDTH * SCALE
 	offset_indentation := math.round(task.indentation_smooth * tab)
 	
 	// manually offset the line rectangle in total while retaining parent clip
+	bounds := bounds
 	bounds.t += math.round(task.top_offset)
 	bounds.b += math.round(task.top_offset)
-	task.clip = rect_intersection(task.parent.clip, task.bounds)
 
-	cut := bounds^
-	cut.l += offset_indentation
+	cut := bounds
+	task.clip = rect_intersection(task.parent.clip, cut)
+	task.bounds = cut
 
 	// layout bookmark
 	element_hide(task.button_bookmark, !task.bookmarked)
@@ -1590,12 +1587,12 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				task.top_animation_start = false
 			}
 
-			task_layout(task, &element.bounds, true)
+			task_layout(task, element.bounds, true)
 		}
 
 		case .Paint_Recursive: {
 			target := element.window.target
-			rect := task_rect_indented(task)
+			rect := task.bounds
 
 			// render panel front color
 			{
@@ -1905,8 +1902,10 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			// scrollbar depends on result after mode panel layouting
 			task_bounds := RECT_INF
+			// box_bounds := RECT_INF
 			for task in tasks_visible {
 				rect_inf_push(&task_bounds, task.bounds)
+				// rect_inf_push(&box_bounds, task.box.bounds)
 			}
 			scrollbar_layout_post(split.hscrollbar, bottom, rect_width(task_bounds))
 			scrollbar_layout_post(split.vscrollbar, right, rect_height(task_bounds))
@@ -1914,13 +1913,13 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Scrolled_X: {
 			cam := &mode_panel.cam[mode_panel.mode]
-			cam.offset_x = -split.hscrollbar.position
+			cam.offset_x = math.round(-split.hscrollbar.position)
 			cam.freehand = true
 		}
 
 		case .Scrolled_Y: {
 			cam := &mode_panel.cam[mode_panel.mode]
-			cam.offset_y = -split.vscrollbar.position
+			cam.offset_y = math.round(-split.vscrollbar.position)
 			cam.freehand = true
 		}
 	}

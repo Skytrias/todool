@@ -874,7 +874,7 @@ wrap_codepoint_index_to_line :: proc(
 ) {
 	assert(len(lines) > 0, "Lines should have valid content of lines > 0", loc)
 
-	if codepoint_index == 0 || len(lines) == 1 {
+	if codepoint_index == 0 || len(lines) <= 1 {
 		return
 	}
 

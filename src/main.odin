@@ -18,7 +18,12 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
+//~~~~~BUGS~~~~~
+//ctrl+enter is fucked
+
 //~~~~~TODO~~~~~
+//copy line command
+//state label (line num & selected count)
 //ctrl+home/ctrl+end to jump back and forth between levels like a stack till any other task is entered
 //better link detection, maybe scan words once, then on text insertion or undo
 //always on top option, needs SDL 2.0.16
@@ -34,6 +39,9 @@ ALLOW_SCALE :: true
 //while search typing set camera to focus atleast search result found
 //save automatic state setting by offsetting undo in place, instead of everywhere
 //text based save format
+
+//REMOVED
+//removed wrapping option - on by default with fixed width based on window
 
 //~~~~~DONE~~~~~
 //shift_right opens folded content
@@ -73,6 +81,7 @@ ALLOW_SCALE :: true
 //camera works with global scale now -> no jiggle when scaled in kanban
 //camera offsetting on animations-disabled fixed to end directly
 //option "invert_y" scroll direction works again
+//load path default to last save location instead of folder fixed
 
 //~~~~~TWEAKS~~~~~
 //text strike-through y position adjusted
@@ -329,7 +338,6 @@ main :: proc() {
 				task_head != task_tail &&
 				task_shadow_alpha == 0 {
 				gs_animate_forced(&task_shadow_alpha, TASK_SHADOW_ALPHA, .Quadratic_Out, time.Millisecond * 100)
-				// fmt.eprintln("up")
 			}
 
 			// animate down
@@ -337,7 +345,6 @@ main :: proc() {
 				task_head == task_tail &&
 				task_shadow_alpha != 0 {
 				gs_animate_forced(&task_shadow_alpha, 0, .Exponential_Out, time.Millisecond * 50)
-				// fmt.eprintln("down")
 			}
 		}
 
@@ -373,7 +380,7 @@ main :: proc() {
 	// add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
 	sidebar_panel_init(panel)
-
+	
 	{
 		rect := window.rect
 		split := split_pane_init(panel, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)

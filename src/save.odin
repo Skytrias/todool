@@ -370,7 +370,6 @@ Misc_Save_Load :: struct {
 		invert_y: bool,
 		uppercase_word: bool,
 		use_animations: bool,
-		wrapping: bool,
 		bordered: bool,
 		volume: f32,
 	},
@@ -484,7 +483,6 @@ json_save_misc :: proc(path: string) -> bool {
 			sb.options.checkbox_invert_y.state,
 			options_uppercase_word(),
 			options_use_animations(),
-			options_wrapping(),
 			options_bordered(),
 			options_volume(),
 		},
@@ -600,7 +598,6 @@ json_load_misc :: proc(path: string) -> bool {
 	checkbox_set(sb.options.checkbox_invert_y, misc.options.invert_y)
 	checkbox_set(sb.options.checkbox_uppercase_word, misc.options.uppercase_word)
 	checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
-	checkbox_set(sb.options.checkbox_wrapping, misc.options.wrapping)
 	checkbox_set(sb.options.checkbox_bordered, misc.options.bordered)
 	slider_set(sb.options.slider_volume, misc.options.volume)
 

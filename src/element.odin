@@ -1757,7 +1757,10 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			a := scrollbar.children[0]
 			b := scrollbar.children[1]
 			c := scrollbar.children[2]
-			
+
+			hovered := element.window.hovered == b
+			pressed := element.window.hovered == b
+
 			if scrollbar_inactive(scrollbar) && !scrollbar.force_visible {
 				scrollbar.position = 0
 				incl(&element.flags, Element_Flag.Hide)
