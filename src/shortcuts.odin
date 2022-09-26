@@ -104,6 +104,7 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		
 		case "copy_tasks_to_clipboard": todool_copy_tasks_to_clipboard()
 		case "copy_tasks": todool_copy_tasks()
+		case "duplicate_line": todool_duplicate_line()
 		case "cut_tasks": todool_cut_tasks()
 		case "paste_tasks": todool_paste_tasks()
 		case "paste_tasks_from_clipboard": todool_paste_tasks_from_clipboard()
@@ -184,6 +185,7 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	
 	shortcuts_push_general(s, "copy_tasks_to_clipboard", "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c")
 	shortcuts_push_general(s, "copy_tasks", "ctrl+c")
+	shortcuts_push_general(s, "duplicate_line", "ctrl+l")
 	shortcuts_push_general(s, "cut_tasks", "ctrl+x")
 	shortcuts_push_general(s, "paste_tasks", "ctrl+v")
 	shortcuts_push_general(s, "paste_tasks_from_clipboard", "ctrl+shift+v")
@@ -657,17 +659,17 @@ todool_insert_child :: proc() {
 		goal = tasks_visible[task_head + 1].index
 	}
 
-	// if task_head != -1 {
-	// 	current_task := tasks_visible[task_head]
-	// 	indentation = current_task.indentation + 1
-	// 	builder := &current_task.box.builder
+	if task_head != -1 {
+		current_task := tasks_visible[task_head]
+		indentation = current_task.indentation + 1
+		builder := &current_task.box.builder
 
-	// 	// uppercase word
-	// 	if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
-	// 		item := Undo_Builder_Uppercased_Content { builder }
-	// 		undo_box_uppercased_content(manager, &item, false)
-	// 	}
-	// }
+		// uppercase word
+		if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
+			item := Undo_Builder_Uppercased_Content { builder }
+			undo_box_uppercased_content(manager, &item)
+		}
+	}
 
 	task_push_undoable(manager, indentation, "", goal)
 	task_head += 1
@@ -1039,7 +1041,7 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 }
 
 // copy selected tasks
-copy_selection :: proc() {
+copy_selection :: proc() -> bool {
 	if task_head != -1 {
 		copy_reset()
 		low, high := task_low_and_high()
@@ -1049,7 +1051,11 @@ copy_selection :: proc() {
 			task := tasks_visible[i]
 			copy_push_task(task)
 		}
+
+		return true
 	}
+
+	return false
 }
 
 todool_indentation_shift :: proc(amt: int) {
@@ -1283,12 +1289,33 @@ todool_search :: proc() {
 	element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
 }
 
-todool_copy_tasks :: proc() {
+issue_copy :: proc() {
 	if !last_was_task_copy {
 		element_repaint(mode_panel) // required to make redraw and copy 
 	}
 	last_was_task_copy = true
-	copy_selection()
+}
+
+todool_duplicate_line :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+	task_current := tasks_visible[task_head]
+	index, indentation := task_head_safe_index_indentation()
+	task_push_undoable(manager, indentation, strings.to_string(task_current.box.builder), index)
+	element_repaint(mode_panel)
+
+	task_head += 1
+	task_head_tail_check_end()
+}
+
+todool_copy_tasks :: proc() {
+	if copy_selection() {
+		issue_copy()
+	}
 }
 
 todool_cut_tasks :: proc() {

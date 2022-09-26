@@ -18,6 +18,23 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
+import "core:io"
+
+// main :: proc() {
+// 	builder := strings.builder_make(0, 32)
+// 	// strings.write_string(&builder, "test")
+// 	fmt.eprintln(strings.to_string(builder))
+
+// 	w := strings.to_writer(&builder)
+// 	fmt.eprintln(w)
+
+// 	io.write_quoted_string(w, "\x00")
+// 	// io.write_quoted_string(w, "")
+// 	// io.write_quoted_string(w, "")
+// 	// io.write_quoted_string(w, "")
+// 	fmt.eprintln(strings.to_string(builder))
+// }
+
 main2 :: proc() {
 	gs_init()
 	context.logger = gs.logger
@@ -311,7 +328,7 @@ main :: proc() {
 	// add_shortcuts(window)
 	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
 	sidebar_panel_init(panel)
-	
+
 	{
 		rect := window.rect
 		split := split_pane_init(panel, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)

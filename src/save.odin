@@ -437,10 +437,11 @@ json_save_misc :: proc(path: string) -> bool {
 	pomodoro_diff := time.stopwatch_duration(pomodoro.stopwatch)
 	
 	// archive data
-	archive_data := make([]string, len(sb.archive.buttons.children))
-	// NOTE SKIP THE SCROLLBAR
-	for i in 0..<len(sb.archive.buttons.children) {
-		button := cast(^Archive_Button) sb.archive.buttons.children[i]
+	// NOTE always skip scrollbar
+	archive_children := panel_children(sb.archive.buttons)
+	archive_data := make([]string, len(archive_children))
+	for i in 0..<len(archive_children) {
+		button := cast(^Archive_Button) archive_children[i]
 		archive_data[i] = strings.to_string(button.builder)
 	}
 
