@@ -379,17 +379,11 @@ Mode :: enum {
 	Kanban,
 	// Agenda,
 }
-KANBAN_WIDTH :: 300
 
 // element to custom layout based on internal mode
 Mode_Panel :: struct {
 	using element: Element,
 	mode: Mode,
-
-	kanban_left: f32, // layout seperation
-	gap_vertical: f32,
-	gap_horizontal: f32,
-
 	cam: [Mode]Pan_Camera,
 }
 
@@ -597,8 +591,8 @@ task_init :: proc(
 				item := Undo_Item_Bool_Toggle { &task.folded }
 				undo_bool_toggle(manager, &item)
 
-				task_head = task.index
-				task_tail = task.index
+				task_head = task.visible_index
+				task_tail = task.visible_index
 
 				element_message(element, .Update)
 			}
@@ -720,7 +714,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 		return
 	}
 
-	tab := options_tab() * TAB_WIDTH * SCALE
+	tab := visuals_tab() * TAB_WIDTH * SCALE
 	p := tasks_visible[task_head]
 	color := theme.text_default
 
@@ -926,7 +920,7 @@ tasks_clear_left_over :: proc() {
 	}
 	clear(&task_clear_checking)
 }
-
+	
 mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Mode_Panel) element
 	cam := &panel.cam[panel.mode]
@@ -971,8 +965,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.r += cam.offset_x
 			bounds.t += cam.offset_y
 			bounds.b += cam.offset_y
-			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
-			tab_scaling := options_tab() * TAB_WIDTH * SCALE
+			gap_vertical_scaled := math.round(visuals_gap_vertical() * SCALE)
+			gap_horizontal_scaled := math.round(visuals_gap_horizontal() * SCALE)
+			kanban_width_scaled := math.round(visuals_kanban_width() * SCALE)
+			tab_scaling := visuals_tab() * TAB_WIDTH * SCALE
 			task_min_width := rect_width(mode_panel.bounds) - math.round(50 * SCALE)
 
 			switch panel.mode {
@@ -1035,11 +1031,11 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 								}
 							}
 
-							kanban_width := KANBAN_WIDTH * SCALE
-							kanban_width += math.round(f32(max_indentations) * options_tab() * TAB_WIDTH * SCALE)
+							kanban_width := kanban_width_scaled
+							kanban_width += math.round(f32(max_indentations) * visuals_tab() * TAB_WIDTH * SCALE)
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
-							cut.l += panel.gap_horizontal * SCALE
+							cut.l += gap_horizontal_scaled
 						}
 
 						// pseudo layout for correct witdth
@@ -1245,6 +1241,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Left_Up: {
+			if element_hide(panel_search, true) {
+				return 1
+			}
+
 			if task_head != task_tail {
 				task_tail = task_head
 				return 1
@@ -1405,6 +1405,10 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Left_Down: {
+			if element_hide(panel_search, true) {
+				return 1
+			}
+
 			// set line to the head
 			task_head_tail_check_begin()
 			task_head = task.visible_index
@@ -1486,12 +1490,12 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 }
 
 task_indentation_width :: proc(indentation: f32) -> f32 {
-	return math.round(indentation * options_tab() * TAB_WIDTH * SCALE)
+	return math.round(indentation * visuals_tab() * TAB_WIDTH * SCALE)
 }
 
 // manual layout call so we can predict the proper positioning
 task_layout :: proc(task: ^Task, bounds: Rect, move: bool) -> Rect {
-	tab := options_tab() * TAB_WIDTH * SCALE
+	tab := visuals_tab() * TAB_WIDTH * SCALE
 	offset_indentation := math.round(task.indentation_smooth * tab)
 	
 	// manually offset the line rectangle in total while retaining parent clip
@@ -1951,8 +1955,6 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	}
 
 	mode_panel = mode_panel_init(custom_split, {})
-	mode_panel.gap_vertical = 1
-	mode_panel.gap_horizontal = 10
 	search_init(custom_split)
 	
 	return mode_panel

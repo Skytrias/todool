@@ -125,7 +125,7 @@ pomodoro_stopwatch_toggle :: proc() {
 }
 
 pomodoro_stopwatch_reset :: #force_inline proc() {
-	element_hide(sb.options.button_pomodoro_reset, true)
+	element_hide(sb.stats.button_pomodoro_reset, true)
 
 	if pomodoro.stopwatch.running {
 		pomodoro_stopwatch_stop_add()
@@ -136,7 +136,7 @@ pomodoro_stopwatch_reset :: #force_inline proc() {
 // toggle stopwatch on or off based on index
 pomodoro_stopwatch_hot_toggle :: proc(index: int) {
 	defer {
-		element_hide(sb.options.button_pomodoro_reset, !pomodoro.stopwatch.running)
+		element_hide(sb.stats.button_pomodoro_reset, !pomodoro.stopwatch.running)
 		element_repaint(mode_panel)
 	}
 	
@@ -193,9 +193,9 @@ pomodoro_time_index :: proc(index: int) -> f32 {
 	index := clamp(index, 0, 2)
 	position: f32
 	switch index {
-		case 0: position = sb.options.slider_pomodoro_work.position
-		case 1: position = sb.options.slider_pomodoro_short_break.position
-		case 2: position = sb.options.slider_pomodoro_long_break.position
+		case 0: position = sb.stats.slider_pomodoro_work.position
+		case 1: position = sb.stats.slider_pomodoro_short_break.position
+		case 2: position = sb.stats.slider_pomodoro_long_break.position
 	}
 	return position * 60
 }
@@ -250,13 +250,13 @@ pomodoro_update :: proc() {
 
 	// set work today position
 	{
-		goal_today := max(time.Duration(sb.options.slider_work_today.position * 24), 1) * time.Hour
-		sb.options.gauge_work_today.position = f32(pomodoro.accumulated) / f32(goal_today)
+		goal_today := max(time.Duration(sb.stats.slider_work_today.position * 24), 1) * time.Hour
+		sb.stats.gauge_work_today.position = f32(pomodoro.accumulated) / f32(goal_today)
 	}
 
 	// just update every frame
 	{
-		b := &sb.options.label_time_accumulated.builder
+		b := &sb.stats.label_time_accumulated.builder
 		strings.builder_reset(b)
 		hours, minutes, seconds := duration_clock(pomodoro.accumulated)
 		fmt.sbprintf(b, "Total: %dh %dm %ds", hours, minutes, seconds)
@@ -264,13 +264,13 @@ pomodoro_update :: proc() {
 
 	{
 		if 
-			sb.options.gauge_work_today.position > 1.0 && 
+			sb.stats.gauge_work_today.position > 1.0 && 
 			!pomodoro.celebration_goal_reached && 
-			sb.options.gauge_work_today.bounds != {} && 
+			sb.stats.gauge_work_today.bounds != {} && 
 			(.Hide not_in sb.enum_panel.flags) {
 			pomodoro.celebration_goal_reached = true
-			x := sb.options.gauge_work_today.bounds.l + rect_width_halfed(sb.options.gauge_work_today.bounds)
-			y := sb.options.gauge_work_today.bounds.t
+			x := sb.stats.gauge_work_today.bounds.l + rect_width_halfed(sb.stats.gauge_work_today.bounds)
+			y := sb.stats.gauge_work_today.bounds.t
 			pomodoro_celebration_spawn(x, y)
 		}
 	}

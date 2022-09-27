@@ -11,6 +11,10 @@ import "core:strings"
 import "core:encoding/json"
 
 ARCHIVE_MAX :: 32
+GAP_HORIZONTAL_MAX :: 100
+GAP_VERTICAL_MAX :: 100
+KANBAN_WIDTH_MIN :: 300
+KANBAN_WIDTH_MAX :: 1000
 
 // push to archive text
 archive_push :: proc(text: string) {
@@ -51,6 +55,7 @@ Sidebar_Mode :: enum {
 	Options,
 	Tags,
 	Archive,
+	Stats,
 }
 
 Sidebar :: struct {
@@ -61,6 +66,7 @@ Sidebar :: struct {
 	options: Sidebar_Options,
 	tags: Sidebar_Tags,
 	archive: Sidebar_Archive,
+	stats: Sidebar_Stats,
 
 	pomodoro_label: ^Label,
 }
@@ -68,23 +74,18 @@ sb: Sidebar
 
 Sidebar_Options :: struct {
 	panel: ^Panel,
-	slider_tab: ^Slider,
 	checkbox_autosave: ^Checkbox,
 	checkbox_invert_x: ^Checkbox,
 	checkbox_invert_y: ^Checkbox,
 	checkbox_uppercase_word: ^Checkbox,
-	checkbox_use_animations: ^Checkbox,	
 	checkbox_bordered: ^Checkbox,
 	slider_volume: ^Slider,
 
-	slider_pomodoro_work: ^Slider,
-	slider_pomodoro_short_break: ^Slider,
-	slider_pomodoro_long_break: ^Slider,
-	button_pomodoro_reset: ^Icon_Button,
-
-	slider_work_today: ^Slider,
-	gauge_work_today: ^Linear_Gauge,
-	label_time_accumulated: ^Label,
+	checkbox_use_animations: ^Checkbox,	
+	slider_tab: ^Slider,
+	slider_gap_vertical: ^Slider,
+	slider_gap_horizontal: ^Slider,
+	slider_kanban_width: ^Slider,
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -110,6 +111,19 @@ Sidebar_Archive :: struct {
 	panel: ^Panel,
 	buttons: ^Panel,
 	head, tail: int,
+}
+
+Sidebar_Stats :: struct {
+	panel: ^Panel,
+
+	slider_pomodoro_work: ^Slider,
+	slider_pomodoro_short_break: ^Slider,
+	slider_pomodoro_long_break: ^Slider,
+	button_pomodoro_reset: ^Icon_Button,
+
+	slider_work_today: ^Slider,
+	gauge_work_today: ^Linear_Gauge,
+	label_time_accumulated: ^Label,
 }
 
 sidebar_mode_toggle :: proc(to: Sidebar_Mode) {
@@ -165,6 +179,10 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		i3 := icon_button_init(panel_info, { .HF }, .Archive, sidebar_button_message)
 		i3.data = new_clone(Sidebar_Mode.Archive)
 		i3.hover_info = "Archive"
+
+		i4 := icon_button_init(panel_info, { .HF }, .Chart, sidebar_button_message)
+		i4.data = new_clone(Sidebar_Mode.Stats)
+		i4.hover_info = "Stats"
 	}
 
 	// pomodoro
@@ -173,18 +191,18 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		i1 := icon_button_init(panel_info, { .HF }, .Tomato)
 		i1.hover_info = "Start / Stop Pomodoro Time"
 		i1.invoke = proc(data: rawptr) {
-			element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
+			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_toggle()
 		}
 		i2 := icon_button_init(panel_info, { .HF }, .Reply)
 		i2.invoke = proc(data: rawptr) {
-			element_hide(sb.options.button_pomodoro_reset, pomodoro.stopwatch.running)
+			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_reset()
 			pomodoro_label_format()
 			sound_play(.Timer_Stop)
 		}
 		i2.hover_info = "Reset Pomodoro Time"
-		sb.options.button_pomodoro_reset = i2
+		sb.stats.button_pomodoro_reset = i2
 		element_hide(i2, true)
 
 		sb.pomodoro_label = label_init(panel_info, { .HF, .Label_Center }, "00:00")
@@ -277,9 +295,20 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 		panel = shared_panel(enum_panel, "Options")
 
-		slider_tab = slider_init(panel, flags, 0.25)
-		slider_tab.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Tab: %.3f%%", position)
+		checkbox_autosave = checkbox_init(panel, flags, "Autosave", true)
+		checkbox_autosave.hover_info = "Autosave on exit & opening different files"
+		checkbox_uppercase_word = checkbox_init(panel, flags, "Uppercase Parent Word", true)
+		checkbox_uppercase_word.hover_info = "Uppercase the task text when inserting a new child"
+		checkbox_invert_x = checkbox_init(panel, flags, "Invert Scroll X", false)
+		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
+		checkbox_bordered = checkbox_init(panel, flags, "Borderless Window", false)
+		checkbox_bordered.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			if msg == .Value_Changed {
+				checkbox := cast(^Checkbox) element
+				window_border_set(checkbox.window, !checkbox.state)
+			}
+
+			return 0
 		}
 
 		slider_volume = slider_init(panel, flags, 1)
@@ -297,87 +326,29 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			fmt.sbprintf(builder, "Volume: %d%%", int(position * 100))
 		}
 
-		checkbox_autosave = checkbox_init(panel, flags, "Autosave", true)
-		checkbox_uppercase_word = checkbox_init(panel, flags, "Uppercase Parent Word", true)
-		checkbox_invert_x = checkbox_init(panel, flags, "Invert Scroll X", false)
-		checkbox_invert_y = checkbox_init(panel, flags, "Invert Scroll Y", false)
+		spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
+		label_visuals := label_init(panel, { .HF, .Label_Center }, "Visuals")
+		label_visuals.font_options = &font_options_header
+
+		slider_tab = slider_init(panel, flags, 0.25)
+		slider_tab.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Tab: %.3f%%", position)
+		}
+		slider_gap_horizontal = slider_init(panel, flags, f32(10.0) / GAP_HORIZONTAL_MAX)
+		slider_gap_horizontal.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Gap Horizontal: %dpx", int(position * GAP_HORIZONTAL_MAX))
+		}
+		slider_gap_vertical = slider_init(panel, flags, f32(1.0) / GAP_VERTICAL_MAX)
+		slider_gap_vertical.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Gap Vertical: %dpx", int(position * GAP_VERTICAL_MAX))
+		}
+		kanban_default := math.remap(f32(300), KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX, 0, 1)
+		slider_kanban_width = slider_init(panel, flags, kanban_default)
+		slider_kanban_width.formatting = proc(builder: ^strings.Builder, position: f32) {
+			value := visuals_kanban_width()
+			fmt.sbprintf(builder, "Kanban Width: %.0fpx", value)
+		}
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
-		checkbox_bordered = checkbox_init(panel, flags, "Borderless Window", false)
-		checkbox_bordered.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			if msg == .Value_Changed {
-				checkbox := cast(^Checkbox) element
-				window_border_set(checkbox.window, !checkbox.state)
-			}
-
-			return 0
-		}
-
-		// pomodoro
-		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
-		l1 := label_init(panel, { .HF, .Label_Center }, "Pomodoro")
-		l1.font_options = &font_options_header
-		
-		slider_pomodoro_work = slider_init(panel, flags, 50.0 / 60.0)
-		slider_pomodoro_work.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Work: %dmin", int(position * 60))
-		}
-		slider_pomodoro_short_break = slider_init(panel, flags, 10.0 / 60)
-		slider_pomodoro_short_break.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Short Break: %dmin", int(position * 60))
-		}
-		slider_pomodoro_long_break = slider_init(panel, flags, 30.0 / 60)
-		slider_pomodoro_long_break.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Long Break: %dmin", int(position * 60))
-		}
-
-		// statistics
-		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
-		l2 := label_init(panel, { .HF, .Label_Center }, "Statistics")
-		l2.font_options = &font_options_header
-
-		label_time_accumulated = label_init(panel, { .HF, .Label_Center })
-		b1 := button_init(panel, flags, "Reset acummulated")
-		b1.invoke = proc(data: rawptr) {
-			pomodoro.accumulated = {}
-			pomodoro.celebration_goal_reached = false
-		}
-
-		{
-			sub := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background }, 0, 2)
-			sub.rounded = true
-			sub.background_index = 2
-			s := slider_init(sub, flags, 30.0 / 60)
-			s.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "Cheat: %dmin", int(position * 60))
-			}
-
-			b := button_init(sub, flags, "Add")
-			b.data = s
-			b.invoke = proc(data: rawptr) {
-				slider := cast(^Slider) data
-				// sb.options.slider_work_today.position += (slider.position / 60)
-				minutes := time.Duration(slider.position * 60) * time.Minute
-				pomodoro.accumulated += minutes
-			}
-		}
-
-		slider_work_today = slider_init(panel, flags, 8.0 / 24)
-		slider_work_today.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Goal Today: %dh", int(position * 24))
-		}
-
-		gauge_work_today = linear_gauge_init(panel, flags, 0.5, "Done Today", "Working Overtime")
-		gauge_work_today.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			if msg == .Paint_Recursive {
-				if pomodoro.celebrating {
-					target := element.window.target
-					render_push_clip(target, element.parent.bounds)
-					pomodoro_celebration_render(target)
-				}
-			}
-
-			return 0
-		}
 	}
 
 	// tags
@@ -458,6 +429,78 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			buttons.name = "buttons panel"
 			buttons.background_index = 2
 			buttons.layout_elements_in_reverse = true
+		}
+	}
+
+
+	// statistics
+	{
+		temp := &sb.stats
+		using temp
+		flags := Element_Flags { .HF }
+		panel = shared_panel(enum_panel, "Pomodoro")
+
+		// pomodoro		
+		slider_pomodoro_work = slider_init(panel, flags, 50.0 / 60.0)
+		slider_pomodoro_work.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Work: %dmin", int(position * 60))
+		}
+		slider_pomodoro_short_break = slider_init(panel, flags, 10.0 / 60)
+		slider_pomodoro_short_break.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Short Break: %dmin", int(position * 60))
+		}
+		slider_pomodoro_long_break = slider_init(panel, flags, 30.0 / 60)
+		slider_pomodoro_long_break.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Long Break: %dmin", int(position * 60))
+		}
+
+		// statistics
+		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
+		l2 := label_init(panel, { .HF, .Label_Center }, "Statistics")
+		l2.font_options = &font_options_header
+
+		label_time_accumulated = label_init(panel, { .HF, .Label_Center })
+		b1 := button_init(panel, flags, "Reset acummulated")
+		b1.invoke = proc(data: rawptr) {
+			pomodoro.accumulated = {}
+			pomodoro.celebration_goal_reached = false
+		}
+
+		{
+			sub := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background }, 0, 2)
+			sub.rounded = true
+			sub.background_index = 2
+			s := slider_init(sub, flags, 30.0 / 60)
+			s.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "Cheat: %dmin", int(position * 60))
+			}
+
+			b := button_init(sub, flags, "Add")
+			b.data = s
+			b.invoke = proc(data: rawptr) {
+				slider := cast(^Slider) data
+				// sb.options.slider_work_today.position += (slider.position / 60)
+				minutes := time.Duration(slider.position * 60) * time.Minute
+				pomodoro.accumulated += minutes
+			}
+		}
+
+		slider_work_today = slider_init(panel, flags, 8.0 / 24)
+		slider_work_today.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Goal Today: %dh", int(position * 24))
+		}
+
+		gauge_work_today = linear_gauge_init(panel, flags, 0.5, "Done Today", "Working Overtime")
+		gauge_work_today.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			if msg == .Paint_Recursive {
+				if pomodoro.celebrating {
+					target := element.window.target
+					render_push_clip(target, element.parent.bounds)
+					pomodoro_celebration_render(target)
+				}
+			}
+
+			return 0
 		}
 	}
 }
@@ -565,10 +608,6 @@ options_autosave :: #force_inline proc() -> bool {
 	return sb.options.checkbox_autosave.state
 }
 
-options_tab :: #force_inline proc() -> f32 {
-	return sb.options.slider_tab.position
-}
-
 options_scroll_x :: #force_inline proc() -> int {
 	return sb.options.checkbox_invert_x == nil ? 1 : sb.options.checkbox_invert_x.state ? -1 : 1
 }
@@ -585,8 +624,25 @@ options_uppercase_word :: #force_inline proc() -> bool {
 	return sb.options.checkbox_uppercase_word.state
 }
 
-options_use_animations :: #force_inline proc() -> bool {
+visuals_use_animations :: #force_inline proc() -> bool {
 	return sb.options.checkbox_use_animations.state
+}
+
+visuals_tab :: #force_inline proc() -> f32 {
+	return sb.options.slider_tab.position
+}
+
+visuals_gap_vertical :: #force_inline proc() -> f32 {
+	return sb.options.slider_gap_vertical.position * GAP_VERTICAL_MAX
+}
+
+visuals_gap_horizontal :: #force_inline proc() -> f32 {
+	return sb.options.slider_gap_horizontal.position * GAP_HORIZONTAL_MAX
+}
+
+// remap from unit to wanted range
+visuals_kanban_width :: #force_inline proc() -> f32 {
+	return math.remap(sb.options.slider_kanban_width.position, 0, 1, KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX)
 }
 
 Mode_Based_Button :: struct {

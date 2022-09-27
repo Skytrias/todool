@@ -41,6 +41,8 @@ Icon :: enum {
 	Cog = 0xefb0,
 	Reply = 0xec7f,
 	Archive = 0xeea5,
+
+	Chart = 0xe979,
 }
 
 Render_Target :: struct {

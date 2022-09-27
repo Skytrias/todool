@@ -227,7 +227,7 @@ animate_to :: proc(
 	}
 
 	// check animations supported
-	if !options_use_animations() {
+	if !visuals_use_animations() {
 		value^ = goal
 		return
 	}
@@ -1039,7 +1039,7 @@ slider_init :: proc(
 
 // use this in case procedures have a value changed call!
 slider_set :: proc(slider: ^Slider, goal: f32) {
-	slider.position = goal
+	slider.position = clamp(goal, 0, 1)
 	element_message(slider, .Value_Changed)
 }
 

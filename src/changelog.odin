@@ -148,7 +148,7 @@ changelog_task_iter :: proc(index: ^int) -> (res: ^Task, remove: bool, ok: bool)
 		index^ += 1
 
 		// skip individual task
-		if !task.visible && skip {
+		if skip && (!task.visible || (task.has_children && task.folded)) {
 			continue
 		}
 

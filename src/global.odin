@@ -422,6 +422,7 @@ window_init :: proc(
 	res.element.window = res
 	res.window_next = gs.windows
 	gs.windows = res
+	// TODO maybe limit this per window instead of always 2MB
 	shortcut_state_init(&res.shortcut_state, mem.Megabyte * 2)
 
 	// set hovered panel
@@ -528,24 +529,6 @@ window_set_position :: proc(window: ^Window, x, y: int) {
 // set size of window
 window_set_size :: proc(window: ^Window, w, h: int) {
 	sdl.SetWindowSize(window.w, i32(w), i32(h))
-}
-
-// NOTE ignores pixel border of 1
-window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
-	t, l, b, r: i32
-	res := sdl.GetWindowBordersSize(window.w, &t, &l, &b, &r)
-	
-	if res == 0 {
-		top = int(t)
-		left = int(l)
-		bottom = int(b)
-		right = int(r)
-	} else {
-		log.error("WINDOW BORDER SIZE call not supported")
-	}
-
-	left, right, top, bottom = 0, 0, 0, 0
-	return 
 }
 
 // send call to focused, focused parents or window

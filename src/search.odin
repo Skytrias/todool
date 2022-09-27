@@ -8,6 +8,12 @@ import "../fontstash"
 // check task validity? or update search results based on validity
 // what if the task is now invisible due to folding and search result still includes that
 
+// goals
+// space effefciency
+// linearity(?) loop through the results from index to another forward/backward
+// easy clearing
+// fast task lookup
+
 Search_Result :: struct #packed {
 	low, high: u16,
 }
@@ -17,12 +23,6 @@ Search_Entry :: struct #packed {
 	length: u16,
 	result_offset: int,
 }
-
-// goals
-// space effefciency
-// linearity(?) loop through the results from index to another forward/backward
-// easy clearing
-// fast task lookup
 
 Search_State :: struct {
 	results: [dynamic]Search_Result,
@@ -112,6 +112,8 @@ ss_update :: proc(query: string) {
 			ss_pop_task()	
 		}
 	}
+
+	ss_find_next()
 }
 
 // iterator approach to finding a subtr
@@ -146,6 +148,11 @@ contains_multiple_iterator :: proc(s, substr: string, index: ^int) -> (rune_star
 
 ss_find :: proc(backwards: bool) {
 	using ss
+
+	if len(results) == 0 {
+		return
+	}
+
 	range_advance_index(&current_index, len(results) - 1, backwards)
 
 	task: ^Task

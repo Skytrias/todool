@@ -372,6 +372,9 @@ Misc_Save_Load :: struct {
 		use_animations: bool,
 		bordered: bool,
 		volume: f32,
+		gap_horizontal: f32,
+		gap_vertical: f32,
+		kanban_width: f32,
 	},
 
 	tags: struct {
@@ -448,18 +451,6 @@ json_save_misc :: proc(path: string) -> bool {
 	window_x, window_y := window_get_position(window_main)
 	window_width := window_main.width
 	window_height := window_main.height
-	// log.warn("WINDOW SAVED", window_x, window_y)
-
-	// adjust by window border
-	{
-		t, l, b, r := window_border_size(window_main)
-		// log.info(t, l, b, r)
-		// log.info(window_x, window_y, window_width, window_height)
-		window_y -= t
-		window_x -= l
-		window_width += r
-		window_height += b
-	}
 
 	value := Misc_Save_Load {
 		hidden = {
@@ -478,14 +469,17 @@ json_save_misc :: proc(path: string) -> bool {
 		},
 
 		options = {
-			options_tab(),
+			visuals_tab(),
 			options_autosave(),
 			sb.options.checkbox_invert_x.state,
 			sb.options.checkbox_invert_y.state,
 			options_uppercase_word(),
-			options_use_animations(),
+			visuals_use_animations(),
 			options_bordered(),
 			options_volume(),
+			sb.options.slider_gap_horizontal.position,
+			sb.options.slider_gap_vertical.position,
+			sb.options.slider_kanban_width.position,
 		},
 
 		tags = {
@@ -506,7 +500,7 @@ json_save_misc :: proc(path: string) -> bool {
 
 		statistics = {
 			int(pomodoro.accumulated),
-			int(sb.options.slider_work_today.position * 24),
+			int(sb.stats.slider_work_today.position * 24),
 		},
 
 		theme = theme_save,
@@ -537,10 +531,8 @@ json_save_misc :: proc(path: string) -> bool {
 	)
 
 	if err == nil {
-		// ok := bpath_file_write(path, result[:])
 		file_path := bpath_temp(path)
 		return gs_write_safely(file_path, result[:])
-		// return ok
 	}
 
 	return false
@@ -572,7 +564,6 @@ json_load_misc :: proc(path: string) -> bool {
 		}
 
 		last_save_set(misc.hidden.last_save_location)
-		// last_save_location = strings.clone(misc.hidden.last_save_location)
 
 		if misc.hidden.font_regular_path != "" {
 			gs.font_regular_path = strings.clone(misc.hidden.font_regular_path)
@@ -585,7 +576,6 @@ json_load_misc :: proc(path: string) -> bool {
 
 	// tag data
 	sb.tags.tag_show_mode = misc.tags.tag_mode
-	// sb.tags.toggle_selector_tag.cell_unit = f32(misc.tags.tag_mode)
 	for i in 0..<8 {
 		tag := sb.tags.names[i]
 		strings.builder_reset(tag)
@@ -601,6 +591,9 @@ json_load_misc :: proc(path: string) -> bool {
 	checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
 	checkbox_set(sb.options.checkbox_bordered, misc.options.bordered)
 	slider_set(sb.options.slider_volume, misc.options.volume)
+	slider_set(sb.options.slider_gap_horizontal, misc.options.gap_horizontal)
+	slider_set(sb.options.slider_gap_vertical, misc.options.gap_vertical)
+	slider_set(sb.options.slider_kanban_width, misc.options.kanban_width)
 
 	// theme
 	{
@@ -614,22 +607,22 @@ json_load_misc :: proc(path: string) -> bool {
 
 	// pomodoro
 	pomodoro.index = misc.pomodoro.index
-	slider_set(sb.options.slider_pomodoro_work, f32(misc.pomodoro.work) / 60)
-	slider_set(sb.options.slider_pomodoro_short_break, f32(misc.pomodoro.short_break) / 60)
-	slider_set(sb.options.slider_pomodoro_long_break, f32(misc.pomodoro.long_break) / 60)
+	slider_set(sb.stats.slider_pomodoro_work, f32(clamp(misc.pomodoro.work, 0, 60)) / 60)
+	slider_set(sb.stats.slider_pomodoro_short_break, f32(clamp(misc.pomodoro.short_break, 0, 60)) / 60)
+	slider_set(sb.stats.slider_pomodoro_long_break, f32(clamp(misc.pomodoro.long_break, 0, 60)) / 60)
 	pomodoro.stopwatch.running = misc.pomodoro.stopwatch_running
 	pomodoro.stopwatch._accumulation = time.Duration(misc.pomodoro.stopwatch_acuumulation)
 	
 	// statistics
 	goal := clamp(misc.statistics.work_goal, 1, 24)
-	sb.options.slider_work_today.position = f32(goal) / 24.0
+	sb.stats.slider_work_today.position = f32(goal) / 24.0
 	pomodoro.accumulated = time.Duration(misc.statistics.accumulated)
 
 	pomodoro.stopwatch._start_time = time.tick_now()
 	
 	// run everything
 	if pomodoro.stopwatch.running {
-		element_hide(sb.options.button_pomodoro_reset, false)
+		element_hide(sb.stats.button_pomodoro_reset, false)
 	}
 
 	pomodoro_label_format()
@@ -668,6 +661,8 @@ keymap_save :: proc(path: string) -> bool {
 
 		// gather row data
 		for k, v in mapping {
+			
+
 			if row, ok := &rows[v]; ok {
 				strings.write_byte(row, ' ')
 				strings.write_string(row, k)
@@ -802,5 +797,6 @@ keymap_load :: proc(path: string) -> bool {
 		}
 	}
 
+	shortcuts_push_newest_version(window_main)
 	return true
 }

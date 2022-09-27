@@ -18,48 +18,41 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
-// command ideas
-// cycle jump to next done/canceled task
-// fix sjson loading different structs
+// main :: proc() {
+// 	Test_Struct1 :: struct {
+// 		a: int,
+// 		b: bool,
+// 		array: []int,
+// 		d: string,
+// 	}
 
-main2 :: proc() {
-	gs_init()
-	context.logger = gs.logger
-	context.allocator = gs_allocator()
-	window := window_init(nil, {}, "Todool", 900, 900)
-	window_main = window
+// 	Test_Struct2 :: struct {
+// 		a: int,
+// 		b: bool,
+// 		array: []int,
+// 		d: string,
+// 	}
 
-	panel := panel_init(&window.element, { .Panel_Scroll_XY }, 5)
-	panel.color = theme.background[0]
-	panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		panel := cast(^Panel) element
+// 	output := Test_Struct1 {
+// 		100, 
+// 		true, 
+// 		{
+// 			1,2,3,4,5
+// 		},
+// 		"yoooooo",
+// 	}
+// 	output_data, output_err := json.marshal(output, {})
+// 	output_string := transmute(string) output_data[:]
 
-		#partial switch msg {
-			case .Key_Combination: {
-				combo := (cast(^string) dp)^
-				fmt.eprintln(combo)
+// 	fmt.eprintln(output_string)
+// 	assert(output_err == nil)
 
-				switch combo {
-					case "escape": {
-						fmt.eprintln("help")
-						return 1
-					}
-				}
-			}
-		}
+// 	input: Test_Struct2
+// 	input_err := json.unmarshal(output_data, &input, .JSON)
 
-		return 0
-	}
-
-	// button_init(panel, { .HF }, "test")
-
-	for i in 0..<100 {
-		button_init(panel, { }, fmt.tprintf("Textddddddddddddddddddxxxxxxxxxxxxx %d", i))
-	}
-
-	gs_update_after_load()
-	gs_message_loop()
-}
+// 	fmt.eprintln(input, input_err)
+// 	assert(input_err == nil)
+// }
 
 main :: proc() {
 	gs_init()

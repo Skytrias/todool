@@ -15,6 +15,7 @@ Shortcut_State :: struct {
 	arena: mem.Arena,
 	arena_backing: []byte,
 	
+	maybe: bool,
 	box: map[string]string,
 	general: map[string]string,
 }
@@ -45,6 +46,23 @@ shortcuts_push_general :: proc(s: ^Shortcut_State, command: string, combos: ..st
 	for combo in combos {
 		s.general[strings.clone(combo)] = strings.clone(command)
 	}
+}
+
+// inserts the wanted combo if the combo doesnt exist yet
+shortcuts_push_maybe :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
+	for combo in combos {
+		if combo not_in s.general {
+			s.general[strings.clone(combo)] = strings.clone(command)
+		}
+	}
+}
+
+shortcuts_push_opt :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
+	for combo in combos {
+		if (s.maybe && combo not_in s.general) || !s.maybe {
+			s.general[strings.clone(combo)] = strings.clone(command)
+		}
+	}		
 }
 
 // clear all shortcuts
@@ -153,6 +171,8 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "escape": todool_escape()
 
 		case "select_children": todool_select_children()
+		case "todool_indent_jump_nearby_prev": todool_indent_jump_nearby(true)
+		case "todool_indent_jump_nearby_next": todool_indent_jump_nearby(false)
 
 		case: {
 			handled = false
@@ -167,8 +187,6 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	context.allocator = mem.arena_allocator(&s.arena)
 	shortcuts_push_general(s, "move_up", "shift+up", "ctrl+up", "up")
 	shortcuts_push_general(s, "move_down", "shift+down", "ctrl+down", "down")
-	shortcuts_push_general(s, "move_up_stack", "ctrl+shift+home", "ctrl+home")
-	shortcuts_push_general(s, "move_down_stack", "ctrl+shift+end", "ctrl+end")
 	
 	shortcuts_push_general(s, "indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
 	shortcuts_push_general(s, "indent_jump_low_next", "ctrl+shift+.", "ctrl+.")
@@ -210,8 +228,8 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	
 	shortcuts_push_general(s, "changelog_generate", "alt+x")
 	
-	shortcuts_push_general(s, "indentation_shift_right", "tab", "alt+right")
-	shortcuts_push_general(s, "indentation_shift_left", "shift+tab", "alt+left")
+	shortcuts_push_general(s, "indentation_shift_right", "tab")
+	shortcuts_push_general(s, "indentation_shift_left", "shift+tab")
 
 	shortcuts_push_general(s, "pomodoro_toggle1", "alt+1")
 	shortcuts_push_general(s, "pomodoro_toggle2", "alt+2")
@@ -239,8 +257,25 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	shortcuts_push_general(s, "search", "ctrl+f")
 	shortcuts_push_general(s, "escape", "escape")
 
-	// new ones
-	shortcuts_push_general(s, "select_children", "ctrl+h")
+	// v0.2.1
+	shortcuts_push_v021(s, false)
+}
+
+shortcuts_push_v021 :: proc(s: ^Shortcut_State, maybe: bool) {
+	s.maybe = maybe
+	shortcuts_push_opt(s, "select_children", "ctrl+h")
+	shortcuts_push_opt(s, "move_up_stack", "ctrl+shift+home", "ctrl+home")
+	shortcuts_push_opt(s, "move_down_stack", "ctrl+shift+end", "ctrl+end")
+	shortcuts_push_opt(s, "todool_indent_jump_nearby_prev", "alt+left")
+	shortcuts_push_opt(s, "todool_indent_jump_nearby_next", "alt+right")		
+	s.maybe = false
+}
+
+// use this on newest release
+shortcuts_push_newest_version :: proc(window: ^Window) {
+	s := &window.shortcut_state
+	context.allocator = mem.arena_allocator(&s.arena)
+	shortcuts_push_v021(s, true)
 }
 
 todool_delete_on_empty :: proc() {
@@ -1576,4 +1611,31 @@ todool_select_children :: proc() {
 	}
 
 	element_repaint(mode_panel)
+}
+
+// jumps to nearby state changes
+todool_indent_jump_nearby :: proc(backwards: bool) {
+	if task_head == -1 {
+		return
+	}
+
+	task_current := tasks_visible[task_head]
+
+	for i in 0..<len(tasks_visible) {
+		index := backwards ? (task_head - i - 1) : (i + task_head + 1)
+		// wrap negative
+		if index < 0 {
+			index = len(tasks_visible) + index
+		}
+		task := tasks_visible[index % len(tasks_visible)]
+		
+		if task.state != task_current.state {
+			if task_head_tail_check_begin() {
+				task_head = task.visible_index
+			}
+			task_head_tail_check_end()
+			element_repaint(mode_panel)
+			break
+		}
+	}
 }
