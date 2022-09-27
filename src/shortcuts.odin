@@ -79,7 +79,8 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 	switch command {
 		case "move_up": todool_move_up()
 		case "move_down": todool_move_down()
-		case "move_up_parent": todool_move_up_parent()
+		case "move_up_stack": todool_move_up_stack()
+		case "move_down_stack": todool_move_down_stack()
 		
 		case "indent_jump_low_prev": todool_indent_jump_low_prev()
 		case "indent_jump_low_next": todool_indent_jump_low_next()
@@ -166,7 +167,8 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	context.allocator = mem.arena_allocator(&s.arena)
 	shortcuts_push_general(s, "move_up", "shift+up", "ctrl+up", "up")
 	shortcuts_push_general(s, "move_down", "shift+down", "ctrl+down", "down")
-	shortcuts_push_general(s, "move_up_parent", "ctrl+shift+home", "ctrl+home")
+	shortcuts_push_general(s, "move_up_stack", "ctrl+shift+home", "ctrl+home")
+	shortcuts_push_general(s, "move_down_stack", "ctrl+shift+end", "ctrl+end")
 	
 	shortcuts_push_general(s, "indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
 	shortcuts_push_general(s, "indent_jump_low_next", "ctrl+shift+.", "ctrl+.")
@@ -297,26 +299,52 @@ todool_move_down :: proc() {
 	element_repaint(mode_panel)
 }
 
-todool_move_up_parent :: proc() {
+todool_move_up_stack :: proc() {
 	if task_head == -1 {
 		return
 	}
 
-	task_current := tasks_visible[task_head]
+	// fill stack when jumping out
+	task := tasks_visible[task_head]
+	p := task
+	for p != nil {
+		task_move_stack[p.indentation] = p
+		p = p.visible_parent
+	}
 
-	for i := task_head - 1; i >= 0; i -= 1 {
-		task := tasks_visible[i]
-		
-		if task.indentation < task_current.indentation {
-			if task_head_tail_check_begin() {
-				task_head = i
-			}
-			task_head_tail_check_end()
-			element_repaint(mode_panel)
-			element_message(task.box, .Box_Set_Caret, BOX_END)
-			break
+	if task.indentation > 0 {
+		goal := task_move_stack[task.indentation - 1]
+		if task_head_tail_check_begin() {
+			task_head = goal.visible_index
 		}
-	} 
+		task_head_tail_check_end()
+
+		task = tasks_visible[task_head]
+		element_message(task.box, .Box_Set_Caret, BOX_END)
+		element_repaint(mode_panel)
+	}
+}
+
+todool_move_down_stack :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task := tasks_visible[task_head]
+	goal := task_move_stack[task.indentation + 1]
+
+	if goal != nil {
+		if task_head_tail_check_begin() {
+			if goal.visible_index < len(tasks_visible) {
+				task_head = goal.visible_index
+			}
+		}
+		task_head_tail_check_end()
+
+		task = tasks_visible[task_head]
+		element_message(task.box, .Box_Set_Caret, BOX_END)
+		element_repaint(mode_panel)		
+	}
 }
 
 todool_indent_jump_low_prev :: proc() {
@@ -658,6 +686,7 @@ todool_insert_child :: proc() {
 	if task_head < len(tasks_visible) - 1 {
 		goal = tasks_visible[task_head + 1].index
 	}
+	jump := 1
 
 	if task_head != -1 {
 		current_task := tasks_visible[task_head]
@@ -669,10 +698,18 @@ todool_insert_child :: proc() {
 			item := Undo_Builder_Uppercased_Content { builder }
 			undo_box_uppercased_content(manager, &item)
 		}
+
+		// unfold current task if its folded 
+		if current_task.folded {
+			count := task_children_count(current_task)
+			item := Undo_Item_Bool_Toggle { &current_task.folded }
+			undo_bool_toggle(manager, &item)
+			goal = current_task.index + 1
+		}
 	}
 
 	task_push_undoable(manager, indentation, "", goal)
-	task_head += 1
+	task_head += jump
 	task_head_tail_check_end()
 	element_repaint(mode_panel)
 }
@@ -914,6 +951,7 @@ undo_u8_set :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data.value^ = data.to
 	data.to = old
 	undo_push(manager, undo_u8_set, item, size_of(Undo_Item_U8_Set))
+	changelog_update_safe()
 }
 
 task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_State) {
@@ -926,6 +964,7 @@ task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_
 		}
 		undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
 		task.state = goal
+		changelog_update_safe()
 	}
 }
 
@@ -1137,7 +1176,7 @@ todool_save :: proc(force_dialog: bool) {
 		output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
 
 		if output != nil {
-			last_save_location = strings.clone(string(output))
+			last_save_set(string(output))
 		} else {
 			return
 		}
@@ -1166,11 +1205,6 @@ todool_save :: proc(force_dialog: bool) {
 
 // load
 todool_load :: proc() {
-	// check for canceling loading
-	if todool_check_for_saving(window_main) {
-		return
-	}
-
 	default_path: cstring
 
 	if last_save_location == "" {
@@ -1198,10 +1232,13 @@ todool_load :: proc() {
 		return
 	}
 
-	if string(output) != last_save_location {
-		last_save_location = strings.clone(string(output))
-	} 
+	// ask for save path after choosing the next "open" location
+	// check for canceling loading
+	if todool_check_for_saving(window_main) {
+		return
+	}
 
+	last_save_set(string(output))
 	err := editor_load(last_save_location)
 
 	if err != .None {

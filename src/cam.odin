@@ -3,6 +3,7 @@ package src
 import "core:fmt"
 import "core:log"
 import "core:math"
+import "core:strings"
 
 CAM_CENTER :: 100
 
@@ -201,6 +202,23 @@ mode_panel_cam_bounds_check_x :: proc(
 
 	switch mode_panel.mode {
 		case .List: {
+			if task_head != -1 {
+				t := tasks_visible[task_head]
+
+				// check if one liner
+				if len(t.box.wrapped_lines) == 1 {
+					fcs_element(t)
+					fcs_ahv(.Left, .Top)
+					text_width := string_width(strings.to_string(t.box.builder))
+
+					// if rect_width(mode_panel.bounds) - cam.margin_x * 2 
+
+					to_left = t.bounds.l
+					to_right = t.bounds.l + text_width
+					// rect := rect_wh(t.bounds.l, t.bounds.t, text_width, text_width + LINE_WIDTH, scaled_size)
+				}
+			}
+
 			goal, direction = cam_bounds_check_x(cam, mode_panel.bounds, to_left, to_right)
 		}
 

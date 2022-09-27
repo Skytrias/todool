@@ -23,6 +23,9 @@ Changelog :: struct {
 
 	checkbox_skip_folded: ^Checkbox,
 	checkbox_include_canceled: ^Checkbox,
+	checkbox_pop_tasks: ^Checkbox,
+
+	check_next: bool,
 }
 changelog: Changelog
 
@@ -196,7 +199,14 @@ changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 }
 
 // pop the wanted changelog tasks
-changelog_result_pop_tasks :: proc(manager: ^Undo_Manager) {
+changelog_result_pop_tasks :: proc() {
+	if !changelog.checkbox_pop_tasks.state {
+		return
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
 	index: int
 	for task, remove in changelog_task_iter(&index) {
 		if remove {
@@ -205,14 +215,25 @@ changelog_result_pop_tasks :: proc(manager: ^Undo_Manager) {
 			index -= 1
 		}
 	}
+
+	mode_panel.window.update_next = true
 }
 
 changelog_result :: proc() -> string {
 	return strings.to_string(changelog.td.builder)
 }
 
-changelog_update :: proc(data: rawptr) {
-	changelog_text_display_set(changelog.td)
+changelog_update_safe :: proc() {
+	if changelog.window == nil {
+		return
+	}	
+
+	changelog.check_next = true
+	changelog.window.update_next = true
+}
+
+changelog_update_invoke :: proc(data: rawptr) {
+	changelog.check_next = true
 	changelog.window.update_next = true
 }
 
@@ -223,6 +244,14 @@ changelog_spawn :: proc() {
 
 	changelog.window = window_init(nil, {}, "Changelog Genrator", 700, 700)
 	changelog.window.element.message_user = changelog_window_message
+	changelog.window.update = proc(window: ^Window) {
+		// only check once when window is updating
+		if changelog.check_next {
+			task_check_parent_states(nil)
+			changelog_text_display_set(changelog.td)
+			changelog.check_next = false
+		}
+	}
 	changelog.window.on_focus_gained = proc(window: ^Window) {
 		if changelog.td != nil {
 			changelog_text_display_set(changelog.td)
@@ -232,10 +261,11 @@ changelog_spawn :: proc() {
 
 	changelog.panel = panel_init(
 		&changelog.window.element,
-		{ .HF, .VF },
+		{ .HF, .VF, .Panel_Default_Background },
 		5,
 		5,
 	)
+	changelog.panel.background_index = 0
 	p := changelog.panel
 	
 	{
@@ -243,16 +273,6 @@ changelog_spawn :: proc() {
 		p1.background_index = 1
 		p1.rounded = true
 		label_init(p1, { .HF, .Label_Center }, "Generates a Changelog from your Done/Canceled Tasks")
-		
-		{
-			p2 := panel_init(p1, { .HF, .Panel_Default_Background })
-			p2.background_index = 2
-			p2.rounded = true
-			b1 := button_init(p2, { .HF }, "Update")
-			b1.invoke = proc(data: rawptr) {
-				changelog_text_display_set(changelog.td)
-			}
-		}
 
 		{
 			p2 := panel_init(p1, { .HF, .Panel_Horizontal }, 5, 5)
@@ -263,13 +283,16 @@ changelog_spawn :: proc() {
 			button_init(p3, { .HF }, "Clipboard").invoke = proc(data: rawptr) {
 				text := changelog_result()
 				clipboard_set_with_builder(text)
+				changelog_result_pop_tasks()
 			}
 			button_init(p3, { .HF }, "Terminal").invoke = proc(data: rawptr) {
 				fmt.println(changelog_result())
+				changelog_result_pop_tasks()
 			}
 			button_init(p3, { .HF }, "File").invoke = proc(data: rawptr) {
 				path := bpath_temp("changelog.txt")
 				gs_write_safely(path, changelog.td.builder.buf[:])
+				changelog_result_pop_tasks()
 			}
 		}
 
@@ -283,9 +306,10 @@ changelog_spawn :: proc() {
 			p2.rounded = true
 			p2.gap = 5
 			changelog.checkbox_skip_folded = checkbox_init(p2, { .HF }, "Skip Folded", true)
-			changelog.checkbox_skip_folded.invoke = changelog_update
+			changelog.checkbox_skip_folded.invoke = changelog_update_invoke
 			changelog.checkbox_include_canceled = checkbox_init(p2, { .HF }, "Include Canceled Tasks", true)
-			changelog.checkbox_include_canceled.invoke = changelog_update
+			changelog.checkbox_include_canceled.invoke = changelog_update_invoke
+			changelog.checkbox_pop_tasks = checkbox_init(p2, { .HF }, "Pop Tasks", true)
 		}
 	}
 

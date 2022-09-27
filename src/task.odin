@@ -30,6 +30,9 @@ caret_lerp_speed_x := f32(1)
 last_was_task_copy := false
 task_clear_checking: map[^Task]u8
 
+// move state
+task_move_stack: []^Task
+
 // goto state
 panel_goto: ^Panel_Floaty
 goto_saved_task_head: int
@@ -140,6 +143,7 @@ task_head_tail_call :: proc(
 task_data_init :: proc() {
 	task_clear_checking = make(map[^Task]u8, 128)
 	tasks_visible = make([dynamic]^Task, 0, 128)
+	task_move_stack = make([]^Task, 256)
 	bookmarks = make([dynamic]int, 0, 32)
 	ss_init()
 
@@ -170,6 +174,7 @@ last_save_set :: proc(next: string = "") {
 
 task_data_destroy :: proc() {
 	delete(task_clear_checking)
+	delete(task_move_stack)
 
 	pomodoro_destroy()
 	ss_destroy()
@@ -546,6 +551,14 @@ task_set_img :: proc(task: ^Task, handle: ^Stored_Image) {
 	}
 }
 
+// TODO speedup or cache?
+task_total_bounds :: proc() -> (bounds: Rect) {
+	bounds = RECT_INF
+	for task in tasks_visible {
+		rect_inf_push(&bounds, task.bounds)
+	}
+	return
+}
 
 // raw creationg of a task
 // NOTE: need to set the parent afterward!
@@ -653,7 +666,7 @@ task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
 	fontstash.wrap_format_to_lines(
 		&gs.fc,
 		strings.to_string(box.builder),
-		max(width, 100),
+		max(width, 200),
 		&box.wrapped_lines,
 	)
 }
@@ -954,10 +967,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Layout: {
 			bounds := element.bounds
 
-			bounds.l += math.round(cam.offset_x)
-			bounds.r += math.round(cam.offset_x)
-			bounds.t += math.round(cam.offset_y)
-			bounds.b += math.round(cam.offset_y)
+			bounds.l += cam.offset_x
+			bounds.r += cam.offset_x
+			bounds.t += cam.offset_y
+			bounds.b += cam.offset_y
 			gap_vertical_scaled := math.round(panel.gap_vertical * SCALE)
 			tab_scaling := options_tab() * TAB_WIDTH * SCALE
 			task_min_width := rect_width(mode_panel.bounds) - math.round(50 * SCALE)
@@ -1078,19 +1091,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				return 0
 			}
 
-			bounds.l -= math.round(cam.offset_x)
-			bounds.r -= math.round(cam.offset_x)
-			bounds.t -= math.round(cam.offset_y)
-			bounds.b -= math.round(cam.offset_y)
-
-			// switch panel.mode {
-			// 	case .List: {
-
-			// 	}
-
-			// 	case .Kanban: {
-			// 	}
-			// }
+			bounds.l -= cam.offset_x
+			bounds.r -= cam.offset_x
+			bounds.t -= cam.offset_y
+			bounds.b -= cam.offset_y
 
 			mode_panel_draw_verticals(target)
 
@@ -1274,30 +1278,33 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Animate: {
 			handled := false
 
-			// if task_shadow_alpha_animating {
-			// 	down := task_head == task_tail
-			// 	handled |= animate_to(
-			// 		&task_shadow_alpha_animating,
-			// 		&task_shadow_alpha,
-			// 		down ? 0 : TASK_SHADOW_ALPHA,
-			// 		down ? 2 : 1,
-			// 	)
-			// }
-
 			// drag animation and camera panning
+			// NOTE clamps to the task bounds
 			if drag_running {
 				// just check for bounds
 				x := element.window.cursor_x
 				y := element.window.cursor_y
 				ygoal, ydirection := cam_bounds_check_y(cam, mode_panel.bounds, y, y)
 				xgoal, xdirection := cam_bounds_check_x(cam, mode_panel.bounds, x, x)
+				task_bounds := task_total_bounds()
 
-				if ydirection != 0 {
+				top := task_bounds.t - mode_panel.bounds.t
+				bottom := task_bounds.b - mode_panel.bounds.t
+
+				if ydirection != 0 && 
+					(ydirection == 1 && top < cam.margin_y * 2) ||
+					(ydirection == -1 && bottom > mode_panel.bounds.b - cam.margin_y * 4) { 
 					cam.freehand = true
 					cam_inc_y(cam, ygoal * 0.1 * f32(ydirection))
 				}
 
-				if xdirection != 0 {
+				// need to offset by mode panel
+				left := task_bounds.l - mode_panel.bounds.l
+				right := task_bounds.r - mode_panel.bounds.l
+
+				if xdirection != 0 && 
+					(xdirection == 1 && left < cam.margin_x * 2) ||
+					(xdirection == -1 && right > mode_panel.bounds.r - cam.margin_x * 4) {
 					cam.freehand = true
 					cam_inc_x(cam, xgoal * 0.1 * f32(xdirection))
 				}
@@ -1895,12 +1902,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			element_move(mode_panel, bounds)
 
 			// scrollbar depends on result after mode panel layouting
-			task_bounds := RECT_INF
-			// box_bounds := RECT_INF
-			for task in tasks_visible {
-				rect_inf_push(&task_bounds, task.bounds)
-				// rect_inf_push(&box_bounds, task.box.bounds)
-			}
+			task_bounds := task_total_bounds()
 			scrollbar_layout_post(split.hscrollbar, bottom, rect_width(task_bounds))
 			scrollbar_layout_post(split.vscrollbar, right, rect_height(task_bounds))
 		}

@@ -47,7 +47,6 @@ Theme :: struct {
 	shadow: Color,
 	
 	caret: Color,
-	caret_highlight: Color,
 	caret_selection: Color,
 
 	tags: [8]Color,
@@ -65,7 +64,6 @@ Theme_Save_Load :: struct {
 	shadow: u32,
 	
 	caret: u32,
-	caret_highlight: u32,
 	caret_selection: u32,	
 	
 	tags: [8]u32,
@@ -80,7 +78,7 @@ theme_panel :: #force_inline proc(panel: Theme_Panel) -> Color #no_bounds_check 
 	return theme.panel[panel]
 }
 
-theme_default := Theme {
+theme_default_light := Theme {
 	background = {
 		0 = { 200, 200, 200, 255 },
 		1 = { 220, 220, 220, 255 },
@@ -95,7 +93,6 @@ theme_default := Theme {
 	shadow = BLACK,
 	
 	caret = BLUE,
-	caret_highlight = RED,
 	caret_selection = GREEN,
 
 	panel = { 
@@ -114,7 +111,35 @@ theme_default := Theme {
 		{ 199, 99, 0, 255 },
 	},
 }
-theme := theme_default
+theme_default_black := Theme {
+	background = {
+		{0, 0, 0, 255}, 
+		{20, 20, 20, 255}, 
+		{40, 40, 40, 255},
+	}, 
+	panel = {
+		{50, 10, 10, 255}, 
+		{40, 40, 40, 255},
+	}, 
+	text_default = {201, 201, 201, 255}, 
+	text_good = {138, 234, 85, 255}, 
+	text_bad = {77, 144, 222, 255}, 
+	text_blank = {150, 150, 150, 255}, 
+	shadow = {110, 110, 110, 255}, 
+	caret = {252, 77, 77, 255}, 
+	caret_selection = {226, 167, 32, 255}, 
+	tags = {
+		{255, 0, 0, 255}, 
+		{255, 191, 0, 255}, 
+		{127, 255, 0, 255}, 
+		{0, 255, 35, 255}, 
+		{0, 255, 255, 255}, 
+		{255, 0, 191, 255}, 
+		{199, 99, 0, 255}, 
+		{199, 99, 0, 255},
+	},
+}
+theme := theme_default_light
 
 theme_task_text :: #force_inline proc(state: Task_State) -> Color {
 	switch state {
@@ -365,7 +390,6 @@ theme_editor_spawn :: proc() {
 	{
 		t := toggle_panel_init(p, { .HF }, {}, "Caret", true)
 		color_slider(t.panel, &theme.caret, "caret")
-		color_slider(t.panel, &theme.caret_highlight, "caret highlight")
 		color_slider(t.panel, &theme.caret_selection, "caret selection")
 	}
 	
@@ -466,10 +490,19 @@ theme_editor_spawn :: proc() {
 			gs_update_all_windows()
 		}	
 
-		reset := button_init(button_panel, {}, "Reset")
-		reset.invoke = proc(data: rawptr) {
-			theme = theme_default
+		r1 := button_init(button_panel, {}, "Reset / Light")
+		r1.invoke = proc(data: rawptr) {
+			theme = theme_default_light
 			gs_update_all_windows()
+		}
+		r2 := button_init(button_panel, {}, "Reset / Black")
+		r2.invoke = proc(data: rawptr) {
+			theme = theme_default_black
+			gs_update_all_windows()
+		}
+		// temp print theme
+		button_init(button_panel, {}, "Print").invoke = proc(data: rawptr) {
+			fmt.eprintln(theme)
 		}
 
 		LABEL_WIDTH :: 100

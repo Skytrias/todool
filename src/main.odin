@@ -18,22 +18,9 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
-import "core:io"
-
-// main :: proc() {
-// 	builder := strings.builder_make(0, 32)
-// 	// strings.write_string(&builder, "test")
-// 	fmt.eprintln(strings.to_string(builder))
-
-// 	w := strings.to_writer(&builder)
-// 	fmt.eprintln(w)
-
-// 	io.write_quoted_string(w, "\x00")
-// 	// io.write_quoted_string(w, "")
-// 	// io.write_quoted_string(w, "")
-// 	// io.write_quoted_string(w, "")
-// 	fmt.eprintln(strings.to_string(builder))
-// }
+// command ideas
+// cycle jump to next done/canceled task
+// fix sjson loading different structs
 
 main2 :: proc() {
 	gs_init()
@@ -43,21 +30,32 @@ main2 :: proc() {
 	window_main = window
 
 	panel := panel_init(&window.element, { .Panel_Scroll_XY }, 5)
-	panel.color = RED
+	panel.color = theme.background[0]
+	panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		panel := cast(^Panel) element
+
+		#partial switch msg {
+			case .Key_Combination: {
+				combo := (cast(^string) dp)^
+				fmt.eprintln(combo)
+
+				switch combo {
+					case "escape": {
+						fmt.eprintln("help")
+						return 1
+					}
+				}
+			}
+		}
+
+		return 0
+	}
+
+	// button_init(panel, { .HF }, "test")
 
 	for i in 0..<100 {
 		button_init(panel, { }, fmt.tprintf("Textddddddddddddddddddxxxxxxxxxxxxx %d", i))
 	}
-
-	// for i in 0..<3 {
-	// 	tp := toggle_panel_init(panel, { .HF }, {}, "Testing")
-	// 	tp.panel.color = i == 0 ? BLUE : GREEN
-
-	// 	for i in 0..<10 {
-	// 		text := fmt.tprintf("Text %d", i)
-	// 		button_init(tp.panel, { .HF }, text)
-	// 	}
-	// }
 
 	gs_update_after_load()
 	gs_message_loop()
