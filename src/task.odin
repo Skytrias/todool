@@ -586,7 +586,7 @@ task_init :: proc(
 	res.button_fold.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		button := cast(^Icon_Button) element
 		task := cast(^Task) button.parent
-		
+
 		#partial switch msg {
 			case .Clicked: {
 				manager := mode_panel_manager_scoped()
@@ -1004,8 +1004,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			gap_horizontal_scaled := math.round(visuals_gap_horizontal() * TASK_SCALE)
 			kanban_width_scaled := math.round(visuals_kanban_width() * TASK_SCALE)
 			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-			task_min_width := rect_width(mode_panel.bounds) - math.round(50 * TASK_SCALE)
-			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE)
+			task_min_width := math.round((rect_width(mode_panel.bounds) - 50) * TASK_SCALE)
+			margin_scaled := visuals_task_margin() * TASK_SCALE
 
 			switch panel.mode {
 				case .List: {
@@ -1021,14 +1021,14 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						}
 
 						pseudo_rect := cut
-						pseudo_rect.l += math.round(f32(task.indentation) * tab_scaled)
+						pseudo_rect.l += f32(task.indentation) * tab_scaled
 						pseudo_rect.r = pseudo_rect.l + task_min_width
 						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&cut, f32(h))
-						r.l = r.l + math.round(task.indentation_smooth * tab_scaled)
+						r.l = r.l + task.indentation_smooth * tab_scaled
 						r.r = r.l + task_min_width
 						element_move(task, r)
 
@@ -1073,7 +1073,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							}
 
 							kanban_width := kanban_width_scaled
-							kanban_width += math.round(f32(max_indentations) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
+							kanban_width += f32(max_indentations) * visuals_tab() * TAB_WIDTH * TASK_SCALE
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
 							cut.l += gap_horizontal_scaled
@@ -1082,12 +1082,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						// pseudo layout for correct witdth
 						pseudo_rect := kanban_current
 						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
-						box_rect.l += math.round(f32(task.indentation) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
+						box_rect.l += f32(task.indentation) * visuals_tab() * TAB_WIDTH * TASK_SCALE
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&kanban_current, f32(h))
-						r.l += math.round(task.indentation_smooth * tab_scaled)
+						r.l += task.indentation_smooth * tab_scaled
 						element_move(task, r)
 
 						if i - kanban_children_start < kanban_children_count - 1 {
@@ -1215,16 +1215,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 
 				// NOTE also have to change init positioning call :)
-				width := math.round(TASK_DRAG_SIZE * SCALE)
-				height := math.round(TASK_DRAG_SIZE * SCALE)
+				width := math.round(TASK_DRAG_SIZE * TASK_SCALE)
+				height := math.round(TASK_DRAG_SIZE * TASK_SCALE)
 				x := element.window.cursor_x - f32(width / 2)
 				y := element.window.cursor_y - f32(height / 2)
 
 				for i := len(drag_goals) - 1; i >= 0; i -= 1 {
 					pos := &drag_goals[i]
 					state := true
-					goal_x := math.round(x + f32(i) * 5 * SCALE)
-					goal_y := math.round(y + f32(i) * 5 * SCALE)
+					goal_x := math.round(x + f32(i) * 5 * TASK_SCALE)
+					goal_y := math.round(y + f32(i) * 5 * TASK_SCALE)
 					animate_to(&state, &pos.x, goal_x, 1 - f32(i) * 0.1)
 					animate_to(&state, &pos.y, goal_y, 1 - f32(i) * 0.1)
 					r := rect_rounded(rect_wh(pos.x, pos.y, width, height))
@@ -1296,7 +1296,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				res := TASK_SCALE + f32(di) * 0.05
 				TASK_SCALE = clamp(res, 0.1, 10)
 				fontstash.reset(&gs.fc)
-				fmt.eprintln("TASK SCALE", TASK_SCALE)
+				// fmt.eprintln("TASK SCALE", TASK_SCALE)
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
 				cam.freehand = true
@@ -1470,7 +1470,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				box_set_caret(task.box, BOX_END, nil)
 			} else {
 				old_tail := box.tail
-				scaled_size := task_font_size(task)
+				scaled_size := fcs_task(task)
+				// scaled_size := task_font_size(task)
 				element_box_mouse_selection(task.box, task.box, di, false, 0, scaled_size)
 
 				if element.window.shift && di == 0 {
@@ -1506,7 +1507,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					}
 				} else {
 					if task_head == task_tail {
-						scaled_size := task_font_size(task)
+						scaled_size := fcs_task(task)
 						element_box_mouse_selection(task.box, task.box, di, true, 0, scaled_size)
 						element_repaint(task)
 						return 1
@@ -1544,7 +1545,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 }
 
 task_indentation_width :: proc(indentation: f32) -> f32 {
-	return math.round(indentation * visuals_tab() * TAB_WIDTH * TASK_SCALE)
+	return indentation * visuals_tab() * TAB_WIDTH * TASK_SCALE
 }
 
 // manual layout call so we can predict the proper positioning
@@ -1556,12 +1557,12 @@ task_layout :: proc(
 	margin_scaled: f32,
 ) -> Rect {
 	// tab := visuals_tab() * TAB_WIDTH * SCALE
-	offset_indentation := math.round(task.indentation_smooth * tab_scaled)
+	offset_indentation := task.indentation_smooth * tab_scaled
 	
 	// manually offset the line rectangle in total while retaining parent clip
 	bounds := bounds
-	bounds.t += math.round(task.top_offset)
-	bounds.b += math.round(task.top_offset)
+	bounds.t += task.top_offset
+	bounds.b += task.top_offset
 
 	cut := bounds
 	task.clip = rect_intersection(task.parent.clip, cut)
@@ -1641,7 +1642,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + 5 * TASK_SCALE : 0
 			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
-			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE * 2)
+			margin_scaled := visuals_task_margin() * TASK_SCALE * 2
 			line_size += margin_scaled
 
 			return int(line_size)
@@ -1653,8 +1654,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				task.top_animation_start = false
 			}
 
-			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE)
+			tab_scaled := visuals_tab() * TAB_WIDTH * TASK_SCALE
+			margin_scaled := visuals_task_margin() * TASK_SCALE
 			task_layout(task, element.bounds, true, tab_scaled, margin_scaled)
 		}
 
@@ -2351,7 +2352,7 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 	}
 
 	pos := [2]f32 { task.window.cursor_x, task.window.cursor_y }
-	circle_size := DRAG_CIRCLE * SCALE
+	circle_size := DRAG_CIRCLE * TASK_SCALE
 	if check_collision_point_circle(mouse, pos, circle_size) {
 		return false
 	}
@@ -2390,15 +2391,15 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 
 	// init animation positions
 	{
-		width := math.round(TASK_DRAG_SIZE * SCALE)
-		height := math.round(TASK_DRAG_SIZE * SCALE)
+		width := math.round(TASK_DRAG_SIZE * TASK_SCALE)
+		height := math.round(TASK_DRAG_SIZE * TASK_SCALE)
 		x := window_main.cursor_x - f32(width / 2)
 		y := window_main.cursor_y - f32(height / 2)
 
 		for i := len(drag_goals) - 1; i >= 0; i -= 1 {
 			pos := &drag_goals[i]
-			pos.x = math.round(x + f32(i) * 5 * SCALE)
-			pos.y = math.round(y + f32(i) * 5 * SCALE)
+			pos.x = math.round(x + f32(i) * 5 * TASK_SCALE)
+			pos.y = math.round(y + f32(i) * 5 * TASK_SCALE)
 		}
 	}
 

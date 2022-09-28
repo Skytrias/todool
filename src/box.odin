@@ -1206,15 +1206,20 @@ element_box_mouse_selection :: proc(
 		codepoint_index: int,
 		dragging: bool,
 	) -> bool {
-		if old_x < relative_x && 
-			relative_x < x && 
+		if relative_x < x && 
 			old_y < relative_y && 
 			relative_y < y {
+			goal := ((x - old_x) / 2 + old_x)
+			comp := relative_x > goal
+			off := int(comp)
+			// off = 0
+			// log.info("CHECK", off, comp, goal, old_x, x)
+
 			if !dragging {
-				codepoint_index := codepoint_index
+				codepoint_index := codepoint_index + off
 				box_set_caret(b, 0, &codepoint_index)
 			} else {
-				b.head = codepoint_index
+				b.head = codepoint_index + off
 			}
 
 			return true
@@ -1314,6 +1319,7 @@ element_box_mouse_selection :: proc(
 			index: int
 			quad: fontstash.Quad
 			for fontstash.text_iter_step(ctx, &iter, &quad) {
+				old_x = x
 				x = iter.nextx
 
 				// check mouse collision
@@ -1326,8 +1332,11 @@ element_box_mouse_selection :: proc(
 
 			x += f32(scaled_size)
 			mcs_check_single(&mcs, b, iter.codepoint_count + codepoint_offset, dragging)
-
+			
+			// NOTE safety clamp in case we extended too far
 			codepoint_offset += iter.codepoint_count
+			b.head = min(b.head, codepoint_offset)
+			b.tail = min(b.tail, codepoint_offset)
 
 			// do line end?
 			if relative_x > x && !dragging {
@@ -1342,6 +1351,8 @@ element_box_mouse_selection :: proc(
 		mcs_check_line_last(&mcs, b)
 	} else {
 		if clicks == 1 {
+			// TODO misses the first character if its not proper alpha
+
 			// NOTE WORD selection
 			// loop through lines
 			search_line_word: for text in b.wrapped_lines {
@@ -1376,13 +1387,13 @@ element_box_mouse_selection :: proc(
 					}
 					
 					// check for starting codepoint being letter
-					if index_word_start == -1 && unicode.is_letter(iter.codepoint) {
+					if index_word_start == -1 && unicode.is_alpha(iter.codepoint) {
 						index_word_start = index
 						x_word_start = x
 					}
 
 					// check for space word completion
-					if index_whitespace_start != -1 && unicode.is_letter(iter.codepoint) {
+					if index_whitespace_start != -1 && unicode.is_alpha(iter.codepoint) {
 						old_x = x_whitespace_start
 						mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + index)
 						index_whitespace_start = -1
@@ -1407,7 +1418,7 @@ element_box_mouse_selection :: proc(
 				}
 
 				// finish end word
-				if index_word_start != -1 && unicode.is_letter(codepoint_last) {
+				if index_word_start != -1 && unicode.is_alpha(codepoint_last) {
 					old_x = x_word_start
 					mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + iter.codepoint_count)
 				}

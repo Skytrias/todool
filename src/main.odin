@@ -18,6 +18,8 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
+
+
 // main :: proc() {
 // 	Test_Struct1 :: struct {
 // 		a: int,

@@ -224,7 +224,6 @@ editor_load_version :: proc(
 			cam := mode_panel_cam()
 			cam_set_x(cam, f32(header.camera_offset_x))
 			cam_set_y(cam, f32(header.camera_offset_y))
-			log.info("CAM OFFSET", cam.offset_x, cam.offset_y)
 
 			Save_Task :: struct #packed {
 				indentation: u8,
@@ -350,6 +349,7 @@ Misc_Save_Load :: struct {
 	// not shown directly to the user,
 	hidden: struct {
 		scale: f32,
+		task_scale: f32,
 		mode_index: int,
 
 		font_regular_path: string,
@@ -455,7 +455,8 @@ json_save_misc :: proc(path: string) -> bool {
 
 	value := Misc_Save_Load {
 		hidden = {
-			scale =  SCALE,
+			scale = SCALE,
+			task_scale = TASK_SCALE,
 			mode_index = int(mode_panel.mode),
 			
 			font_regular_path = gs.font_regular_path,
@@ -556,7 +557,10 @@ json_load_misc :: proc(path: string) -> bool {
 	// hidden
 	{
 		// TODO hook this up properly?
-		scaling_set(misc.hidden.scale, 1)
+		if misc.hidden.task_scale == 0 {
+			misc.hidden.task_scale = 1
+		}
+		scaling_set(misc.hidden.scale, misc.hidden.task_scale)
 		mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
