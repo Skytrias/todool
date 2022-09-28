@@ -535,7 +535,8 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			element_focus(element)
 
 			old_tail := box.tail
-			element_box_mouse_selection(box, box, di, false, box.scroll)
+			scaled_size := efont_size(element)
+			element_box_mouse_selection(box, box, di, false, box.scroll, scaled_size)
 
 			if element.window.shift && di == 0 {
 				box.tail = old_tail
@@ -544,7 +545,8 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Mouse_Drag: {
 			if element.window.pressed_button == MOUSE_LEFT {
-				element_box_mouse_selection(box, box, di, true, box.scroll)
+				scaled_size := efont_size(element)
+				element_box_mouse_selection(box, box, di, true, box.scroll, scaled_size)
 				element_repaint(box)
 			}
 		}
@@ -582,10 +584,9 @@ text_box_init :: proc(
 //////////////////////////////////////////////
 
 // just paints the text based on text color
-task_box_paint_default_selection :: proc(box: ^Task_Box) {
+task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: f32) {
 	focused := box.window.focused == box
 	target := box.window.target
-	scaled_size := fcs_element(box)
 
 	color: Color
 	element_message(box, .Box_Text_Color, 0, &color)
@@ -618,10 +619,9 @@ task_box_paint_default_selection :: proc(box: ^Task_Box) {
 }
 
 // just paints the text based on text color
-task_box_paint_default :: proc(box: ^Task_Box) {
+task_box_paint_default :: proc(box: ^Task_Box, scaled_size: f32) {
 	focused := box.window.focused == box
 	target := box.window.target
-	scaled_size := fcs_element(box)
 
 	color: Color
 	element_message(box, .Box_Text_Color, 0, &color)
@@ -633,7 +633,7 @@ task_box_paint_default :: proc(box: ^Task_Box) {
 	y: f32
 	for wrap_line, i in box.wrapped_lines {
 		render_string(target, box.bounds.l, box.bounds.t + y, wrap_line)
-		y += f32(scaled_size)
+		y += math.floor(scaled_size)
 	}
 
 	fcs_color(color)
@@ -653,7 +653,8 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Paint_Recursive: {
-			task_box_paint_default(task_box)
+			scaled_size := fcs_element(task_box)
+			task_box_paint_default(task_box, scaled_size)
 		}
 
 		case .Key_Combination: {
@@ -1142,16 +1143,14 @@ box_low_and_high :: proc(box: ^Box) -> (low, high: int) {
 box_layout_caret :: proc(
 	box: ^Box,
 	scaled_size: f32,
+	scaling: f32,
 	x, y: f32,
 ) -> Rect {
-	if len(box.wrapped_lines) == 0 {
-		log.info("yoooooo", strings.to_string(box.builder))
-	}
 	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 	return rect_wh(
 		x + caret_x,
 		y + f32(line) * scaled_size,
-		math.round(2 * SCALE),
+		math.round(2 * scaling),
 		scaled_size,
 	)
 }
@@ -1188,9 +1187,8 @@ element_box_mouse_selection :: proc(
 	clicks: int,
 	dragging: bool,
 	x_offset: f32,
+	scaled_size: f32,
 ) -> (found: bool) {
-	scaled_size := fcs_element(element)
-
 	// state used in word / single mouse selection
 	Mouse_Character_Selection :: struct {
 		relative_x, relative_y: f32,

@@ -648,12 +648,6 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			fcs_element(element)
 			text := strings.to_string(button.builder)
 			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
-
-			// if button.opt_icon != .None {
-			// 	fcs_icon()
-			// 	width += icon_width(button.opt_icon) + 5 * SCALE
-			// }
-
 			return int(width)
 		}
 
@@ -773,7 +767,6 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 
 	if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
 		rect := button.bounds
-		// rect.l = rect.r - (4 * SCALE)
 		rect.r = rect.l + (4 * SCALE)
 		render_rect(target, rect, text_color, 0)
 	}
@@ -783,7 +776,7 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 		render_hovered_highlight(target, button.bounds)
 	}
 
-	fcs_icon()
+	fcs_icon(SCALE)
 	fcs_ahv()
 	fcs_color(text_color)
 	render_icon_rect(target, button.bounds, button.icon)
@@ -812,7 +805,7 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Get_Width: {
-			w := icon_width(button.icon)
+			w := icon_width(button.icon, SCALE)
 			return int(w + TEXT_MARGIN_HORIZONTAL * SCALE)
 		}
 
@@ -3215,7 +3208,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			top := rect_cut_top(&bounds, f32(text_height))
 			fcs_ahv(.Left, .Middle)
 			fcs_color(theme.text_default)
-			fcs_icon()
+			fcs_icon(SCALE)
 
 			hovered := element.window.hovered == element
 			pressed := element.window.pressed == element

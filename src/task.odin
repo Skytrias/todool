@@ -581,10 +581,12 @@ task_init :: proc(
 	res.button_bookmark.data = res
 
 	res.button_fold = icon_button_init(res, {}, .Simple_Down, nil, allocator)
+	// TODO find better way to change scaling for elements in general?
+	// this is pretty much duplicate of normal icon rendering
 	res.button_fold.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		button := cast(^Icon_Button) element
 		task := cast(^Task) button.parent
-
+		
 		#partial switch msg {
 			case .Clicked: {
 				manager := mode_panel_manager_scoped()
@@ -599,7 +601,39 @@ task_init :: proc(
 			}
 
 			case .Paint_Recursive: {
+				// NOTE only change
 				button.icon = task.folded ? .Simple_Right : .Simple_Down
+
+				pressed := button.window.pressed == button
+				hovered := button.window.hovered == button
+				target := button.window.target
+
+				text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+				if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
+					rect := button.bounds
+					rect.r = rect.l + (4 * TASK_SCALE)
+					render_rect(target, rect, text_color, 0)
+				}
+
+				if hovered || pressed {
+					render_rect_outline(target, button.bounds, text_color)
+					render_hovered_highlight(target, button.bounds)
+				}
+
+				fcs_icon(TASK_SCALE)
+				fcs_ahv()
+				fcs_color(text_color)
+				render_icon_rect(target, button.bounds, button.icon)
+			}
+
+			case .Get_Width: {
+				w := icon_width(button.icon, TASK_SCALE)
+				return int(w + TEXT_MARGIN_HORIZONTAL * TASK_SCALE)
+			}
+
+			case .Get_Height: {
+				return int(task_font_size(element) + TEXT_MARGIN_VERTICAL * TASK_SCALE)
 			}
  		}
 
@@ -655,7 +689,7 @@ task_push_undoable :: proc(
 
 // format to lines or append a single line only
 task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
-	fcs_element(box)
+	fcs_task(box)
 	fcs_ahv(.Left, .Top)
 
 	fontstash.wrap_format_to_lines(
@@ -1007,7 +1041,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					// NOTE weird precision error without this and mode panel open/cam animation
 					cut.l = math.round(cut.l)
 					cut.t = math.round(cut.t)
-					
+
 					// cutoff a rect left
 					kanban_current: Rect
 					kanban_children_count: int
@@ -1066,11 +1100,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// update caret
 			if task_head != -1 {
 				task := tasks_visible[task_head]
-				fcs_element(task)
-				scaled_size := efont_size(task.box)
+				scaled_size := fcs_task(task)
 				x := task.box.bounds.l
 				y := task.box.bounds.t
-				caret_rect = box_layout_caret(task.box, scaled_size, x, y)
+				caret_rect = box_layout_caret(task.box, scaled_size, TASK_SCALE, x, y,)
 			}
 
 			// check on change
@@ -1144,7 +1177,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// drag visualizing circle
 			if !drag_running && drag_circle {
 				render_push_clip(target, panel.clip)
-				circle_size := DRAG_CIRCLE * SCALE
+				circle_size := DRAG_CIRCLE * TASK_SCALE
 				render_circle_outline(target, drag_circle_pos.x, drag_circle_pos.y, circle_size, 2, theme.text_default, true)
 				diff_x := abs(drag_circle_pos.x - element.window.cursor_x)
 				diff_y := abs(drag_circle_pos.y - element.window.cursor_y)
@@ -1182,16 +1215,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 
 				// NOTE also have to change init positioning call :)
-				width := math.round(TASK_DRAG_SIZE * TASK_SCALE)
-				height := math.round(TASK_DRAG_SIZE * TASK_SCALE)
+				width := math.round(TASK_DRAG_SIZE * SCALE)
+				height := math.round(TASK_DRAG_SIZE * SCALE)
 				x := element.window.cursor_x - f32(width / 2)
 				y := element.window.cursor_y - f32(height / 2)
 
 				for i := len(drag_goals) - 1; i >= 0; i -= 1 {
 					pos := &drag_goals[i]
 					state := true
-					goal_x := math.round(x + f32(i) * 5 * TASK_SCALE)
-					goal_y := math.round(y + f32(i) * 5 * TASK_SCALE)
+					goal_x := math.round(x + f32(i) * 5 * SCALE)
+					goal_y := math.round(y + f32(i) * 5 * SCALE)
 					animate_to(&state, &pos.x, goal_x, 1 - f32(i) * 0.1)
 					animate_to(&state, &pos.y, goal_y, 1 - f32(i) * 0.1)
 					r := rect_rounded(rect_wh(pos.x, pos.y, width, height))
@@ -1262,6 +1295,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if element.window.ctrl {
 				res := TASK_SCALE + f32(di) * 0.05
 				TASK_SCALE = clamp(res, 0.1, 10)
+				fontstash.reset(&gs.fc)
 				fmt.eprintln("TASK SCALE", TASK_SCALE)
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
@@ -1382,7 +1416,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			// strike through line
 			if task.state == .Canceled {
-				fcs_element(task)
+				fcs_task(task)
 				state := fontstash.state_get(&gs.fc)
 				font := fontstash.font_get(&gs.fc, state.font)
 				isize := i16(state.size * 10)
@@ -1405,13 +1439,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
  			// paint selection before text
+			scaled_size := fcs_task(task)
 			if task_head == task_tail && task.visible_index == task_head {
-				fcs_element(task)
 				box_render_selection(target, box, x, y, theme.caret_selection)
-				task_box_paint_default_selection(box)
+				task_box_paint_default_selection(box, scaled_size)
 				// task_box_paint_default(box)
 			} else {
-				task_box_paint_default(box)
+				task_box_paint_default(box, scaled_size)
 			}
 
 			// outline visible selected one
@@ -1436,7 +1470,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				box_set_caret(task.box, BOX_END, nil)
 			} else {
 				old_tail := box.tail
-				element_box_mouse_selection(task.box, task.box, di, false, 0)
+				scaled_size := task_font_size(task)
+				element_box_mouse_selection(task.box, task.box, di, false, 0, scaled_size)
 
 				if element.window.shift && di == 0 {
 					box.tail = old_tail
@@ -1471,7 +1506,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					}
 				} else {
 					if task_head == task_tail {
-						element_box_mouse_selection(task.box, task.box, di, true, 0)
+						scaled_size := task_font_size(task)
+						element_box_mouse_selection(task.box, task.box, di, true, 0, scaled_size)
 						element_repaint(task)
 						return 1
 					}
@@ -1508,7 +1544,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 }
 
 task_indentation_width :: proc(indentation: f32) -> f32 {
-	return math.round(indentation * visuals_tab() * TAB_WIDTH * SCALE)
+	return math.round(indentation * visuals_tab() * TAB_WIDTH * TASK_SCALE)
 }
 
 // manual layout call so we can predict the proper positioning
@@ -1534,7 +1570,7 @@ task_layout :: proc(
 	// layout bookmark
 	element_hide(task.button_bookmark, !task.bookmarked)
 	if task.bookmarked {
-		rect := rect_cut_left(&cut, 15 * SCALE)
+		rect := rect_cut_left(&cut, 15 * TASK_SCALE)
 		if move {
 			element_move(task.button_bookmark, rect)
 		}
@@ -1544,7 +1580,7 @@ task_layout :: proc(
 	cut = rect_margin(cut, margin_scaled)
 
 	if image_display_has_content(task.image_display) {
-		top := rect_cut_top(&cut, IMAGE_DISPLAY_HEIGHT * SCALE)
+		top := rect_cut_top(&cut, IMAGE_DISPLAY_HEIGHT * TASK_SCALE)
 
 		if move {
 			element_move(task.image_display, top)
@@ -1554,7 +1590,7 @@ task_layout :: proc(
 	tag_mode := options_tag_mode()
 	if tag_mode != TAG_SHOW_NONE && task.tags != 0x00 {
 		rect := rect_cut_bottom(&cut, tag_mode_size(tag_mode))
-		cut.b -= 5 * SCALE  // gap
+		cut.b -= 5 * TASK_SCALE  // gap
 
 		if move {
 			task.tags_rect = rect
@@ -1564,8 +1600,8 @@ task_layout :: proc(
 	// fold button
 	element_hide(task.button_fold, !task.has_children)
 	if task.has_children {
-		rect := rect_cut_left(&cut, DEFAULT_FONT_SIZE * SCALE)
-		cut.l += 5 * SCALE
+		rect := rect_cut_left(&cut, DEFAULT_FONT_SIZE * TASK_SCALE)
+		cut.l += 5 * TASK_SCALE
 
 		if move {
 			element_move(task.button_fold, rect)
@@ -1582,9 +1618,9 @@ task_layout :: proc(
 
 tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
 	if tag_mode == TAG_SHOW_TEXT_AND_COLOR {
-		res = DEFAULT_FONT_SIZE * SCALE
+		res = DEFAULT_FONT_SIZE * TASK_SCALE
 	} else if tag_mode == TAG_SHOW_COLOR {
-		res = 10 * SCALE
+		res = 10 * TASK_SCALE
 	} 
 
 	return
@@ -1597,15 +1633,15 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 	#partial switch msg {
 		case .Get_Width: {
-			return int(SCALE * 200)
+			return int(TASK_SCALE * 200)
 		}
 
 		case .Get_Height: {
-			line_size := efont_size(element) * f32(len(task.box.wrapped_lines))
+			line_size := task_font_size(element) * f32(len(task.box.wrapped_lines))
 
-			line_size += draw_tags ? tag_mode_size(tag_mode) + 5 * SCALE : 0
-			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * SCALE) : 0
-			margin_scaled := math.round(visuals_task_margin() * SCALE * 2)
+			line_size += draw_tags ? tag_mode_size(tag_mode) + 5 * TASK_SCALE : 0
+			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
+			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE * 2)
 			line_size += margin_scaled
 
 			return int(line_size)
@@ -1617,8 +1653,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				task.top_animation_start = false
 			}
 
-			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * SCALE)
-			margin_scaled := math.round(visuals_task_margin() * SCALE)
+			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * TASK_SCALE)
+			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE)
 			task_layout(task, element.bounds, true, tab_scaled, margin_scaled)
 		}
 
@@ -1637,12 +1673,12 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				rect := task.tags_rect
 
 				font := font_regular
-				scaled_size := i16(DEFAULT_FONT_SIZE * SCALE)
-				text_margin := math.round(10 * SCALE)
-				gap := math.round(5 * SCALE)
+				scaled_size := i16(DEFAULT_FONT_SIZE * TASK_SCALE)
+				text_margin := math.round(10 * TASK_SCALE)
+				gap := math.round(5 * TASK_SCALE)
 
 				fcs_font(font_regular)
-				fcs_size(DEFAULT_FONT_SIZE * SCALE)
+				fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
 				fcs_ahv()
 
 				// go through each existing tag, draw each one
@@ -1668,7 +1704,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 							}
 
 							case TAG_SHOW_COLOR: {
-								r := rect_cut_left(&rect, 50 * SCALE)
+								r := rect_cut_left(&rect, 50 * TASK_SCALE)
 								if rect_valid(r) {
 									render_rect(target, r, tag_color, ROUNDNESS)
 								}

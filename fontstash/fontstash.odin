@@ -146,6 +146,20 @@ destroy :: proc(using ctx: ^Font_Context) {
 	delete(nodes)
 }
 
+reset :: proc(using ctx: ^Font_Context) {
+	font_atlas_reset(ctx, width, height)
+	dirty_rect_reset(ctx)
+	mem.zero_slice(texture_data)
+
+	for font in &fonts {
+		font_reset(&font)
+	}
+
+	font_atlas_add_white_rect(ctx, 2, 2)
+	state_push(ctx)
+	state_clear(ctx)
+}
+
 font_atlas_insert_node :: proc(using ctx: ^Font_Context, idx, x, y, w: int) {
 	// resize is alright here
 	resize(&nodes, len(nodes) + 1)
@@ -313,8 +327,6 @@ font_atlas_add_white_rect :: proc(ctx: ^Font_Context, w, h: int) {
 	ctx.dirty_rect[3] = cast(f32) max(int(ctx.dirty_rect[3]), gy + h)
 }
 
-font_push :: proc { font_push_file, font_push_slice }
-
 font_push_file :: proc(
 	ctx: ^Font_Context,
 	path: string,
@@ -345,18 +357,15 @@ font_push_slice :: proc(
 	res.loaded_data = data
 
 	stbtt.InitFont(&res.info, &res.loaded_data[0], 0)
-	a, d, l: i32
-	stbtt.GetFontVMetrics(&res.info, &a, &d, &l)
-	fh := f32(a - d)
-	res.ascender = f32(a) / fh
-	res.descender = f32(d) / fh
-	res.line_height = f32(l) / fh
+	ascent, descent, line_gap: i32
+	stbtt.GetFontVMetrics(&res.info, &ascent, &descent, &line_gap)
+	fh := f32(ascent - descent)
+	res.ascender = f32(ascent) / fh
+	res.descender = f32(descent) / fh
+	res.line_height = (fh + f32(line_gap)) / fh
 	res.glyphs = make([dynamic]Glyph, 0, INIT_GLYPHS)
 
-	// set lookup table
-	for i in 0..<LUT_SIZE {
-		res.lut[i] = -1
-	}
+	font_reset(res)
 
 	if init_default_ascii {
 		isize := i16(pixel_size * 10)
@@ -368,6 +377,15 @@ font_push_slice :: proc(
 	}
 
 	return res
+}
+
+font_push :: proc { font_push_file, font_push_slice }
+
+font_reset :: proc(font: ^Font) {
+	// set lookup table
+	for i in 0..<LUT_SIZE {
+		font.lut[i] = -1
+	}
 }
 
 hash_value :: proc(a: u32) -> u32 {
@@ -764,11 +782,11 @@ get_vertical_align :: proc(
 ) -> (res: f32) {
 	switch av {
 		case .Top: {
-			res = f32(font.ascender) * f32(pixel_size) / 10
+			res = (font.ascender) * f32(pixel_size / 10)
 		}
 
 		case .Middle: {
-			res = (font.ascender + font.descender) / 2 * f32(pixel_size) / 10
+			res = (font.ascender + font.descender) / 2 * f32(pixel_size / 10)
 		}
 
 		case .Baseline: {
@@ -776,7 +794,7 @@ get_vertical_align :: proc(
 		}
 
 		case .Bottom: {
-			res = f32(font.descender) * f32(pixel_size) / 10
+			res = (font.descender) * f32(pixel_size / 10)
 		}
 	}
 

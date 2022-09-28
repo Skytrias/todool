@@ -2149,10 +2149,33 @@ efont_size :: proc(element: ^Element) -> f32 {
 	return f32(i16(scaled_size) / 10)
 }	
 
-fcs_icon :: proc() -> f32 {
-	fcs_size(DEFAULT_ICON_SIZE * SCALE)
+task_font_size :: proc(element: ^Element) -> f32 {
+	scaled_size := f32(element.font_options == nil ? DEFAULT_FONT_SIZE : element.font_options.size) * TASK_SCALE * 10
+	return f32(i16(scaled_size) / 10)
+}	
+
+fcs_icon :: proc(scaling: f32) -> f32 {
+	fcs_size(DEFAULT_ICON_SIZE * scaling)
 	fcs_font(font_icon)
-	return DEFAULT_ICON_SIZE * SCALE
+	return f32(i16(DEFAULT_ICON_SIZE * scaling * 10) / 10)
+}
+
+// using task scale
+fcs_task :: proc(element: ^Element) -> f32 {
+	font_index: int
+	size: f32
+
+	if element.font_options == nil {
+		font_index = font_regular
+		size = DEFAULT_FONT_SIZE
+	} else {
+		font_index = element.font_options.font
+		size = element.font_options.size
+	}
+
+	fcs_size(size * TASK_SCALE)
+	fcs_font(font_index)
+	return f32(i16(size * TASK_SCALE * 10) / 10)
 }
 
 fcs_element :: proc(element: ^Element) -> f32 {
@@ -2169,16 +2192,16 @@ fcs_element :: proc(element: ^Element) -> f32 {
 
 	fcs_size(size * SCALE)
 	fcs_font(font_index)
-	return f32(size) * SCALE
+	return f32(i16(size * SCALE * 10) / 10)
 }
 
 string_width :: #force_inline proc(text: string, x: f32 = 0, y: f32 = 0) -> f32 {
 	return fontstash.text_bounds(&gs.fc, text, x, y)
 }
 
-icon_width :: #force_inline proc(icon: Icon) -> f32 {
+icon_width :: #force_inline proc(icon: Icon, scaling: f32) -> f32 {
 	font := fontstash.font_get(&gs.fc, font_icon)
-	isize := i16(DEFAULT_FONT_SIZE * 10 * SCALE)
+	isize := i16(DEFAULT_FONT_SIZE * 10 * scaling)
 	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
 	return fontstash.codepoint_width(font, rune(icon), scale)
 }

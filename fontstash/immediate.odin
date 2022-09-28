@@ -78,7 +78,7 @@ state_get :: #force_inline proc(ctx: ^Font_Context) -> ^State {
 }
 
 state_set_size :: proc(ctx: ^Font_Context, size: f32) {
-	state_get(ctx).size  = size
+	state_get(ctx).size = size
 }
 
 state_set_color :: proc(ctx: ^Font_Context, color: [4]u8) {

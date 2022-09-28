@@ -346,5 +346,9 @@ main :: proc() {
 	// do actual loading later because options might change the path
 	gs_update_after_load()
 	
+	font := font_get(font_regular)
+
+	fmt.eprintln(20, font.line_height * 20)
+
 	gs_message_loop()
 }
