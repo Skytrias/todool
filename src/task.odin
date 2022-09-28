@@ -19,7 +19,8 @@ import "../fontstash"
 last_save_location: string
 
 TAB_WIDTH :: 200
-TASK_MARGIN :: 5
+TASK_DRAG_SIZE :: 80
+
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
 custom_split: ^Custom_Split
@@ -714,7 +715,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 		return
 	}
 
-	tab := visuals_tab() * TAB_WIDTH * SCALE
+	tab := visuals_tab() * TAB_WIDTH * TASK_SCALE
 	p := tasks_visible[task_head]
 	color := theme.text_default
 
@@ -734,7 +735,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			}
 
 			bound_rect.l -= tab
-			bound_rect.r = bound_rect.l + 2 * SCALE
+			bound_rect.r = bound_rect.l + 2 * TASK_SCALE
 			render_rect(target, bound_rect, color, 0)
 
 			if color.a == 255 {
@@ -965,15 +966,18 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.r += cam.offset_x
 			bounds.t += cam.offset_y
 			bounds.b += cam.offset_y
-			gap_vertical_scaled := math.round(visuals_gap_vertical() * SCALE)
-			gap_horizontal_scaled := math.round(visuals_gap_horizontal() * SCALE)
-			kanban_width_scaled := math.round(visuals_kanban_width() * SCALE)
-			tab_scaling := visuals_tab() * TAB_WIDTH * SCALE
-			task_min_width := rect_width(mode_panel.bounds) - math.round(50 * SCALE)
+			gap_vertical_scaled := math.round(visuals_gap_vertical() * TASK_SCALE)
+			gap_horizontal_scaled := math.round(visuals_gap_horizontal() * TASK_SCALE)
+			kanban_width_scaled := math.round(visuals_kanban_width() * TASK_SCALE)
+			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * TASK_SCALE)
+			task_min_width := rect_width(mode_panel.bounds) - math.round(50 * TASK_SCALE)
+			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE)
 
 			switch panel.mode {
 				case .List: {
 					cut := bounds
+					cut.l = math.round(cut.l)
+					cut.t = math.round(cut.t)
 
 					for child in element.children {
 						task := cast(^Task) child
@@ -983,14 +987,14 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						}
 
 						pseudo_rect := cut
-						pseudo_rect.l += math.round(f32(task.indentation) * tab_scaling)
+						pseudo_rect.l += math.round(f32(task.indentation) * tab_scaled)
 						pseudo_rect.r = pseudo_rect.l + task_min_width
-						box_rect := task_layout(task, pseudo_rect, false)
+						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&cut, f32(h))
-						r.l = r.l + math.round(task.indentation_smooth * tab_scaling)
+						r.l = r.l + math.round(task.indentation_smooth * tab_scaled)
 						r.r = r.l + task_min_width
 						element_move(task, r)
 
@@ -1000,6 +1004,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				case .Kanban: {
 					cut := bounds
+					// NOTE weird precision error without this and mode panel open/cam animation
+					cut.l = math.round(cut.l)
+					cut.t = math.round(cut.t)
 					
 					// cutoff a rect left
 					kanban_current: Rect
@@ -1032,7 +1039,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							}
 
 							kanban_width := kanban_width_scaled
-							kanban_width += math.round(f32(max_indentations) * visuals_tab() * TAB_WIDTH * SCALE)
+							kanban_width += math.round(f32(max_indentations) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
 							cut.l += gap_horizontal_scaled
@@ -1040,13 +1047,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 						// pseudo layout for correct witdth
 						pseudo_rect := kanban_current
-						box_rect := task_layout(task, pseudo_rect, false)
-						box_rect.l += math.round(f32(task.indentation) * tab_scaling)
+						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
+						box_rect.l += math.round(f32(task.indentation) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
 						r := rect_cut_top(&kanban_current, f32(h))
-						r.l += math.round(task.indentation_smooth * tab_scaling)
+						r.l += math.round(task.indentation_smooth * tab_scaled)
 						element_move(task, r)
 
 						if i - kanban_children_start < kanban_children_count - 1 {
@@ -1151,7 +1158,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				
 				drag_task := tasks_visible[drag_index_at]
 				bounds := drag_task.bounds
-				margin := math.round(4 * SCALE)
+				margin := math.round(4 * TASK_SCALE)
 				bounds.t = bounds.b - margin
 				rect_lerp(&drag_rect_lerp, bounds, 0.5)
 				bounds = drag_rect_lerp
@@ -1174,17 +1181,17 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if drag_running {
 				render_push_clip(target, panel.clip)
 
-				texture := &target.textures[.Drag]
-				width := math.round(80 * SCALE)
-				height := math.round(80 * SCALE)
+				// NOTE also have to change init positioning call :)
+				width := math.round(TASK_DRAG_SIZE * TASK_SCALE)
+				height := math.round(TASK_DRAG_SIZE * TASK_SCALE)
 				x := element.window.cursor_x - f32(width / 2)
 				y := element.window.cursor_y - f32(height / 2)
 
-				for i := 2; i >= 0; i -= 1 {
+				for i := len(drag_goals) - 1; i >= 0; i -= 1 {
 					pos := &drag_goals[i]
 					state := true
-					goal_x := math.round(x + f32(i) * 5 * SCALE)
-					goal_y := math.round(y + f32(i) * 5 * SCALE)
+					goal_x := math.round(x + f32(i) * 5 * TASK_SCALE)
+					goal_y := math.round(y + f32(i) * 5 * TASK_SCALE)
 					animate_to(&state, &pos.x, goal_x, 1 - f32(i) * 0.1)
 					animate_to(&state, &pos.y, goal_y, 1 - f32(i) * 0.1)
 					r := rect_rounded(rect_wh(pos.x, pos.y, width, height))
@@ -1252,15 +1259,26 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Mouse_Scroll_Y: {
-			cam_inc_y(cam, f32(di) * 20)
-			cam.freehand = true
+			if element.window.ctrl {
+				res := TASK_SCALE + f32(di) * 0.05
+				TASK_SCALE = clamp(res, 0.1, 10)
+				fmt.eprintln("TASK SCALE", TASK_SCALE)
+			} else {
+				cam_inc_y(cam, f32(di) * 20)
+				cam.freehand = true
+			}
+
 			element_repaint(element)
 			return 1
 		}
 
 		case .Mouse_Scroll_X: {
-			cam_inc_x(cam, f32(di) * 20)
-			cam.freehand = true
+			if element.window.ctrl {
+			} else {
+				cam_inc_x(cam, f32(di) * 20)
+				cam.freehand = true
+			}
+
 			element_repaint(element)
 			return 1
 		}
@@ -1494,9 +1512,15 @@ task_indentation_width :: proc(indentation: f32) -> f32 {
 }
 
 // manual layout call so we can predict the proper positioning
-task_layout :: proc(task: ^Task, bounds: Rect, move: bool) -> Rect {
-	tab := visuals_tab() * TAB_WIDTH * SCALE
-	offset_indentation := math.round(task.indentation_smooth * tab)
+task_layout :: proc(
+	task: ^Task, 
+	bounds: Rect, 
+	move: bool,
+	tab_scaled: f32,
+	margin_scaled: f32,
+) -> Rect {
+	// tab := visuals_tab() * TAB_WIDTH * SCALE
+	offset_indentation := math.round(task.indentation_smooth * tab_scaled)
 	
 	// manually offset the line rectangle in total while retaining parent clip
 	bounds := bounds
@@ -1517,7 +1541,7 @@ task_layout :: proc(task: ^Task, bounds: Rect, move: bool) -> Rect {
 	}
 
 	// margin after bookmark
-	cut = rect_margin(cut, TASK_MARGIN)
+	cut = rect_margin(cut, margin_scaled)
 
 	if image_display_has_content(task.image_display) {
 		top := rect_cut_top(&cut, IMAGE_DISPLAY_HEIGHT * SCALE)
@@ -1581,7 +1605,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + 5 * SCALE : 0
 			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * SCALE) : 0
-			line_size += TASK_MARGIN * 2
+			margin_scaled := math.round(visuals_task_margin() * SCALE * 2)
+			line_size += margin_scaled
 
 			return int(line_size)
 		}
@@ -1592,7 +1617,9 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				task.top_animation_start = false
 			}
 
-			task_layout(task, element.bounds, true)
+			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * SCALE)
+			margin_scaled := math.round(visuals_task_margin() * SCALE)
+			task_layout(task, element.bounds, true, tab_scaled, margin_scaled)
 		}
 
 		case .Paint_Recursive: {
@@ -1902,13 +1929,16 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 				element_move(split.image_display, rect_margin(bounds, math.round(20 * SCALE)))
 			}
 
+			// avoid layouting twice
 			bottom, right := scrollbars_layout_prior(&bounds, split.hscrollbar, split.vscrollbar)
 			element_move(mode_panel, bounds)
 
 			// scrollbar depends on result after mode panel layouting
 			task_bounds := task_total_bounds()
-			scrollbar_layout_post(split.hscrollbar, bottom, rect_width(task_bounds))
-			scrollbar_layout_post(split.vscrollbar, right, rect_height(task_bounds))
+			scrollbar_layout_post(
+				split.hscrollbar, bottom, rect_width(task_bounds),
+				split.vscrollbar, right, rect_height(task_bounds),
+			)
 		}
 
 		case .Scrolled_X: {
@@ -2321,6 +2351,20 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 	drag_running = true
 	drag_index_at = -1
 	element_animation_start(mode_panel)
+
+	// init animation positions
+	{
+		width := math.round(TASK_DRAG_SIZE * SCALE)
+		height := math.round(TASK_DRAG_SIZE * SCALE)
+		x := window_main.cursor_x - f32(width / 2)
+		y := window_main.cursor_y - f32(height / 2)
+
+		for i := len(drag_goals) - 1; i >= 0; i -= 1 {
+			pos := &drag_goals[i]
+			pos.x = math.round(x + f32(i) * 5 * SCALE)
+			pos.y = math.round(y + f32(i) * 5 * SCALE)
+		}
+	}
 
 	return true
 }

@@ -1477,7 +1477,6 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
 			scrollbar_both := scrollbar_valid(panel.vscrollbar) && scrollbar_valid(panel.hscrollbar)
 
-
 			if panel.vscrollbar != nil {
 				bounds_before := bounds
 				scrollbar_bounds := rect_cut_right(&bounds, scrollbar_size)
@@ -1958,14 +1957,30 @@ scrollbars_layout_prior :: proc(
 }
 
 scrollbar_layout_post :: proc(
-	scrollbar: ^Scrollbar,
-	rect: Rect,
-	max: f32,
+	hscrollbar: ^Scrollbar,
+	hrect: Rect,
+	hmax: f32,
+	vscrollbar: ^Scrollbar,
+	vrect: Rect,
+	vmax: f32,
 ) {
-	if scrollbar != nil {
-		scrollbar.maximum = max
-		scrollbar.page = scrollbar.horizontal ? rect_width(rect) : rect_height(rect)
-		element_move(scrollbar, rect)
+	if vscrollbar != nil {
+		vscrollbar.maximum = vmax
+		vscrollbar.page = rect_height(vrect)
+		element_move(vscrollbar, vrect)
+	}
+
+	if hscrollbar != nil {
+		hrect := hrect
+
+		// extend the hrect if the vscrollbar was invalid
+		if .Hide in vscrollbar.flags {
+			hrect.r += math.round(SCROLLBAR_SIZE * SCALE)
+		}
+
+		hscrollbar.maximum = hmax
+		hscrollbar.page = rect_width(hrect)
+		element_move(hscrollbar, hrect)
 	}
 }
 
@@ -2501,6 +2516,9 @@ Toggle_Selector :: struct {
 	// layouted cells and animation
 	cells: []Rect,
 	cell_gap: f32,
+
+	// animation
+	cell_values: []f32,
 }
 
 toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -2562,7 +2580,8 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				rect.t = rect.t + rect_height_halfed(rect) - point_size / 2
 				rect.b = rect.t + point_size
 				rect = rect_margin(rect, 2)
-				render_rect(target, rect, toggle.value^ == i ? theme.text_good : theme.text_default, 10 * SCALE)
+				color_point := color_blend(theme.text_good, theme.text_default, toggle.cell_values[i], false)
+				render_rect(target, rect, color_point, 10 * SCALE)
 
 				rect.l = cell.l + point_size
 				rect.r = cell.r
@@ -2602,8 +2621,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 						toggle.value_old = toggle.value^
 						toggle.value^ = i
 						element_message(element, .Value_Changed)
-						// toggle.cell_transition = true
-						// element_animation_start(element)
+						element_animation_start(element)
 						element_repaint(element)
 					}
 
@@ -2615,19 +2633,23 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Animate: {
 			handled := false
 
-			// handled := animate_to(
-			// 	&toggle.cell_transition,
-			// 	&toggle.cell_unit,
-			// 	f32(toggle.value^),
-			// 	1,
-			// 	0.01,
-			// )
+			for i in 0..<toggle.count {
+				state := true
+				handled |= animate_to(
+					&state,
+					&toggle.cell_values[i],
+					f32(i == toggle.value^ ? 1 : 0),
+					2,
+					0.01,
+				)
+			}
 
 			return int(handled)
 		}
 
 		case .Destroy: {
 			delete(toggle.cells)
+			delete(toggle.cell_values)
 		}
 	}
 
@@ -2646,8 +2668,9 @@ toggle_selector_init :: proc(
 	res.value = value
 	res.count = count
 	res.names = names
-	// res.cell_unit = f32(value^)
+	res.cell_values = make([]f32, count)
 	res.cells = make([]Rect, count)
+	res.cell_values[value^] = 1
 	return 
 }
 

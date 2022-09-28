@@ -22,13 +22,15 @@ import "../fontstash"
 import "../cutf8"
 
 LETTER_SPACING :: 0
+HOVER_WIDTH :: 100
 SCALE := f32(1)
+TASK_SCALE := f32(1)
 LINE_WIDTH := max(2, 2 * SCALE)
 ROUNDNESS := 5.0 * SCALE
-HOVER_WIDTH :: 100
 
-scaling_set :: proc(value: f32) {
-	SCALE = value
+scaling_set :: proc(global_scale, task_scale: f32) {
+	SCALE = global_scale
+	TASK_SCALE = task_scale
 	LINE_WIDTH = math.round(max(2, 2 * SCALE))
 	ROUNDNESS = math.round(5 * SCALE)
 }

@@ -77,13 +77,13 @@ main :: proc() {
 
 				when ALLOW_SCALE {
 					if combo == "ctrl++" {
-						scaling_set(SCALE + 0.1)
+						scaling_set(SCALE + 0.1, TASK_SCALE)
 						element_repaint(element)
 						return 1
 					}
 
 					if combo == "ctrl+-" {
-						scaling_set(SCALE - 0.1)
+						scaling_set(SCALE - 0.1, TASK_SCALE)
 						element_repaint(element)
 						return 1
 					}

@@ -267,7 +267,8 @@ shortcuts_push_v021 :: proc(s: ^Shortcut_State, maybe: bool) {
 	shortcuts_push_opt(s, "move_up_stack", "ctrl+shift+home", "ctrl+home")
 	shortcuts_push_opt(s, "move_down_stack", "ctrl+shift+end", "ctrl+end")
 	shortcuts_push_opt(s, "todool_indent_jump_nearby_prev", "alt+left")
-	shortcuts_push_opt(s, "todool_indent_jump_nearby_next", "alt+right")		
+	shortcuts_push_opt(s, "todool_indent_jump_nearby_next", "alt+right")
+
 	s.maybe = false
 }
 
@@ -284,7 +285,7 @@ todool_delete_on_empty :: proc() {
 	}
 
 	task := tasks_visible[task_head]
-	
+
 	if len(task.box.builder.buf) == 0 {
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)

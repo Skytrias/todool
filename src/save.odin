@@ -375,6 +375,7 @@ Misc_Save_Load :: struct {
 		gap_horizontal: f32,
 		gap_vertical: f32,
 		kanban_width: f32,
+		task_margin: f32,
 	},
 
 	tags: struct {
@@ -480,6 +481,7 @@ json_save_misc :: proc(path: string) -> bool {
 			sb.options.slider_gap_horizontal.position,
 			sb.options.slider_gap_vertical.position,
 			sb.options.slider_kanban_width.position,
+			sb.options.slider_task_margin.position,
 		},
 
 		tags = {
@@ -554,7 +556,7 @@ json_load_misc :: proc(path: string) -> bool {
 	// hidden
 	{
 		// TODO hook this up properly?
-		scaling_set(misc.hidden.scale)
+		scaling_set(misc.hidden.scale, 1)
 		mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
@@ -594,6 +596,7 @@ json_load_misc :: proc(path: string) -> bool {
 	slider_set(sb.options.slider_gap_horizontal, misc.options.gap_horizontal)
 	slider_set(sb.options.slider_gap_vertical, misc.options.gap_vertical)
 	slider_set(sb.options.slider_kanban_width, misc.options.kanban_width)
+	slider_set(sb.options.slider_task_margin, misc.options.task_margin)
 
 	// theme
 	{

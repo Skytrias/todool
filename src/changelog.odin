@@ -69,8 +69,10 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 				line_count += 1
 			}
 
-			scrollbar_layout_post(td.hscrollbar, bottom, width)
-			scrollbar_layout_post(td.vscrollbar, right, f32(line_count) * scaled_size)
+			scrollbar_layout_post(
+				td.hscrollbar, bottom, width,
+				td.vscrollbar, right, f32(line_count) * scaled_size,
+			)
 		}
 
 		case .Paint_Recursive: {

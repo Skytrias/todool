@@ -10,11 +10,13 @@ import "core:os"
 import "core:strings"
 import "core:encoding/json"
 
-ARCHIVE_MAX :: 32
+ARCHIVE_MAX :: 512
 GAP_HORIZONTAL_MAX :: 100
-GAP_VERTICAL_MAX :: 100
+GAP_VERTICAL_MAX :: 20
 KANBAN_WIDTH_MIN :: 300
 KANBAN_WIDTH_MAX :: 1000
+TASK_MARGIN_MAX :: 50
+// TASK_MARGIN_MIN :: 0
 
 // push to archive text
 archive_push :: proc(text: string) {
@@ -86,6 +88,7 @@ Sidebar_Options :: struct {
 	slider_gap_vertical: ^Slider,
 	slider_gap_horizontal: ^Slider,
 	slider_kanban_width: ^Slider,
+	slider_task_margin: ^Slider,
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -336,17 +339,21 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		}
 		slider_gap_horizontal = slider_init(panel, flags, f32(10.0) / GAP_HORIZONTAL_MAX)
 		slider_gap_horizontal.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Gap Horizontal: %dpx", int(position * GAP_HORIZONTAL_MAX))
+			fmt.sbprintf(builder, "Gap Horizontal: %.0fpx", position * GAP_HORIZONTAL_MAX)
 		}
 		slider_gap_vertical = slider_init(panel, flags, f32(1.0) / GAP_VERTICAL_MAX)
 		slider_gap_vertical.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Gap Vertical: %dpx", int(position * GAP_VERTICAL_MAX))
+			fmt.sbprintf(builder, "Gap Vertical: %.0fpx", position * GAP_VERTICAL_MAX)
 		}
 		kanban_default := math.remap(f32(300), KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX, 0, 1)
 		slider_kanban_width = slider_init(panel, flags, kanban_default)
 		slider_kanban_width.formatting = proc(builder: ^strings.Builder, position: f32) {
 			value := visuals_kanban_width()
 			fmt.sbprintf(builder, "Kanban Width: %.0fpx", value)
+		}
+		slider_task_margin = slider_init(panel, flags, f32(5.0) / TASK_MARGIN_MAX)
+		slider_task_margin.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Task Margin: %.0fpx", position * TASK_MARGIN_MAX)
 		}
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 	}
@@ -643,6 +650,10 @@ visuals_gap_horizontal :: #force_inline proc() -> f32 {
 // remap from unit to wanted range
 visuals_kanban_width :: #force_inline proc() -> f32 {
 	return math.remap(sb.options.slider_kanban_width.position, 0, 1, KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX)
+}
+
+visuals_task_margin :: #force_inline proc() -> f32 {
+	return sb.options.slider_task_margin.position * TASK_MARGIN_MAX
 }
 
 Mode_Based_Button :: struct {
