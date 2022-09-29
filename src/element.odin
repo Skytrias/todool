@@ -836,6 +836,78 @@ icon_button_init :: proc(
 }
 
 //////////////////////////////////////////////
+// image button with fixed size
+//////////////////////////////////////////////
+
+Image_Button :: struct {
+	using element: Element,
+	kind: Texture_Kind,
+	invoke: proc(data: rawptr),
+	width: int,
+	height: int,
+}
+
+image_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Image_Button) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			// icon_button_render_default(button)
+			render_rect(target, element.bounds, RED)	
+			r := element.bounds
+			render_texture_from_kind(target, button.kind, r, BLUE)
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Clicked: {
+			if button.invoke != nil {
+				button.invoke(button.data)
+			}
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Get_Width: {
+			return int(f32(button.width) * SCALE)
+		}
+
+		case .Get_Height: {
+			return int(f32(button.height) * SCALE)
+		}
+
+		case .Key_Combination: {
+			key_combination_check_click(element, dp)
+		}
+	}
+
+	return 0
+}
+
+image_button_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	kind: Texture_Kind,
+	w, h: int,
+	message_user: Message_Proc = nil,
+	allocator := context.allocator,	
+) -> (res: ^Image_Button) {
+	res = element_init(Image_Button, parent, flags | { .Tab_Stop }, image_button_message, allocator)
+	assert(kind != .Fonts)
+	res.kind = kind
+	res.data = res
+	res.width = w
+	res.height = h
+	res.message_user = message_user
+	return
+}
+
+//////////////////////////////////////////////
 // label
 //////////////////////////////////////////////
 
@@ -843,6 +915,7 @@ Label :: struct {
 	using element: Element,
 	builder: strings.Builder,
 	custom_width: f32,
+	color: ^Color,
 }
 
 label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -862,7 +935,7 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 			fcs_element(element)
 			fcs_ahv(ah, av)
-			fcs_color(theme.text_default)
+			fcs_color(label.color == nil ? theme.text_default : label.color^)
 			render_string_rect(target, element.bounds, text)
 		}
 		
@@ -1246,8 +1319,9 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 spacer_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
-	w, h: f32,
-	style: Spacer_Style,
+	w: f32,
+	h: f32,
+	style: Spacer_Style = .Empty,
 	vertical := false,
 	allocator := context.allocator,
 ) -> (res: ^Spacer) {
@@ -1273,8 +1347,8 @@ Panel :: struct {
 	
 	// gut info
 	margin: f32,
-	color: Color,
 	gap: f32,
+	color: ^Color,
 
 	// shadow + roundness
 	shadow: bool,
@@ -1546,7 +1620,10 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Panel_Color: {
 			color := cast(^Color) dp
-			color^ = panel.color
+			
+			if panel.color != nil {
+				color^ = panel.color^
+			}
 
 			if .Panel_Default_Background in panel.flags {
 				color^ = theme.background[panel.background_index]
@@ -1592,7 +1669,7 @@ panel_init :: proc(
 	flags: Element_Flags, 
 	margin: f32 = 0,
 	gap: f32 = 0,
-	color: Color = TRANSPARENT,
+	color: ^Color = nil,
 	allocator := context.allocator,
 ) -> (res: ^Panel) {
 	has_scroll_flags := scroll_flags(flags)
@@ -1645,7 +1722,9 @@ panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 	#partial switch msg {
 		case .Layout: {
-			rect := rect_wh(floaty.x, floaty.y, floaty.width, floaty.height)
+			w := math.round(floaty.width * SCALE)
+			h := math.round(floaty.height * SCALE)
+			rect := rect_wh(floaty.x, floaty.y, w, h)
 			element_move(panel, rect)
 		}
 

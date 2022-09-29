@@ -359,6 +359,7 @@ Misc_Save_Load :: struct {
 		window_y: int,
 		window_width: int,
 		window_height: int,	
+		window_fullscreen: bool,
 
 		last_save_location: string,
 	},
@@ -453,6 +454,17 @@ json_save_misc :: proc(path: string) -> bool {
 	window_width := window_main.width
 	window_height := window_main.height
 
+	// adjust by window border
+	{
+		t, l, b, r := window_border_size(window_main)
+		// log.info(t, l, b, r)
+		// log.info(window_x, window_y, window_width, window_height)
+		window_y -= t
+		window_x -= l
+		window_width += r
+		window_height += b
+	}
+
 	value := Misc_Save_Load {
 		hidden = {
 			scale = SCALE,
@@ -466,6 +478,7 @@ json_save_misc :: proc(path: string) -> bool {
 			window_y = window_y,
 			window_width = window_width,
 			window_height = window_height,
+			window_fullscreen = window_main.fullscreened,
 
 			last_save_location = last_save_location,
 		},
@@ -577,6 +590,10 @@ json_load_misc :: proc(path: string) -> bool {
 
 		if misc.hidden.font_bold_path != "" {
 			gs.font_bold_path = strings.clone(misc.hidden.font_bold_path)
+		}
+
+		if misc.hidden.window_fullscreen {
+			window_fullscreen_toggle(window_main)
 		}
 	}
 

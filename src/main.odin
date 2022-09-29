@@ -18,8 +18,6 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
-
-
 // main :: proc() {
 // 	Test_Struct1 :: struct {
 // 		a: int,
@@ -79,13 +77,13 @@ main :: proc() {
 
 				when ALLOW_SCALE {
 					if combo == "ctrl++" {
-						scaling_set(SCALE + 0.1, TASK_SCALE)
+						scaling_inc(0.1)
 						element_repaint(element)
 						return 1
 					}
 
 					if combo == "ctrl+-" {
-						scaling_set(SCALE - 0.1, TASK_SCALE)
+						scaling_inc(-0.1)
 						element_repaint(element)
 						return 1
 					}
@@ -307,6 +305,8 @@ main :: proc() {
 
 		pomodoro_update()
 		image_load_process_texture_handles(window)
+
+		statusbar_update()
 	}
 
 	// keymap loading
@@ -348,9 +348,5 @@ main :: proc() {
 	// do actual loading later because options might change the path
 	gs_update_after_load()
 	
-	font := font_get(font_regular)
-
-	fmt.eprintln(20, font.line_height * 20)
-
 	gs_message_loop()
 }

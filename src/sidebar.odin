@@ -71,6 +71,8 @@ Sidebar :: struct {
 	stats: Sidebar_Stats,
 
 	pomodoro_label: ^Label,
+	label_line: ^Label,
+	// label_task: ^Label,
 }
 sb: Sidebar
 
@@ -253,11 +255,9 @@ sidebar_panel_init :: proc(parent: ^Element) {
 	// mode		
 	{
 		spacer_init(panel_info, { }, 0, 20, .Thin)
-		b1 := button_init(panel_info, { .HF }, "L", mode_based_button_message)
-		b1.data = new_clone(Mode_Based_Button { 0 })
+		b1 := image_button_init(panel_info, { .HF }, .List, 50, 50, mode_based_button_message)
 		b1.hover_info = "List Mode"
-		b2 := button_init(panel_info, { .HF }, "K", mode_based_button_message)
-		b2.data = new_clone(Mode_Based_Button { 1 })
+		b2 := image_button_init(panel_info, { .HF }, .Kanban, 50, 50, mode_based_button_message)
 		b2.hover_info = "Kanban Mode"
 	}	
 }
@@ -663,7 +663,7 @@ Mode_Based_Button :: struct {
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Button) element
 	info := cast(^Mode_Based_Button) element.data
-	kind: Texture_Kind = info.index == 1 ? .Kanban : .List
+	// kind: Texture_Kind = info.index == 1 ? .Kanban : .List
 
 	#partial switch msg {
 		case .Button_Highlight: {
@@ -678,38 +678,36 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			if set^ != info.index {
 				set^ = info.index
 				element_repaint(element)
-				// custom_split_update_based_on_cam_offset()
 			}
 		}
 
-		case .Paint_Recursive: {
-			target := element.window.target
-			pressed := element.window.pressed == element
-			hovered := element.window.hovered == element
-			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+		// case .Paint_Recursive: {
+		// 	target := element.window.target
+		// 	pressed := element.window.pressed == element
+		// 	hovered := element.window.hovered == element
+		// 	text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
+		// 	if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
+		// 		if res == 1 {
+		// 			rect := element.bounds
+		// 			// rect.l = rect.r - (4 * SCALE)
+		// 			rect.r = rect.l + (4 * SCALE)
+		// 			render_rect(target, rect, text_color, 0)
+		// 		}
+		// 	}
 
-			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
-				if res == 1 {
-					rect := element.bounds
-					// rect.l = rect.r - (4 * SCALE)
-					rect.r = rect.l + (4 * SCALE)
-					render_rect(target, rect, text_color, 0)
-				}
-			}
+		// 	if hovered || pressed {
+		// 		render_rect_outline(target, element.bounds, text_color)
+		// 		render_hovered_highlight(target, element.bounds)
+		// 	}
 
-			if hovered || pressed {
-				render_rect_outline(target, element.bounds, text_color)
-				render_hovered_highlight(target, element.bounds)
-			}
-
-			smallest_size := min(rect_width(element.bounds), rect_height(element.bounds))
-			rect := element.bounds
-			rect.l += rect_width_halfed(rect) - smallest_size / 2
-			rect.r = rect.l + smallest_size
-			render_texture_from_kind(target, kind, rect, text_color)
-			return 1
-		}
+		// 	smallest_size := min(rect_width(element.bounds), rect_height(element.bounds))
+		// 	rect := element.bounds
+		// 	rect.l += rect_width_halfed(rect) - smallest_size / 2
+		// 	rect.r = rect.l + smallest_size
+		// 	render_texture_from_kind(target, kind, rect, text_color)
+		// 	return 1
+		// }
 
 		case .Destroy: {
 			free(element.data)

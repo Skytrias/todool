@@ -91,6 +91,8 @@ Custom_Split :: struct {
 	image_display: ^Image_Display, // fullscreen display
 	vscrollbar: ^Scrollbar,
 	hscrollbar: ^Scrollbar,
+	
+	statusbar: Statusbar,
 }
 
 // simply write task text with indentation into a builder
@@ -1556,13 +1558,12 @@ task_layout :: proc(
 	tab_scaled: f32,
 	margin_scaled: f32,
 ) -> Rect {
-	// tab := visuals_tab() * TAB_WIDTH * SCALE
-	offset_indentation := task.indentation_smooth * tab_scaled
+	offset_indentation := math.round(task.indentation_smooth * tab_scaled)
 	
 	// manually offset the line rectangle in total while retaining parent clip
 	bounds := bounds
-	bounds.t += task.top_offset
-	bounds.b += task.top_offset
+	bounds.t += math.round(task.top_offset)
+	bounds.b += math.round(task.top_offset)
 
 	cut := bounds
 	task.clip = rect_intersection(task.parent.clip, cut)
@@ -1642,7 +1643,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + 5 * TASK_SCALE : 0
 			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
-			margin_scaled := visuals_task_margin() * TASK_SCALE * 2
+			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE * 2)
 			line_size += margin_scaled
 
 			return int(line_size)
@@ -1654,8 +1655,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				task.top_animation_start = false
 			}
 
-			tab_scaled := visuals_tab() * TAB_WIDTH * TASK_SCALE
-			margin_scaled := visuals_task_margin() * TASK_SCALE
+			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * TASK_SCALE)
+			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE)
 			task_layout(task, element.bounds, true, tab_scaled, margin_scaled)
 		}
 
@@ -1805,12 +1806,20 @@ goto_init :: proc(window: ^Window) {
 					floaty.height += f32(element_message(c, .Get_Height))
 				}
 
+				w := math.round(floaty.width * SCALE)
+
 				floaty.x = 
-					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - floaty.width / 2
+					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - w / 2
 				
 				off := math.round(10 * SCALE)
 				floaty.y = 
 					(mode_panel.bounds.t + off) + (goto_transition_unit * -(floaty.height + off))
+
+				// NOTE already taking scale into account from children
+				h := floaty.height
+				rect := rect_wh(floaty.x, floaty.y, w, h)
+				element_move(floaty.panel, rect)
+				return 1
 			}
 
 			case .Key_Combination: {
@@ -1848,8 +1857,8 @@ goto_init :: proc(window: ^Window) {
 		return 0
 	}
 
-
 	label_init(p.panel, { .Label_Center, .HF }, "Goto Line")
+	spacer_init(p.panel, { .HF }, 0, 10)
 	box := text_box_init(p.panel, { .HF })
 	box.codepoint_numbers_only = true
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1957,6 +1966,11 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			bounds := element.bounds
 			// log.info("BOUNDS", element.bounds, window_rect(window_main))
 
+			if .Hide not_in split.statusbar.stat.flags {
+				bot := rect_cut_bottom(&bounds, DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE * 2)
+				element_move(split.statusbar.stat, bot)
+			}
+
 			if .Hide not_in panel_search.flags {
 				bot := rect_cut_bottom(&bounds, math.round(50 * SCALE))
 				element_move(panel_search, bot)
@@ -1998,6 +2012,8 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := split.window.rect
 
 	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
+	statusbar_init(custom_split)
+
 	custom_split.vscrollbar = scrollbar_init(custom_split, {}, false, context.allocator)
 	custom_split.vscrollbar.force_visible = true	
 	custom_split.hscrollbar = scrollbar_init(custom_split, {}, true, context.allocator)

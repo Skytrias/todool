@@ -95,12 +95,12 @@ undo_box_rune_append :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 undo_box_rune_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Box_Rune_Pop) item
-	r, width := strings.pop_rune(&data.box.builder)
+	codepoint, codepoint_width := strings.pop_rune(&data.box.builder)
 	data.box.head = data.head
 	data.box.tail = data.tail
 	item := Undo_Item_Box_Rune_Append {
 		box = data.box,
-		codepoint = r,
+		codepoint = codepoint,
 	}
 	undo_push(manager, undo_box_rune_append, &item, size_of(Undo_Item_Box_Rune_Append))
 }
@@ -1147,10 +1147,11 @@ box_layout_caret :: proc(
 	x, y: f32,
 ) -> Rect {
 	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
+	width := math.round(2 * scaling)
 	return rect_wh(
 		x + caret_x,
 		y + f32(line) * scaled_size,
-		math.round(2 * scaling),
+		width,
 		scaled_size,
 	)
 }

@@ -171,8 +171,9 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "escape": todool_escape()
 
 		case "select_children": todool_select_children()
-		case "todool_indent_jump_nearby_prev": todool_indent_jump_nearby(true)
-		case "todool_indent_jump_nearby_next": todool_indent_jump_nearby(false)
+		case "indent_jump_nearby_prev": todool_indent_jump_nearby(true)
+		case "indent_jump_nearby_next": todool_indent_jump_nearby(false)
+		case "fullscreen_toggle": window_fullscreen_toggle(window_main)
 
 		case: {
 			handled = false
@@ -266,8 +267,9 @@ shortcuts_push_v021 :: proc(s: ^Shortcut_State, maybe: bool) {
 	shortcuts_push_opt(s, "select_children", "ctrl+h")
 	shortcuts_push_opt(s, "move_up_stack", "ctrl+shift+home", "ctrl+home")
 	shortcuts_push_opt(s, "move_down_stack", "ctrl+shift+end", "ctrl+end")
-	shortcuts_push_opt(s, "todool_indent_jump_nearby_prev", "alt+left")
-	shortcuts_push_opt(s, "todool_indent_jump_nearby_next", "alt+right")
+	shortcuts_push_opt(s, "indent_jump_nearby_prev", "alt+left")
+	shortcuts_push_opt(s, "indent_jump_nearby_next", "alt+right")
+	shortcuts_push_opt(s, "fullscreen_toggle", "f11")
 
 	s.maybe = false
 }
@@ -1302,6 +1304,19 @@ todool_toggle_bookmark :: proc() {
 	element_repaint(mode_panel)
 }
 
+// use this for simple panels instead of manually indexing for the text box
+// which could lead to errors when rearranging or adding new elements
+// could return nil
+element_find_first_text_box :: proc(parent: ^Element) -> ^Text_Box {
+	for child in parent.children {
+		if child.message_class == text_box_message {
+			return cast(^Text_Box) child
+		}
+	}
+
+	return nil
+}
+
 todool_goto :: proc() {
 	p := panel_goto
 
@@ -1311,7 +1326,8 @@ todool_goto :: proc() {
 	goto_transition_animating = true
 	element_animation_start(p)
 
-	box := cast(^Text_Box) p.panel.children[1]
+	box := element_find_first_text_box(p.panel)
+	assert(box != nil)
 	element_focus(box)
 
 	goto_saved_task_head = task_head
@@ -1331,7 +1347,8 @@ todool_search :: proc() {
 	ss.saved_task_head = task_head
 	ss.saved_task_tail = task_tail
 
-	box := cast(^Text_Box) p.children[1]
+	box := element_find_first_text_box(p)
+	assert(box != nil)
 	element_focus(box)
 
 	if task_head != -1 {

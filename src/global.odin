@@ -35,6 +35,11 @@ scaling_set :: proc(global_scale, task_scale: f32) {
 	ROUNDNESS = math.round(5 * SCALE)
 }
 
+scaling_inc :: proc(amt: f32) {
+	scaling_set(clamp(SCALE + amt, 0.1, 10), TASK_SCALE)
+	fontstash.reset(&gs.fc)
+}
+
 Font :: fontstash.Font
 data_font_icon := #load("../assets/icofont.ttf")
 data_font_regular := #load("../assets/Lato-Regular.ttf")
@@ -128,7 +133,8 @@ Window :: struct {
 	widthf, heightf: f32,
 	rect: Rect,
 	paint_clip: Rect,
-	
+	fullscreened: bool,
+
 	// rendering
 	update_next: bool,
 	target: ^Render_Target,
@@ -531,6 +537,24 @@ window_set_position :: proc(window: ^Window, x, y: int) {
 // set size of window
 window_set_size :: proc(window: ^Window, w, h: int) {
 	sdl.SetWindowSize(window.w, i32(w), i32(h))
+}
+
+// NOTE ignores pixel border of 1
+window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
+	t, l, b, r: i32
+	res := sdl.GetWindowBordersSize(window.w, &t, &l, &b, &r)
+	
+	if res == 0 {
+		top = int(t)
+		left = int(l)
+		bottom = int(b)
+		right = int(r)
+	} else {
+		log.error("WINDOW BORDER SIZE call not supported")
+	}
+
+	// left, right, top, bottom = 0, 0, 0, 0
+	return
 }
 
 // send call to focused, focused parents or window
@@ -1926,7 +1950,16 @@ dialog_spawn :: proc(
 
 window_border_set :: proc(window: ^Window, state: bool) {
 	sdl.SetWindowBordered(window.w, cast(sdl.bool) state)
-	// window.bordered = state
+}
+
+window_fullscreen_toggle :: proc(window: ^Window) {
+	if window.fullscreened {
+		sdl.SetWindowFullscreen(window.w, {})
+	} else {
+		sdl.SetWindowFullscreen(window.w, sdl.WINDOW_FULLSCREEN_DESKTOP)
+	}
+
+	window.fullscreened = !window.fullscreened
 }
 
 clipboard_has_content :: sdl.HasClipboardText

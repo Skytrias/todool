@@ -197,7 +197,7 @@ ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 	for entry in ss.entries {
 		task := entry.ptr
 		length := entry.length
-		fcs_element(task)
+		fcs_task(task)
 
 		for i in 0..<int(length) {
 			res := ss.results[entry.result_offset + i]
