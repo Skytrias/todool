@@ -508,6 +508,10 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Update: {
+			if di == UPDATE_FOCUSED {
+				box_move_end(box, false)
+			}
+
 			element_repaint(element)	
 		}
 
@@ -576,6 +580,7 @@ text_box_init :: proc(
 	box_init(&res.box, 32)
 	strings.write_string(&res.builder, text)
 	box_move_end(&res.box, false)
+	// log.info("box init", res.head, res.tail, len(res.builder.buf))
 	return	
 }
 

@@ -845,6 +845,7 @@ Image_Button :: struct {
 	invoke: proc(data: rawptr),
 	width: int,
 	height: int,
+	margin: int,
 }
 
 image_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -853,10 +854,25 @@ image_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
-			// icon_button_render_default(button)
-			render_rect(target, element.bounds, RED)	
-			r := element.bounds
-			render_texture_from_kind(target, button.kind, r, BLUE)
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if res := element_message(element, .Button_Highlight, 0, &color); res != 0 {
+				if res == 1 {
+					rect := element.bounds
+					rect.r = rect.l + int(4 * SCALE)
+					render_rect(target, rect, color, 0)
+				}
+			}
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, color)
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			r := rect_margin(element.bounds, button.margin)
+			render_texture_from_kind(target, button.kind, r, color)
 		}
 
 		case .Update: {
@@ -903,6 +919,7 @@ image_button_init :: proc(
 	res.data = res
 	res.width = w
 	res.height = h
+	res.margin = 5
 	res.message_user = message_user
 	return
 }

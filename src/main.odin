@@ -19,7 +19,6 @@ TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
 // TODO
-// check scrollbar
 // splitpane is bonkers probs
 // hover scaled is shit
 // use ivec4 or ivec2 in vert shader

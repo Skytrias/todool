@@ -31,12 +31,11 @@ ROUNDNESS := 5
 scaling_set :: proc(global_scale, task_scale: f32) {
 	SCALE = global_scale
 	TASK_SCALE = task_scale
-	LINE_WIDTH = int(2 * SCALE)
-	ROUNDNESS = int(5 * SCALE)
+	LINE_WIDTH = max(int(2 * SCALE), 2)
 }
 
 scaling_inc :: proc(amt: f32) {
-	scaling_set(clamp(SCALE + amt, 0.1, 10), TASK_SCALE)
+	scaling_set(clamp(SCALE + amt, 0.05, 10), TASK_SCALE)
 	fontstash.reset(&gs.fc)
 }
 
@@ -713,8 +712,15 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 					}
 				}
 
+				combo := (cast(^string) dp)^
+				if window.focused != nil && combo == "escape" {
+					window.focused = nil
+					handled = true
+					window.update_next = true
+					return
+				}
+
 				if !handled && !window.ctrl && !window.alt {
-					combo := (cast(^string) dp)^
 					match := combo == "tab" || combo == "shift+tab"
 					backwards := window.shift
 

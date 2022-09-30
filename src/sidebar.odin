@@ -255,9 +255,10 @@ sidebar_panel_init :: proc(parent: ^Element) {
 	// mode		
 	{
 		spacer_init(panel_info, { }, 0, 20, .Thin)
-		b1 := image_button_init(panel_info, { .HF }, .List, 50, 50, mode_based_button_message)
+		SIZE :: 50
+		b1 := image_button_init(panel_info, { .HF }, .List, SIZE, SIZE, mode_based_button_message)
 		b1.hover_info = "List Mode"
-		b2 := image_button_init(panel_info, { .HF }, .Kanban, 50, 50, mode_based_button_message)
+		b2 := image_button_init(panel_info, { .HF }, .Kanban, SIZE, SIZE, mode_based_button_message)
 		b2.hover_info = "Kanban Mode"
 	}	
 }
@@ -662,8 +663,6 @@ visuals_task_margin :: #force_inline proc() -> f32 {
 
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Image_Button) element
-	// info := cast(^Mode_Based_Button) element.data
-	// kind: Texture_Kind = info.index == 1 ? .Kanban : .List
 	index := button.kind == .List ? 0 : 1
 
 	#partial switch msg {
