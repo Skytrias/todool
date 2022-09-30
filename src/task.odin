@@ -35,6 +35,7 @@ caret_lerp_speed_y := f32(1)
 caret_lerp_speed_x := f32(1)
 last_was_task_copy := false
 task_clear_checking: map[^Task]u8
+// center_next_frame: bool
 
 // move state
 task_move_stack: []^Task
@@ -1468,28 +1469,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Left_Down: {
-			if element_hide(panel_search, true) {
-				return 1
-			}
-
-			// set line to the head
-			task_head_tail_check_begin()
-			task_head = task.visible_index
-			task_head_tail_check_end()
-
-			if task_head != task_tail {
-				box_set_caret(task.box, BOX_END, nil)
-			} else {
-				old_tail := box.tail
-				scaled_size := fcs_task(task)
-				element_box_mouse_selection(task.box, task.box, di, false, 0, scaled_size)
-
-				if element.window.shift && di == 0 {
-					box.tail = old_tail
-				}
-			}
-
-			return 1
+			task_or_box_left_down(task, di, true)
 		}
 
 		case .Mouse_Drag: {
@@ -1636,6 +1616,33 @@ tag_mode_size :: proc(tag_mode: int) -> (res: int) {
 	return
 }
 
+task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
+	// set line to the head
+	task_head_tail_check_begin()
+	task_head = task.visible_index
+	task_head_tail_check_end()
+
+	if only_box {
+		if task_head != task_tail {
+			box_set_caret(task.box, BOX_END, nil)
+		} else {
+			old_tail := task.box.tail
+			scaled_size := fcs_task(task)
+			element_box_mouse_selection(task.box, task.box, clicks, false, 0, scaled_size)
+
+			if task.window.shift && clicks == 0 {
+				task.box.tail = old_tail
+			}
+		}
+	}
+
+	// if only_box {
+	// 	fmt.eprintln("box down")
+	// } else {
+	// 	fmt.eprintln("task down")
+	// }
+}
+
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task := cast(^Task) element
 	tag_mode := options_tag_mode()
@@ -1673,10 +1680,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			rect := task.bounds
 
 			// render panel front color
-			{
-				color := theme_panel(task.has_children ? .Parent : .Front)
-				render_rect(target, rect, color, ROUNDNESS)
-			}
+			task_color := theme_panel(task.has_children ? .Parent : .Front)
+			render_rect(target, rect, task_color, ROUNDNESS)
 
 			// draw tags at an offset
 			if draw_tags {
@@ -1708,7 +1713,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 								if rect_valid(r) {
 									render_rect(target, r, tag_color, ROUNDNESS)
-									fcs_color(theme_panel(.Front))
+									fcs_color(color_to_bw(tag_color))
 									render_string_rect(target, r, text)
 								}
 							}
@@ -1737,7 +1742,22 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
-			element_find_by_point_custom(element, p)
+			handled := element_find_by_point_custom(element, p)
+
+			if handled == 0 {
+				if rect_contains(task.bounds, p.x, p.y) {
+					p.res = task
+					handled = 1
+				}
+			}
+
+			return handled
+		}
+
+		case .Left_Down: {
+			task_or_box_left_down(task, di, false)
+			// fmt.eprintln("task downw")
+			// return 1
 		}
 
 		case .Animate: {

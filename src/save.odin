@@ -360,6 +360,7 @@ Misc_Save_Load :: struct {
 		window_width: int,
 		window_height: int,	
 		window_fullscreen: bool,
+		hide_statusbar: bool,
 
 		last_save_location: string,
 	},
@@ -479,6 +480,7 @@ json_save_misc :: proc(path: string) -> bool {
 			window_width = window_width,
 			window_height = window_height,
 			window_fullscreen = window_main.fullscreened,
+			hide_statusbar = sb.options.checkbox_hide_statusbar.state,
 
 			last_save_location = last_save_location,
 		},
@@ -595,6 +597,9 @@ json_load_misc :: proc(path: string) -> bool {
 		if misc.hidden.window_fullscreen {
 			window_fullscreen_toggle(window_main)
 		}
+
+		checkbox_set(sb.options.checkbox_hide_statusbar, misc.hidden.hide_statusbar)
+		element_hide(custom_split.statusbar.stat, misc.hidden.hide_statusbar)
 	}
 
 	// tag data

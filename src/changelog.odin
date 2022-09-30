@@ -244,7 +244,7 @@ changelog_spawn :: proc() {
 		return
 	}
 
-	changelog.window = window_init(nil, {}, "Changelog Genrator", 700, 700)
+	changelog.window = window_init(nil, {}, "Changelog Genrator", 700, 700, mem.Kilobyte)
 	changelog.window.element.message_user = changelog_window_message
 	changelog.window.update = proc(window: ^Window) {
 		// only check once when window is updating

@@ -340,10 +340,10 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			color^ = theme_task_text(.Normal)
 		}
 
-		case .Paint_Recursive: {
-			scaled_size := fcs_element(task_box)
-			task_box_paint_default(task_box, scaled_size)
-		}
+		// case .Paint_Recursive: {
+		// 	scaled_size := fcs_element(task_box)
+		// 	task_box_paint_default(task_box, scaled_size)
+		// }
 
 		case .Key_Combination: {
 			combo := (cast(^string) dp)^
@@ -400,7 +400,7 @@ task_box_init :: proc(
 	index_at := -1,
 ) -> (res: ^Task_Box) {
 	res = element_init(Task_Box, parent, flags, task_box_message, allocator, index_at)
-	box_init(&res.box, 32)
+	box_init(&res.box, 64)
 	strings.write_string(&res.builder, text)
 	box_move_end(&res.box, false)
 	return

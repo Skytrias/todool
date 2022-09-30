@@ -69,7 +69,15 @@ statusbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 statusbar_update :: proc() {
 	s := &custom_split.statusbar
-	
+
+	// update checkbox if hidden by key command
+	// {
+	// 	checkbox := &sb.options.checkbox_hide_statusbar
+	// 	if checkbox.state != (.Hide in s.state.flags) {
+	// 		checkbox_set(checkbox, (.Hide not_in s.state.flags))
+	// 	}
+	// }
+
 	if .Hide in s.stat.flags {
 		return
 	}
@@ -155,7 +163,7 @@ statusbar_update :: proc() {
 			strings.write_string(b, ", ")
 
 			strings.write_string(b, "Hidden ")
-			strings.write_int(b, shown)
+			strings.write_int(b, hidden)
 			strings.write_string(b, ", ")
 		}
 

@@ -1259,6 +1259,7 @@ checkbox_init :: proc(
 	res = element_init(Checkbox, parent, flags | { .Tab_Stop }, checkbox_message, allocator)
 	checkbox_set(res, state)
 	res.builder = strings.builder_make(0, 32)
+	res.data = res
 	strings.write_string(&res.builder, text)
 	return
 }
@@ -1741,15 +1742,13 @@ panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 	#partial switch msg {
 		case .Layout: {
-			w := int(f32(floaty.width) * SCALE)
-			h := int(f32(floaty.height) * SCALE)
+			w := int(f32(floaty.width))
+			h := int(f32(floaty.height))
+			// w := int(f32(floaty.width) * SCALE)
+			// h := int(f32(floaty.height) * SCALE)
 			rect := rect_wh(floaty.x, floaty.y, w, h)
 			element_move(panel, rect)
 		}
-
-		// case .Update: {
-		// 	element_message(panel, msg, di, dp)
-		// }
 	}
 
 	return 0

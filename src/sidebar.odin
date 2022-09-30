@@ -83,14 +83,15 @@ Sidebar_Options :: struct {
 	checkbox_invert_y: ^Checkbox,
 	checkbox_uppercase_word: ^Checkbox,
 	checkbox_bordered: ^Checkbox,
+	checkbox_hide_statusbar: ^Checkbox,
 	slider_volume: ^Slider,
 
-	checkbox_use_animations: ^Checkbox,	
 	slider_tab: ^Slider,
 	slider_gap_vertical: ^Slider,
 	slider_gap_horizontal: ^Slider,
 	slider_kanban_width: ^Slider,
 	slider_task_margin: ^Slider,
+	checkbox_use_animations: ^Checkbox,	
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -313,7 +314,12 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 			return 0
 		}
-
+		checkbox_hide_statusbar = checkbox_init(panel, flags, "Hide Statusbar", false)
+		checkbox_hide_statusbar.invoke = proc(data: rawptr) {
+			box := cast(^Checkbox) data
+			element_hide(custom_split.statusbar.stat, box.state)
+		}
+	
 		slider_volume = slider_init(panel, flags, 1)
 		slider_volume.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			slider := cast(^Slider) element
@@ -337,24 +343,34 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		slider_tab.formatting = proc(builder: ^strings.Builder, position: f32) {
 			fmt.sbprintf(builder, "Tab: %.3f%%", position)
 		}
+		slider_tab.hover_info = "Tab width in % of 200"
+		
 		slider_gap_horizontal = slider_init(panel, flags, f32(10.0) / GAP_HORIZONTAL_MAX)
 		slider_gap_horizontal.formatting = proc(builder: ^strings.Builder, position: f32) {
 			fmt.sbprintf(builder, "Gap Horizontal: %dpx", int(position * GAP_HORIZONTAL_MAX))
 		}
+		slider_gap_horizontal.hover_info = "Horizontal gap between kanbans"
+		
 		slider_gap_vertical = slider_init(panel, flags, f32(1.0) / GAP_VERTICAL_MAX)
 		slider_gap_vertical.formatting = proc(builder: ^strings.Builder, position: f32) {
 			fmt.sbprintf(builder, "Gap Vertical: %dpx", int(position * GAP_VERTICAL_MAX))
 		}
+		slider_gap_vertical.hover_info = "Vertical gap between tasks"
+
 		kanban_default := math.remap(f32(300), KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX, 0, 1)
 		slider_kanban_width = slider_init(panel, flags, kanban_default)
 		slider_kanban_width.formatting = proc(builder: ^strings.Builder, position: f32) {
 			value := visuals_kanban_width()
 			fmt.sbprintf(builder, "Kanban Width: %dpx", int(value))
 		}
+		slider_kanban_width.hover_info = "Minimum Width of a Kanban"
+
 		slider_task_margin = slider_init(panel, flags, f32(5.0) / TASK_MARGIN_MAX)
 		slider_task_margin.formatting = proc(builder: ^strings.Builder, position: f32) {
 			fmt.sbprintf(builder, "Task Margin: %dpx", int(position * TASK_MARGIN_MAX))
 		}
+		slider_task_margin.hover_info = "Margin in px around a task"
+
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 	}
 

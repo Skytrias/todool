@@ -76,7 +76,6 @@ shortcuts_push_box_default :: proc(window: ^Window) {
 	mapping_push("copy", "ctrl+c")
 	mapping_push("cut", "ctrl+x")
 	mapping_push("paste", "ctrl+v")
-
 	mapping_push_v021_box(window, false)
 }
 

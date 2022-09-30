@@ -26,7 +26,7 @@ HOVER_WIDTH :: 100
 SCALE := f32(1)
 TASK_SCALE := f32(1)
 LINE_WIDTH := 2
-ROUNDNESS := 5
+ROUNDNESS :: 5
 
 scaling_set :: proc(global_scale, task_scale: f32) {
 	SCALE = global_scale
@@ -35,7 +35,8 @@ scaling_set :: proc(global_scale, task_scale: f32) {
 }
 
 scaling_inc :: proc(amt: f32) {
-	scaling_set(clamp(SCALE + amt, 0.05, 10), TASK_SCALE)
+	// scaling_set(clamp(SCALE + amt, 0.05, 10), TASK_SCALE)
+	scaling_set(SCALE, clamp(TASK_SCALE + amt, 0.1, 10))
 	fontstash.reset(&gs.fc)
 }
 
@@ -349,6 +350,7 @@ window_init :: proc(
 	flags: Element_Flags,
 	title: cstring, 
 	w, h: i32,
+	shortcut_cap: int,
 ) -> (res: ^Window) {
 	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
@@ -424,14 +426,27 @@ window_init :: proc(
 	res.element.window = res
 	res.window_next = gs.windows
 	gs.windows = res
-	// TODO maybe limit this per window instead of always 2MB
-	shortcut_state_init(&res.shortcut_state, mem.Megabyte * 2)
+	shortcut_state_init(&res.shortcut_state, shortcut_cap)
 
 	// set hovered panel
 	{
 		floaty := panel_floaty_init(&res.element, { .Disabled })
-		floaty.width = int(HOVER_WIDTH * SCALE)
-		// floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+		floaty.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			floaty := cast(^Panel_Floaty) element
+			panel := floaty.panel
+
+			#partial switch msg {
+				case .Layout: {
+					// NOTE could do hight here too
+					floaty.height = int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE)
+					rect := rect_wh(floaty.x, floaty.y, floaty.width, floaty.height)
+					element_move(panel, rect)
+					return 1
+				}
+			}
+
+			return 0
+		}
 		p := floaty.panel
 		p.flags |= { .Panel_Expand, .Disabled }
 		p.shadow = true
@@ -459,9 +474,6 @@ gs_update_after_load :: proc() {
 	} else {
 		fontstash.font_push(ctx, data_font_bold, true, 20)
 	}
-
-	floaty := window_main.hovered_panel
-	floaty.height = int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE)
 
 	if gs.audio_ok {
 		custom_load_wav_opt(.Timer_Start, data_sound_timer_start)
@@ -491,11 +503,11 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 	}
 
 	floaty.y = goal_y
-	scaled_size := i16(DEFAULT_FONT_SIZE * SCALE)
 
-	fontstash.state_set_size(&gs.fc, DEFAULT_FONT_SIZE * SCALE)
+	fcs_size(DEFAULT_FONT_SIZE * SCALE)
+	fcs_font(font_regular)
 	text_width := fontstash.text_bounds(&gs.fc, text)
-	floaty.width = max(int(HOVER_WIDTH * SCALE), int(text_width) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
+	floaty.width = max(int(HOVER_WIDTH * SCALE), int(text_width) + int(TEXT_MARGIN_HORIZONTAL * SCALE) * 2)
 
 	if floaty.x + floaty.width > window.width {
 		floaty.x = window.width - floaty.width - 5

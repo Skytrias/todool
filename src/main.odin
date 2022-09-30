@@ -16,13 +16,7 @@ import "../fontstash"
 
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
-ALLOW_SCALE :: false
-
-// TODO
-// splitpane is bonkers probs
-// hover scaled is shit
-// use ivec4 or ivec2 in vert shader
-// multi selection should work with task bounds, not box bounds, multiline strings are weird otherwhise
+ALLOW_SCALE :: true
 
 // main :: proc() {
 // 	Test_Struct1 :: struct {
@@ -35,7 +29,7 @@ ALLOW_SCALE :: false
 // 	Test_Struct2 :: struct {
 // 		a: int,
 // 		b: bool,
-// 		array: []int,
+// 		// array: []int,
 // 		d: string,
 // 	}
 
@@ -67,7 +61,7 @@ main :: proc() {
 
 	task_data_init()
 
-	window := window_init(nil, {}, "Todool", 900, 900)
+	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 2)
 	window.on_resize = proc(window: ^Window) {
 		cam := mode_panel_cam()
 		cam.freehand = true
@@ -84,12 +78,14 @@ main :: proc() {
 				when ALLOW_SCALE {
 					if combo == "ctrl++" {
 						scaling_inc(0.1)
+						// center_next_frame = true
 						element_repaint(element)
 						return 1
 					}
 
 					if combo == "ctrl+-" {
 						scaling_inc(-0.1)
+						// center_next_frame = true
 						element_repaint(element)
 						return 1
 					}
