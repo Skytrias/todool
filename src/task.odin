@@ -25,7 +25,7 @@ panel_info: ^Panel
 mode_panel: ^Mode_Panel
 custom_split: ^Custom_Split
 window_main: ^Window
-caret_rect: Rect
+caret_rect: RectI
 caret_lerp_speed_y := f32(1)
 caret_lerp_speed_x := f32(1)
 last_was_task_copy := false
@@ -71,9 +71,9 @@ drag_list: [dynamic]^Task
 drag_running: bool
 drag_index_at: int
 drag_goals: [3][2]f32
-drag_rect_lerp: Rect
+drag_rect_lerp: RectF
 drag_circle: bool
-drag_circle_pos: [2]f32
+drag_circle_pos: [2]int
 DRAG_CIRCLE :: 30
 
 // dirty file
@@ -360,8 +360,8 @@ Task :: struct {
 	tags: u8,
 
 	// top animation
-	top_offset: f32,
-	top_old: f32,
+	top_offset: f32, 
+	top_old: int,
 	top_animation_start: bool,
 	top_animating: bool,
 
@@ -370,8 +370,8 @@ Task :: struct {
 	state_count: [Task_State]int,
 
 	// visible kanban outline - used for bounds check by kanban 
-	kanban_rect: Rect,
-	tags_rect: Rect,
+	kanban_rect: RectI,
+	tags_rect: RectI,
 
 	// wether we want to be able to jump to this task
 	bookmarked: bool,
@@ -549,7 +549,7 @@ task_set_img :: proc(task: ^Task, handle: ^Stored_Image) {
 }
 
 // TODO speedup or cache?
-task_total_bounds :: proc() -> (bounds: Rect) {
+task_total_bounds :: proc() -> (bounds: RectI) {
 	bounds = RECT_INF
 	for task in tasks_visible {
 		rect_inf_push(&bounds, task.bounds)
@@ -614,7 +614,7 @@ task_init :: proc(
 
 				if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
 					rect := button.bounds
-					rect.r = rect.l + (4 * TASK_SCALE)
+					rect.r = rect.l + int(4 * TASK_SCALE)
 					render_rect(target, rect, text_color, 0)
 				}
 
@@ -635,7 +635,7 @@ task_init :: proc(
 			}
 
 			case .Get_Height: {
-				return int(task_font_size(element) + TEXT_MARGIN_VERTICAL * TASK_SCALE)
+				return task_font_size(element) + int(TEXT_MARGIN_VERTICAL * TASK_SCALE)
 			}
  		}
 
@@ -690,14 +690,14 @@ task_push_undoable :: proc(
 }
 
 // format to lines or append a single line only
-task_box_format_to_lines :: proc(box: ^Task_Box, width: f32) {
+task_box_format_to_lines :: proc(box: ^Task_Box, width: int) {
 	fcs_task(box)
 	fcs_ahv(.Left, .Top)
 
 	fontstash.wrap_format_to_lines(
 		&gs.fc,
 		strings.to_string(box.builder),
-		max(width, 200),
+		max(f32(width), 200),
 		&box.wrapped_lines,
 	)
 }
@@ -751,15 +751,16 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 		return
 	}
 
-	tab := visuals_tab() * TAB_WIDTH * TASK_SCALE
+	tab := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
 	p := tasks_visible[task_head]
 	color := theme.text_default
 
 	for p != nil {
 		if p.visible_parent != nil {
 			index := p.visible_parent.visible_index + 1
-			bound_rect: Rect
+			bound_rect: RectI
 
+			// TODO use rect_inf
 			for child in task_visible_children_iter(p.indentation, &index) {
 				rect := child.bounds
 
@@ -771,7 +772,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			}
 
 			bound_rect.l -= tab
-			bound_rect.r = bound_rect.l + 2 * TASK_SCALE
+			bound_rect.r = bound_rect.l + int(2 * TASK_SCALE)
 			render_rect(target, bound_rect, color, 0)
 
 			if color.a == 255 {
@@ -998,22 +999,20 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Layout: {
 			bounds := element.bounds
 
-			bounds.l += cam.offset_x
-			bounds.r += cam.offset_x
-			bounds.t += cam.offset_y
-			bounds.b += cam.offset_y
-			gap_vertical_scaled := math.round(visuals_gap_vertical() * TASK_SCALE)
-			gap_horizontal_scaled := math.round(visuals_gap_horizontal() * TASK_SCALE)
-			kanban_width_scaled := math.round(visuals_kanban_width() * TASK_SCALE)
-			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-			task_min_width := math.round((rect_width(mode_panel.bounds) - 50) * TASK_SCALE)
-			margin_scaled := visuals_task_margin() * TASK_SCALE
+			bounds.l += int(cam.offset_x)
+			bounds.r += int(cam.offset_x)
+			bounds.t += int(cam.offset_y)
+			bounds.b += int(cam.offset_y)
+			gap_vertical_scaled := int(visuals_gap_vertical() * TASK_SCALE)
+			gap_horizontal_scaled := int(visuals_gap_horizontal() * TASK_SCALE)
+			kanban_width_scaled := int(visuals_kanban_width() * TASK_SCALE)
+			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
+			task_min_width := int((rect_widthf(mode_panel.bounds) - 50) * TASK_SCALE)
+			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
 
 			switch panel.mode {
 				case .List: {
 					cut := bounds
-					cut.l = math.round(cut.l)
-					cut.t = math.round(cut.t)
 
 					for child in element.children {
 						task := cast(^Task) child
@@ -1023,14 +1022,14 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						}
 
 						pseudo_rect := cut
-						pseudo_rect.l += f32(task.indentation) * tab_scaled
+						pseudo_rect.l += int(task.indentation) * tab_scaled
 						pseudo_rect.r = pseudo_rect.l + task_min_width
 						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
-						r := rect_cut_top(&cut, f32(h))
-						r.l = r.l + task.indentation_smooth * tab_scaled
+						r := rect_cut_top(&cut, h)
+						r.l = r.l + int(task.indentation_smooth * f32(tab_scaled))
 						r.r = r.l + task_min_width
 						element_move(task, r)
 
@@ -1040,12 +1039,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				case .Kanban: {
 					cut := bounds
-					// NOTE weird precision error without this and mode panel open/cam animation
-					cut.l = math.round(cut.l)
-					cut.t = math.round(cut.t)
 
 					// cutoff a rect left
-					kanban_current: Rect
+					kanban_current: RectI
 					kanban_children_count: int
 					kanban_children_start: int
 					root: ^Task
@@ -1075,7 +1071,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 							}
 
 							kanban_width := kanban_width_scaled
-							kanban_width += f32(max_indentations) * visuals_tab() * TAB_WIDTH * TASK_SCALE
+							// TODO check this
+							kanban_width += int(f32(max_indentations) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
 							cut.l += gap_horizontal_scaled
@@ -1084,12 +1081,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						// pseudo layout for correct witdth
 						pseudo_rect := kanban_current
 						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
-						box_rect.l += f32(task.indentation) * visuals_tab() * TAB_WIDTH * TASK_SCALE
+						box_rect.l += int(f32(task.indentation) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(task, .Get_Height)
-						r := rect_cut_top(&kanban_current, f32(h))
-						r.l += task.indentation_smooth * tab_scaled
+						r := rect_cut_top(&kanban_current, h)
+						r.l += int(task.indentation_smooth * f32(tab_scaled))
 						element_move(task, r)
 
 						if i - kanban_children_start < kanban_children_count - 1 {
@@ -1129,10 +1126,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				return 0
 			}
 
-			bounds.l -= cam.offset_x
-			bounds.r -= cam.offset_x
-			bounds.t -= cam.offset_y
-			bounds.b -= cam.offset_y
+			bounds.l -= int(cam.offset_x)
+			bounds.r -= int(cam.offset_x)
+			bounds.t -= int(cam.offset_y)
+			bounds.b -= int(cam.offset_y)
 
 			mode_panel_draw_verticals(target)
 
@@ -1184,7 +1181,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				diff_x := abs(drag_circle_pos.x - element.window.cursor_x)
 				diff_y := abs(drag_circle_pos.y - element.window.cursor_y)
 				diff := max(diff_x, diff_y)
-				render_circle(target, drag_circle_pos.x, drag_circle_pos.y, diff, theme.text_bad, true)
+				render_circle(target, drag_circle_pos.x, drag_circle_pos.y, f32(diff), theme.text_bad, true)
 			}
 
 			// drag visualizer line
@@ -1193,10 +1190,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				
 				drag_task := tasks_visible[drag_index_at]
 				bounds := drag_task.bounds
-				margin := math.round(4 * TASK_SCALE)
+				margin := int(4 * TASK_SCALE)
 				bounds.t = bounds.b - margin
 				rect_lerp(&drag_rect_lerp, bounds, 0.5)
-				bounds = drag_rect_lerp
+				bounds = rect_ftoi(drag_rect_lerp)
 
 				// inner
 				{
@@ -1217,19 +1214,19 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 
 				// NOTE also have to change init positioning call :)
-				width := math.round(TASK_DRAG_SIZE * TASK_SCALE)
-				height := math.round(TASK_DRAG_SIZE * TASK_SCALE)
-				x := element.window.cursor_x - f32(width / 2)
-				y := element.window.cursor_y - f32(height / 2)
+				width := int(TASK_DRAG_SIZE * TASK_SCALE)
+				height := int(TASK_DRAG_SIZE * TASK_SCALE)
+				x := element.window.cursor_x - int(f32(width) / 2)
+				y := element.window.cursor_y - int(f32(height) / 2)
 
 				for i := len(drag_goals) - 1; i >= 0; i -= 1 {
 					pos := &drag_goals[i]
 					state := true
-					goal_x := math.round(x + f32(i) * 5 * TASK_SCALE)
-					goal_y := math.round(y + f32(i) * 5 * TASK_SCALE)
-					animate_to(&state, &pos.x, goal_x, 1 - f32(i) * 0.1)
-					animate_to(&state, &pos.y, goal_y, 1 - f32(i) * 0.1)
-					r := rect_rounded(rect_wh(pos.x, pos.y, width, height))
+					goal_x := x + int(f32(i) * 5 * TASK_SCALE)
+					goal_y := y + int(f32(i) * 5 * TASK_SCALE)
+					animate_to(&state, &pos.x, f32(goal_x), 1 - f32(i) * 0.1)
+					animate_to(&state, &pos.y, f32(goal_y), 1 - f32(i) * 0.1)
+					r := rect_wh(int(pos.x), int(pos.y), width, height)
 					render_texture_from_kind(target, .Drag, r, theme_panel(.Front))
 				}
 			}
@@ -1244,8 +1241,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Middle_Down: {
-			cam.start_x = cam.offset_x
-			cam.start_y = cam.offset_y
+			cam.start_x = int(cam.offset_x)
+			cam.start_y = int(cam.offset_y)
 		}
 
 		case .Mouse_Drag: {
@@ -1349,7 +1346,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					(ydirection == 1 && top < cam.margin_y * 2) ||
 					(ydirection == -1 && bottom > mode_panel.bounds.b - cam.margin_y * 4) { 
 					cam.freehand = true
-					cam_inc_y(cam, ygoal * 0.1 * f32(ydirection))
+					cam_inc_y(cam, f32(ygoal) * 0.1 * f32(ydirection))
 				}
 
 				// need to offset by mode panel
@@ -1360,7 +1357,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					(xdirection == 1 && left < cam.margin_x * 2) ||
 					(xdirection == -1 && right > mode_panel.bounds.r - cam.margin_x * 4) {
 					cam.freehand = true
-					cam_inc_x(cam, xgoal * 0.1 * f32(xdirection))
+					cam_inc_x(cam, f32(xgoal) * 0.1 * f32(xdirection))
 				}
 
 				handled = true
@@ -1427,13 +1424,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 				for line_text, line_y in box.wrapped_lines {
 					text_width := string_width(line_text)
-					real_y := y + f32(line_y) * scaled_size + offset
+					real_y := f32(y) + f32(line_y) * scaled_size + offset
 
-					rect := Rect {
+					rect := RectI {
 						x,
 						x + text_width,
-						real_y,
-						real_y + LINE_WIDTH,
+						int(real_y),
+						int(real_y) + LINE_WIDTH,
 					}
 					
 					render_rect(target, rect, theme.text_bad, 0)
@@ -1553,17 +1550,17 @@ task_indentation_width :: proc(indentation: f32) -> f32 {
 // manual layout call so we can predict the proper positioning
 task_layout :: proc(
 	task: ^Task, 
-	bounds: Rect, 
+	bounds: RectI, 
 	move: bool,
-	tab_scaled: f32,
-	margin_scaled: f32,
-) -> Rect {
-	offset_indentation := math.round(task.indentation_smooth * tab_scaled)
+	tab_scaled: int,
+	margin_scaled: int,
+) -> RectI {
+	offset_indentation := int(task.indentation_smooth * f32(tab_scaled))
 	
 	// manually offset the line rectangle in total while retaining parent clip
 	bounds := bounds
-	bounds.t += math.round(task.top_offset)
-	bounds.b += math.round(task.top_offset)
+	bounds.t += int(task.top_offset)
+	bounds.b += int(task.top_offset)
 
 	cut := bounds
 	task.clip = rect_intersection(task.parent.clip, cut)
@@ -1572,7 +1569,7 @@ task_layout :: proc(
 	// layout bookmark
 	element_hide(task.button_bookmark, !task.bookmarked)
 	if task.bookmarked {
-		rect := rect_cut_left(&cut, 15 * TASK_SCALE)
+		rect := rect_cut_left(&cut, int(15 * TASK_SCALE))
 		if move {
 			element_move(task.button_bookmark, rect)
 		}
@@ -1582,7 +1579,7 @@ task_layout :: proc(
 	cut = rect_margin(cut, margin_scaled)
 
 	if image_display_has_content(task.image_display) {
-		top := rect_cut_top(&cut, IMAGE_DISPLAY_HEIGHT * TASK_SCALE)
+		top := rect_cut_top(&cut, int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE))
 
 		if move {
 			element_move(task.image_display, top)
@@ -1592,7 +1589,7 @@ task_layout :: proc(
 	tag_mode := options_tag_mode()
 	if tag_mode != TAG_SHOW_NONE && task.tags != 0x00 {
 		rect := rect_cut_bottom(&cut, tag_mode_size(tag_mode))
-		cut.b -= 5 * TASK_SCALE  // gap
+		cut.b -= int(5 * TASK_SCALE)  // gap
 
 		if move {
 			task.tags_rect = rect
@@ -1602,8 +1599,8 @@ task_layout :: proc(
 	// fold button
 	element_hide(task.button_fold, !task.has_children)
 	if task.has_children {
-		rect := rect_cut_left(&cut, DEFAULT_FONT_SIZE * TASK_SCALE)
-		cut.l += 5 * TASK_SCALE
+		rect := rect_cut_left(&cut, int(DEFAULT_FONT_SIZE * TASK_SCALE))
+		cut.l += int(5 * TASK_SCALE)
 
 		if move {
 			element_move(task.button_fold, rect)
@@ -1618,11 +1615,11 @@ task_layout :: proc(
 	return cut
 }
 
-tag_mode_size :: proc(tag_mode: int) -> (res: f32) {
+tag_mode_size :: proc(tag_mode: int) -> (res: int) {
 	if tag_mode == TAG_SHOW_TEXT_AND_COLOR {
-		res = DEFAULT_FONT_SIZE * TASK_SCALE
+		res = int(DEFAULT_FONT_SIZE * TASK_SCALE)
 	} else if tag_mode == TAG_SHOW_COLOR {
-		res = 10 * TASK_SCALE
+		res = int(10 * TASK_SCALE)
 	} 
 
 	return
@@ -1639,11 +1636,11 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		}
 
 		case .Get_Height: {
-			line_size := task_font_size(element) * f32(len(task.box.wrapped_lines))
+			line_size := task_font_size(element) * len(task.box.wrapped_lines)
 
-			line_size += draw_tags ? tag_mode_size(tag_mode) + 5 * TASK_SCALE : 0
-			line_size += image_display_has_content(task.image_display) ? (IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
-			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE * 2)
+			line_size += draw_tags ? tag_mode_size(tag_mode) + int(5 * TASK_SCALE) : 0
+			line_size += image_display_has_content(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
+			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 2)
 			line_size += margin_scaled
 
 			return int(line_size)
@@ -1651,12 +1648,12 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Layout: {
 			if task.top_animation_start {
-				task.top_offset = task.top_old - task.bounds.t	
+				task.top_offset = f32(task.top_old - task.bounds.t)
 				task.top_animation_start = false
 			}
 
-			tab_scaled := math.round(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-			margin_scaled := math.round(visuals_task_margin() * TASK_SCALE)
+			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
+			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
 			task_layout(task, element.bounds, true, tab_scaled, margin_scaled)
 		}
 
@@ -1676,8 +1673,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 				font := font_regular
 				scaled_size := i16(DEFAULT_FONT_SIZE * TASK_SCALE)
-				text_margin := math.round(10 * TASK_SCALE)
-				gap := math.round(5 * TASK_SCALE)
+				text_margin := int(10 * TASK_SCALE)
+				gap := int(5 * TASK_SCALE)
 
 				fcs_font(font_regular)
 				fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
@@ -1706,7 +1703,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 							}
 
 							case TAG_SHOW_COLOR: {
-								r := rect_cut_left(&rect, 50 * TASK_SCALE)
+								r := rect_cut_left(&rect, int(50 * TASK_SCALE))
 								if rect_valid(r) {
 									render_rect(target, r, tag_color, ROUNDNESS)
 								}
@@ -1803,17 +1800,17 @@ goto_init :: proc(window: ^Window) {
 			case .Layout: {
 				floaty.height = 0
 				for c in element.children {
-					floaty.height += f32(element_message(c, .Get_Height))
+					floaty.height += element_message(c, .Get_Height)
 				}
 
-				w := math.round(floaty.width * SCALE)
+				w := int(f32(floaty.width) * SCALE)
 
 				floaty.x = 
 					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - w / 2
 				
-				off := math.round(10 * SCALE)
+				off := int(10 * SCALE)
 				floaty.y = 
-					(mode_panel.bounds.t + off) + (goto_transition_unit * -(floaty.height + off))
+					(mode_panel.bounds.t + off) + int(goto_transition_unit * -f32(floaty.height + off))
 
 				// NOTE already taking scale into account from children
 				h := floaty.height
@@ -1954,8 +1951,8 @@ search_init :: proc(parent: ^Element) {
 
 custom_split_set_scrollbars :: proc(split: ^Custom_Split) {
 	cam := mode_panel_cam()
-	split.vscrollbar.position = -cam.offset_y
-	split.hscrollbar.position = -cam.offset_x
+	split.vscrollbar.position = f32(-cam.offset_y)
+	split.hscrollbar.position = f32(-cam.offset_x)
 }
 
 custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1967,17 +1964,17 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			// log.info("BOUNDS", element.bounds, window_rect(window_main))
 
 			if .Hide not_in split.statusbar.stat.flags {
-				bot := rect_cut_bottom(&bounds, DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE * 2)
+				bot := rect_cut_bottom(&bounds, int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE * 2))
 				element_move(split.statusbar.stat, bot)
 			}
 
 			if .Hide not_in panel_search.flags {
-				bot := rect_cut_bottom(&bounds, math.round(50 * SCALE))
+				bot := rect_cut_bottom(&bounds, int(50 * SCALE))
 				element_move(panel_search, bot)
 			}
 
 			if image_display_has_content(split.image_display) {
-				element_move(split.image_display, rect_margin(bounds, math.round(20 * SCALE)))
+				element_move(split.image_display, rect_margin(bounds, int(20 * SCALE)))
 			}
 
 			// avoid layouting twice
@@ -2367,7 +2364,8 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 		return true
 	}
 
-	pos := [2]f32 { task.window.cursor_x, task.window.cursor_y }
+	mouse: [2]f32 = { f32(mouse.x), f32(mouse.y) }
+	pos := [2]f32 { f32(task.window.cursor_x), f32(task.window.cursor_y) }
 	circle_size := DRAG_CIRCLE * TASK_SCALE
 	if check_collision_point_circle(mouse, pos, circle_size) {
 		return false
@@ -2407,15 +2405,15 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 
 	// init animation positions
 	{
-		width := math.round(TASK_DRAG_SIZE * TASK_SCALE)
-		height := math.round(TASK_DRAG_SIZE * TASK_SCALE)
-		x := window_main.cursor_x - f32(width / 2)
-		y := window_main.cursor_y - f32(height / 2)
+		width := int(TASK_DRAG_SIZE * TASK_SCALE)
+		height := int(TASK_DRAG_SIZE * TASK_SCALE)
+		x := window_main.cursor_x - int(f32(width) / 2)
+		y := window_main.cursor_y - int(f32(height) / 2)
 
 		for i := len(drag_goals) - 1; i >= 0; i -= 1 {
 			pos := &drag_goals[i]
-			pos.x = math.round(x + f32(i) * 5 * TASK_SCALE)
-			pos.y = math.round(y + f32(i) * 5 * TASK_SCALE)
+			pos.x = f32(x) + f32(i) * 5 * TASK_SCALE
+			pos.y = f32(y) + f32(i) * 5 * TASK_SCALE
 		}
 	}
 

@@ -50,8 +50,8 @@ Changelog_Text_Display :: struct {
 
 changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	td := cast(^Changelog_Text_Display) element
-	margin_scaled := math.round(5 * SCALE)
-	tab_scaled := math.round(50 * SCALE)
+	margin_scaled := int(5 * SCALE)
+	tab_scaled := int(50 * SCALE)
 
 	#partial switch msg {
 		case .Layout: {
@@ -60,18 +60,18 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 			
 			// measure max string width and lines
 			iter := strings.to_string(td.builder)
-			width: f32
+			width: int
 			line_count: int
 			scaled_size := fcs_element(element)
 			for line in strings.split_lines_iterator(&iter) {
 				tabs := tabs_count(line)
-				width = max(width, string_width(line) + f32(tabs) * tab_scaled)
+				width = max(width, string_width(line) + tabs * tab_scaled)
 				line_count += 1
 			}
 
 			scrollbar_layout_post(
 				td.hscrollbar, bottom, width,
-				td.vscrollbar, right, f32(line_count) * scaled_size,
+				td.vscrollbar, right, line_count * scaled_size,
 			)
 		}
 
@@ -91,8 +91,8 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 				// render each line, increasingly
 				fcs_color(theme.text_default)
 				fcs_ahv(.Left, .Top)
-				x := bounds.l - td.hscrollbar.position
-				y := bounds.t - td.vscrollbar.position
+				x := bounds.l - int(td.hscrollbar.position)
+				y := bounds.t - int(td.vscrollbar.position)
 
 				iter := text
 				for line in strings.split_lines_iterator(&iter) {
@@ -100,7 +100,7 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 
 					render_string(
 						target,
-						x + f32(tabs) * tab_scaled, y,
+						x + tabs * tab_scaled, y,
 						line[tabs:],
 					)
 

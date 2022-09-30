@@ -10,13 +10,13 @@ CAM_CENTER :: 100
 Pan_Camera_Animation :: struct {
 	animating: bool,
 	direction: int,
-	goal: f32,
+	goal: int,
 }
 
 Pan_Camera :: struct {
-	start_x, start_y: f32, // start of drag
+	start_x, start_y: int, // start of drag
 	offset_x, offset_y: f32,
-	margin_x, margin_y: f32,
+	margin_x, margin_y: int,
 
 	freehand: bool, // disables auto centering while panning
 
@@ -24,31 +24,31 @@ Pan_Camera :: struct {
 	ax: Pan_Camera_Animation,
 }
 
-cam_init :: proc(cam: ^Pan_Camera, margin_x, margin_y: f32) {
-	cam.offset_x = margin_x
+cam_init :: proc(cam: ^Pan_Camera, margin_x, margin_y: int) {
+	cam.offset_x = f32(margin_x)
 	cam.margin_x = margin_x
-	cam.offset_y = margin_y
+	cam.offset_y = f32(margin_y)
 	cam.margin_y = margin_y
 }
 
-cam_set_y :: proc(cam: ^Pan_Camera, to: f32) {
-	cam.offset_y = to
-	custom_split.vscrollbar.position = -cam.offset_y
+cam_set_y :: proc(cam: ^Pan_Camera, to: int) {
+	cam.offset_y = f32(to)
+	custom_split.vscrollbar.position = f32(-cam.offset_y)
 }
 
-cam_set_x :: proc(cam: ^Pan_Camera, to: f32) {
-	cam.offset_x = to
-	custom_split.hscrollbar.position = -cam.offset_x
+cam_set_x :: proc(cam: ^Pan_Camera, to: int) {
+	cam.offset_x = f32(to)
+	custom_split.hscrollbar.position = f32(-cam.offset_x)
 }
 
 cam_inc_y :: proc(cam: ^Pan_Camera, off: f32) {
 	cam.offset_y += off
-	custom_split.vscrollbar.position = -cam.offset_y
+	custom_split.vscrollbar.position = f32(-cam.offset_y)
 }
 
 cam_inc_x :: proc(cam: ^Pan_Camera, off: f32) {
 	cam.offset_x += off
-	custom_split.hscrollbar.position = -cam.offset_x
+	custom_split.hscrollbar.position = f32(-cam.offset_x)
 }
 
 // return the cam per mode
@@ -66,7 +66,7 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 		return false
 	}
 
-	real_goal := direction == CAM_CENTER ? goal : math.floor(off^ + f32(direction) * goal)
+	real_goal := direction == CAM_CENTER ? f32(goal) : off^ + f32(direction * goal)
 	// fmt.eprintln("real_goal", x ? "x" : "y", direction == 0, real_goal, off^, direction)
 	res := animate_to(
 		&animating,
@@ -76,8 +76,8 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 		1,
 	)
 
-	custom_split.vscrollbar.position = -cam.offset_y
-	custom_split.hscrollbar.position = -cam.offset_x
+	custom_split.vscrollbar.position = f32(-cam.offset_y)
+	custom_split.hscrollbar.position = f32(-cam.offset_x)
 
 	lerp^ = res ? lerp^ + 0.5 : 1
 
@@ -91,16 +91,16 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 // returns the wanted goal + direction if y is out of bounds of focus rect
 cam_bounds_check_y :: proc(
 	cam: ^Pan_Camera,
-	focus: Rect,
-	to_top: f32,
-	to_bottom: f32,
-) -> (goal: f32, direction: int) {
+	focus: RectI,
+	to_top: int,
+	to_bottom: int,
+) -> (goal: int, direction: int) {
 	if cam.margin_y * 2 > rect_height(focus) {
 		return
 	}
 
 	if to_top < focus.t + cam.margin_y {
-		goal = math.round(focus.t - to_top + cam.margin_y)
+		goal = focus.t - to_top + cam.margin_y
 	
 		if goal != 0 {
 			direction = 1
@@ -109,7 +109,7 @@ cam_bounds_check_y :: proc(
 	} 
 
 	if to_bottom > focus.b - cam.margin_y {
-		goal = math.round(to_bottom - focus.b + cam.margin_y)
+		goal = to_bottom - focus.b + cam.margin_y
 
 		if goal != 0 {
 			direction = -1
@@ -121,16 +121,16 @@ cam_bounds_check_y :: proc(
 
 cam_bounds_check_x :: proc(
 	cam: ^Pan_Camera,
-	focus: Rect,
-	to_left: f32,
-	to_right: f32,
-) -> (goal: f32, direction: int) {
+	focus: RectI,
+	to_left: int,
+	to_right: int,
+) -> (goal: int, direction: int) {
 	if cam.margin_x * 2 >= rect_width(focus) {
 		return
 	}
 
 	if to_left < focus.l + cam.margin_x {
-		goal = math.round(focus.l - to_left + cam.margin_x)
+		goal = focus.l - to_left + cam.margin_x
 
 		if goal != 0 {
 			direction = 1
@@ -139,7 +139,7 @@ cam_bounds_check_x :: proc(
 	} 
 
 	if to_right >= focus.r - cam.margin_x {
-		goal = math.round(to_right - focus.r + cam.margin_x)
+		goal = to_right - focus.r + cam.margin_x
 		
 		if goal != 0 {
 			direction = -1
@@ -151,8 +151,8 @@ cam_bounds_check_x :: proc(
 
 // check animation on caret bounds
 mode_panel_cam_bounds_check_y :: proc(
-	to_top: f32,
-	to_bottom: f32,
+	to_top: int,
+	to_bottom: int,
 	use_task: bool, // use task boundary
 ) {
 	cam := mode_panel_cam()
@@ -164,7 +164,7 @@ mode_panel_cam_bounds_check_y :: proc(
 	to_top := to_top
 	to_bottom := to_bottom
 
-	goal: f32
+	goal: int
 	direction: int
 	if task_head != -1 && use_task {
 		task := tasks_visible[task_head]
@@ -184,8 +184,8 @@ mode_panel_cam_bounds_check_y :: proc(
 
 // check animation on caret bounds
 mode_panel_cam_bounds_check_x :: proc(
-	to_left: f32,
-	to_right: f32,
+	to_left: int,
+	to_right: int,
 	check_stop: bool,
 	use_kanban: bool,
 ) {
@@ -195,7 +195,7 @@ mode_panel_cam_bounds_check_x :: proc(
 		return
 	}
 
-	goal: f32
+	goal: int
 	direction: int
 	to_left := to_left
 	to_right := to_right
@@ -264,25 +264,25 @@ mode_panel_cam_bounds_check_x :: proc(
 
 cam_center_by_height_state :: proc(
 	cam: ^Pan_Camera,
-	focus: Rect,
-	y: f32,
-	max_height: f32 = -1,
+	focus: RectI,
+	y: int,
+	max_height: int = -1,
 ) {
 	if cam.freehand {
 		return
 	}
 
 	height := rect_height(focus)
-	offset_goal: f32
+	offset_goal: int
 
 	switch mode_panel.mode {
 		case .List: {
 			// center by view height max height is lower than view height
 			if max_height != -1 && max_height < height {
-				offset_goal = f32(height / 2 - max_height / 2)
+				offset_goal = (height / 2 - max_height / 2)
 			} else {
-				top := y - f32(cam.offset_y)
-				offset_goal = f32(height / 2 - top)
+				top := y - int(cam.offset_y)
+				offset_goal = (height / 2 - top)
 			}
 		}
 

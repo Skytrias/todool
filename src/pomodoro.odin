@@ -53,7 +53,7 @@ pomodoro_celebration_spawn :: proc(x, y: f32) {
 			x_goal := x + rand.float32() * WIDTH - WIDTH / 2 
 			anim_duration := time.Millisecond * time.Duration(rand.float32() * 4000 + 500)
 			anim_wait := rand.float64() * 2
-			gs_animate(&c.y, mode_panel.bounds.b + 50, .Quadratic_In_Out, anim_duration, anim_wait)
+			gs_animate(&c.y, f32(mode_panel.bounds.b + 50), .Quadratic_In_Out, anim_duration, anim_wait)
 			gs_animate(&c.x, x_goal, .Quadratic_Out, anim_duration, anim_wait)
 		}
 	}
@@ -70,10 +70,10 @@ pomodoro_celebration_render :: proc(target: ^Render_Target) {
 			}
 
 			draw_count += 1
-			rect := rect_wh(c.x, c.y, 10, 10)
+			rect := rect_wh(int(c.x), int(c.y), 10, 10)
 			render_rect(target, rect, c.color, ROUNDNESS)	
 
-			if c.y >= mode_panel.bounds.b {
+			if int(c.y) >= mode_panel.bounds.b {
 				c.skip = true
 			}
 		}
@@ -271,7 +271,7 @@ pomodoro_update :: proc() {
 			pomodoro.celebration_goal_reached = true
 			x := sb.stats.gauge_work_today.bounds.l + rect_width_halfed(sb.stats.gauge_work_today.bounds)
 			y := sb.stats.gauge_work_today.bounds.t
-			pomodoro_celebration_spawn(x, y)
+			pomodoro_celebration_spawn(f32(x), f32(y))
 		}
 	}
 }

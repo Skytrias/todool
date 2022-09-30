@@ -205,11 +205,11 @@ ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 			scaled_size := f32(state.isize / 10)
 
 			for fontstash.wrap_state_iter(&gs.fc, &state) {
-				rect := Rect {
-					task.box.bounds.l + state.x_from,
-					task.box.bounds.l + state.x_to,
-					task.box.bounds.t + f32(state.y - 1) * scaled_size,
-					task.box.bounds.t + f32(state.y) * scaled_size,
+				rect := RectI {
+					task.box.bounds.l + int(state.x_from),
+					task.box.bounds.l + int(state.x_to),
+					task.box.bounds.t + int(f32(state.y - 1) * scaled_size),
+					task.box.bounds.t + int(f32(state.y) * scaled_size),
 				}
 				
 				color := theme.text_good

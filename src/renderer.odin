@@ -84,7 +84,7 @@ Render_Target :: struct {
 }
 
 Render_Group :: struct {
-	clip: Rect,
+	clip: RectI,
 	vertex_start, vertex_end: int,
 	bind_handle: u32,
 	bind_slot: int,
@@ -225,7 +225,7 @@ render_target_begin :: proc(using target: ^Render_Target, shadow: Color) {
 	vertex_index = 0
 }
 
-rect_scissor :: proc(target_height: i32, r: Rect) {
+rect_scissor :: proc(target_height: i32, r: RectI) {
 	height := i32(r.b - r.t)
 	gl.Scissor(i32(r.l), target_height - height - i32(r.t), i32(r.r - r.l), height)
 }
@@ -340,7 +340,7 @@ render_target_push_vertices :: proc(
 }
 
 // push a clip group
-render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
+render_push_clip :: proc(using target: ^Render_Target, clip_goal: RectI) {
 	append(&groups, Render_Group {
 		clip = clip_goal,
 		vertex_start = vertex_index,	
@@ -390,7 +390,7 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: Rect) {
 // no
 render_circle :: proc(
 	target: ^Render_Target,
-	x_origin, y_origin: f32,
+	x_origin, y_origin: int,
 	radius: f32,
 	color: Color,
 	centered := false,
@@ -399,8 +399,8 @@ render_circle :: proc(
 	vertices := render_target_push_vertices(target, group, 6)
 	
 	radius := radius * 2
-	x := x_origin - (centered ? radius / 2 : 0)
-	y := y_origin - (centered ? radius / 2 : 0)
+	x := f32(x_origin) - (centered ? radius / 2 : 0)
+	y := f32(y_origin) - (centered ? radius / 2 : 0)
 	xx := x + radius
 	yy := y + radius
 	vertices[0].pos_xy = { x, y }
@@ -411,7 +411,8 @@ render_circle :: proc(
 	vertices[4].pos_xy = { x, yy }
 	vertices[5].pos_xy = { xx, yy }
 
-	center_x, center_y := x_origin + (centered ? 0 : radius / 2), y_origin + (centered ? 0 : radius / 2)
+	center_x := f32(x_origin) + (centered ? 0 : radius / 2)
+	center_y := f32(y_origin) + (centered ? 0 : radius / 2)
 	
 	// TODO: SPEED UP
 	for i in 0..<6 {
@@ -424,7 +425,7 @@ render_circle :: proc(
 
 render_circle_outline :: proc(
 	target: ^Render_Target,
-	x_origin, y_origin: f32,
+	x_origin, y_origin: int,
 	radius: f32,
 	thickness: f32,
 	color: Color,
@@ -434,10 +435,10 @@ render_circle_outline :: proc(
 	vertices := render_target_push_vertices(target, group, 6)
 	
 	radius := radius * 2
-	x := x_origin - (centered ? radius / 2 : 0)
-	y := y_origin - (centered ? radius / 2 : 0)
-	xx := x + radius
-	yy := y + radius
+	x := f32(x_origin) - (centered ? radius / 2 : 0)
+	y := f32(y_origin) - (centered ? radius / 2 : 0)
+	xx := f32(x) + radius
+	yy := f32(y) + radius
 	vertices[0].pos_xy = { x, y }
 	vertices[1].pos_xy = { xx, y }
 	vertices[2].pos_xy = { x, yy }
@@ -446,7 +447,8 @@ render_circle_outline :: proc(
 	vertices[4].pos_xy = { x, yy }
 	vertices[5].pos_xy = { xx, yy }
 
-	center_x, center_y := x_origin + (centered ? 0 : radius / 2), y_origin + (centered ? 0 : radius / 2)
+	center_x := f32(x_origin) + (centered ? 0 : radius / 2)
+	center_y := f32(y_origin) + (centered ? 0 : radius / 2)
 	
 	// TODO: SPEED UP
 	for i in 0..<6 {
@@ -461,32 +463,32 @@ render_circle_outline :: proc(
 // no
 render_rect :: proc(
 	target: ^Render_Target,
-	rect: Rect, 
+	rect: RectI, 
 	color: Color,
-	roundness: f32 = 0,
+	roundness: int = 0,
 ) {
 	render_rect_outline(target, rect, color, roundness, 0)
 }
 
 render_rect_outline :: proc(
 	target: ^Render_Target,
-	rect_goal: Rect,
+	rect: RectI,
 	color: Color,
-	roundness: f32 = ROUNDNESS,
-	thickness: f32 = LINE_WIDTH,
+	roundness: int = ROUNDNESS,
+	thickness: int = LINE_WIDTH,
 ) #no_bounds_check {
 	group := &target.groups[len(target.groups) - 1]
 	vertices := render_target_push_vertices(target, group, 6)
 	
-	vertices[0].pos_xy = { rect_goal.l, rect_goal.t }
-	vertices[1].pos_xy = { rect_goal.r, rect_goal.t }
-	vertices[2].pos_xy = { rect_goal.l, rect_goal.b }
-	
-	vertices[3].pos_xy = { rect_goal.r, rect_goal.t }
-	vertices[4].pos_xy = { rect_goal.l, rect_goal.b }
-	vertices[5].pos_xy = { rect_goal.r, rect_goal.b }
+	vertices[0].pos_xy = { f32(rect.l), f32(rect.t) }
+	vertices[1].pos_xy = { f32(rect.r), f32(rect.t) }
+	vertices[2].pos_xy = { f32(rect.l), f32(rect.b) }
+	vertices[5].pos_xy = { f32(rect.r), f32(rect.b) }
 
-	center_x, center_y := rect_center(rect_goal)
+	vertices[3] = vertices[1]
+	vertices[4] = vertices[2]
+
+	center_x, center_y := rect_center(rect)
 	real_roundness := u16(roundness)
 	real_thickness := u16(thickness)
 	
@@ -502,9 +504,9 @@ render_rect_outline :: proc(
 
 render_underline :: proc(
 	target: ^Render_Target,
-	r: Rect,
+	r: RectI,
 	color: Color,
-	line_width: f32 = LINE_WIDTH,
+	line_width: int = LINE_WIDTH,
 ) {
 	r := r
 	r.t = r.b - line_width
@@ -513,22 +515,22 @@ render_underline :: proc(
 
 render_drop_shadow :: proc(
 	target: ^Render_Target,
-	r: Rect,
+	r: RectI,
 	color: Color,
-	roundness: f32 = ROUNDNESS,
+	roundness: int = ROUNDNESS,
 ) {
 	group := &target.groups[len(target.groups) - 1] 
 	vertices := render_target_push_vertices(target, group, 6)
 	r := r
 	r = rect_margin(r, -DROP_SHADOW)
 
-	vertices[0].pos_xy = { r.l, r.t }
-	vertices[1].pos_xy = { r.r, r.t }
-	vertices[2].pos_xy = { r.l, r.b }
-	
-	vertices[3].pos_xy = { r.r, r.t }
-	vertices[4].pos_xy = { r.l, r.b }
-	vertices[5].pos_xy = { r.r, r.b }
+	vertices[0].pos_xy = { f32(r.l), f32(r.t) }
+	vertices[1].pos_xy = { f32(r.r), f32(r.t) }
+	vertices[2].pos_xy = { f32(r.l), f32(r.b) }
+	vertices[5].pos_xy = { f32(r.r), f32(r.b) }
+
+	vertices[3] = vertices[1]
+	vertices[4] = vertices[2]
 
 	center_x, center_y := rect_center(r)
 	real_roundness := u16(roundness)
@@ -758,7 +760,7 @@ render_glyph_quad :: proc(
 // render string offset to alignment
 render_string_rect :: proc(
 	target: ^Render_Target,
-	rect: Rect,
+	rect: RectI,
 	text: string,
 ) -> f32 {
 	ctx := &gs.fc
@@ -768,24 +770,19 @@ render_string_rect :: proc(
 	x: f32
 	y: f32
 	switch state.ah {
-		case .Left: { x = rect.l }
+		case .Left: { x = f32(rect.l) }
 		case .Middle: { 
-			x = rect.l + rect_width_halfed(rect)
+			x = f32(rect.l) + rect_widthf_halfed(rect)
 		}
-		case .Right: { x = rect.r }
+		case .Right: { x = f32(rect.r) }
 	}
-	// y = rect.t + rect_height_halfed(rect)
 	switch state.av {
-		case .Top: { y = rect.t }
+		case .Top: { y = f32(rect.t) }
 		case .Middle: { 
-			y = rect.t + rect_height_halfed(rect) 
-			// rect := rect
-			// rect.t = y
-			// rect.b = y + 2
-			// render_rect(target, rect, BLUE)
+			y = f32(rect.t) + rect_heightf_halfed(rect) 
 		}
-		case .Baseline: { y = rect.t }
-		case .Bottom: { y = rect.b }
+		case .Baseline: { y = f32(rect.t) }
+		case .Bottom: { y = f32(rect.b) }
 	}
 
 	// render_rect_outline(target, rect, RED)
@@ -803,14 +800,13 @@ render_string_rect :: proc(
 // render a string at arbitrary xy
 render_string :: proc(
 	target: ^Render_Target,
-	x, y: f32,
+	x, y: int,
 	text: string,
 ) -> f32 {
 	group := &target.groups[len(target.groups) - 1]
 	state := fontstash.state_get(&gs.fc)
-	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
+	iter := fontstash.text_iter_init(&gs.fc, text, f32(x), f32(y))
 	q: fontstash.Quad
-
 
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
 		render_glyph_quad(target, group, state, &q)
@@ -849,7 +845,7 @@ render_icon :: proc(
 
 render_icon_rect :: proc(
 	target: ^Render_Target,
-	rect: Rect,
+	rect: RectI,
 	icon: Icon,
 ) -> f32 {
 	ctx := &gs.fc
@@ -862,18 +858,18 @@ render_icon_rect :: proc(
 	x: f32
 	y: f32
 	switch state.ah {
-		case .Left: { x = rect.l }
+		case .Left: { x = f32(rect.l) }
 		case .Middle: { 
 			width := fontstash.codepoint_width(font, rune(icon), scale)
-			x = rect.l + rect_width_halfed(rect) - width / 2
+			x = f32(rect.l) + rect_widthf_halfed(rect) - width / 2
 		}
-		case .Right: { x = rect.r }
+		case .Right: { x = f32(rect.r) }
 	}
 	switch state.av {
-		case .Top: { y = rect.t }
-		case .Middle: { y = rect.t + rect_height_halfed(rect) }
-		case .Baseline: { y = rect.t }
-		case .Bottom: { y = rect.b }
+		case .Top: { y = f32(rect.t) }
+		case .Middle: { y = f32(rect.t) + rect_heightf_halfed(rect) }
+		case .Baseline: { y = f32(rect.t) }
+		case .Bottom: { y = f32(rect.b) }
 	}
 
 	y += fontstash.get_vertical_align(font, isize, state.av)
@@ -894,16 +890,16 @@ render_icon_rect :: proc(
 render_texture_from_kind :: proc(
 	target: ^Render_Target,
 	kind: Texture_Kind,
-	r: Rect,
+	r: RectI,
 	color := WHITE,
 ) #no_bounds_check {
 	group := &target.groups[len(target.groups) - 1]	
 	vertices := render_target_push_vertices(target, group, 6)
 	
-	vertices[0] = { pos_xy = {r.l, r.t }, uv_xy = { 0, 0 }}
-	vertices[1] = { pos_xy = {r.r, r.t }, uv_xy = { 1, 0 }}
-	vertices[2] = { pos_xy = {r.l, r.b }, uv_xy = { 0, 1 }}
-	vertices[5] = { pos_xy = {r.r, r.b }, uv_xy = { 1, 1 }}
+	vertices[0] = { pos_xy = { f32(r.l), f32(r.t) }, uv_xy = { 0, 0 }}
+	vertices[1] = { pos_xy = { f32(r.r), f32(r.t) }, uv_xy = { 1, 0 }}
+	vertices[2] = { pos_xy = { f32(r.l), f32(r.b) }, uv_xy = { 0, 1 }}
+	vertices[5] = { pos_xy = { f32(r.r), f32(r.b) }, uv_xy = { 1, 1 }}
 
 	vertices[3] = vertices[1]
 	vertices[4] = vertices[2]
@@ -923,7 +919,7 @@ render_texture_from_kind :: proc(
 render_texture_from_handle :: proc(
 	target: ^Render_Target,
 	handle: u32,
-	r: Rect,
+	r: RectI,
 	color := WHITE,
 ) #no_bounds_check {
 	group := &target.groups[len(target.groups) - 1]	
@@ -932,10 +928,10 @@ render_texture_from_handle :: proc(
 
 	vertices := render_target_push_vertices(target, group, 6)
 	
-	vertices[0] = { pos_xy = {r.l, r.t }, uv_xy = { 0, 0 }}
-	vertices[1] = { pos_xy = {r.r, r.t }, uv_xy = { 1, 0 }}
-	vertices[2] = { pos_xy = {r.l, r.b }, uv_xy = { 0, 1 }}
-	vertices[5] = { pos_xy = {r.r, r.b }, uv_xy = { 1, 1 }}
+	vertices[0] = { pos_xy = { f32(r.l), f32(r.t) }, uv_xy = { 0, 0 }}
+	vertices[1] = { pos_xy = { f32(r.r), f32(r.t) }, uv_xy = { 1, 0 }}
+	vertices[2] = { pos_xy = { f32(r.l), f32(r.b) }, uv_xy = { 0, 1 }}
+	vertices[5] = { pos_xy = { f32(r.r), f32(r.b) }, uv_xy = { 1, 1 }}
 
 	vertices[3] = vertices[1]
 	vertices[4] = vertices[2]

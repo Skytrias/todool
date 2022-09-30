@@ -222,8 +222,8 @@ editor_load_version :: proc(
 			// save when size is the same as version based size
 			header := reader_read_type(reader, Save_Header) or_return
 			cam := mode_panel_cam()
-			cam_set_x(cam, f32(header.camera_offset_x))
-			cam_set_y(cam, f32(header.camera_offset_y))
+			cam_set_x(cam, int(header.camera_offset_x))
+			cam_set_y(cam, int(header.camera_offset_y))
 
 			Save_Task :: struct #packed {
 				indentation: u8,

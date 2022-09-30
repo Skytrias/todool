@@ -288,7 +288,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 	element_hide(sb.enum_panel, true)
 
 	SPACER_HEIGHT :: 10
-	spacer_scaled := SPACER_HEIGHT * SCALE
+	spacer_scaled := int(SPACER_HEIGHT * SCALE)
 
 	// options
 	{
@@ -339,21 +339,21 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		}
 		slider_gap_horizontal = slider_init(panel, flags, f32(10.0) / GAP_HORIZONTAL_MAX)
 		slider_gap_horizontal.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Gap Horizontal: %.0fpx", position * GAP_HORIZONTAL_MAX)
+			fmt.sbprintf(builder, "Gap Horizontal: %dpx", int(position * GAP_HORIZONTAL_MAX))
 		}
 		slider_gap_vertical = slider_init(panel, flags, f32(1.0) / GAP_VERTICAL_MAX)
 		slider_gap_vertical.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Gap Vertical: %.0fpx", position * GAP_VERTICAL_MAX)
+			fmt.sbprintf(builder, "Gap Vertical: %dpx", int(position * GAP_VERTICAL_MAX))
 		}
 		kanban_default := math.remap(f32(300), KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX, 0, 1)
 		slider_kanban_width = slider_init(panel, flags, kanban_default)
 		slider_kanban_width.formatting = proc(builder: ^strings.Builder, position: f32) {
 			value := visuals_kanban_width()
-			fmt.sbprintf(builder, "Kanban Width: %.0fpx", value)
+			fmt.sbprintf(builder, "Kanban Width: %dpx", int(value))
 		}
 		slider_task_margin = slider_init(panel, flags, f32(5.0) / TASK_MARGIN_MAX)
 		slider_task_margin.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Task Margin: %.0fpx", position * TASK_MARGIN_MAX)
+			fmt.sbprintf(builder, "Task Margin: %dpx", int(position * TASK_MARGIN_MAX))
 		}
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 	}
@@ -539,7 +539,7 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 
 			text := strings.to_string(button.builder)
 			rect := element.bounds
-			rect.l += (5 * SCALE)
+			rect.l += int(5 * SCALE)
 			fcs_element(element)
 			fcs_ahv(.Left, .Middle)
 			fcs_color(text_color)
@@ -574,12 +574,12 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 		case .Get_Width: {
 			text := strings.to_string(button.builder)
 			fcs_element(element)
-			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
 			return int(width)
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Destroy: {
@@ -656,27 +656,28 @@ visuals_task_margin :: #force_inline proc() -> f32 {
 	return sb.options.slider_task_margin.position * TASK_MARGIN_MAX
 }
 
-Mode_Based_Button :: struct {
-	index: int,
-}
+// Mode_Based_Button :: struct {
+// 	index: int,
+// }
 
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	button := cast(^Button) element
-	info := cast(^Mode_Based_Button) element.data
+	button := cast(^Image_Button) element
+	// info := cast(^Mode_Based_Button) element.data
 	// kind: Texture_Kind = info.index == 1 ? .Kanban : .List
+	index := button.kind == .List ? 0 : 1
 
 	#partial switch msg {
 		case .Button_Highlight: {
 			color := cast(^Color) dp
-			selected := info.index == int(mode_panel.mode)
+			selected := index == int(mode_panel.mode)
 			color^ = selected ? theme.text_default : theme.text_blank
 			return selected ? 1 : 2
 		}
 
 		case .Clicked: {
 			set := cast(^int) &mode_panel.mode
-			if set^ != info.index {
-				set^ = info.index
+			if set^ != index {
+				set^ = index
 				element_repaint(element)
 			}
 		}

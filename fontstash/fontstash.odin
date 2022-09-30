@@ -933,7 +933,7 @@ wrap_layout_caret :: proc(
 	wrapped_lines: []string, // using the resultant lines
 	codepoint_index: int, // in codepoint_index, not byte_offset
 	loc := #caller_location,
-) -> (x_offset: f32, line: int) {
+) -> (x_offset: int, line: int) {
 	assert(len(wrapped_lines) > 0, "Lines should have valid content of lines > 0", loc)
 
 	// get wanted line and byte index offset
@@ -957,10 +957,10 @@ wrap_layout_caret :: proc(
 
 	// anything hitting the count
 	if goal == iter.codepoint_count {
-		x_offset = iter.nextx
+		x_offset = int(iter.nextx)
 	} else {
 		// get the first index
-		x_offset = iter.x
+		x_offset = int(iter.x)
 	}
 
 	return

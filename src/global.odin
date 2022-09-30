@@ -25,14 +25,14 @@ LETTER_SPACING :: 0
 HOVER_WIDTH :: 100
 SCALE := f32(1)
 TASK_SCALE := f32(1)
-LINE_WIDTH := max(2, 2 * SCALE)
-ROUNDNESS := 5.0 * SCALE
+LINE_WIDTH := 2
+ROUNDNESS := 5
 
 scaling_set :: proc(global_scale, task_scale: f32) {
 	SCALE = global_scale
 	TASK_SCALE = task_scale
-	LINE_WIDTH = math.round(max(2, 2 * SCALE))
-	ROUNDNESS = math.round(5 * SCALE)
+	LINE_WIDTH = int(2 * SCALE)
+	ROUNDNESS = int(5 * SCALE)
 }
 
 scaling_inc :: proc(amt: f32) {
@@ -101,7 +101,7 @@ MOUSE_CLICK_TIME :: time.Millisecond * 500
 MOUSE_LEFT :: 1
 MOUSE_MIDDLE :: 2
 MOUSE_RIGHT :: 3
-Mouse_Coordinates :: [2]f32
+Mouse_Coordinates :: [2]int
 
 Window :: struct {
 	element: Element,
@@ -122,7 +122,7 @@ Window :: struct {
 	clicked_start: time.Tick,
 
 	// mouse behaviour
-	cursor_x, cursor_y: f32,
+	cursor_x, cursor_y: int,
 	down_middle: Mouse_Coordinates,
 	down_left: Mouse_Coordinates,
 	down_right: Mouse_Coordinates,
@@ -131,8 +131,8 @@ Window :: struct {
 	// window sizing
 	width, height: int,
 	widthf, heightf: f32,
-	rect: Rect,
-	paint_clip: Rect,
+	rect: RectI,
+	paint_clip: RectI,
 	fullscreened: bool,
 
 	// rendering
@@ -423,7 +423,7 @@ window_init :: proc(
 	res.widthf = f32(w)
 	res.height = int(h)
 	res.heightf = f32(h)
-	res.rect = rect_wh(0, 0, f32(w), f32(h))
+	res.rect = rect_wh(0, 0, int(w), int(h))
 	res.element.name = "WINDOW"
 	undo_manager_init(&res.manager)
 
@@ -436,7 +436,7 @@ window_init :: proc(
 	// set hovered panel
 	{
 		floaty := panel_floaty_init(&res.element, { .Disabled })
-		floaty.width = HOVER_WIDTH * SCALE
+		floaty.width = int(HOVER_WIDTH * SCALE)
 		// floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
 		p := floaty.panel
 		p.flags |= { .Panel_Expand, .Disabled }
@@ -467,7 +467,7 @@ gs_update_after_load :: proc() {
 	}
 
 	floaty := window_main.hovered_panel
-	floaty.height = DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE
+	floaty.height = int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE)
 
 	if gs.audio_ok {
 		custom_load_wav_opt(.Timer_Start, data_sound_timer_start)
@@ -492,7 +492,7 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 	goal_y := element.bounds.b + 5
 
 	// bounds check
-	if goal_y + floaty.height > window.heightf {
+	if goal_y + floaty.height > window.height {
 		goal_y = element.bounds.t - floaty.height
 	}
 
@@ -501,10 +501,10 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 
 	fontstash.state_set_size(&gs.fc, DEFAULT_FONT_SIZE * SCALE)
 	text_width := fontstash.text_bounds(&gs.fc, text)
-	floaty.width = max(HOVER_WIDTH * SCALE, text_width + TEXT_MARGIN_HORIZONTAL * SCALE)
+	floaty.width = max(int(HOVER_WIDTH * SCALE), int(text_width) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
 
-	if floaty.x + floaty.width > window.widthf {
-		floaty.x = window.widthf - floaty.width - 5
+	if floaty.x + floaty.width > window.width {
+		floaty.x = window.width - floaty.width - 5
 	}
 }
 
@@ -515,7 +515,7 @@ window_poll_size :: proc(window: ^Window) {
 	window.widthf = f32(window.width)
 	window.height = int(h)
 	window.heightf = f32(window.height)
-	window.rect = rect_wh(0, 0, window.widthf, window.heightf)
+	window.rect = rect_wh(0, 0, window.width, window.height)
 }
 
 window_mouse_inside :: proc(window: ^Window) -> bool {
@@ -956,7 +956,7 @@ window_deallocate :: proc(window: ^Window) {
 }
 
 window_layout_update :: proc(window: ^Window) {
-	window.element.bounds = { 0, window.widthf, 0, window.heightf }
+	window.element.bounds = { 0, window.width, 0, window.height }
 	window.element.clip = window.element.bounds
 	window.update_next = true
 }
@@ -1020,7 +1020,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					window.widthf = f32(window.width)
 					window.height = int(e.window.data2)
 					window.heightf = f32(window.height)	
-					window.rect = rect_wh(0, 0, window.widthf, window.heightf)
+					window.rect = rect_wh(0, 0, window.width, window.height)
 					window.update_next = true
 
 					if window.on_resize != nil {
@@ -1112,8 +1112,8 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				return
 			}
 
-			window.cursor_x = f32(e.motion.x)
-			window.cursor_y = f32(e.motion.y)
+			window.cursor_x = int(e.motion.x)
+			window.cursor_y = int(e.motion.y)
 			window_input_event(window, .Mouse_Move)
 		}
 
@@ -1123,13 +1123,13 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 			}
 
 			if e.button.button == sdl.BUTTON_LEFT {
-				window.down_left = { f32(e.button.x), f32(e.button.y) }
+				window.down_left = { int(e.button.x), int(e.button.y) }
 				window_input_event(window, .Left_Down, int(e.button.clicks))
 			} else if e.button.button == sdl.BUTTON_MIDDLE {
-				window.down_middle = { f32(e.button.x), f32(e.button.y) }
+				window.down_middle = { int(e.button.x), int(e.button.y) }
 				window_input_event(window, .Middle_Down, int(e.button.clicks))
 			} else if e.button.button == sdl.BUTTON_RIGHT {
-				window.down_right = { f32(e.button.x), f32(e.button.y) }
+				window.down_right = { int(e.button.x), int(e.button.y) }
 				window_input_event(window, .Right_Down, int(e.button.clicks))
 			}
 		}
@@ -1674,11 +1674,11 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			assert(len(element.children) != 0)
 			
 			panel := cast(^Panel) element.children[0]
-			width := f32(element_message(panel, .Get_Width, 0))
-			height := f32(element_message(panel, .Get_Height, 0))
+			width := element_message(panel, .Get_Width, 0)
+			height := element_message(panel, .Get_Height, 0)
 			cx := (element.bounds.l + element.bounds.r) / 2
 			cy := (element.bounds.t + element.bounds.b) / 2
-			bounds := Rect {
+			bounds := RectI {
 				cx - (width + 1) / 2,
 				cx + width / 2, 
 				cy - (height + 1),
@@ -2138,13 +2138,13 @@ menu_add_item :: proc(
 menu_show :: proc(menu: ^Panel_Floaty) {
 	width := element_message(menu.panel, .Get_Width)
 	height := element_message(menu.panel, .Get_Height)
-	menu.width = f32(width)
-	menu.height = f32(height)
+	menu.width = width
+	menu.height = height
 
 	full := menu.window.rect
 
 	// keep x & y in frame with a margin
-	margin := 10 * SCALE
+	margin := int(10 * SCALE)
 	menu.x = clamp(menu.x, margin, full.r - menu.width - margin)
 	menu.y = clamp(menu.y, margin, full.b - menu.height - margin)
 }
@@ -2174,29 +2174,29 @@ element_is_from_menu :: proc(window: ^Window, element: ^Element) -> bool {
 
 Font_Options :: struct {
 	font: int,
-	size: f32,
+	size: int,
 }
 
-efont_size :: proc(element: ^Element) -> f32 {
+efont_size :: proc(element: ^Element) -> int {
 	scaled_size := f32(element.font_options == nil ? DEFAULT_FONT_SIZE : element.font_options.size) * SCALE * 10
-	return f32(i16(scaled_size) / 10)
+	return int(i16(scaled_size) / 10)
 }	
 
-task_font_size :: proc(element: ^Element) -> f32 {
+task_font_size :: proc(element: ^Element) -> int {
 	scaled_size := f32(element.font_options == nil ? DEFAULT_FONT_SIZE : element.font_options.size) * TASK_SCALE * 10
-	return f32(i16(scaled_size) / 10)
+	return int(i16(scaled_size) / 10)
 }	
 
-fcs_icon :: proc(scaling: f32) -> f32 {
+fcs_icon :: proc(scaling: f32) -> int {
 	fcs_size(DEFAULT_ICON_SIZE * scaling)
 	fcs_font(font_icon)
-	return f32(i16(DEFAULT_ICON_SIZE * scaling * 10) / 10)
+	return int(i16(DEFAULT_ICON_SIZE * scaling * 10) / 10)
 }
 
 // using task scale
-fcs_task :: proc(element: ^Element) -> f32 {
+fcs_task :: proc(element: ^Element) -> int {
 	font_index: int
-	size: f32
+	size: int
 
 	if element.font_options == nil {
 		font_index = font_regular
@@ -2206,14 +2206,14 @@ fcs_task :: proc(element: ^Element) -> f32 {
 		size = element.font_options.size
 	}
 
-	fcs_size(size * TASK_SCALE)
+	fcs_size(f32(size) * TASK_SCALE)
 	fcs_font(font_index)
-	return f32(i16(size * TASK_SCALE * 10) / 10)
+	return int(i16(f32(size) * TASK_SCALE * 10) / 10)
 }
 
-fcs_element :: proc(element: ^Element) -> f32 {
+fcs_element :: proc(element: ^Element) -> int {
 	font_index: int
-	size: f32
+	size: int
 
 	if element.font_options == nil {
 		font_index = font_regular
@@ -2223,13 +2223,13 @@ fcs_element :: proc(element: ^Element) -> f32 {
 		size = element.font_options.size
 	}
 
-	fcs_size(size * SCALE)
+	fcs_size(f32(size) * SCALE)
 	fcs_font(font_index)
-	return f32(i16(size * SCALE * 10) / 10)
+	return int(i16(f32(size) * SCALE * 10) / 10)
 }
 
-string_width :: #force_inline proc(text: string, x: f32 = 0, y: f32 = 0) -> f32 {
-	return fontstash.text_bounds(&gs.fc, text, x, y)
+string_width :: #force_inline proc(text: string, x: f32 = 0, y: f32 = 0) -> int {
+	return int(fontstash.text_bounds(&gs.fc, text, x, y))
 }
 
 icon_width :: #force_inline proc(icon: Icon, scaling: f32) -> f32 {

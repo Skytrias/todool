@@ -18,6 +18,14 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 ALLOW_SCALE :: true
 
+// TODO
+// check scrollbar
+// splitpane is bonkers probs
+// hover scaled is shit
+// use ivec4 or ivec2 in vert shader
+// when tab selecting, set text box head/tail to proper end
+// multi selection should work with task bounds, not box bounds, multiline strings are weird otherwhise
+
 // main :: proc() {
 // 	Test_Struct1 :: struct {
 // 		a: int,

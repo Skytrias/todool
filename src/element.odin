@@ -83,7 +83,7 @@ Message :: enum {
 }
 
 Find_By_Point :: struct {
-	x, y: f32,
+	x, y: int,
 	res: ^Element,
 }
 
@@ -142,7 +142,7 @@ Element :: struct {
 	children: [dynamic]^Element,
 	window: ^Window, // root hierarchy
 
-	bounds, clip: Rect,
+	bounds, clip: RectI,
 
 	message_class: Message_Proc,
 	message_user: Message_Proc,
@@ -314,14 +314,14 @@ element_init :: proc(
 }
 
 // reposition element and cal layout to children
-element_move :: proc(element: ^Element, bounds: Rect) {
+element_move :: proc(element: ^Element, bounds: RectI) {
 	// move to new position - msg children to layout
 	element.clip = rect_intersection(element.parent.clip, bounds)
 	element.bounds = bounds
 	element_message(element, .Layout)
 }
 
-element_moveold :: proc(element: ^Element, bounds: Rect) {
+element_moveold :: proc(element: ^Element, bounds: RectI) {
 	clip := element.parent != nil ? rect_intersection(element.parent.clip, bounds) : bounds
 	moved := element.bounds != bounds || element.clip != clip
 	layout: bool
@@ -358,7 +358,7 @@ element_find_by_point_custom :: proc(element: ^Element, p: ^Find_By_Point) -> in
 }
 
 // find first element by point
-element_find_by_point :: proc(element: ^Element, x, y: f32) -> ^Element {
+element_find_by_point :: proc(element: ^Element, x, y: int) -> ^Element {
 	p := Find_By_Point { x, y, nil }
 
 	// allowing custom find by point calls
@@ -579,7 +579,7 @@ window_focused_shown :: proc(window: ^Window) -> bool {
 	return true
 }
 
-render_hovered_highlight :: #force_inline proc(target: ^Render_Target, bounds: Rect, scale := f32(1)) {
+render_hovered_highlight :: #force_inline proc(target: ^Render_Target, bounds: RectI, scale := f32(1)) {
 	color := DARKEN
 	color.a = u8((f32(color.a) / 255 * scale) * 255)
 	render_rect(target, bounds, color, ROUNDNESS)
@@ -610,7 +610,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				if res == 1 {
 					rect := element.bounds
 					// rect.l = rect.r - (4 * SCALE)
-					rect.r = rect.l + (4 * SCALE)
+					rect.r = rect.l + int(4 * SCALE)
 					render_rect(target, rect, text_color, 0)
 				}
 			}
@@ -647,12 +647,12 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		case .Get_Width: {
 			fcs_element(element)
 			text := strings.to_string(button.builder)
-			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
 			return int(width)
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Key_Combination: {
@@ -767,7 +767,7 @@ icon_button_render_default :: proc(button: ^Icon_Button) {
 
 	if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
 		rect := button.bounds
-		rect.r = rect.l + (4 * SCALE)
+		rect.r = rect.l + int(4 * SCALE)
 		render_rect(target, rect, text_color, 0)
 	}
 
@@ -810,7 +810,7 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Key_Combination: {
@@ -1028,9 +1028,10 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			}
 
 			slide := element.bounds
-			slide.t = slide.b - math.round(5 * SCALE)
-			slide.b = slide.t + math.round(3 * SCALE)
-			slide.r = slide.l + slider.position	* f32(rect_width(slide))
+			slide.t = slide.b - int(4 * SCALE)
+			slide.b = slide.t + int(3 * SCALE)
+			slide.l += 2
+			slide.r = slide.l + int(slider.position	* f32(rect_width(slide) - 2)) 
 			render_rect(target, slide, text_color, 0)
 
 			strings.builder_reset(&slider.builder)
@@ -1056,7 +1057,7 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Destroy: {
@@ -1128,15 +1129,15 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 	BOX_MARGIN :: 5
 	BOX_GAP :: 5
 
-	box_icon_rect :: proc(box: ^Checkbox) -> (res: Rect) {
-		res = rect_margin(box.bounds, BOX_MARGIN * SCALE)
+	box_icon_rect :: proc(box: ^Checkbox) -> (res: RectI) {
+		res = rect_margin(box.bounds, int(BOX_MARGIN * SCALE))
 		res.r = res.l + box_width(box)
 		return
 	}
 
-	box_width :: proc(box: ^Checkbox) -> f32 {
+	box_width :: proc(box: ^Checkbox) -> int {
 		height := element_message(box, .Get_Height)
-		return f32(height) + TEXT_MARGIN_VERTICAL * SCALE
+		return height + int(TEXT_MARGIN_VERTICAL * SCALE)
 	}
 
 	#partial switch msg {
@@ -1146,15 +1147,15 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			fcs_element(element)
 			text_width := string_width(text)
 			
-			margin := BOX_MARGIN * SCALE
-			gap := BOX_GAP * SCALE
+			margin := int(BOX_MARGIN * SCALE)
+			gap := int(BOX_GAP * SCALE)
 			box_width := box_width(box)
 
 			return int(text_width + margin * 2 + box_width + gap)
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Get_Cursor: {
@@ -1177,16 +1178,16 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				render_hovered_highlight(target, element.bounds)
 			}
 
-			box_width := math.round(rect_width_halfed(box_rect))
+			box_width := rect_width_halfed(box_rect)
 
 			moving_rect := box_rect
-			moving_rect.l = box_rect.l + box.state_unit * box_width
-			moving_rect.r = moving_rect.l + (box_width - 1 * SCALE)
-			moving_rect = rect_margin(moving_rect, 2 * SCALE)
+			moving_rect.l = box_rect.l + int(box.state_unit * f32(box_width))
+			moving_rect.r = moving_rect.l + box_width - int(1 * SCALE)
+			moving_rect = rect_margin(moving_rect, int(2 * SCALE))
 			render_rect(target, moving_rect, text_color, ROUNDNESS)
 
 			text_bounds := element.bounds
-			text_bounds.l = box_rect.r + BOX_GAP * SCALE
+			text_bounds.l = box_rect.r + int(BOX_GAP * SCALE)
 
 			fcs_element(element)
 			fcs_ahv(.Left, .Middle)
@@ -1264,7 +1265,7 @@ Spacer_Style :: enum {
 
 Spacer :: struct {
 	using element: Element,
-	width, height: f32,
+	width, height: int,
 	vertical: bool,
 	style: Spacer_Style,
 }
@@ -1284,10 +1285,10 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 					rect := element.bounds
 
 					if spacer.vertical {
-						rect.l += math.round(rect_width_halfed(rect))
+						rect.l += rect_width_halfed(rect)
 						rect.r = rect.l + LINE_WIDTH
 					} else {
-						rect.t += math.round(rect_height_halfed(rect))
+						rect.t += rect_height_halfed(rect)
 						rect.b = rect.t + LINE_WIDTH
 					}
 
@@ -1305,11 +1306,11 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Get_Width: {
-			return int(spacer.width * SCALE)
+			return int(f32(spacer.width) * SCALE)
 		}
 
 		case .Get_Height: {
-			return int(spacer.height * SCALE)
+			return int(f32(spacer.height) * SCALE)
 		}
 	}
 
@@ -1319,8 +1320,8 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 spacer_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
-	w: f32,
-	h: f32,
+	w: int,
+	h: int,
 	style: Spacer_Style = .Empty,
 	vertical := false,
 	allocator := context.allocator,
@@ -1429,28 +1430,29 @@ panel_measure :: proc(panel: ^Panel, di: int) -> int {
 
 panel_layout :: proc(
 	panel: ^Panel, 
-	bounds: Rect, 
+	bounds: RectI, 
 	measure: bool, 
-) -> f32 {
+) -> int {
 	horizontal := .Panel_Horizontal in panel.flags
-	scaled_margin := math.round(panel.margin * SCALE)
-	position_x := f32(0)
-	position_y := f32(0)
+	scaled_margin := int(panel.margin * SCALE)
+	position_x := int(0)
+	position_y := int(0)
 	position_layout := scaled_margin
 
 	// TODO check for scrollbar hide flag?
 	if !measure && scrollbar_valid(panel.hscrollbar) {
-		position_x -= panel.hscrollbar.position
+		position_x -= int(panel.hscrollbar.position)
 	}
 
 	if !measure && scrollbar_valid(panel.vscrollbar) {
-		position_y -= panel.vscrollbar.position
+		position_y -= int(panel.vscrollbar.position)
 	}
 
 	hspace := rect_width(bounds) - scaled_margin * 2
 	vspace := rect_height(bounds) - scaled_margin * 2
 	per_fill, count := panel_calculate_per_fill(panel, int(hspace), int(vspace))
 	expand := .Panel_Expand in panel.flags
+	gap_scaled := int(panel.gap * SCALE)
 
 	for i in 0..<len(panel.children) {
 		child := panel.children[panel.layout_elements_in_reverse ? len(panel.children) - 1 - i : i]
@@ -1461,12 +1463,12 @@ panel_layout :: proc(
 		}
 
 		if horizontal {
-			height := (.VF in child.flags) || expand ? vspace : f32(element_message(child, .Get_Height, (.HF in child.flags) ? per_fill : 0))
-			width := (.HF in child.flags) ? per_fill : element_message(child, .Get_Width, int(height))
+			height := (.VF in child.flags) || expand ? vspace : element_message(child, .Get_Height, (.HF in child.flags) ? per_fill : 0)
+			width := (.HF in child.flags) ? per_fill : element_message(child, .Get_Width, height)
 
-			relative := Rect {
+			relative := RectI {
 				position_layout + position_x,
-				position_layout + position_x + f32(width),
+				position_layout + position_x + width,
 				position_y + scaled_margin + (vspace - height) / 2,
 				position_y + scaled_margin + (vspace + height) / 2,
 			}
@@ -1475,27 +1477,27 @@ panel_layout :: proc(
 				element_move(child, rect_translate(relative, bounds))
 			}
 
-			position_layout += f32(width) + panel.gap * SCALE
+			position_layout += width + gap_scaled
 		} else {
-			width := (.HF in child.flags) || expand ? hspace : f32(element_message(child, .Get_Width, (.VF in child.flags) ? per_fill : 0))
+			width := (.HF in child.flags) || expand ? hspace : element_message(child, .Get_Width, (.VF in child.flags) ? per_fill : 0)
 			height := (.VF in child.flags) ? per_fill : element_message(child, .Get_Height, int(width))
 
-			relative := Rect {
+			relative := RectI {
 				position_x + scaled_margin + (hspace - width) / 2,
 				position_x + scaled_margin + (hspace + width) / 2,
 				position_layout + position_y,
-				position_layout + position_y + f32(height),
+				position_layout + position_y + height,
 			}
 
 			if !measure {
 				element_move(child, rect_translate(relative, bounds))
 			}
 
-			position_layout += f32(height) + panel.gap * SCALE
+			position_layout += height + gap_scaled
 		}
 	}
 
-	return position_layout - (count != 0 ? panel.gap : 0) * SCALE + scaled_margin
+	return position_layout - int((count != 0 ? panel.gap : 0) * SCALE) + scaled_margin
 }
 
 panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
@@ -1534,14 +1536,14 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 	#partial switch msg {
 		case .Custom_Clip: {
 			if panel.shadow {
-				rect := cast(^Rect) dp
+				rect := cast(^RectI) dp
 				rect^ = rect_margin(element.clip, -DROP_SHADOW)
 			}
 		}
 
 		case .Layout: {
 			bounds := element.bounds
-			scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+			scrollbar_size := int(SCROLLBAR_SIZE * SCALE)
 			scrollbar_both := scrollbar_valid(panel.vscrollbar) && scrollbar_valid(panel.hscrollbar)
 
 			if panel.vscrollbar != nil {
@@ -1562,7 +1564,7 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 				bounds_before := bounds
 				scrollbar_bounds := rect_cut_bottom(&bounds, scrollbar_size)
 				// TODO double check max 
-				panel.hscrollbar.maximum = f32(element_message(panel, .Get_Width))
+				panel.hscrollbar.maximum = element_message(panel, .Get_Width)
 				panel.hscrollbar.page = rect_width(bounds)
 				element_move(panel.hscrollbar, scrollbar_bounds)
 
@@ -1588,11 +1590,11 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 
 		case .Get_Width: {
 			if .Panel_Horizontal in element.flags {
-				height := f32(di)
+				height := di
 
 				// take out horizontal scrollbar
 				if scrollbar_valid(panel.hscrollbar) {
-					scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+					scrollbar_size := int(SCROLLBAR_SIZE * SCALE)
 					height -= scrollbar_size					
 				}
 
@@ -1606,11 +1608,11 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			if .Panel_Horizontal in element.flags {
 				return panel_measure(panel, di)
 			} else {
-				width := f32(di)
+				width := di
 		
 				// take out vertical scrollbar
 				if scrollbar_valid(panel.vscrollbar) {
-					scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+					scrollbar_size := int(SCROLLBAR_SIZE * SCALE)
 					width -= scrollbar_size
 				}
 		
@@ -1712,8 +1714,8 @@ Panel_Floaty :: struct {
 	using element: Element,
 	panel: ^Panel,
 
-	x, y: f32,
-	width, height: f32,
+	x, y: int,
+	width, height: int,
 }
 
 panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1722,8 +1724,8 @@ panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 	#partial switch msg {
 		case .Layout: {
-			w := math.round(floaty.width * SCALE)
-			h := math.round(floaty.height * SCALE)
+			w := int(f32(floaty.width) * SCALE)
+			h := int(f32(floaty.height) * SCALE)
 			rect := rect_wh(floaty.x, floaty.y, w, h)
 			element_move(panel, rect)
 		}
@@ -1764,22 +1766,22 @@ Scrollbar :: struct {
 	// TODO force opened option
 
 	force_visible: bool,
-	maximum: f32,
-	page: f32,
-	drag_offset: f32,
+	maximum: int,
+	page: int,
+	drag_offset: int,
 	position: f32,
 	in_drag: bool,	
 	shorted: bool,
 }
 
 // clamp position
-scrollbar_position_clamp :: proc(scrollbar: ^Scrollbar) -> (diff: f32) {
+scrollbar_position_clamp :: proc(scrollbar: ^Scrollbar) -> (diff: int) {
 	diff = scrollbar.maximum - scrollbar.page
 
 	if scrollbar.position < 0 {
 		scrollbar.position = 0
-	} else if scrollbar.position > diff {
-		scrollbar.position = diff
+	} else if scrollbar.position > f32(diff) {
+		scrollbar.position = f32(diff)
 	}
 
 	return
@@ -1850,15 +1852,16 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				// 	scrollbar_size -= math.round(SCROLLBAR_SIZE * SCALE)
 				// }
 
+				// TODO will probably not work without float calc
 				thumb_size := scrollbar_size * scrollbar.page / scrollbar.maximum
-				thumb_size = max(SCROLLBAR_SIZE * 2 * SCALE, thumb_size)
+				thumb_size = max(int(SCROLLBAR_SIZE * 2 * SCALE), thumb_size)
 
 				// clamp position
 				diff := scrollbar_position_clamp(scrollbar)
 
 				// clamp
-				thumb_position := scrollbar.position / diff * (scrollbar_size - thumb_size)
-				if scrollbar.position == diff {
+				thumb_position := int(scrollbar.position / f32(diff) * f32(scrollbar_size - thumb_size))
+				if scrollbar.position == f32(diff) {
 					thumb_position = scrollbar_size - thumb_size
 				}
 
@@ -1916,7 +1919,7 @@ scrollbar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 		case .Animate: {
 			direction: f32 = is_down ? 1 : -1
-			scrollbar.position += direction * 0.01 * scrollbar.page
+			scrollbar.position += direction * 0.01 * f32(scrollbar.page)
 			element_repaint(scrollbar)
 			out: Message = scrollbar.horizontal ? .Scrolled_X : .Scrolled_Y
 			element_message(scrollbar.parent, out)
@@ -1935,7 +1938,7 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			target := element.window.target
 			hovered := element.window.hovered == element
 			pressed := element.window.pressed == element
-			rect := rect_margin(element.bounds, 3 * SCALE)
+			rect := rect_margin(element.bounds, int(3 * SCALE))
 			color := theme.text_default
 			color.a = pressed || hovered ? 200 : 150
 			render_rect(target, rect, color, ROUNDNESS)
@@ -1951,16 +1954,16 @@ scroll_thumb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 					scrollbar.in_drag = true
 
 					if !scrollbar.horizontal {
-						scrollbar.drag_offset = element.bounds.t - scrollbar.bounds.t - f32(element.window.cursor_y)
+						scrollbar.drag_offset = element.bounds.t - scrollbar.bounds.t - element.window.cursor_y
 					} else {
-						scrollbar.drag_offset = element.bounds.l - scrollbar.bounds.l - f32(element.window.cursor_x)
+						scrollbar.drag_offset = element.bounds.l - scrollbar.bounds.l - element.window.cursor_x
 					}
 				}
 
 				thumb_position := (!scrollbar.horizontal ? element.window.cursor_y : element.window.cursor_x) + scrollbar.drag_offset
 				thumb_size := !scrollbar.horizontal ? rect_height(element.bounds) : rect_width(element.bounds)
 				thumb_diff := scrollbar.page - thumb_size
-				scrollbar.position = thumb_position / thumb_diff * (scrollbar.maximum - scrollbar.page)
+				scrollbar.position = f32(thumb_position) / f32(thumb_diff) * f32(scrollbar.maximum - scrollbar.page)
 				element_repaint(scrollbar)
 				out: Message = scrollbar.horizontal ? .Scrolled_X : .Scrolled_Y
 				element_message(scrollbar.parent, out)
@@ -2011,11 +2014,11 @@ scrollbar_init :: proc(
 }
 
 scrollbars_layout_prior :: proc(
-	bounds: ^Rect,
+	bounds: ^RectI,
 	hscrollbar: ^Scrollbar,
 	vscrollbar: ^Scrollbar,
-) -> (bottom, right: Rect) {
-	scrollbar_size := math.round(SCROLLBAR_SIZE * SCALE)
+) -> (bottom, right: RectI) {
+	scrollbar_size := int(SCROLLBAR_SIZE * SCALE)
 	
 	if vscrollbar != nil {
 		right = rect_cut_right(bounds, scrollbar_size)
@@ -2030,11 +2033,11 @@ scrollbars_layout_prior :: proc(
 
 scrollbar_layout_post :: proc(
 	hscrollbar: ^Scrollbar,
-	hrect: Rect,
-	hmax: f32,
+	hrect: RectI,
+	hmax: int,
 	vscrollbar: ^Scrollbar,
-	vrect: Rect,
-	vmax: f32,
+	vrect: RectI,
+	vmax: int,
 ) {
 	if vscrollbar != nil {
 		vscrollbar.maximum = vmax
@@ -2047,7 +2050,7 @@ scrollbar_layout_post :: proc(
 
 		// extend the hrect if the vscrollbar was invalid
 		if .Hide in vscrollbar.flags {
-			hrect.r += math.round(SCROLLBAR_SIZE * SCALE)
+			hrect.r += int(SCROLLBAR_SIZE * SCALE)
 		}
 
 		hscrollbar.maximum = hmax
@@ -2059,7 +2062,7 @@ scrollbar_layout_post :: proc(
 // // keep scrollbar in frame when in need for manual panning
 // scrollbar_keep_in_frame :: proc(
 // 	scrollbar: ^Scrollbar, 
-// 	bounds: Rect, 
+// 	bounds: RectI, 
 // 	up: bool,
 // ) {
 // 	side := &scrollbar.sides[side_type]
@@ -2400,9 +2403,9 @@ color_picker_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			sv := element.children[0]
 			hue := element.children[1]
 		
-			gap := math.round(10 * SCALE)
+			gap := int(10 * SCALE)
 			cut := rect_margin(element.bounds, 5)
-			left := rect_cut_left(&cut, math.round(SV_WIDTH * SCALE))
+			left := rect_cut_left(&cut, int(SV_WIDTH * SCALE))
 			cut.l += gap
 			element_move(sv, left)
 			element_move(hue, cut)
@@ -2427,13 +2430,12 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			target := element.window.target
 			render_texture_from_kind(target, .HUE, element.bounds)
 
-			OUT_SIZE :: 10
-			out_size := math.round(OUT_SIZE * SCALE)
+			out_size := int(10 * SCALE)
 
 			hue_out := element.bounds
-			hue_out.t += hue.y * rect_height(element.bounds) - out_size / 2
+			hue_out.t += int(hue.y * rect_heightf(element.bounds)) - out_size / 2
 			hue_out.b = hue_out.t + out_size
-			hue_out = rect_margin(hue_out, math.round(-hue.animating_unit * 5))
+			hue_out = rect_margin(hue_out, int(-hue.animating_unit * 5))
 
 			out_color := color_hsv_to_rgb(hue.y, 1, 1)
 			render_rect(target, hue_out, out_color)
@@ -2475,7 +2477,7 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 	if msg == .Left_Down || (msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT) {
 		relative_y := element.window.cursor_y - element.bounds.t
-		hue.y = clamp(relative_y / rect_height(element.bounds), 0, 1)
+		hue.y = clamp(f32(relative_y) / rect_heightf(element.bounds), 0, 1)
 		element_message(sv, .Value_Changed)
 		element_repaint(element)
 	}
@@ -2485,8 +2487,7 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	sv := cast(^Color_Picker_SV) element
-	SV_OUT_SIZE :: 10
-	sv_out_size := math.round(SV_OUT_SIZE * SCALE)
+	sv_out_size := int(10 * SCALE)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -2496,12 +2497,12 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			render_texture_from_kind(target, .SV, element.bounds, color)
 
 			sv_out := rect_wh(
-				element.bounds.l + sv.x * rect_width(element.bounds) - sv_out_size / 2, 
-				element.bounds.t + sv.y * rect_height(element.bounds) - sv_out_size / 2,
+				element.bounds.l + int(sv.x * rect_widthf(element.bounds)) - sv_out_size / 2, 
+				element.bounds.t + int(sv.y * rect_heightf(element.bounds)) - sv_out_size / 2,
 				sv_out_size,
 				sv_out_size,
 			)
-			sv_out = rect_margin(sv_out, math.round(-sv.animating_unit * 5))
+			sv_out = rect_margin(sv_out, int(-sv.animating_unit * 5))
 			color = color_to_bw(sv.output)
 			render_rect(target, sv_out, sv.output)
 			render_rect_outline(target, sv_out, color, 0, LINE_WIDTH)
@@ -2553,8 +2554,8 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	if msg == .Left_Down || (msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT) {
 		relative_x := element.window.cursor_x - element.bounds.l
 		relative_y := element.window.cursor_y - element.bounds.t
-		sv.x = clamp(relative_x / rect_width(element.bounds), 0, 1)
-		sv.y = clamp(relative_y / rect_height(element.bounds), 0, 1)
+		sv.x = clamp(f32(relative_x) / rect_widthf(element.bounds), 0, 1)
+		sv.y = clamp(f32(relative_y) / rect_heightf(element.bounds), 0, 1)
 		element_message(element, .Value_Changed)
 		element_repaint(element)
 	}
@@ -2586,8 +2587,8 @@ Toggle_Selector :: struct {
 	names: []string,
 
 	// layouted cells and animation
-	cells: []Rect,
-	cell_gap: f32,
+	cells: []RectI,
+	cell_gap: int,
 
 	// animation
 	cell_values: []f32,
@@ -2600,7 +2601,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 	#partial switch msg {
 		case .Layout: {
-			point_size := POINT_SIZE * SCALE
+			point_size := int(POINT_SIZE * SCALE)
 			fcs_element(element)
 
 			// layout cells
@@ -2610,11 +2611,11 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				toggle.cells[i] = rect_cut_left(&cut, width)
 			}
 
-			toggle.cell_gap = rect_width(cut) / f32(toggle.count)
+			toggle.cell_gap = int(rect_widthf(cut) / f32(toggle.count))
 
 			for i in 0..<toggle.count {
-				toggle.cells[i].l += f32(i) * toggle.cell_gap
-				toggle.cells[i].r += f32(i) * toggle.cell_gap
+				toggle.cells[i].l += i * toggle.cell_gap
+				toggle.cells[i].r += i * toggle.cell_gap
 			}
 		}
 
@@ -2635,7 +2636,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			fcs_element(element)
 			fcs_ahv()
-			point_size := POINT_SIZE * SCALE
+			point_size := int(POINT_SIZE * SCALE)
 
 			for i in 0..<toggle.count {
 				cell := toggle.cells[i]
@@ -2653,7 +2654,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				rect.b = rect.t + point_size
 				rect = rect_margin(rect, 2)
 				color_point := color_blend(theme.text_good, theme.text_default, toggle.cell_values[i], false)
-				render_rect(target, rect, color_point, 10 * SCALE)
+				render_rect(target, rect, color_point, int(10 * SCALE))
 
 				rect.l = cell.l + point_size
 				rect.r = cell.r
@@ -2664,7 +2665,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Get_Width: {
-			sum_width: f32
+			sum_width: int
 			fcs_element(element)
 			// height := f32(element_message(element, .Get_Height))
 			scaled_size := efont_size(element)
@@ -2673,11 +2674,11 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				sum_width += string_width(name) + scaled_size
 			}
 			
-			return int(sum_width + 5 * SCALE)
+			return sum_width + int(5 * SCALE)
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Mouse_Move: {
@@ -2741,7 +2742,7 @@ toggle_selector_init :: proc(
 	res.count = count
 	res.names = names
 	res.cell_values = make([]f32, count)
-	res.cells = make([]Rect, count)
+	res.cells = make([]RectI, count)
 	res.cell_values[value^] = 1
 	return 
 }
@@ -2750,6 +2751,7 @@ toggle_selector_init :: proc(
 // split pane
 //////////////////////////////////////////////
 
+// TODO just rework this to be seperate instead of mixing all shit
 // v / h split 2 panels with a controlable weight
 Split_Pane :: struct {
 	using element: Element,
@@ -2783,7 +2785,7 @@ split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					// set to reversed location
 					if reversed {
 						bound := vertical ? split.bounds.b : split.bounds.r
-						split.weight = bound - SPLITTER_SIZE * SCALE
+						split.weight = f32(bound) - SPLITTER_SIZE * SCALE
 					} else {
 						split.weight = 0
 					}
@@ -2801,7 +2803,7 @@ split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			splitter_size := math.round(SPLITTER_SIZE * SCALE)
-			space := (vertical ? rect_height(element.bounds) : rect_width(element.bounds)) - splitter_size
+			space := rect_opt_vf(element.bounds, vertical) - splitter_size
 			left_size, right_size: f32
 			b := element.bounds
 			
@@ -2816,13 +2818,13 @@ split_pane_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 			
 			if vertical {
-				element_move(left, { b.l, b.r, b.t, b.t + left_size })
-				element_move(splitter, { b.l, b.r, b.t + left_size, b.t + left_size + splitter_size })
-				element_move(right, { b.l, b.r, math.ceil(b.b - right_size), b.b })
+				element_move(left, { b.l, b.r, b.t, b.t + int(left_size) })
+				element_move(splitter, { b.l, b.r, b.t + int(left_size), b.t + int(left_size + splitter_size) })
+				element_move(right, { b.l, b.r, b.b - int(right_size), b.b })
 			} else {
-				element_move(left, { b.l, b.l + left_size, b.t, b.b })
-				element_move(splitter, { b.l + left_size, b.l + left_size + splitter_size, b.t, b.b })
-				element_move(right, { b.r - right_size, b.r, b.t, b.b })
+				element_move(left, { b.l, b.l + int(left_size), b.t, b.b })
+				element_move(splitter, { b.l + int(left_size), b.l + int(left_size) + int(splitter_size), b.t, b.b })
+				element_move(right, { b.r - int(right_size), b.r, b.t, b.b })
 			}
 		}
 	}
@@ -2859,16 +2861,16 @@ splitter_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Mouse_Drag: {
-			cursor := vertical ? element.window.cursor_y : element.window.cursor_x
+			cursor := f32(vertical ? element.window.cursor_y : element.window.cursor_x)
 			splitter_size := math.round(SPLITTER_SIZE * SCALE)
-			space := (vertical ? rect_height(split.bounds) : rect_width(split.bounds)) - splitter_size
+			space := rect_opt_vf(split.bounds, vertical) - splitter_size
 			old_weight := split.weight
 			
 			if split.pixel_based {
-				unit := (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l))
+				unit := (cursor - splitter_size / 2 - f32(vertical ? split.bounds.t : split.bounds.l))
 				split.weight = unit / SCALE
 			} else {
-				split.weight = (cursor - splitter_size / 2 - (vertical ? split.bounds.t : split.bounds.l)) / space
+				split.weight = (cursor - splitter_size / 2 - f32(vertical ? split.bounds.t : split.bounds.l)) / space
 			}
 
 			if !hideable {
@@ -3076,7 +3078,7 @@ linear_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			slide := element.bounds
 			// slide.t = slide.b - math.round(5 * SCALE)
 			// slide.b = slide.t + math.round(3 * SCALE)
-			slide.r = slide.l + min(gauge.position, 1) * f32(rect_width(slide))
+			slide.r = slide.l + int(min(gauge.position, 1) * rect_widthf(slide))
 			render_rect(target, slide, theme.text_good, ROUNDNESS)
 			// render_rect_outline(target, element.bounds, text_color)
 
@@ -3090,12 +3092,12 @@ linear_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		case .Get_Width: {
 			output := gauge_text(gauge)
 			fcs_element(element)
-			width := max(150 * SCALE, string_width(output) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			width := max(int(150 * SCALE), string_width(output) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
 			return int(width)
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 	}
 
@@ -3203,8 +3205,8 @@ image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 				img_width := f32(element_message(element, .Get_Width))
 				img_height := f32(element_message(element, .Get_Height))
 
-				ratio_width := img_width / rect_width(rect)
-				ratio_height := img_height / rect_height(rect)
+				ratio_width := img_width / rect_widthf(rect)
+				ratio_height := img_height / rect_heightf(rect)
 				
 				ratio_aspect: f32
 				switch display.aspect {
@@ -3216,13 +3218,13 @@ image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 				wanted_width := img_width / ratio_aspect
 				wanted_height := img_height / ratio_aspect
 
-				offset_x := rect_width_halfed(rect) - wanted_width / 2
-				offset_y := rect_height_halfed(rect) - wanted_height / 2
+				offset_x := rect_widthf_halfed(rect) - wanted_width / 2
+				offset_y := rect_heightf_halfed(rect) - wanted_height / 2
 
-				rect.l = rect.l + offset_x
-				rect.r = rect.l + wanted_width
-				rect.t = rect.t + offset_y
-				rect.b = rect.t + wanted_height
+				rect.l = rect.l + int(offset_x)
+				rect.r = rect.l + int(wanted_width)
+				rect.t = rect.t + int(offset_y)
+				rect.b = rect.t + int(wanted_height)
 
 				render_texture_from_handle(target, display.img.handle, rect, WHITE)
 			}
@@ -3281,10 +3283,10 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			bounds := element.bounds
 
-			text_height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			text_height := efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 			render_rect(target, bounds, theme.background[1], ROUNDNESS)
 
-			top := rect_cut_top(&bounds, f32(text_height))
+			top := rect_cut_top(&bounds, text_height)
 			fcs_ahv(.Left, .Middle)
 			fcs_color(theme.text_default)
 			fcs_icon(SCALE)
@@ -3295,9 +3297,9 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 				// render_hovered_highlight(target, top)
 			}
 
-			top.l += math.round(MARGIN * SCALE)
+			top.l += int(MARGIN * SCALE)
 			icon: Icon = (.Hide in toggle.panel.flags) ? .Simple_Right : .Simple_Down
-			top.l += math.round(render_icon_rect(target, top, icon) + 5 * SCALE)
+			top.l += int(render_icon_rect(target, top, icon)) + int(5 * SCALE)
 			
 			fcs_element(toggle)
 			text := strings.to_string(toggle.builder)
@@ -3306,9 +3308,9 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Layout: {
 			bounds := element.bounds
-			text_height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
-			bounds.t += f32(text_height)
-			element_move(toggle.panel, rect_margin(bounds, MARGIN * SCALE))
+			text_height := efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+			bounds.t += text_height
+			element_move(toggle.panel, rect_margin(bounds, int(MARGIN * SCALE)))
 		}
 
 		case .Update: {
@@ -3328,7 +3330,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Get_Height: {
-			height := int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			height := efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 			
 			if .Hide not_in toggle.panel.flags {
 				height += element_message(toggle.panel, .Get_Height) + MARGIN * 2
@@ -3340,7 +3342,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		case .Get_Width: {
 			fcs_element(element)
 			text := strings.to_string(toggle.builder)
-			width := max(50 * SCALE, string_width(text) + TEXT_MARGIN_HORIZONTAL * SCALE)
+			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
 			return int(width)
 		}
 	}

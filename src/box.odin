@@ -43,7 +43,7 @@ Box :: struct {
 	line_selection_started: bool,
 	line_selection_start: int,
 	line_selection_end: int,
-	line_selection_start_y: f32,
+	line_selection_start_y: int,
 
 	// when the latest change happened
 	change_start: time.Tick,
@@ -429,17 +429,17 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			element_message(element, .Box_Text_Color, 0, &color)
 			fcs_color(color)
 			fcs_ahv(.Left, .Middle)
-			caret_x: f32
+			caret_x: int
 			text_bounds := element.bounds
-			text_bounds.l += 5 * SCALE
-			text_bounds.r -= 5 * SCALE
+			text_bounds.l += int(5 * SCALE)
+			text_bounds.r -= int(5 * SCALE)
 			text_width := string_width(text)
 
 			// handle scrolling
 			{
 				// clamp scroll(?)
-				if box.scroll > text_width - rect_width(text_bounds) {
-					box.scroll = text_width - rect_width(text_bounds)
+				if box.scroll > f32(text_width - rect_width(text_bounds)) {
+					box.scroll = f32(text_width - rect_width(text_bounds))
 				}
 
 				if box.scroll < 0 {
@@ -448,13 +448,13 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 				// TODO probably will fail?
 				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
-				caret_x -= box.scroll
+				caret_x -= int(box.scroll)
 
 				// check caret x
 				if caret_x < 0 {
-					box.scroll = caret_x + box.scroll
+					box.scroll = f32(caret_x) + box.scroll
 				} else if caret_x > rect_width(text_bounds) {
-					box.scroll = caret_x - rect_width(text_bounds) + box.scroll + 1
+					box.scroll = f32(caret_x - rect_width(text_bounds)) + box.scroll + 1
 				}
 
 				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
@@ -463,7 +463,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			// selection & caret
 			if focused {
 				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
-				x := text_bounds.l - box.scroll
+				x := text_bounds.l - int(box.scroll)
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
 				box_render_selection(target, box, x, y, theme.caret_selection)
 			}
@@ -474,12 +474,12 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			render_string_rect(target, text_bounds, text)
 
 			if focused {
-				x := text_bounds.l - box.scroll
+				x := text_bounds.l - int(box.scroll)
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
 				caret := rect_wh(
 					x + caret_x,
 					y,
-					math.round(2 * SCALE),
+					int(2 * SCALE),
 					scaled_size,
 				)
 				render_rect(target, caret, theme.caret, 0)
@@ -556,7 +556,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element) + TEXT_MARGIN_VERTICAL * SCALE)
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 	}
 
@@ -584,7 +584,7 @@ text_box_init :: proc(
 //////////////////////////////////////////////
 
 // just paints the text based on text color
-task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: f32) {
+task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 	focused := box.window.focused == box
 	target := box.window.target
 
@@ -602,9 +602,9 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: f32) {
 	low, high := box_low_and_high(box)
 
 	// draw each wrapped line
-	y_offset: f32
+	y_offset: int
 	for wrap_line, i in box.wrapped_lines {
-		iter := fontstash.text_iter_init(&gs.fc, wrap_line, box.bounds.l, box.bounds.t + y_offset)
+		iter := fontstash.text_iter_init(&gs.fc, wrap_line, f32(box.bounds.l), f32(box.bounds.t + y_offset))
 
 		for fontstash.text_iter_step(&gs.fc, &iter, &q) {
 			state.color = low <= codepoint_index && codepoint_index < high ? back_color : color
@@ -612,14 +612,14 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: f32) {
 			codepoint_index += 1 
 		}
 
-		y_offset += f32(scaled_size)
+		y_offset += scaled_size
 	}
 
 	fcs_color(color)
 }
 
 // just paints the text based on text color
-task_box_paint_default :: proc(box: ^Task_Box, scaled_size: f32) {
+task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 	focused := box.window.focused == box
 	target := box.window.target
 
@@ -630,10 +630,10 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: f32) {
 	fcs_color(color)
 
 	// draw each wrapped line
-	y: f32
+	y: int
 	for wrap_line, i in box.wrapped_lines {
 		render_string(target, box.bounds.l, box.bounds.t + y, wrap_line)
-		y += math.floor(scaled_size)
+		y += scaled_size
 	}
 
 	fcs_color(color)
@@ -1142,15 +1142,15 @@ box_low_and_high :: proc(box: ^Box) -> (low, high: int) {
 // layout textual caret
 box_layout_caret :: proc(
 	box: ^Box,
-	scaled_size: f32,
+	scaled_size: int,
 	scaling: f32,
-	x, y: f32,
-) -> Rect {
+	x, y: int,
+) -> RectI {
 	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
-	width := math.round(2 * scaling)
+	width := int(2 * scaling)
 	return rect_wh(
 		x + caret_x,
-		y + f32(line) * scaled_size,
+		y + line * scaled_size,
 		width,
 		scaled_size,
 	)
@@ -1159,7 +1159,7 @@ box_layout_caret :: proc(
 box_render_selection :: proc(
 	target: ^Render_Target, 
 	box: ^Box,
-	x, y: f32,
+	x, y: int,
 	color: Color,
 ) {
 	if box.head == box.tail {
@@ -1170,11 +1170,11 @@ box_render_selection :: proc(
 	scaled_size := f32(state.isize / 10)
 
 	for fontstash.wrap_state_iter(&gs.fc, &state) {
-		translated := Rect {
-			x + state.x_from,
-			x + state.x_to,
-			y + f32(state.y - 1) * scaled_size,
-			y + f32(state.y) * scaled_size,
+		translated := RectI {
+			x + int(state.x_from),
+			x + int(state.x_to),
+			y + int(f32(state.y - 1) * scaled_size),
+			y + int(f32(state.y) * scaled_size),
 		}
 
 		render_rect(target, translated, color, 0)
@@ -1188,15 +1188,15 @@ element_box_mouse_selection :: proc(
 	clicks: int,
 	dragging: bool,
 	x_offset: f32,
-	scaled_size: f32,
+	scaled_size: int,
 ) -> (found: bool) {
 	// state used in word / single mouse selection
 	Mouse_Character_Selection :: struct {
-		relative_x, relative_y: f32,
-		old_x, x: f32,
-		old_y, y: f32,	
+		relative_x, relative_y: int,
+		old_x, x: int,
+		old_y, y: int,	
 		codepoint_offset: int, // offset after a text line ended in rune codepoints ofset
-		width_codepoint: f32, // global to store width
+		width_codepoint: int, // global to store width
 	}
 	mcs: Mouse_Character_Selection
 
@@ -1287,7 +1287,7 @@ element_box_mouse_selection :: proc(
 	}
 
 	using mcs
-	relative_x = element.window.cursor_x - element.bounds.l + x_offset
+	relative_x = element.window.cursor_x - element.bounds.l + int(x_offset)
 	relative_y = element.window.cursor_y - element.bounds.t
 
 	ctx := &gs.fc
@@ -1304,7 +1304,7 @@ element_box_mouse_selection :: proc(
 		// loop through lines
 		search_line: for text in b.wrapped_lines {
 			// set state
-			y += f32(scaled_size)
+			y += scaled_size
 			x = 0
 			old_x = 0
 
@@ -1321,7 +1321,7 @@ element_box_mouse_selection :: proc(
 			quad: fontstash.Quad
 			for fontstash.text_iter_step(ctx, &iter, &quad) {
 				old_x = x
-				x = iter.nextx
+				x = int(iter.nextx)
 
 				// check mouse collision
 				if mcs_check_single(&mcs, b, index + codepoint_offset, dragging) {
@@ -1331,7 +1331,7 @@ element_box_mouse_selection :: proc(
 				index += 1
 			}
 
-			x += f32(scaled_size)
+			x += scaled_size
 			mcs_check_single(&mcs, b, iter.codepoint_count + codepoint_offset, dragging)
 			
 			// NOTE safety clamp in case we extended too far
@@ -1360,14 +1360,14 @@ element_box_mouse_selection :: proc(
 				// set state
 				old_x = 0 
 				x = 0
-				y += f32(scaled_size)
+				y += scaled_size
 
 				// temp
 				index_word_start: int = -1
 				codepoint_last: rune
 				index_whitespace_start: int = -1
-				x_word_start: f32
-				x_whitespace_start: f32 = -1
+				x_word_start: int
+				x_whitespace_start: int = -1
 
 				// clamp to left
 				if relative_x < 0 && relative_y < old_y && b.word_selection_started {
@@ -1407,7 +1407,7 @@ element_box_mouse_selection :: proc(
 					}
 
 					// set new position
-					x = iter.nextx
+					x = int(iter.nextx)
 					codepoint_last = iter.codepoint
 					index += 1
 				}
@@ -1432,7 +1432,7 @@ element_box_mouse_selection :: proc(
 		} else {
 			// LINE
 			for text, line_index in b.wrapped_lines {
-				y += f32(scaled_size)
+				y += scaled_size
 				codepoints := cutf8.count(text)
 
 				if old_y < relative_y && relative_y < y {
