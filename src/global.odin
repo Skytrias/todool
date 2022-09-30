@@ -163,9 +163,6 @@ Window :: struct {
 	// proc that gets called before layout & draw
 	update: proc(window: ^Window),
 
-	// undo / redo
-	manager: Undo_Manager,
-
 	// title
 	title_builder: strings.Builder,
 
@@ -423,8 +420,6 @@ window_init :: proc(
 	res.height = int(h)
 	res.heightf = f32(h)
 	res.rect = rect_wh(0, 0, int(w), int(h))
-	res.element.name = "WINDOW"
-	undo_manager_init(&res.manager)
 
 	res.element.window = res
 	res.window_next = gs.windows
@@ -714,7 +709,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 
 				combo := (cast(^string) dp)^
 				if window.focused != nil && combo == "escape" {
-					window.focused = nil
+					element_focus(window, nil)
 					handled = true
 					window.update_next = true
 					return
@@ -789,7 +784,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 							}
 						}
 
-						element_focus(element)
+						element_focus(window, element)
 						element_repaint(element)
 						handled = true
 					}
@@ -949,7 +944,6 @@ window_deallocate :: proc(window: ^Window) {
 	log.info("WINDOW: Deallocate START")
 	shortcut_state_destroy(&window.shortcut_state)
 
-	undo_manager_destroy(&window.manager)
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)
 
@@ -1752,7 +1746,7 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 			if target != nil {
 				if duplicate {
-					element_focus(target)
+					element_focus(element.window, target)
 				} else {
 					element_message(target, .Clicked)
 				}
@@ -1886,10 +1880,10 @@ dialog_spawn :: proc(
 
 	window.dialog_finished = false
 	old_focus := window.focused
-	element_focus(focus_next == nil ? window.dialog : focus_next)
+	element_focus(window, focus_next == nil ? window.dialog : focus_next)
 	defer {
 		if old_focus != nil {
-			element_focus(old_focus)
+			element_focus(window, old_focus)
 		}
 	}
 

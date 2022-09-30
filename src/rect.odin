@@ -6,6 +6,13 @@ RectF :: struct {
 	l, r, t, b: f32,
 }
 
+RECT_LERP_INIT :: RectF {
+	max(f32),
+	-max(f32),
+	max(f32),
+	-max(f32),
+}
+
 RectI :: struct {
 	l, r, t, b: int,
 }
@@ -248,10 +255,14 @@ rect_cut_out_rect :: proc(a, b: RectI) -> (res: [4]RectI) {
 }
 
 rect_lerp :: proc(a: ^RectF, b: RectI, rate: f32) {
-	a.l = math.lerp(a.l, f32(b.l), rate)
-	a.r = math.lerp(a.r, f32(b.r), rate)
-	a.t = math.lerp(a.t, f32(b.t), rate)
-	a.b = math.lerp(a.b, f32(b.b), rate)
+	if a^ == RECT_LERP_INIT {
+		a^ = rect_itof(b)
+	} else {
+		a.l = math.lerp(a.l, f32(b.l), rate)
+		a.r = math.lerp(a.r, f32(b.r), rate)
+		a.t = math.lerp(a.t, f32(b.t), rate)
+		a.b = math.lerp(a.b, f32(b.b), rate)
+	}
 }
 
 rect_ftoi :: proc(a: RectF) -> RectI {
@@ -260,5 +271,14 @@ rect_ftoi :: proc(a: RectF) -> RectI {
 		int(a.r),
 		int(a.t),
 		int(a.b),
+	}
+}
+
+rect_itof :: proc(a: RectI) -> RectF {
+	return {
+		f32(a.l),
+		f32(a.r),
+		f32(a.t),
+		f32(a.b),
 	}
 }

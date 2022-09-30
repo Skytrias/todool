@@ -21,6 +21,11 @@ last_save_location: string
 TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
 
+um_task: Undo_Manager
+um_search: Undo_Manager
+um_goto: Undo_Manager
+um_sidebar_tags: Undo_Manager
+
 panel_info: ^Panel
 mode_panel: ^Mode_Panel
 custom_split: ^Custom_Split
@@ -41,9 +46,6 @@ goto_saved_task_tail: int
 goto_transition_animating: bool
 goto_transition_unit: f32
 goto_transition_hide: bool
-
-// search state
-panel_search: ^Panel
 
 // copy state
 copy_text_data: strings.Builder
@@ -71,7 +73,7 @@ drag_list: [dynamic]^Task
 drag_running: bool
 drag_index_at: int
 drag_goals: [3][2]f32
-drag_rect_lerp: RectF
+drag_rect_lerp: RectF = RECT_LERP_INIT
 drag_circle: bool
 drag_circle_pos: [2]int
 DRAG_CIRCLE :: 30
@@ -144,6 +146,11 @@ task_head_tail_call :: proc(
 }
 
 task_data_init :: proc() {
+	undo_manager_init(&um_task)
+	undo_manager_init(&um_search)
+	undo_manager_init(&um_goto)
+	undo_manager_init(&um_sidebar_tags)
+
 	task_clear_checking = make(map[^Task]u8, 128)
 	tasks_visible = make([dynamic]^Task, 0, 128)
 	task_move_stack = make([]^Task, 256)
@@ -187,6 +194,11 @@ task_data_destroy :: proc() {
 	delete(copy_task_data)
 	delete(drag_list)
 	delete(last_save_location)
+
+	undo_manager_destroy(&um_task)
+	undo_manager_destroy(&um_search)
+	undo_manager_destroy(&um_goto)
+	undo_manager_destroy(&um_sidebar_tags)
 }
 
 // reset copy data
@@ -397,7 +409,7 @@ mode_panel_manager_scoped :: #force_inline proc() -> ^Undo_Manager {
 }
 
 mode_panel_manager_begin :: #force_inline proc() -> ^Undo_Manager {
-	return &mode_panel.window.manager
+	return &um_task
 }
 
 mode_panel_manager_end :: #force_inline proc(manager: ^Undo_Manager) {
@@ -1470,7 +1482,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			} else {
 				old_tail := box.tail
 				scaled_size := fcs_task(task)
-				// scaled_size := task_font_size(task)
 				element_box_mouse_selection(task.box, task.box, di, false, 0, scaled_size)
 
 				if element.window.shift && di == 0 {
@@ -1536,7 +1547,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Value_Changed: {
-			dirty_push(&element.window.manager)
+			dirty_push(&um_task)
 		}
 	}
 
@@ -1858,6 +1869,7 @@ goto_init :: proc(window: ^Window) {
 	spacer_init(p.panel, { .HF }, 0, 10)
 	box := text_box_init(p.panel, { .HF })
 	box.codepoint_numbers_only = true
+	box.um = &um_goto
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
 
@@ -1868,85 +1880,19 @@ goto_init :: proc(window: ^Window) {
 				task_tail = value
 				element_repaint(box)
 			}
+
+			case .Update: {
+				if di == UPDATE_FOCUS_LOST {
+					element_hide(panel_goto, true)
+					element_focus(element.window, nil)
+				}
+			}
 		}
 
 		return 0
 	}
 
 	element_hide(p, true)
-}
-
-search_init :: proc(parent: ^Element) {
-	MARGIN :: 5
-	margin_scaled := math.round(MARGIN * SCALE)
-	height := DEFAULT_FONT_SIZE * SCALE + margin_scaled * 2
-	p := panel_init(parent, { .Panel_Default_Background, .Panel_Horizontal }, margin_scaled, 5)
-	p.background_index = 2
-	// p.shadow = true
-	p.z_index = 2
-
-	label_init(p, {}, "Search")
-
-	box := text_box_init(p, { .HF })
-	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		box := cast(^Text_Box) element
-
-		#partial switch msg {
-			case .Value_Changed: {
-				query := strings.to_string(box.builder)
-				ss_update(query)
-			}
-
-			case .Key_Combination: {
-				combo := (cast(^string) dp)^
-				handled := true
-
-				switch combo {
-					case "escape": {
-						element_hide(panel_search, true)
-						element_repaint(panel_search)
-						task_head = ss.saved_task_head
-						task_tail = ss.saved_task_tail
-					}
-
-					case "return": {
-						element_hide(panel_search, true)
-						element_repaint(panel_search)
-					}
-
-					// next
-					case "f3", "ctrl+n": {
-						ss_find_next()
-					}
-
-					// prev 
-					case "shift+f3", "ctrl+shift+n": {
-						ss_find_prev()
-					}
-
-					case: {
-						handled = false
-					}
-				}
-
-				return int(handled)
-			}
-		}
-
-		return 0
-	}
-
-	b1 := button_init(p, {}, "Find Next")
-	b1.invoke = proc(data: rawptr) {
-		ss_find_next()
-	}
-	b2 := button_init(p, {}, "Find Prev")
-	b2.invoke = proc(data: rawptr) {
-		ss_find_prev()
-	}
-
-	panel_search = p
-	element_hide(panel_search, true)
 }
 
 custom_split_set_scrollbars :: proc(split: ^Custom_Split) {
@@ -2068,7 +2014,7 @@ tasks_load_reset :: proc() {
 	clear(&mode_panel.children)
 	
 	// mode_panel.flags += { .Destroy_Descendent }
-	undo_manager_reset(&mode_panel.window.manager)
+	undo_manager_reset(&um_task)
 	dirty = 0
 	dirty_saved = 0
 }

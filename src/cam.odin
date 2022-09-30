@@ -287,7 +287,15 @@ cam_center_by_height_state :: proc(
 		}
 
 		case .Kanban: {
-
+			// center by view height max height is lower than view height
+			if max_height != -1 && max_height < height {
+				offset_goal = (height / 2 - max_height / 2)
+			} else {
+				top := y - int(cam.offset_y)
+				// NOTE clamps to the top of the kanban region youd like to see at max
+				offset_goal = min(height / 2 - top, cam.margin_y)
+				// fmt.eprintln(top, height, offset_goal, cam.offset_y)
+			}
 		}
 	}
 

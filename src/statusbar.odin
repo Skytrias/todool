@@ -133,14 +133,33 @@ statusbar_update :: proc() {
 		total := len(mode_panel.children)
 		shown := len(tasks_visible)
 		hidden := total - len(tasks_visible)
+		deleted := len(task_clear_checking)
+
+		// run through list and decrease clear count
+		for task in tasks_visible {
+			if task in task_clear_checking {
+				deleted -= 1
+			}
+		}
+		
 		b := &s.label_task_count.builder
 		strings.builder_reset(b)
-		fmt.sbprintf(
-			b, 
-			"Total %d, Shown %d, Hidden %d", 
-			total,
-			shown,
-			hidden,
-		)
+
+		strings.write_string(b, "Total ")
+		strings.write_int(b, total)
+		strings.write_string(b, ", ")
+
+		if hidden != 0 {
+			strings.write_string(b, "Shown ")
+			strings.write_int(b, shown)
+			strings.write_string(b, ", ")
+
+			strings.write_string(b, "Hidden ")
+			strings.write_int(b, shown)
+			strings.write_string(b, ", ")
+		}
+
+		strings.write_string(b, "Deleted ")
+		strings.write_int(b, deleted)
 	}
 }

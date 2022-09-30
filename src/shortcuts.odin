@@ -14,11 +14,11 @@ import "../tfd"
 Shortcut_State :: struct {
 	arena: mem.Arena,
 	arena_backing: []byte,
-	
-	maybe: bool,
 	box: map[string]string,
 	general: map[string]string,
 }
+mapping_push_to: ^map[string]string
+mapping_check: bool
 
 shortcut_state_init :: proc(s: ^Shortcut_State, arena_cap: int) {
 	s.arena_backing = make([]byte, arena_cap)
@@ -34,34 +34,23 @@ shortcut_state_destroy :: proc(s: ^Shortcut_State) {
 	delete(s.arena_backing)
 }
 
-// push box command with N combos
-shortcuts_push_box :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
-	for combo in combos {
-		s.box[strings.clone(combo)] = strings.clone(command)
-	}
-}
-
 // push general command with N combos
-shortcuts_push_general :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
+mapping_push :: proc(command: string, combos: ..string) {
 	for combo in combos {
-		s.general[strings.clone(combo)] = strings.clone(command)
+		mapping_push_to[strings.clone(combo)] = strings.clone(command)
 	}
 }
 
-// inserts the wanted combo if the combo doesnt exist yet
-shortcuts_push_maybe :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
+mapping_push_checked :: proc(command: string, combos: ..string) {
 	for combo in combos {
-		if combo not_in s.general {
-			s.general[strings.clone(combo)] = strings.clone(command)
-		}
-	}
-}
+		// if !mapping_check || (mapping_check && combo not_in mapping_push_to) {
+			if mapping_check {
+				fmt.eprintln(combo in mapping_push_to)
 
-shortcuts_push_opt :: proc(s: ^Shortcut_State, command: string, combos: ..string) {
-	for combo in combos {
-		if (s.maybe && combo not_in s.general) || !s.maybe {
-			s.general[strings.clone(combo)] = strings.clone(command)
-		}
+				fmt.eprintln("FORCED", command, "in for", combo)
+			}
+			mapping_push_to[strings.clone(combo)] = strings.clone(command)
+		// }
 	}		
 }
 
@@ -75,18 +64,20 @@ shortcuts_clear :: proc(window: ^Window) {
 
 // push default box shortcuts
 shortcuts_push_box_default :: proc(window: ^Window) {
-	s := &window.shortcut_state
-	context.allocator = mem.arena_allocator(&s.arena)
-	shortcuts_push_box(s, "move_left", "ctrl+shift+left", "ctrl+left", "shift+left", "left")
-	shortcuts_push_box(s, "move_right", "ctrl+shift+right", "ctrl+right", "shift+right", "right")
-	shortcuts_push_box(s, "home", "shift+home", "home")
-	shortcuts_push_box(s, "end", "shift+end", "end")
-	shortcuts_push_box(s, "backspace", "ctrl+backspace", "shift+backspace", "backspace")
-	shortcuts_push_box(s, "delete", "shift+delete", "delete")
-	shortcuts_push_box(s, "select_all", "ctrl+a")
-	shortcuts_push_box(s, "copy", "ctrl+c")
-	shortcuts_push_box(s, "cut", "ctrl+x")
-	shortcuts_push_box(s, "paste", "ctrl+v")
+	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
+	mapping_push_to = &window.shortcut_state.box
+	mapping_push("move_left", "ctrl+shift+left", "ctrl+left", "shift+left", "left")
+	mapping_push("move_right", "ctrl+shift+right", "ctrl+right", "shift+right", "right")
+	mapping_push("home", "shift+home", "home")
+	mapping_push("end", "shift+end", "end")
+	mapping_push("backspace", "ctrl+backspace", "shift+backspace", "backspace")
+	mapping_push("delete", "shift+delete", "delete")
+	mapping_push("select_all", "ctrl+a")
+	mapping_push("copy", "ctrl+c")
+	mapping_push("cut", "ctrl+x")
+	mapping_push("paste", "ctrl+v")
+
+	mapping_push_v021_box(window, false)
 }
 
 shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
@@ -184,101 +175,108 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 }
 
 shortcuts_push_todool_default :: proc(window: ^Window) {
-	s := &window.shortcut_state
-	context.allocator = mem.arena_allocator(&s.arena)
-	shortcuts_push_general(s, "move_up", "shift+up", "ctrl+up", "up")
-	shortcuts_push_general(s, "move_down", "shift+down", "ctrl+down", "down")
+	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
+	mapping_push_to = &window.shortcut_state.general
+	mapping_push("move_up", "shift+up", "ctrl+up", "up")
+	mapping_push("move_down", "shift+down", "ctrl+down", "down")
 	
-	shortcuts_push_general(s, "indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
-	shortcuts_push_general(s, "indent_jump_low_next", "ctrl+shift+.", "ctrl+.")
-	shortcuts_push_general(s, "indent_jump_same_prev", "ctrl+shift+up", "ctrl+up")
-	shortcuts_push_general(s, "indent_jump_same_next", "ctrl+shift+down", "ctrl+down")
-	shortcuts_push_general(s, "indent_jump_scope", "ctrl+shift+m", "ctrl+m")
+	mapping_push("indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
+	mapping_push("indent_jump_low_next", "ctrl+shift+.", "ctrl+.")
+	mapping_push("indent_jump_same_prev", "ctrl+shift+up", "ctrl+up")
+	mapping_push("indent_jump_same_next", "ctrl+shift+down", "ctrl+down")
+	mapping_push("indent_jump_scope", "ctrl+shift+m", "ctrl+m")
 	
-	shortcuts_push_general(s, "bookmark_jump_prev", "ctrl+shift+tab")
-	shortcuts_push_general(s, "bookmark_jump_next", "ctrl+tab")
+	mapping_push("bookmark_jump_prev", "ctrl+shift+tab")
+	mapping_push("bookmark_jump_next", "ctrl+tab")
 
-	shortcuts_push_general(s, "tasks_to_uppercase", "ctrl+shift+j")
-	shortcuts_push_general(s, "tasks_to_lowercase", "ctrl+shift+l")
+	mapping_push("tasks_to_uppercase", "ctrl+shift+j")
+	mapping_push("tasks_to_lowercase", "ctrl+shift+l")
 
-	shortcuts_push_general(s, "delete_on_empty", "ctrl+backspace", "backspace")
-	shortcuts_push_general(s, "delete_tasks", "ctrl+d", "ctrl+shift+k")
+	mapping_push("delete_on_empty", "ctrl+backspace", "backspace")
+	mapping_push("delete_tasks", "ctrl+d", "ctrl+shift+k")
 	
-	shortcuts_push_general(s, "copy_tasks_to_clipboard", "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c")
-	shortcuts_push_general(s, "copy_tasks", "ctrl+c")
-	shortcuts_push_general(s, "duplicate_line", "ctrl+l")
-	shortcuts_push_general(s, "cut_tasks", "ctrl+x")
-	shortcuts_push_general(s, "paste_tasks", "ctrl+v")
-	shortcuts_push_general(s, "paste_tasks_from_clipboard", "ctrl+shift+v")
-	shortcuts_push_general(s, "center", "ctrl+e")
+	mapping_push("copy_tasks_to_clipboard", "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c")
+	mapping_push("copy_tasks", "ctrl+c")
+	mapping_push("duplicate_line", "ctrl+l")
+	mapping_push("cut_tasks", "ctrl+x")
+	mapping_push("paste_tasks", "ctrl+v")
+	mapping_push("paste_tasks_from_clipboard", "ctrl+shift+v")
+	mapping_push("center", "ctrl+e")
 	
-	shortcuts_push_general(s, "change_task_state", "ctrl+shift+q", "ctrl+q")
+	mapping_push("change_task_state", "ctrl+shift+q", "ctrl+q")
 	
-	shortcuts_push_general(s, "selection_stop", "left", "right")
-	shortcuts_push_general(s, "toggle_folding", "ctrl+j")
-	shortcuts_push_general(s, "toggle_bookmark", "ctrl+b")
+	mapping_push("selection_stop", "left", "right")
+	mapping_push("toggle_folding", "ctrl+j")
+	mapping_push("toggle_bookmark", "ctrl+b")
 
-	shortcuts_push_general(s, "tag_toggle1", "ctrl+1")
-	shortcuts_push_general(s, "tag_toggle2", "ctrl+2")
-	shortcuts_push_general(s, "tag_toggle3", "ctrl+3")
-	shortcuts_push_general(s, "tag_toggle4", "ctrl+4")
-	shortcuts_push_general(s, "tag_toggle5", "ctrl+5")
-	shortcuts_push_general(s, "tag_toggle6", "ctrl+6")
-	shortcuts_push_general(s, "tag_toggle7", "ctrl+7")
-	shortcuts_push_general(s, "tag_toggle8", "ctrl+8")
+	mapping_push("tag_toggle1", "ctrl+1")
+	mapping_push("tag_toggle2", "ctrl+2")
+	mapping_push("tag_toggle3", "ctrl+3")
+	mapping_push("tag_toggle4", "ctrl+4")
+	mapping_push("tag_toggle5", "ctrl+5")
+	mapping_push("tag_toggle6", "ctrl+6")
+	mapping_push("tag_toggle7", "ctrl+7")
+	mapping_push("tag_toggle8", "ctrl+8")
 	
-	shortcuts_push_general(s, "changelog_generate", "alt+x")
+	mapping_push("changelog_generate", "alt+x")
 	
-	shortcuts_push_general(s, "indentation_shift_right", "tab")
-	shortcuts_push_general(s, "indentation_shift_left", "shift+tab")
+	mapping_push("indentation_shift_right", "tab")
+	mapping_push("indentation_shift_left", "shift+tab")
 
-	shortcuts_push_general(s, "pomodoro_toggle1", "alt+1")
-	shortcuts_push_general(s, "pomodoro_toggle2", "alt+2")
-	shortcuts_push_general(s, "pomodoro_toggle3", "alt+3")
+	mapping_push("pomodoro_toggle1", "alt+1")
+	mapping_push("pomodoro_toggle2", "alt+2")
+	mapping_push("pomodoro_toggle3", "alt+3")
 	
-	shortcuts_push_general(s, "mode_list", "alt+q")
-	shortcuts_push_general(s, "mode_kanban", "alt+w")
-	shortcuts_push_general(s, "theme_editor", "alt+e")
+	mapping_push("mode_list", "alt+q")
+	mapping_push("mode_kanban", "alt+w")
+	mapping_push("theme_editor", "alt+e")
 
-	shortcuts_push_general(s, "insert_sibling", "return")
-	shortcuts_push_general(s, "insert_child", "ctrl+return")
+	mapping_push("insert_sibling", "return")
+	mapping_push("insert_child", "ctrl+return")
 
-	shortcuts_push_general(s, "shift_down", "alt+down")
-	shortcuts_push_general(s, "shift_up", "alt+up")
-	shortcuts_push_general(s, "select_all", "ctrl+shift+a")
+	mapping_push("shift_down", "alt+down")
+	mapping_push("shift_up", "alt+up")
+	mapping_push("select_all", "ctrl+shift+a")
 
-	shortcuts_push_general(s, "undo", "ctrl+z")
-	shortcuts_push_general(s, "redo", "ctrl+y")
-	shortcuts_push_general(s, "save", "ctrl+s")
-	shortcuts_push_general(s, "save_as", "ctrl+shift+s")
-	shortcuts_push_general(s, "new_file", "ctrl+n")
-	shortcuts_push_general(s, "load", "ctrl+o")
+	mapping_push("undo", "ctrl+z")
+	mapping_push("redo", "ctrl+y")
+	mapping_push("save", "ctrl+s")
+	mapping_push("save_as", "ctrl+shift+s")
+	mapping_push("new_file", "ctrl+n")
+	mapping_push("load", "ctrl+o")
 
-	shortcuts_push_general(s, "goto", "ctrl+g")
-	shortcuts_push_general(s, "search", "ctrl+f")
-	shortcuts_push_general(s, "escape", "escape")
+	mapping_push("goto", "ctrl+g")
+	mapping_push("search", "ctrl+f")
+	mapping_push("escape", "escape")
 
-	// v0.2.1
-	shortcuts_push_v021(s, false)
+	mapping_push_v021_todool(window, false)
 }
 
-shortcuts_push_v021 :: proc(s: ^Shortcut_State, maybe: bool) {
-	s.maybe = maybe
-	shortcuts_push_opt(s, "select_children", "ctrl+h")
-	shortcuts_push_opt(s, "move_up_stack", "ctrl+shift+home", "ctrl+home")
-	shortcuts_push_opt(s, "move_down_stack", "ctrl+shift+end", "ctrl+end")
-	shortcuts_push_opt(s, "indent_jump_nearby_prev", "alt+left")
-	shortcuts_push_opt(s, "indent_jump_nearby_next", "alt+right")
-	shortcuts_push_opt(s, "fullscreen_toggle", "f11")
+mapping_push_v021_todool :: proc(window: ^Window, maybe: bool) {
+	mapping_check = maybe
+	mapping_push_to = &window.shortcut_state.general
+	mapping_push_checked("select_children", "ctrl+h")
+	mapping_push_checked("move_up_stack", "ctrl+shift+home", "ctrl+home")
+	mapping_push_checked("move_down_stack", "ctrl+shift+end", "ctrl+end")
+	mapping_push_checked("indent_jump_nearby_prev", "alt+left")
+	mapping_push_checked("indent_jump_nearby_next", "alt+right")
+	mapping_push_checked("fullscreen_toggle", "f11")
+	mapping_check = false
+}
 
-	s.maybe = false
+mapping_push_v021_box :: proc(window: ^Window, maybe: bool) {
+	mapping_check = maybe
+	mapping_push_to = &window.shortcut_state.box
+	mapping_push_checked("undo", "ctrl+z")
+	mapping_push_checked("redo", "ctrl+y")
+	mapping_check = false
 }
 
 // use this on newest release
-shortcuts_push_newest_version :: proc(window: ^Window) {
-	s := &window.shortcut_state
-	context.allocator = mem.arena_allocator(&s.arena)
-	shortcuts_push_v021(s, true)
+mapping_push_newest_version :: proc(window: ^Window) {
+	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
+	mapping_push_v021_todool(window, true)
+	mapping_push_v021_box(window, true)
 }
 
 todool_delete_on_empty :: proc() {
@@ -647,11 +645,6 @@ todool_selection_stop :: proc() {
 todool_escape :: proc() {
 	if image_display_has_content(custom_split.image_display) {
 		custom_split.image_display.img = nil
-		element_repaint(mode_panel)
-		return
-	}
-
-	if element_hide(panel_search, true) {
 		element_repaint(mode_panel)
 		return
 	}
@@ -1185,7 +1178,7 @@ todool_indentation_shift :: proc(amt: int) {
 }
 
 todool_undo :: proc() {
-	manager := &mode_panel.window.manager
+	manager := &um_task
 	if !undo_is_empty(manager, false) {
 		// reset bookmark index
 		bookmark_index = -1
@@ -1196,7 +1189,7 @@ todool_undo :: proc() {
 }
 
 todool_redo :: proc() {
-	manager := &mode_panel.window.manager
+	manager := &um_task
 	if !undo_is_empty(manager, true) {
 		// reset bookmark index
 		bookmark_index = -1
@@ -1328,7 +1321,7 @@ todool_goto :: proc() {
 
 	box := element_find_first_text_box(p.panel)
 	assert(box != nil)
-	element_focus(box)
+	element_focus(window_main, box)
 
 	goto_saved_task_head = task_head
 	goto_saved_task_tail = task_tail
@@ -1349,7 +1342,7 @@ todool_search :: proc() {
 
 	box := element_find_first_text_box(p)
 	assert(box != nil)
-	element_focus(box)
+	element_focus(window_main, box)
 
 	if task_head != -1 {
 		task := tasks_visible[task_head]

@@ -273,7 +273,6 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		panel := panel_init(element, flags, 5, 5)
 		panel.background_index = 1
 		// panel.z_index = 2
-		panel.name = "shared panel"
 
 		header := label_init(panel, { .Label_Center }, title)
 		header.font_options = &font_options_header
@@ -434,7 +433,6 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 		{
 			buttons = panel_init(panel, { .HF, .VF, .Panel_Default_Background, .Panel_Scroll_Vertical }, 5, 1)
-			buttons.name = "buttons panel"
 			buttons.background_index = 2
 			buttons.layout_elements_in_reverse = true
 		}

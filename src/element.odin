@@ -19,7 +19,8 @@ UPDATE_HOVERED :: 1
 UPDATE_HOVERED_LEAVE :: 2
 UPDATE_PRESSED :: 3
 UPDATE_PRESSED_LEAVE :: 4
-UPDATE_FOCUSED :: 5
+UPDATE_FOCUS_GAINED :: 5
+UPDATE_FOCUS_LOST :: 6
 
 SCROLLBAR_SIZE :: 15
 TEXT_MARGIN_VERTICAL :: 10
@@ -155,7 +156,6 @@ Element :: struct {
 	// optional data that can be set andd used
 	data: rawptr,
 	allocator: mem.Allocator,
-	name: string,
 }
 
 // default way to call clicked event on tab stop element
@@ -507,29 +507,29 @@ element_deallocate :: proc(element: ^Element) -> bool {
 // reset focus to window
 element_reset_focus :: proc(window: ^Window) {
 	if window.focused != &window.element {
-		element_focus(&window.element)
+		element_focus(window, &window.element)
 		element_repaint(&window.element)
 	}
 }
 
 // focus an element and update both elements
-element_focus :: proc(element: ^Element) -> bool {
-	prev := element.window.focused
+element_focus :: proc(window: ^Window, element: ^Element) -> bool {
+	prev := window.focused
 	
 	// skip same element
 	if prev == element {
 		return false
 	}
 
-	element.window.focused = element
+	window.focused = element
 	
 	// send messages to prev and current
 	if prev != nil {
-		element_message(prev, .Update, UPDATE_FOCUSED)
+		element_message(prev, .Update, UPDATE_FOCUS_LOST)
 	}
 
 	if element != nil {
-		element_message(element, .Update, UPDATE_FOCUSED)
+		element_message(element, .Update, UPDATE_FOCUS_GAINED)
 	}
 
 	return true
@@ -1364,8 +1364,8 @@ Panel :: struct {
 	layout_elements_in_reverse: bool,
 	
 	// gut info
-	margin: f32,
-	gap: f32,
+	margin: int,
+	gap: int,
 	color: ^Color,
 
 	// shadow + roundness
@@ -1415,7 +1415,7 @@ panel_calculate_per_fill :: proc(panel: ^Panel, hspace, vspace: int) -> (per_fil
 	}
 
 	if count != 0 {
-		available -= (count - 1) * int(panel.gap * SCALE)
+		available -= (count - 1) * int(f32(panel.gap) * SCALE)
 	}
 
 	if available > 0 && fill != 0 {
@@ -1442,7 +1442,7 @@ panel_measure :: proc(panel: ^Panel, di: int) -> int {
 		}
 	}
 
-	return size + int(panel.margin * SCALE * 2)
+	return size + int(f32(panel.margin) * SCALE * 2)
 }
 
 panel_layout :: proc(
@@ -1451,7 +1451,7 @@ panel_layout :: proc(
 	measure: bool, 
 ) -> int {
 	horizontal := .Panel_Horizontal in panel.flags
-	scaled_margin := int(panel.margin * SCALE)
+	scaled_margin := int(f32(panel.margin) * SCALE)
 	position_x := int(0)
 	position_y := int(0)
 	position_layout := scaled_margin
@@ -1469,7 +1469,7 @@ panel_layout :: proc(
 	vspace := rect_height(bounds) - scaled_margin * 2
 	per_fill, count := panel_calculate_per_fill(panel, int(hspace), int(vspace))
 	expand := .Panel_Expand in panel.flags
-	gap_scaled := int(panel.gap * SCALE)
+	gap_scaled := int(f32(panel.gap) * SCALE)
 
 	for i in 0..<len(panel.children) {
 		child := panel.children[panel.layout_elements_in_reverse ? len(panel.children) - 1 - i : i]
@@ -1514,7 +1514,7 @@ panel_layout :: proc(
 		}
 	}
 
-	return position_layout - int((count != 0 ? panel.gap : 0) * SCALE) + scaled_margin
+	return position_layout - int((count != 0 ? f32(panel.gap) : 0) * SCALE) + scaled_margin
 }
 
 panel_render_default :: proc(target: ^Render_Target, panel: ^Panel) {
@@ -1686,8 +1686,8 @@ scroll_flags :: proc(flags: Element_Flags) -> bool {
 panel_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
-	margin: f32 = 0,
-	gap: f32 = 0,
+	margin: int = 0,
+	gap: int = 0,
 	color: ^Color = nil,
 	allocator := context.allocator,
 ) -> (res: ^Panel) {
@@ -1764,7 +1764,7 @@ panel_floaty_init :: proc(
 	res.z_index = 255
 	
 	p := panel_init(res, { .Panel_Default_Background })
-	p.margin = math.round(4 * SCALE)
+	p.margin = int(4 * SCALE)
 	p.rounded = true
 	res.panel = p
 	return

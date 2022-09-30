@@ -811,7 +811,7 @@ keymap_load :: proc(path: string) -> bool {
 		shortcuts_clear(window_main)
 		s := &window_main.shortcut_state
 		context.allocator = mem.arena_allocator(&s.arena)
-		
+
 		for combo, command in box {
 			s.box[strings.clone(combo)] = strings.clone(command)
 		}
@@ -821,6 +821,6 @@ keymap_load :: proc(path: string) -> bool {
 		}
 	}
 
-	shortcuts_push_newest_version(window_main)
+	mapping_push_newest_version(window_main)
 	return true
 }

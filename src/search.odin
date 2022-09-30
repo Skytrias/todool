@@ -41,6 +41,7 @@ Search_State :: struct {
 	current_index: int,
 }
 ss: Search_State
+panel_search: ^Panel
 
 // init to cap
 ss_init :: proc() {
@@ -218,4 +219,83 @@ ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 			}
 		}
 	}
+}
+
+search_init :: proc(parent: ^Element) {
+	margin_scaled := int(5 * SCALE)
+	height := int(DEFAULT_FONT_SIZE * SCALE) + margin_scaled * 2
+	p := panel_init(parent, { .Panel_Default_Background, .Panel_Horizontal }, margin_scaled, 5)
+	p.background_index = 2
+	// p.shadow = true
+	p.z_index = 2
+
+	label_init(p, {}, "Search")
+
+	box := text_box_init(p, { .HF })
+	box.um = &um_search
+	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		box := cast(^Text_Box) element
+
+		#partial switch msg {
+			case .Value_Changed: {
+				query := strings.to_string(box.builder)
+				ss_update(query)
+			}
+
+			case .Key_Combination: {
+				combo := (cast(^string) dp)^
+				handled := true
+
+				switch combo {
+					case "escape": {
+						element_hide(panel_search, true)
+						element_repaint(panel_search)
+						task_head = ss.saved_task_head
+						task_tail = ss.saved_task_tail
+					}
+
+					case "return": {
+						element_hide(panel_search, true)
+						element_repaint(panel_search)
+					}
+
+					// next
+					case "f3", "ctrl+n": {
+						ss_find_next()
+					}
+
+					// prev 
+					case "shift+f3", "ctrl+shift+n": {
+						ss_find_prev()
+					}
+
+					case: {
+						handled = false
+					}
+				}
+
+				return int(handled)
+			}
+
+			case .Update: {
+				if di == UPDATE_FOCUS_LOST {
+					element_hide(panel_search, true)
+				}
+			}
+		}
+
+		return 0
+	}
+
+	b1 := button_init(p, {}, "Find Next")
+	b1.invoke = proc(data: rawptr) {
+		ss_find_next()
+	}
+	b2 := button_init(p, {}, "Find Prev")
+	b2.invoke = proc(data: rawptr) {
+		ss_find_prev()
+	}
+
+	panel_search = p
+	element_hide(panel_search, true)
 }
