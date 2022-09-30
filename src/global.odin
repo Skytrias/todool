@@ -559,7 +559,7 @@ window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
 		log.error("WINDOW BORDER SIZE call not supported")
 	}
 
-	// left, right, top, bottom = 0, 0, 0, 0
+	left, right, top, bottom = 0, 0, 0, 0
 	return
 }
 

@@ -182,7 +182,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	texture_generate_from_png(res, .HUE, png_hue, "_hue")
 	texture_generate_from_png(res, .Kanban, png_mode_icon_kanban, "_kanban")
 	texture_generate_from_png(res, .List, png_mode_icon_list, "_list")
-	texture_generate_from_png(res, .Drag, png_mode_icon_drag, "_drag", gl.LINEAR)
+	texture_generate_from_png(res, .Drag, png_mode_icon_drag, "_drag", gl.CLAMP_TO_EDGE, gl.LINEAR)
 
 	res.shallow_uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_custom")
 	// log.info("bind slots", gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS)
@@ -554,6 +554,7 @@ texture_generate_from_png :: proc(
 	data: []byte, 
 	text: string,
 	mode := i32(gl.CLAMP_TO_EDGE),
+	param := i32(gl.NEAREST),
 ) -> (res: ^image.Image) {
 	err: image.Error
 	res, err = png.load_from_bytes(data)
@@ -579,7 +580,7 @@ texture_generate_from_png :: proc(
 		uniform_sampler = location,
 	}
 
-	texture_generate(target, kind, mode)
+	texture_generate(target, kind, mode, param)
 	return
 }
 

@@ -412,6 +412,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			text: string,
 		) {
 			b := text_box_init(panel, { .HF }, text)
+			b.um = &um_sidebar_tags
 			sb.tags.names[sb.tags.temp_index]	= &b.builder
 			sb.tags.temp_index += 1
 		}

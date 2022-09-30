@@ -2162,6 +2162,13 @@ tasks_load_tutorial :: proc() {
 		t("ctrl+e -> center the view vertically")
 	}
 
+	{
+		push_scoped_task("Context Menus")
+		t("rightclick task -> Task Context Menu opens")
+		t("rightclick multi-selection -> Multi-Selection Prompt opens")
+		t("rightclick empty -> Default Context Menu Opens")
+	}
+
 	task_head = 0
 	task_tail = 0
 
