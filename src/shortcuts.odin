@@ -41,16 +41,14 @@ mapping_push :: proc(command: string, combos: ..string) {
 	}
 }
 
+// skips already existing combos in the mapping
 mapping_push_checked :: proc(command: string, combos: ..string) {
 	for combo in combos {
-		// if !mapping_check || (mapping_check && combo not_in mapping_push_to) {
-			if mapping_check {
-				fmt.eprintln(combo in mapping_push_to)
+		if mapping_check && combo in mapping_push_to {
+			continue
+		}
 
-				fmt.eprintln("FORCED", command, "in for", combo)
-			}
-			mapping_push_to[strings.clone(combo)] = strings.clone(command)
-		// }
+		mapping_push_to[strings.clone(combo)] = strings.clone(command)
 	}		
 }
 

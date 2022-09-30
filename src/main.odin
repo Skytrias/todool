@@ -14,9 +14,9 @@ import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
 
-TRACK_MEMORY :: true
-TODOOL_RELEASE :: false
-ALLOW_SCALE :: true
+TRACK_MEMORY :: false
+TODOOL_RELEASE :: true
+ALLOW_SCALE :: false
 
 // main :: proc() {
 // 	Test_Struct1 :: struct {

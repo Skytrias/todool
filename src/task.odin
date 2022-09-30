@@ -2204,9 +2204,9 @@ task_context_menu_spawn :: proc(task: ^Task) {
 			todool_change_task_selection_state_to(.Canceled)
 		}
 	} else {
-		state := cast(^int) &task.state
 		names := reflect.enum_field_names(Task_State)
-		t := toggle_selector_init(p, {}, state, len(Task_State), names)
+		t := toggle_selector_init(p, {}, int(task.state), len(Task_State), names)
+		t.data = task
 		t.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			toggle := cast(^Toggle_Selector) element
 
@@ -2215,11 +2215,14 @@ task_context_menu_spawn :: proc(task: ^Task) {
 				manager := mode_panel_manager_scoped()
 				task_head_tail_push(manager)
 
+				task := cast(^Task) element.data
+				state := cast(^u8) &task.state
 				item := Undo_Item_U8_Set {
-					cast(^u8) toggle.value,
-					u8(toggle.value_old),
+					state,
+					state^,
 				}
 				undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
+				state^ = u8(toggle.value)
 			}
 
 			return 0

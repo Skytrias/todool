@@ -16,7 +16,10 @@ GAP_VERTICAL_MAX :: 20
 KANBAN_WIDTH_MIN :: 300
 KANBAN_WIDTH_MAX :: 1000
 TASK_MARGIN_MAX :: 50
-// TASK_MARGIN_MIN :: 0
+OPACITY_MIN :: 0.1
+OPACITY_MAX :: 1.0
+ANIMATION_SPEED_MIN :: 0.1
+ANIMATION_SPEED_MAX :: 4
 
 // push to archive text
 archive_push :: proc(text: string) {
@@ -85,12 +88,14 @@ Sidebar_Options :: struct {
 	checkbox_bordered: ^Checkbox,
 	checkbox_hide_statusbar: ^Checkbox,
 	slider_volume: ^Slider,
+	slider_opacity: ^Slider,
 
 	slider_tab: ^Slider,
 	slider_gap_vertical: ^Slider,
 	slider_gap_horizontal: ^Slider,
 	slider_kanban_width: ^Slider,
 	slider_task_margin: ^Slider,
+	slider_animation_speed: ^Slider,
 	checkbox_use_animations: ^Checkbox,	
 }
 
@@ -335,6 +340,20 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			fmt.sbprintf(builder, "Volume: %d%%", int(position * 100))
 		}
 
+		slider_opacity = slider_init(panel, flags, 1)
+		slider_opacity.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			slider := cast(^Slider) element
+
+			if msg == .Value_Changed {
+				window_opacity_set(window_main, clamp(slider.position, OPACITY_MIN, OPACITY_MAX))
+			}
+
+			return 0
+		}
+		slider_opacity.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "Opacity: %d%%", int(position * 100))
+		}
+
 		spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
 		label_visuals := label_init(panel, { .HF, .Label_Center }, "Visuals")
 		label_visuals.font_options = &font_options_header
@@ -371,6 +390,14 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		}
 		slider_task_margin.hover_info = "Margin in px around a task"
 
+		animation_speed_default := math.remap(f32(1), ANIMATION_SPEED_MIN, ANIMATION_SPEED_MAX, 0, 1)
+		slider_animation_speed = slider_init(panel, flags, animation_speed_default)
+		slider_animation_speed.formatting = proc(builder: ^strings.Builder, position: f32) {
+			value := visuals_animation_speed()
+			fmt.sbprintf(builder, "Animation Speed: %d%%", int(value * 100))
+		}
+		slider_animation_speed.hover_info = "Animation speed multiplier of all linear animations"
+
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 	}
 
@@ -404,10 +431,21 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		toggle_selector_tag = toggle_selector_init(
 			panel,
 			{ .HF },
-			&sb.tags.tag_show_mode,
+			sb.tags.tag_show_mode,
 			TAG_SHOW_COUNT,
 			tag_show_text[:],
 		)
+		toggle_selector_tag.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			toggle := cast(^Toggle_Selector) element
+
+			#partial switch msg {
+				case .Value_Changed: {
+					sb.tags.tag_show_mode = toggle.value
+				}
+			}
+
+			return 0
+		}
 	}
 
 	// archive
@@ -671,9 +709,10 @@ visuals_task_margin :: #force_inline proc() -> f32 {
 	return sb.options.slider_task_margin.position * TASK_MARGIN_MAX
 }
 
-// Mode_Based_Button :: struct {
-// 	index: int,
-// }
+visuals_animation_speed :: #force_inline proc() -> f32 {
+	value := math.remap(sb.options.slider_animation_speed.position, 0, 1, ANIMATION_SPEED_MIN, ANIMATION_SPEED_MAX)
+	return value
+}
 
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Image_Button) element

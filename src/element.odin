@@ -235,7 +235,7 @@ animate_to :: proc(
 	if value^ == -1 {
 		value^ = goal
 	} else {
-		lambda := 10 * rate
+		lambda := 10 * rate * visuals_animation_speed()
 		res := math.lerp(value^, goal, 1 - math.exp(-lambda * gs.dt))
 		// res := math.lerp(value^, end, 1 - math.pow(rate, core.dt * 10))
 
@@ -2597,8 +2597,7 @@ color_picker_init :: proc(
 
 Toggle_Selector :: struct {
 	using element: Element,
-	value: ^int,
-	value_old: int, 
+	value: int,
 	count: int,
 	names: []string,
 
@@ -2706,9 +2705,9 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			for i in 0..<toggle.count {
 				r := toggle.cells[i]
 				if rect_contains(r, element.window.cursor_x, element.window.cursor_y) {
-					if toggle.value^ != i {
-						toggle.value_old = toggle.value^
-						toggle.value^ = i
+					if toggle.value != i {
+						// toggle.value_old = toggle.value^
+						toggle.value = i
 						element_message(element, .Value_Changed)
 						element_animation_start(element)
 						element_repaint(element)
@@ -2727,7 +2726,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				handled |= animate_to(
 					&state,
 					&toggle.cell_values[i],
-					f32(i == toggle.value^ ? 1 : 0),
+					f32(i == toggle.value ? 1 : 0),
 					2,
 					0.01,
 				)
@@ -2748,7 +2747,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 toggle_selector_init :: proc(
 	parent: ^Element,
 	flags: Element_Flags,
-	value: ^int,
+	value: int,
 	count: int,
 	names: []string,
 	allocator := context.allocator,
@@ -2759,8 +2758,23 @@ toggle_selector_init :: proc(
 	res.names = names
 	res.cell_values = make([]f32, count)
 	res.cells = make([]RectI, count)
-	res.cell_values[value^] = 1
+	res.cell_values[value] = 1
 	return 
+}
+
+// NOTE without animation
+toggle_selector_set :: proc(
+	toggle: ^Toggle_Selector,
+	value: int,
+) {
+	toggle.value = value
+	for i in 0..<toggle.count {
+		if i == value {
+			toggle.cell_values[i] = 1
+		} else {
+			toggle.cell_values[i] = 0
+		}
+	}
 }
 
 //////////////////////////////////////////////

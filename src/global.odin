@@ -1974,6 +1974,15 @@ window_fullscreen_toggle :: proc(window: ^Window) {
 	window.fullscreened = !window.fullscreened
 }
 
+window_opacity_get :: proc(window: ^Window) -> (res: f32) {
+	sdl.GetWindowOpacity(window.w, &res)
+	return
+}
+
+window_opacity_set :: proc(window: ^Window, value: f32) {
+	sdl.SetWindowOpacity(window.w, value)
+}
+
 clipboard_has_content :: sdl.HasClipboardText
 
 clipboard_get_string :: proc(allocator := context.allocator) -> string {

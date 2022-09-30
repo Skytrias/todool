@@ -361,6 +361,8 @@ Misc_Save_Load :: struct {
 		window_height: int,	
 		window_fullscreen: bool,
 		hide_statusbar: bool,
+		window_opacity: f32,
+		animation_speed: f32,
 
 		last_save_location: string,
 	},
@@ -481,6 +483,8 @@ json_save_misc :: proc(path: string) -> bool {
 			window_height = window_height,
 			window_fullscreen = window_main.fullscreened,
 			hide_statusbar = sb.options.checkbox_hide_statusbar.state,
+			window_opacity = window_opacity_get(window_main),
+			animation_speed = sb.options.slider_animation_speed.position,
 
 			last_save_location = last_save_location,
 		},
@@ -600,10 +604,14 @@ json_load_misc :: proc(path: string) -> bool {
 
 		checkbox_set(sb.options.checkbox_hide_statusbar, misc.hidden.hide_statusbar)
 		element_hide(custom_split.statusbar.stat, misc.hidden.hide_statusbar)
+
+		slider_set(sb.options.slider_opacity, misc.hidden.window_opacity)
+		slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
 	}
 
 	// tag data
 	sb.tags.tag_show_mode = misc.tags.tag_mode
+	toggle_selector_set(sb.tags.toggle_selector_tag, misc.tags.tag_mode)
 	for i in 0..<8 {
 		tag := sb.tags.names[i]
 		strings.builder_reset(tag)
