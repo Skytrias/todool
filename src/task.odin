@@ -362,6 +362,7 @@ Task :: struct {
 	// elements
 	button_fold: ^Icon_Button,
 	button_bookmark: ^Element,
+	button_link: ^Button,
 	box: ^Task_Box,
 	image_display: ^Image_Display,
 
@@ -553,11 +554,65 @@ task_image_display_message :: proc(element: ^Element, msg: Message, di: int, dp:
 	return 0
 }
 
+// set img or init display element
 task_set_img :: proc(task: ^Task, handle: ^Stored_Image) {
 	if task.image_display == nil {
 		task.image_display = image_display_init(task, {}, handle, task_image_display_message, context.allocator)
 	} else {
 		task.image_display.img = handle
+	}
+}
+
+// button with link text
+task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button) element
+
+	#partial switch msg {
+		case .Clicked: {
+			text := strings.to_string(button.builder)
+
+			b := &gs.cstring_builder
+			strings.builder_reset(b)
+			strings.write_string(b, "xdg-open")
+			strings.write_byte(b, ' ')
+			strings.write_string(b, text)
+			strings.write_byte(b, '\x00')
+			libc.system(cstring(raw_data(b.buf)))
+		}
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			color := BLUE
+
+			fcs_color(color)
+			fcs_element(button)
+			fcs_ahv(.Left, .Middle)
+			text := strings.to_string(button.builder)
+			xadv := render_string_rect(target, element.bounds, text)
+
+			if hovered || pressed {
+				rect := element.bounds
+				rect.r = int(xadv)
+				render_underline(target, rect, color)
+			}
+
+			return 1
+		}
+	}
+
+	return 0
+}
+
+// set link text or init link button
+task_set_link :: proc(task: ^Task, link: string) {
+	if task.button_link == nil {
+		task.button_link = button_init(task, {}, link, task_button_link_message, context.allocator)
+	} else {
+		b := &task.button_link.builder
+		strings.builder_reset(b)
+		strings.write_string(b, link)
 	}
 }
 
@@ -1409,13 +1464,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
 			color^ = theme_task_text(task.state)
-				
-			// TODO do this checking elsewhere
-			text := strings.to_string(box.builder)
-			if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
-				color^ = BLUE
-			}
-
 			return 1
 		}
 
@@ -1577,6 +1625,17 @@ task_layout :: proc(
 		}
 	}
 
+	// link button
+	if task.button_link != nil {
+		height := element_message(task.button_link, .Get_Height)
+		rect := rect_cut_bottom(&cut, height)
+		
+		if move {
+			element_move(task.button_link, rect)
+		}
+	}
+
+	// tags place
 	tag_mode := options_tag_mode()
 	if tag_mode != TAG_SHOW_NONE && task.tags != 0x00 {
 		rect := rect_cut_bottom(&cut, tag_mode_size(tag_mode))
@@ -1658,6 +1717,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + int(5 * TASK_SCALE) : 0
 			line_size += image_display_has_content(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
+			line_size += task.button_link != nil ? int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE) : 0
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 2)
 			line_size += margin_scaled
 
@@ -2283,31 +2343,71 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		}
 	}
 
-	// TODO right click on mode_panel to do multi selection spawn instead task
+	// insert link from clipboard to task.button_link
+	if clipboard_has_content() {
+		link := clipboard_get_string(context.temp_allocator)
 
-	// open a link button on link text
-	if task_head == task_tail {
-		task := tasks_visible[task_head]
-		text := strings.to_string(task.box.builder)
+		Task_Set_Link :: struct {
+			link: string,
+			task: ^Task,
+		}
 
-		if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
-			b1 := button_init(p, { .HF }, "Open Link")
-			b1.invoke = proc(data: rawptr) {
-				task := tasks_visible[task_head]
-				text := strings.to_string(task.box.builder)
+		if strings.has_prefix(link, "https://") || strings.has_prefix(link, "http://") {
+			b1 := button_init(p, { .HF }, "Insert Link")
 
-				b := &gs.cstring_builder
-				strings.builder_reset(b)
-				strings.write_string(b, "xdg-open")
-				strings.write_byte(b, ' ')
-				strings.write_string(b, text)
-				strings.write_byte(b, '\x00')
-				libc.system(cstring(raw_data(b.buf)))
+			// set saved data that will be destroyed by button
+			tsl := new(Task_Set_Link)
+			tsl.task = task
+			tsl.link = strings.clone(link)
 
-				menu_close(window_main)
+			b1.data = tsl
+			b1.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+				button := cast(^Button) element
+
+				#partial switch msg {
+					case .Clicked: {
+						tsl := cast(^Task_Set_Link) element.data
+						task_set_link(tsl.task, tsl.link)
+						menu_close(button.window)
+					}
+
+					case .Destroy: {
+						tsl := cast(^Task_Set_Link) element.data
+						delete(tsl.link)
+						free(tsl)
+					}
+				}
+
+				return 0
 			}
 		}
-	}
+	}	
+
+	// TODO right click on mode_panel to do multi selection spawn instead task
+
+	// // open a link button on link text
+	// if task_head == task_tail {
+	// 	task := tasks_visible[task_head]
+	// 	text := strings.to_string(task.box.builder)
+
+	// 	if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
+	// 		b1 := button_init(p, { .HF }, "Open Link")
+	// 		b1.invoke = proc(data: rawptr) {
+	// 			task := tasks_visible[task_head]
+	// 			text := strings.to_string(task.box.builder)
+
+	// 			b := &gs.cstring_builder
+	// 			strings.builder_reset(b)
+	// 			strings.write_string(b, "xdg-open")
+	// 			strings.write_byte(b, ' ')
+	// 			strings.write_string(b, text)
+	// 			strings.write_byte(b, '\x00')
+	// 			libc.system(cstring(raw_data(b.buf)))
+
+	// 			menu_close(window_main)
+	// 		}
+	// 	}
+	// }
 
 	menu_show(menu)
 }
