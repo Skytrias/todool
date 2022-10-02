@@ -1136,7 +1136,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				fcs_font(font_regular)
 				fcs_color(theme.text_default)
 				render_string_rect(target, mode_panel.bounds, "press \"return\" to insert a new task")
-				return 0
+				// return 0
 			}
 
 			bounds.l -= int(cam.offset_x)
@@ -2427,6 +2427,10 @@ task_dragging_end :: proc() -> bool {
 
 		if task_head != -1 {
 			drag_indentation = task_drag_at.indentation
+
+			if task_drag_at.has_children {
+				drag_indentation += 1
+			}
 		}
 	}
 

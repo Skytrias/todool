@@ -2613,19 +2613,22 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 	toggle := cast(^Toggle_Selector) element
 	assert(len(toggle.names) == toggle.count)
 	POINT_SIZE :: 20
+	MARGIN :: 10
 
 	#partial switch msg {
 		case .Layout: {
 			point_size := int(POINT_SIZE * SCALE)
+			margin_size := int(MARGIN * SCALE)
 			fcs_element(element)
 
 			// layout cells
 			cut := element.bounds
+			cut.l += margin_size
+			cut.r -= margin_size
 			for i in 0..<toggle.count {
 				width := point_size + string_width(toggle.names[i])
 				toggle.cells[i] = rect_cut_left(&cut, width)
 			}
-
 			toggle.cell_gap = int(rect_widthf(cut) / f32(toggle.count))
 
 			for i in 0..<toggle.count {
@@ -2689,7 +2692,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				sum_width += string_width(name) + scaled_size
 			}
 			
-			return sum_width + int(5 * SCALE)
+			return sum_width + int(MARGIN * SCALE * 2)
 		}
 
 		case .Get_Height: {

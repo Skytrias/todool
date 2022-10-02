@@ -4,6 +4,8 @@ import "core:fmt"
 import "core:mem"
 import "core:math"
 import "core:strings"
+import "core:slice"
+// import "core:container/queue"
 
 //changelog generator output window
 //	descritiption what this window does
@@ -16,6 +18,11 @@ import "core:strings"
 //LATER
 //	skip folded
 
+Changelog_Task :: struct {
+	task_index: int,
+	remove: bool,
+}
+
 Changelog :: struct {
 	window: ^Window,
 	panel: ^Panel,
@@ -26,6 +33,9 @@ Changelog :: struct {
 	checkbox_pop_tasks: ^Checkbox,
 
 	check_next: bool,
+
+	qlist: [dynamic]Changelog_Task,
+	qparents: map[^Task]u8,
 }
 changelog: Changelog
 
@@ -34,6 +44,8 @@ changelog_window_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 	#partial switch msg {
 		case .Destroy: {
+			delete(changelog.qparents)
+			delete(changelog.qlist)
 			changelog = {}
 		}
 	}
@@ -140,47 +152,6 @@ changelog_text_display_init :: proc(
 	return
 }
 
-// iterate through tasks the same way
-changelog_task_iter :: proc(index: ^int) -> (res: ^Task, remove: bool, ok: bool) {
-	include := changelog.checkbox_include_canceled.state
-	skip := changelog.checkbox_skip_folded.state
-
-	for i in index^..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
-		index^ += 1
-
-		// skip individual task
-		if skip && (!task.visible || (task.has_children && task.folded)) {
-			continue
-		}
-
-		state_matched := include ? task.state != .Normal : task.state == .Done 
-
-		if state_matched {
-			res = task
-			remove = true
-			ok = true
-			return
-		} else if task.has_children {
-			// skip parent
-			if task.folded && skip {
-				continue
-			}
-
-			a := include && (task.state_count[.Done] != 0 || task.state_count[.Canceled] != 0)
-			b := !include && task.state_count[.Done] != 0
-
-			if a || b {
-				res = task
-				ok = true
-				return
-			}
-		}
-	}
-
-	return
-}
-
 changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 	b := &td.builder
 	strings.builder_reset(b)
@@ -194,8 +165,10 @@ changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 		strings.write_byte(b, '\n')
 	}
 
-	index: int
-	for task, remove in changelog_task_iter(&index) {
+	changelog_find()
+
+	for qtask in changelog.qlist {
+		task := cast(^Task) mode_panel.children[qtask.task_index]
 		write(b, task, task.indentation)
 	}
 }
@@ -209,13 +182,14 @@ changelog_result_pop_tasks :: proc() {
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 
-	index: int
-	for task, remove in changelog_task_iter(&index) {
-		if remove {
+	off: int
+	for qtask in changelog.qlist {
+		task := cast(^Task) mode_panel.children[qtask.task_index]
+		if qtask.remove {
 			archive_push(strings.to_string(task.box.builder))
-			task_remove_at_index(manager, index - 1)
-			index -= 1
-		}
+			task_remove_at_index(manager, qtask.task_index - off)
+			off += 1
+		}		
 	}
 
 	mode_panel.window.update_next = true
@@ -243,6 +217,9 @@ changelog_spawn :: proc() {
 	if changelog.window != nil {
 		return
 	}
+
+	changelog.qlist = make([dynamic]Changelog_Task, 0, 64)
+	changelog.qparents = make(map[^Task]u8, 32)
 
 	changelog.window = window_init(nil, {}, "Changelog Genrator", 700, 700, mem.Kilobyte)
 	changelog.window.element.message_user = changelog_window_message
@@ -317,4 +294,54 @@ changelog_spawn :: proc() {
 
 	changelog.td = changelog_text_display_init(p, { .HF, .VF })
 	changelog_text_display_set(changelog.td)
+}
+
+changelog_find :: proc() {
+	clear(&changelog.qlist)
+	clear(&changelog.qparents)
+
+	include := changelog.checkbox_include_canceled.state
+	skip := changelog.checkbox_skip_folded.state
+
+	for i in 0..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+
+		// skip individual task
+		if skip && (!task.visible || (task.has_children && task.folded)) {
+			continue
+		}
+
+		state_matched := include ? task.state != .Normal : task.state == .Done 
+
+		if state_matched {
+			// TODO could also just push to temp array instead instantly to array
+			// to save up on having to sort
+
+			// search for unpushed parents
+			p := task.visible_parent
+			parent_search: for p != nil {
+				if p in changelog.qparents {
+					break parent_search
+				}
+
+				append(&changelog.qlist, Changelog_Task { p.index, false })
+				changelog.qparents[p] = 1
+				p = p.visible_parent
+			}
+
+			// push actual task that will be marked as remove candidate
+			append(&changelog.qlist, Changelog_Task { i, true })
+
+			// push task if its a parent too to avoid duplicates
+			if task.has_children {
+				changelog.qparents[task] = 2
+			}
+		}
+	}
+
+	// just sort the unsorted parents that were inserted at some point
+	sort_by :: proc(a, b: Changelog_Task) -> bool {
+		return a.task_index < b.task_index
+	}
+	slice.sort_by(changelog.qlist[:], sort_by)
 }
