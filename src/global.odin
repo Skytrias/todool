@@ -20,6 +20,7 @@ import mix "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
 import "../fontstash"
 import "../cutf8"
+import "../spall"
 
 LETTER_SPACING :: 0
 HOVER_WIDTH :: 100
@@ -355,6 +356,7 @@ window_init :: proc(
 	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	window_flags: sdl.WindowFlags = { .OPENGL, .HIDDEN, .RESIZABLE }
+	spall.fscoped("window init %s", title)
 
 	if .Window_Center_In_Owner in flags {
 		x_pos	= sdl.WINDOWPOS_CENTERED
@@ -460,6 +462,7 @@ window_init :: proc(
 }
 
 gs_update_after_load :: proc() {
+	spall.scoped("load after sjson")
 	ctx := &gs.fc
 	fontstash.font_push(ctx, data_font_icon)
 
@@ -1522,6 +1525,8 @@ gs_message_loop :: proc() {
 			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_events()
 		}
+
+		spall.scoped("message step")
 		
 		// repaint all of the window
 		gs_draw_and_cleanup()
@@ -1624,6 +1629,8 @@ gs_draw_and_cleanup :: proc() {
 	window := gs.windows
 	window_count: int
 
+	spall.scoped("draw&cleanup")
+
 	for window != nil {
 		next := window.window_next
 
@@ -1633,6 +1640,7 @@ gs_draw_and_cleanup :: proc() {
 			link^ = next
 		} else if window.update_next {
 			link = &window.window_next
+			spall.scoped("draw window")
 
 			// reset focuse on hidden
 			if window.focused != nil {

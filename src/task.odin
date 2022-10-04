@@ -14,6 +14,7 @@ import "core:slice"
 import "core:reflect"
 import "../cutf8"
 import "../fontstash"
+import "../spall"
 
 // last save
 last_save_location: string
@@ -2067,6 +2068,7 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 }
 
 tasks_load_file :: proc() {
+	spall.scoped("load tasks")
 	err: io.Error = .Empty
 
 	if last_save_location != "" {

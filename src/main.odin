@@ -13,6 +13,7 @@ import "core:log"
 import "core:math/rand"
 import sdl "vendor:sdl2"
 import "../fontstash"
+import "../spall"
 
 TRACK_MEMORY :: false
 TODOOL_RELEASE :: true
@@ -58,6 +59,11 @@ main :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
+	
+	spall.init(mem.Megabyte)
+	spall.header()
+	defer spall.write_and_destroy("test.spall")
+	spall.begin("init all")
 
 	task_data_init()
 
@@ -311,35 +317,44 @@ main :: proc() {
 		statusbar_update()
 	}
 
-	// keymap loading
-	if loaded := keymap_load("save.keymap"); !loaded {
-		shortcuts_push_todool_default(window)
-		shortcuts_push_box_default(window)
-		log.info("KEYMAP: Load failed -> Loading default")
-	} else {
-		log.info("KEYMAP: Load successful")
+	{
+		spall.scoped("load keymap")
+		// keymap loading
+		if loaded := keymap_load("save.keymap"); !loaded {
+			shortcuts_push_todool_default(window)
+			shortcuts_push_box_default(window)
+			log.info("KEYMAP: Load failed -> Loading default")
+		} else {
+			log.info("KEYMAP: Load successful")
+		}
 	}
 
-	// add_shortcuts(window)
-	panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
-	sidebar_panel_init(panel)
+	{
+		spall.scoped("gen elements")
+		// add_shortcuts(window)
+		panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
+		sidebar_panel_init(panel)
+
+		{
+			rect := window.rect
+			split := split_pane_init(panel, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)
+			split.pixel_based = true
+			sb.split = split
+		}	
+
+		sidebar_enum_panel_init(sb.split)
+		task_panel_init(sb.split)
+
+		goto_init(window) 
+	}
 
 	{
-		rect := window.rect
-		split := split_pane_init(panel, { .Split_Pane_Hidable, .VF, .HF, .Tab_Movement_Allowed }, 300, 300)
-		split.pixel_based = true
-		sb.split = split
-	}	
-
-	sidebar_enum_panel_init(sb.split)
-	task_panel_init(sb.split)
-
-	goto_init(window) 
-
-	if loaded := json_load_misc("save.sjson"); loaded {
-		log.info("JSON: Load Successful")
-	} else {
-		log.info("JSON: Load failed -> Using default")
+		spall.scoped("load sjson")
+		if loaded := json_load_misc("save.sjson"); loaded {
+			log.info("JSON: Load Successful")
+		} else {
+			log.info("JSON: Load failed -> Using default")
+		}
 	}
 
 	// tasks_load_reset()
@@ -349,6 +364,7 @@ main :: proc() {
 
 	// do actual loading later because options might change the path
 	gs_update_after_load()
-	
+
+	spall.end()
 	gs_message_loop()
 }
