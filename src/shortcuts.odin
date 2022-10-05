@@ -139,7 +139,7 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "mode_kanban": todool_mode_kanban()
 		case "theme_editor": theme_editor_spawn()
 
-		case "insert_sibling": todool_insert_sibling()
+		case "insert_sibling": todool_insert_sibling(false)
 		case "insert_child": todool_insert_child()
 
 		case "shift_up": todool_shift_up()
@@ -158,10 +158,17 @@ shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
 		case "search": todool_search()
 		case "escape": todool_escape()
 
+		//v021
 		case "select_children": todool_select_children()
 		case "indent_jump_nearby_prev": todool_indent_jump_nearby(true)
 		case "indent_jump_nearby_next": todool_indent_jump_nearby(false)
 		case "fullscreen_toggle": window_fullscreen_toggle(window_main)
+
+		//v022
+		case "sort_locals": todool_sort_locals()
+		case "insert_sibling_above": todool_insert_sibling(true)
+		case "scale_increase": todool_scale(0.1)
+		case "scale_decrease": todool_scale(-0.1)
 
 		case: {
 			handled = false
@@ -247,6 +254,7 @@ shortcuts_push_todool_default :: proc(window: ^Window) {
 	mapping_push("escape", "escape")
 
 	mapping_push_v021_todool(window, false)
+	mapping_push_v022_todool(window, false)
 }
 
 mapping_push_v021_todool :: proc(window: ^Window, maybe: bool) {
@@ -261,6 +269,7 @@ mapping_push_v021_todool :: proc(window: ^Window, maybe: bool) {
 	mapping_check = false
 }
 
+
 mapping_push_v021_box :: proc(window: ^Window, maybe: bool) {
 	mapping_check = maybe
 	mapping_push_to = &window.shortcut_state.box
@@ -269,11 +278,22 @@ mapping_push_v021_box :: proc(window: ^Window, maybe: bool) {
 	mapping_check = false
 }
 
+mapping_push_v022_todool :: proc(window: ^Window, maybe: bool) {
+	mapping_check = maybe
+	mapping_push_to = &window.shortcut_state.general
+	mapping_push_checked("sort_locals", "alt+a")
+	mapping_push_checked("insert_sibling_above", "shift+return")
+	mapping_push_checked("scale_increase", "ctrl++")
+	mapping_push_checked("scale_decrease", "ctrl+-")
+	mapping_check = false
+}
+
 // use this on newest release
 mapping_push_newest_version :: proc(window: ^Window) {
 	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
 	mapping_push_v021_todool(window, true)
 	mapping_push_v021_box(window, true)
+	mapping_push_v022_todool(window, true)
 }
 
 todool_delete_on_empty :: proc() {
@@ -677,30 +697,35 @@ todool_toggle_folding :: proc() {
 	}
 }
 
-todool_insert_sibling :: proc() {
-	indentation: int
+todool_insert_sibling :: proc(above: bool) {
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 
-	// NOTE next line
-	goal := len(mode_panel.children) // default append
-	if task_head < len(tasks_visible) - 1 {
-		goal = tasks_visible[task_head + 1].index
-	}
+	indentation: int
+	goal: int
+	if above {
+		// above / same line
+		if task_head != -1 && task_head > 0 {
+			goal = tasks_visible[task_head].index
+			indentation = tasks_visible[task_head].indentation
+		}
 
-	if task_head != -1 {
-		indentation = tasks_visible[task_head].indentation
-	}
+		task_tail = task_head
+	} else {
+		// next line
+		goal = len(mode_panel.children) // default append
+		if task_head < len(tasks_visible) - 1 {
+			goal = tasks_visible[task_head + 1].index
+		}
 
-	// // same line
-	// goal := 0 // default append
-	// if task_head != -1 && task_head > 0 {
-	// 	goal = tasks_visible[task_head].index
-	// 	indentation = tasks_visible[task_head - 1].indentation
-	// }
+		if task_head != -1 {
+			indentation = tasks_visible[task_head].indentation
+		}
+	
+		task_head += 1
+	}
 
 	task_push_undoable(manager, indentation, "", goal)
-	task_head += 1
 	task_head_tail_check_end()
 	element_repaint(mode_panel)
 }
@@ -1646,4 +1671,168 @@ todool_indent_jump_nearby :: proc(backwards: bool) {
 			break
 		}
 	}
+}
+
+Undo_Item_Task_Sort :: struct {
+	task_current: ^Task,
+	from, to: int,
+}
+
+undo_task_sort :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Task_Sort) item
+	
+	Task_Line :: struct {
+		task: ^Task,
+		children_from, children_to: i32,
+	}
+
+	sort_list := make([dynamic]Task_Line, 0, 64)
+	defer delete(sort_list)
+	
+	children := make([dynamic]^Task, 0, 64)
+	defer delete(children)
+
+	for i in data.from..<data.to + 1 {
+		task := cast(^Task) mode_panel.children[i]
+
+		// if the task has the same parent push to sort list
+		if task.visible_parent == data.task_current.visible_parent {
+			append(&sort_list, Task_Line {
+				task,
+				-1, 
+				0,
+			})
+		} else {
+			// set child location info per pushed child on the last task
+			last := &sort_list[len(sort_list) - 1]
+			child_index := i32(len(children))
+			if last.children_from == -1 {
+				last.children_from = child_index
+			}
+			last.children_to = child_index
+			append(&children, task)
+		}
+	}
+
+	cmp :: proc(a, b: Task_Line) -> bool {
+		return a.task.state < b.task.state
+	}
+
+	slice.sort_by(sort_list[:], cmp)
+
+	// prepare reversal
+	out := Undo_Item_Task_Sort_Original {
+		data.task_current,
+		data.from, 
+		data.to,
+	}
+	count := (data.to - data.from) + 1
+	bytes := undo_push(
+		manager, 
+		undo_task_sort_original, 
+		&out, 
+		size_of(Undo_Item_Task_Sort_Original) + count * size_of(^Task),
+	)
+	// actually save the data
+	bytes_root := cast(^^Task) &bytes[size_of(Undo_Item_Task_Sort_Original)]
+	storage := mem.slice_ptr(bytes_root, count)
+	for i in 0..<count {
+		storage[i] = cast(^Task) mode_panel.children[i + data.from]
+	}
+
+	insert_offset: int
+	for i in 0..<len(sort_list) {
+		line := sort_list[i]
+		index := data.from + i + insert_offset
+		mode_panel.children[index] = line.task
+
+		if line.children_from != -1 {
+			local_index := index + 1
+			// fmt.eprintln("line", line.children_from, line.children_to)
+
+			for j in line.children_from..<line.children_to + 1 {
+				mode_panel.children[local_index] = children[j]
+				local_index += 1
+				insert_offset += 1
+				// fmt.eprintln("jjj", j)
+			}
+		}
+	}
+
+	element_repaint(mode_panel)
+}
+
+Undo_Item_Task_Sort_Original :: struct {
+	task_current: ^Task,
+	from, to: int,
+	// ^Task data upcoming
+}
+
+undo_task_sort_original :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Task_Sort_Original) item
+
+	bytes_root := cast(^^Task) (uintptr(item) + size_of(Undo_Item_Task_Sort_Original))
+	count := data.to - data.from + 1
+	storage := mem.slice_ptr(bytes_root, count)	
+
+	// revert to unsorted data
+	for i in 0..<count {
+		mode_panel.children[i + data.from] = storage[i]
+	}
+
+	out := Undo_Item_Task_Sort {
+		data.task_current,
+		data.from,
+		data.to,
+	}
+	undo_push(manager, undo_task_sort, &out, size_of(Undo_Item_Task_Sort))
+}
+
+// idea:
+// gather all children to be sorted [from:to] without sub children
+// sort based on wanted properties
+// replace existing tasks by new result + offset by sub children
+todool_sort_locals :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	task_tail = task_head
+	task_current := tasks_visible[task_head]
+
+	// skip high level
+	from, to: int
+	if task_current.visible_parent == nil {
+		from = 0
+		to = len(mode_panel.children) - 1
+		// return
+	} else {
+		from, to = task_children_range(task_current.visible_parent)
+
+		// skip invalid 
+		if from == -1 || to == -1 {
+			return
+		}
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+	
+	item := Undo_Item_Task_Sort {
+		task_current,
+		from,
+		to,
+	}
+	undo_task_sort(manager, &item)
+
+	// update info and reset to last position
+	task_set_children_info()
+	task_set_visible_tasks()
+	task_head = task_current.visible_index
+	task_tail = task_head
+}
+
+todool_scale :: proc(amt: f32) {
+	scaling_inc(amt)
+	element_repaint(mode_panel)
 }

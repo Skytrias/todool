@@ -28,7 +28,7 @@ statusbar_init :: proc(split: ^Custom_Split) {
 		label_task_state[Task_State(i)] = label_init(task_panel, {})
 	}
 	
-	label_task_state[.Normal].color = &theme.text_blank
+	label_task_state[.Normal].color = &theme.text_default
 	label_task_state[.Done].color = &theme.text_good
 	label_task_state[.Canceled].color = &theme.text_bad
 

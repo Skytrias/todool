@@ -60,6 +60,8 @@ Save_Tag :: enum u8 {
 	Folded, // NO data included
 	Bookmark, // NO data included
 	Image_Path, // u16be string len + [N]u8 byte data
+	Link_Path, // u16be string len + [N]u8 byte data
+	Seperator, // NO data included
 }
 
 bytes_file_signature := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', 'F', 'F' }
@@ -182,6 +184,17 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 			buffer_write_string(&buffer, task.image_display.img.cloned_path) or_return
 		}
 
+		if task_link_is_valid(task) {
+			opt_write_line(&buffer, &line_written, i) or_return
+			opt_write_tag(&buffer, .Link_Path) or_return
+			buffer_write_string(&buffer, strings.to_string(task.button_link.builder)) or_return
+		}
+
+		if task_seperator_is_valid(task) {
+			opt_write_line(&buffer, &line_written, i) or_return
+			opt_write_tag(&buffer, .Seperator) or_return
+		}
+
 		// write finish flag
 		if line_written {
 			opt_write_tag(&buffer, .Finished) or_return
@@ -278,6 +291,16 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 					path := string(byte_content[:])
 					handle := image_load_push(path)
 					task_set_img(task, handle)
+				}
+				case .Link_Path: {
+					length := reader_read_type(reader, u16be) or_return
+					byte_content := reader_read_bytes_out(reader, int(length)) or_return					
+
+					link := string(byte_content[:])
+					task_set_link(task, link)
+				}
+				case .Seperator: {
+					task_set_seperator(task, true)
 				}
 			}
 		}

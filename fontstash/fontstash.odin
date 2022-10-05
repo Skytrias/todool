@@ -9,6 +9,7 @@ import "core:math"
 import "core:unicode"
 import stbtt "vendor:stb/truetype"
 import "../cutf8"
+import "../spall"
 
 // This is a port from Fontstash into odin
 
@@ -106,6 +107,8 @@ Font_Context :: struct {
 }
 
 init :: proc(using ctx: ^Font_Context, w, h: int) {
+	spall.scoped("fontstash init")
+	
 	user_data = ctx
 	fonts = make([dynamic]Font, 0, 8)
 
@@ -333,6 +336,7 @@ font_push_file :: proc(
 	init_default_ascii := false,
 	pixel_size := f32(0),
 ) -> (res: ^Font) {
+	spall.fscoped("font push %s", path)
 	data, ok := os.read_entire_file(path)
 
 	if !ok {
@@ -352,6 +356,8 @@ font_push_slice :: proc(
 	init_default_ascii := false,
 	pixel_size := f32(0),
 ) -> (res: ^Font) {
+	spall.scoped("font slice read")
+
 	append(&ctx.fonts, Font {})
 	res = &ctx.fonts[len(ctx.fonts) - 1]
 	res.loaded_data = data
@@ -368,6 +374,7 @@ font_push_slice :: proc(
 	font_reset(res)
 
 	if init_default_ascii {
+		spall.scoped("font load ascii")
 		isize := i16(pixel_size * 10)
 		scale := scale_for_pixel_height(res, f32(isize / 10))
 

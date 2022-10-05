@@ -184,7 +184,7 @@ changelog_result_pop_tasks :: proc() {
 
 	off: int
 	for qtask in changelog.qlist {
-		task := cast(^Task) mode_panel.children[qtask.task_index]
+		task := cast(^Task) mode_panel.children[qtask.task_index - off]
 		if qtask.remove {
 			archive_push(strings.to_string(task.box.builder))
 			task_remove_at_index(manager, qtask.task_index - off)
@@ -193,6 +193,7 @@ changelog_result_pop_tasks :: proc() {
 	}
 
 	mode_panel.window.update_next = true
+	changelog_update_safe()
 }
 
 changelog_result :: proc() -> string {

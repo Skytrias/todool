@@ -2133,7 +2133,9 @@ menu_close :: proc(window: ^Window) -> bool {
 
 menu_init :: proc(window: ^Window, flags: Element_Flags) -> (menu: ^Panel_Floaty) {
 	menu = panel_floaty_init(&window.element, {})
+	// menu.panel.flags = flags
 	// menu.panel.flags ~= { .Panel_Default_Background }
+	menu.panel.flags += flags
 	// menu.panel.color = RED
 	menu.x = window.cursor_x
 	menu.y = window.cursor_y

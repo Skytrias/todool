@@ -508,12 +508,23 @@ box_paste :: proc(
 	if clipboard_has_content() {
 		text := clipboard_get_with_builder_till_newline()
 
-		if strings.has_suffix(text, ".png") {
-			task := tasks_visible[task_head]
-			handle := image_load_push(text)
-			task.image_display.img = handle
-			found = true
-			return
+		// only when from task, accept pngs/links
+		if msg_by_task {
+			if strings.has_suffix(text, ".png") {
+				task := tasks_visible[task_head]
+				handle := image_load_push(text)
+				task_set_img(task, handle)
+				found = true
+				return
+			}
+
+			// TODO could be sped up probably
+			if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
+				task := tasks_visible[task_head]
+				task_set_link(task, text)
+				found = true
+				return
+			}
 		}
 
 		box_replace(manager, element, box, text, 0, true, msg_by_task)

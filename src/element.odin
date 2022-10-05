@@ -622,6 +622,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 			fcs_element(button)
 			fcs_ahv()
+			fcs_color(text_color)
 			text := strings.to_string(button.builder)
 			render_string_rect(target, element.bounds, text)
 		}

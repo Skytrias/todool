@@ -36,7 +36,7 @@ caret_lerp_speed_y := f32(1)
 caret_lerp_speed_x := f32(1)
 last_was_task_copy := false
 task_clear_checking: map[^Task]u8
-// center_next_frame: bool
+task_highlight: ^Task
 
 // move state
 task_move_stack: []^Task
@@ -361,11 +361,14 @@ Task :: struct {
 	visible: bool,
 
 	// elements
+	box: ^Task_Box,
 	button_fold: ^Icon_Button,
+	
+	// optional elements
 	button_bookmark: ^Element,
 	button_link: ^Button,
-	box: ^Task_Box,
 	image_display: ^Image_Display,
+	seperator: ^Task_Seperator,
 
 	// state
 	indentation: int,
@@ -564,12 +567,69 @@ task_set_img :: proc(task: ^Task, handle: ^Stored_Image) {
 	}
 }
 
+task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Icon_Button) element
+	task := cast(^Task) button.parent
+
+	#partial switch msg {
+		case .Clicked: {
+			manager := mode_panel_manager_scoped()
+			task_head_tail_push(manager)
+			item := Undo_Item_Bool_Toggle { &task.folded }
+			undo_bool_toggle(manager, &item)
+
+			task_head = task.visible_index
+			task_tail = task.visible_index
+
+			element_message(element, .Update)
+		}
+
+		case .Paint_Recursive: {
+			// NOTE only change
+			button.icon = task.folded ? .Simple_Right : .Simple_Down
+
+			pressed := button.window.pressed == button
+			hovered := button.window.hovered == button
+			target := button.window.target
+
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
+				rect := button.bounds
+				rect.r = rect.l + int(4 * TASK_SCALE)
+				render_rect(target, rect, text_color, 0)
+			}
+
+			if hovered || pressed {
+				render_rect_outline(target, button.bounds, text_color)
+				render_hovered_highlight(target, button.bounds)
+			}
+
+			fcs_icon(TASK_SCALE)
+			fcs_ahv()
+			fcs_color(text_color)
+			render_icon_rect(target, button.bounds, button.icon)
+		}
+
+		case .Get_Width: {
+			w := icon_width(button.icon, TASK_SCALE)
+			return int(w + TEXT_MARGIN_HORIZONTAL * TASK_SCALE)
+		}
+
+		case .Get_Height: {
+			return task_font_size(element) + int(TEXT_MARGIN_VERTICAL * TASK_SCALE)
+		}
+	}
+
+	return 0
+}
+
 // button with link text
 task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^Button) element
 
 	#partial switch msg {
-		case .Clicked: {
+		case .Left_Up: {
 			text := strings.to_string(button.builder)
 
 			b := &gs.cstring_builder
@@ -579,6 +639,24 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			strings.write_string(b, text)
 			strings.write_byte(b, '\x00')
 			libc.system(cstring(raw_data(b.buf)))
+			
+			element_repaint(element)
+		}
+
+		case .Right_Up: {
+			strings.builder_reset(&button.builder)
+			element_repaint(element)
+		}
+
+		case .Get_Width: {
+			fcs_task(element)
+			text := strings.to_string(button.builder)
+			width := max(int(50 * TASK_SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * TASK_SCALE))
+			return int(width)
+		}
+
+		case .Get_Height: {
+			return task_font_size(element) + int(TEXT_MARGIN_VERTICAL * TASK_SCALE)
 		}
 
 		case .Paint_Recursive: {
@@ -588,7 +666,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			color := BLUE
 
 			fcs_color(color)
-			fcs_element(button)
+			fcs_task(button)
 			fcs_ahv(.Left, .Middle)
 			text := strings.to_string(button.builder)
 			xadv := render_string_rect(target, element.bounds, text)
@@ -617,6 +695,11 @@ task_set_link :: proc(task: ^Task, link: string) {
 	}
 }
 
+// valid link 
+task_link_is_valid :: proc(task: ^Task) -> bool {
+	return task.button_link != nil && len(task.button_link.builder.buf) > 0
+}
+
 // TODO speedup or cache?
 task_total_bounds :: proc() -> (bounds: RectI) {
 	bounds = RECT_INF
@@ -624,6 +707,52 @@ task_total_bounds :: proc() -> (bounds: RectI) {
 		rect_inf_push(&bounds, task.bounds)
 	}
 	return
+}
+
+Task_Seperator :: struct {
+	using element: Element,
+}
+
+task_seperator_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	sep := cast(^Task_Seperator) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+
+			rect := element.bounds
+			line_width := int(max(2 * TASK_SCALE, 2))
+			rect.t += int(rect_heightf_halfed(rect))
+			rect.b = rect.t + line_width
+
+			render_rect(target, rect, theme.text_default, ROUNDNESS)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Right_Up, .Left_Up: {
+			task := cast(^Task) sep.parent
+			task_set_seperator(task, false)
+			element_repaint(task)
+			// fmt.eprintln("right")
+		}
+	}
+
+	return 0
+}
+
+task_set_seperator :: proc(task: ^Task, show: bool) {
+	if task.seperator == nil {
+		task.seperator = element_init(Task_Seperator, task, {}, task_seperator_message, context.allocator)
+	} 
+
+	element_hide(task.seperator, !show)
+}
+
+task_seperator_is_valid :: proc(task: ^Task) -> bool {
+	return task.seperator != nil && (.Hide not_in task.seperator.flags)
 }
 
 // raw creationg of a task
@@ -654,62 +783,7 @@ task_init :: proc(
 	res.button_fold = icon_button_init(res, {}, .Simple_Down, nil, allocator)
 	// TODO find better way to change scaling for elements in general?
 	// this is pretty much duplicate of normal icon rendering
-	res.button_fold.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		button := cast(^Icon_Button) element
-		task := cast(^Task) button.parent
-
-		#partial switch msg {
-			case .Clicked: {
-				manager := mode_panel_manager_scoped()
-				task_head_tail_push(manager)
-				item := Undo_Item_Bool_Toggle { &task.folded }
-				undo_bool_toggle(manager, &item)
-
-				task_head = task.visible_index
-				task_tail = task.visible_index
-
-				element_message(element, .Update)
-			}
-
-			case .Paint_Recursive: {
-				// NOTE only change
-				button.icon = task.folded ? .Simple_Right : .Simple_Down
-
-				pressed := button.window.pressed == button
-				hovered := button.window.hovered == button
-				target := button.window.target
-
-				text_color := hovered || pressed ? theme.text_default : theme.text_blank
-
-				if element_message(button, .Button_Highlight, 0, &text_color) == 1 {
-					rect := button.bounds
-					rect.r = rect.l + int(4 * TASK_SCALE)
-					render_rect(target, rect, text_color, 0)
-				}
-
-				if hovered || pressed {
-					render_rect_outline(target, button.bounds, text_color)
-					render_hovered_highlight(target, button.bounds)
-				}
-
-				fcs_icon(TASK_SCALE)
-				fcs_ahv()
-				fcs_color(text_color)
-				render_icon_rect(target, button.bounds, button.icon)
-			}
-
-			case .Get_Width: {
-				w := icon_width(button.icon, TASK_SCALE)
-				return int(w + TEXT_MARGIN_HORIZONTAL * TASK_SCALE)
-			}
-
-			case .Get_Height: {
-				return task_font_size(element) + int(TEXT_MARGIN_VERTICAL * TASK_SCALE)
-			}
- 		}
-
-		return 0
-	}
+	res.button_fold.message_user = task_button_fold_message
 
 	res.box = task_box_init(res, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
@@ -841,7 +915,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			}
 
 			bound_rect.l -= tab
-			bound_rect.r = bound_rect.l + int(2 * TASK_SCALE)
+			bound_rect.r = bound_rect.l + int(max(2 * TASK_SCALE, 2))
 			render_rect(target, bound_rect, color, 0)
 
 			if color.a == 255 {
@@ -1195,6 +1269,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				// return 0
 			}
 
+			task_highlight_render(target, false)
+
 			bounds.l -= int(cam.offset_x)
 			bounds.r -= int(cam.offset_x)
 			bounds.t -= int(cam.offset_y)
@@ -1305,6 +1381,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 				element_message(custom_split.image_display, .Paint_Recursive)
 			}
+
+			// task_highlight_render(target, true)
 
 			return 1
 		}
@@ -1603,6 +1681,14 @@ task_layout :: proc(
 	bounds.b += int(task.top_offset)
 
 	cut := bounds
+	if task_seperator_is_valid(task) {
+		rect := rect_cut_top(&cut, int(20 * TASK_SCALE))
+
+		if move {
+			element_move(task.seperator, rect)
+		}
+	}
+
 	task.clip = rect_intersection(task.parent.clip, cut)
 	task.bounds = cut
 
@@ -1627,9 +1713,11 @@ task_layout :: proc(
 	}
 
 	// link button
-	if task.button_link != nil {
+	if task_link_is_valid(task) {
 		height := element_message(task.button_link, .Get_Height)
+		width := element_message(task.button_link, .Get_Width)
 		rect := rect_cut_bottom(&cut, height)
+		rect.r = rect.l + width
 		
 		if move {
 			element_move(task.button_link, rect)
@@ -1718,7 +1806,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + int(5 * TASK_SCALE) : 0
 			line_size += image_display_has_content(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
-			line_size += task.button_link != nil ? int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE) : 0
+			line_size += task_link_is_valid(task) ? element_message(task.button_link, .Get_Height) : 0
+			line_size += task_seperator_is_valid(task) ? int(20 * TASK_SCALE) : 0
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 2)
 			line_size += margin_scaled
 
@@ -2238,7 +2327,7 @@ tasks_load_tutorial :: proc() {
 }
 
 task_context_menu_spawn :: proc(task: ^Task) {
-	menu := menu_init(mode_panel.window, {})
+	menu := menu_init(mode_panel.window, { .Panel_Expand })
 
 	task_multi_context := task_head != task_tail
 	
@@ -2253,11 +2342,11 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	p.shadow = true
 	p.background_index = 2
 	header_name := task_multi_context ? "Multi Properties" : "Task Properties"
-	header := label_init(p, { .HF, .Label_Center }, header_name)
+	header := label_init(p, { .Label_Center }, header_name)
 	header.font_options = &font_options_bold
 
 	if task_multi_context {
-		button_panel := panel_init(p, { .HF, .Panel_Horizontal })
+		button_panel := panel_init(p, { .Panel_Horizontal })
 		button_panel.outline = true
 		// button_panel.color = DARKEN
 		b1 := button_init(button_panel, {}, "Normal")
@@ -2300,14 +2389,14 @@ task_context_menu_spawn :: proc(task: ^Task) {
 
 	// indentation
 	{
-		panel := panel_init(p, { .HF, .Panel_Horizontal })
+		panel := panel_init(p, { .Panel_Horizontal })
 		panel.outline = true
 
 		b1 := button_init(panel, { .HF }, "<-")
 		b1.invoke = proc(data: rawptr) {
 			todool_indentation_shift(-1)
 		}
-		label := label_init(panel, { .HF, .Label_Center }, "indent")
+		label := label_init(panel, {  .HF, .Label_Center }, "indent")
 		b2 := button_init(panel, { .HF }, "->")
 		b2.invoke = proc(data: rawptr) {
 			todool_indentation_shift(1)
@@ -2316,28 +2405,28 @@ task_context_menu_spawn :: proc(task: ^Task) {
 
 	// deletion
 	{
-		b2 := button_init(p, { .HF }, "Cut")
+		b2 := button_init(p, {}, "Cut")
 		b2.invoke = proc(data: rawptr) {
 			button := cast(^Button) data
 			todool_cut_tasks()
 			menu_close(button.window)
 		}
 
-		b3 := button_init(p, { .HF }, "Copy")
+		b3 := button_init(p, {}, "Copy")
 		b3.invoke = proc(data: rawptr) {
 			button := cast(^Button) data
 			todool_copy_tasks()
 			menu_close(button.window)
 		}
 
-		b4 := button_init(p, { .HF }, "Paste")
+		b4 := button_init(p, {}, "Paste")
 		b4.invoke = proc(data: rawptr) {
 			button := cast(^Button) data
 			todool_paste_tasks()
 			menu_close(button.window)
 		}
 
-		b1 := button_init(p, { .HF }, "Delete")
+		b1 := button_init(p, {}, "Delete")
 		b1.invoke = proc(data: rawptr) {
 			button := cast(^Button) data
 			todool_delete_tasks()
@@ -2355,7 +2444,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		}
 
 		if strings.has_prefix(link, "https://") || strings.has_prefix(link, "http://") {
-			b1 := button_init(p, { .HF }, "Insert Link")
+			b1 := button_init(p, {}, "Insert Link")
 
 			// set saved data that will be destroyed by button
 			tsl := new(Task_Set_Link)
@@ -2385,31 +2474,35 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		}
 	}	
 
-	// TODO right click on mode_panel to do multi selection spawn instead task
+	{
+		b1_text := task_seperator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
+		b1 := button_init(p, {}, b1_text)
+		b1.invoke = proc(data: rawptr) {
+			button := cast(^Button) data
 
-	// // open a link button on link text
-	// if task_head == task_tail {
-	// 	task := tasks_visible[task_head]
-	// 	text := strings.to_string(task.box.builder)
+			task := tasks_visible[task_head]
+			valid := task_seperator_is_valid(task)
+			task_set_seperator(task, !valid)
+			
+			menu_close(button.window)
+		}
 
-	// 	if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
-	// 		b1 := button_init(p, { .HF }, "Open Link")
-	// 		b1.invoke = proc(data: rawptr) {
-	// 			task := tasks_visible[task_head]
-	// 			text := strings.to_string(task.box.builder)
+		b2_text := task_highlight == task ? "Remove Highlight" : "Set Highlight"
+		b2 := button_init(p, {}, b2_text)
 
-	// 			b := &gs.cstring_builder
-	// 			strings.builder_reset(b)
-	// 			strings.write_string(b, "xdg-open")
-	// 			strings.write_byte(b, ' ')
-	// 			strings.write_string(b, text)
-	// 			strings.write_byte(b, '\x00')
-	// 			libc.system(cstring(raw_data(b.buf)))
+		b2.invoke = proc(data: rawptr) {
+			button := cast(^Button) data
 
-	// 			menu_close(window_main)
-	// 		}
-	// 	}
-	// }
+			task := tasks_visible[task_head]
+			if task == task_highlight {
+				task_highlight = nil
+			} else {
+				task_highlight = task
+			}
+
+			menu_close(button.window)
+		}
+	}
 
 	menu_show(menu)
 }
@@ -2598,4 +2691,48 @@ mode_panel_context_menu_spawn :: proc() {
 	}
 
 	menu_show(menu)
+}
+
+task_highlight_render :: proc(target: ^Render_Target, after: bool) {
+	if task_highlight == nil {
+		return
+	}
+
+	// if 
+	// 	after && mode_panel.mode == .List ||
+	// 	!after && mode_panel.mode == .Kanban {
+	// 	return
+	// }
+
+	exists := false
+
+	for i in 0..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+		
+		if task_highlight == task {
+			exists = true
+			continue
+		}
+	}
+
+	if !exists {
+		return
+	}
+
+	render_push_clip(target, mode_panel.clip)
+
+	switch mode_panel.mode {
+		case .List: {
+			rect := mode_panel.bounds
+			rect.t = task_highlight.bounds.t
+			rect.b = task_highlight.bounds.b
+			render_rect(target, rect, theme.text_bad)
+		}
+
+		case .Kanban: {
+			rect := task_highlight.bounds
+			rect = rect_margin(rect, int(-10 * TASK_SCALE))
+			render_rect(target, rect, theme.text_bad, ROUNDNESS)
+		}
+	}
 }
