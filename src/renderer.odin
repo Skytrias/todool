@@ -117,6 +117,8 @@ Render_Kind :: enum u32 {
 	Drop_Shadow,
 	Circle,
 	Circle_Outline,
+	Sine,
+
 	SV,
 	HUE,
 	Texture,
@@ -947,6 +949,32 @@ render_texture_from_handle :: proc(
 		vertices[i].thickness = height
 		vertices[i].kind = wanted_kind
 	}
+}
+
+render_sine :: proc(
+	target: ^Render_Target,
+	r: RectI,
+	color: Color,
+) {
+	group := &target.groups[len(target.groups) - 1]	
+	vertices := render_target_push_vertices(target, group, 6)
+	
+	vertices[0] = { pos_xy = { f32(r.l), f32(r.t) }, uv_xy = { 0, 0 }}
+	vertices[1] = { pos_xy = { f32(r.r), f32(r.t) }, uv_xy = { 1, 0 }}
+	vertices[2] = { pos_xy = { f32(r.l), f32(r.b) }, uv_xy = { 0, 1 }}
+	vertices[5] = { pos_xy = { f32(r.r), f32(r.b) }, uv_xy = { 1, 1 }}
+
+	vertices[3] = vertices[1]
+	vertices[4] = vertices[2]
+	center_x, center_y := rect_center(r)
+
+	for i in 0..<6 {
+		vertices[i].color = color
+		vertices[i].uv_xy = { center_x, center_y }
+		// vertices[i].roundness = width
+		// vertices[i].thickness = height
+		vertices[i].kind = .Sine
+	}		
 }
 
 // paint children, dont use this yourself

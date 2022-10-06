@@ -527,6 +527,10 @@ window_poll_size :: proc(window: ^Window) {
 	window.rect = rect_wh(0, 0, window.width, window.height)
 }
 
+window_mouse_rect :: proc(window: ^Window, w := 1, h := 1) -> RectI {
+	return rect_wh(window.cursor_x, window.cursor_y, w, h)
+}
+
 window_mouse_inside :: proc(window: ^Window) -> bool {
 	return rect_contains(window.rect, window.cursor_x, window.cursor_y)
 }

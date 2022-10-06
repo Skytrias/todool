@@ -51,34 +51,21 @@ End_Event :: struct #packed {
 	time: f64,
 }
 
-// tid: u32 = 0
-buf: [dynamic]u8
 time_start: time.Time
-// time_start: time.Tick
+file_handle: os.Handle
 
-init :: proc(cap: int) {
+init :: proc(path: string, cap: int) {
 	when MEASURE {
-		buf = make([dynamic]u8, 0, cap)
 		time_start = time.now()
-		// time_start = time.tick_now()
-	}
-}
+		
+		errno: os.Errno
+		when os.OS == .Linux {
+			// all rights on linux
+			file_handle, errno = os.open(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0o0777)
+		} else {
+			file_handle, errno = os.open(path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+		}
 
-destroy :: proc() {
-	when MEASURE {
-		delete(buf)
-	}
-}
-
-write_and_destroy :: proc(path: string) {
-	when MEASURE {
-		os.write_entire_file(path, buf[:])
-		delete(buf)
-	}
-}
-
-header :: proc() {
-	when MEASURE {
 		header := Header{
 			magic = MAGIC, 
 			version = 0, 
@@ -86,52 +73,61 @@ header :: proc() {
 			must_be_0 = 0,
 		}
 		header_bytes := transmute([size_of(Header)]u8)header
-		append(&buf, ..header_bytes[:])
+		os.write(file_handle, header_bytes[:])
 	}
 }
 
-begin :: proc(name: string) {	
+destroy :: proc() {
 	when MEASURE {
-		ts := time.duration_milliseconds(time.since(time_start))
+		os.close(file_handle)
+	}
+}
 
-		begin := Begin_Event {
+begin :: proc(name: string, tid: u32) {
+	when MEASURE {
+		ts := time.duration_microseconds(time.since(time_start))
+		name_length := u8(len(name))
+		
+		event := Begin_Event {
 			type = .Begin,
 			pid  = 0,
-			tid  = 0,
+			tid  = tid,
 			time = ts,
-			name_len = u8(len(name)),
+			name_len = name_length,
 		}
 
-		begin_bytes := transmute([size_of(Begin_Event)]u8)begin
-		append(&buf, ..begin_bytes[:])
-		append(&buf, name)
+		begin_bytes := transmute([size_of(Begin_Event)]u8) event
+		os.write(file_handle, begin_bytes[:])
+		os.write_string(file_handle, name[:u8(len(name))])
 	}
 }
 
-end :: proc() {
+end :: proc(tid: u32) {
 	when MEASURE {
-		ts := time.duration_milliseconds(time.since(time_start))
-		end := End_Event {
+		ts := time.duration_microseconds(time.since(time_start))
+		
+		event := End_Event {
 			type = .End,
 			pid  = 0,
-			tid  = 0,
+			tid  = tid,
 			time = ts,
 		}
-		end_bytes := transmute([size_of(End_Event)]u8)end
-		append(&buf, ..end_bytes[:])
+
+		end_bytes := transmute([size_of(End_Event)]u8) event
+		os.write(file_handle, end_bytes[:])
 	}
 }
 
-@(deferred_none=end)
-scoped :: proc(name: string) {
-	when MEASURE {
-		begin(name)
-	}
+@(deferred_out=end)
+scoped :: proc(name: string, tid: u32 = 0) -> (u32) {
+	begin(name, tid)
+	return tid
 }
 
-@(deferred_none=end)
-fscoped :: proc(format: string, args: ..any) {
-	when MEASURE {
-		begin(fmt.tprintf(format, ..args))
-	}
+// NOTE uses tid 0 by default
+@(deferred_out=end)
+fscoped :: proc(format: string, args: ..any) -> u32 {
+	text := fmt.tprintf(format, ..args)
+	begin(text, 0)
+	return 0
 }

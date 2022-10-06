@@ -15,6 +15,11 @@ import "core:reflect"
 import "../cutf8"
 import "../fontstash"
 import "../spall"
+import "../rax"
+
+rt: ^rax.State
+rt_loaded: bool
+rt_words: [dynamic]Word_Result
 
 // last save
 last_save_location: string
@@ -174,6 +179,7 @@ task_data_init :: proc() {
 	drag_list = make([dynamic]^Task, 0, 64)
 
 	pomodoro_init()
+	rt_words = make([dynamic]Word_Result, 0, 32)
 }
 
 last_save_set :: proc(next: string = "") {
@@ -201,6 +207,8 @@ task_data_destroy :: proc() {
 	undo_manager_destroy(&um_search)
 	undo_manager_destroy(&um_goto)
 	undo_manager_destroy(&um_sidebar_tags)
+
+	delete(rt_words)
 }
 
 // reset copy data
@@ -669,8 +677,24 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			fcs_task(button)
 			fcs_ahv(.Left, .Middle)
 			text := strings.to_string(button.builder)
-			xadv := render_string_rect(target, element.bounds, text)
+			text_render := text
 
+			// cut of string text
+			if mode_panel.mode == .Kanban {
+				task := cast(^Task) element.parent
+				actual_width := rect_width(task.bounds) - 30
+				iter := fontstash.text_iter_init(&gs.fc, text)
+				q: fontstash.Quad
+
+				for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+					if actual_width < int(iter.x) {
+						text_render = fmt.tprintf("%s...", text[:iter.byte_offset])
+						break
+					}
+				}
+			}
+
+			xadv := render_string_rect(target, element.bounds, text_render)
 			if hovered || pressed {
 				rect := element.bounds
 				rect.r = int(xadv)
@@ -697,7 +721,7 @@ task_set_link :: proc(task: ^Task, link: string) {
 
 // valid link 
 task_link_is_valid :: proc(task: ^Task) -> bool {
-	return task.button_link != nil && len(task.button_link.builder.buf) > 0
+	return task.button_link != nil && (.Hide not_in task.button_link.flags) && len(task.button_link.builder.buf) > 0
 }
 
 // TODO speedup or cache?
@@ -1291,6 +1315,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			ss_draw_highlights(target, panel)
 
+			// word error highlight
+			if task_head != -1 && task_head == task_tail && rt_loaded {
+				render_push_clip(target, panel.clip)
+				task := tasks_visible[task_head] 
+				words_highlight_missing(target, task)
+			}
+
 			// TODO looks shitty when swapping
 			// shadow highlight for non selection
 			if task_head != -1 && task_shadow_alpha != 0 {
@@ -1381,8 +1412,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 				element_message(custom_split.image_display, .Paint_Recursive)
 			}
-
-			// task_highlight_render(target, true)
 
 			return 1
 		}

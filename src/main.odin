@@ -11,47 +11,76 @@ import "core:strings"
 import "core:fmt"
 import "core:log"
 import "core:math/rand"
+import "core:unicode"
+import "core:thread"
 import sdl "vendor:sdl2"
 import "../fontstash"
 import "../spall"
+import "../rax"
+import "../cutf8"
 
 TRACK_MEMORY :: false
-TODOOL_RELEASE :: true
+TODOOL_RELEASE :: false
 
-// main :: proc() {
-// 	Test_Struct1 :: struct {
-// 		a: int,
-// 		b: bool,
-// 		array: []int,
-// 		d: string,
+// rework scrollbar to just float and take and be less intrusive
+
+main8 :: proc() {
+	words_extract_test()
+
+	// fmt.eprintln("~~~deletion~~~")
+	// b := strings.builder_make(0, 256)
+	// for i in 0..<len(word) {
+	// 	strings.builder_reset(&b)
+	// 	strings.write_string(&b, word[0:i])
+	// 	strings.write_string(&b, word[i + 1:])
+	// 	fmt.eprintln(strings.to_string(b))
+	// }
+
+	// fmt.eprintln("~~~transposition~~~")
+	// for i in 0..<len(word) - 1 {
+	// 	strings.builder_reset(&b)
+	// 	strings.write_string(&b, word[0:i])
+	// 	strings.write_string(&b, word[i + 1:])
+	// 	strings.write_byte(&b, word[i])
+	// 	strings.write_string(&b, word[i + 2:])
+	// 	fmt.eprintln(strings.to_string(b))
+	// }
+
+	// fmt.eprintln("~~~alteration~~~")
+	// for i in 0..<len {
+	// 	strings.builder_reset(&b)
+	// 	strings.write_string(&b, word[0:i])
+	// 	strings.write_string(&b, word[i + 1:])
+	// 	strings.write_byte(&b, word[i])
+	// 	strings.write_string(&b, word[i + 2:])
+	// 	fmt.eprintln(strings.to_string(b))
+	// }
+}
+
+// 	// rax.Show(rt)
+
+// 	if true {
+// 		it: rax.Iterator
+// 		rax.Start(&it, rt)
+// 		defer rax.Stop(&it)
+		
+// 		res := rax.seek_string(&it, ">", "test")
+// 		if res {
+// 			for rax.next(&it) {
+// 				if rax.compare_string(&it, "==", "wow") {
+// 					break
+// 				}
+
+// 				text := strings.string_from_ptr(it.key, int(it.key_len))
+// 				fmt.eprintln("Key:", it.key, text)
+// 			}
+// 		}
+// 		fmt.eprintln("res", res)
 // 	}
 
-// 	Test_Struct2 :: struct {
-// 		a: int,
-// 		b: bool,
-// 		// array: []int,
-// 		d: string,
-// 	}
+// 	// fmt.eprintln()
 
-// 	output := Test_Struct1 {
-// 		100, 
-// 		true, 
-// 		{
-// 			1,2,3,4,5
-// 		},
-// 		"yoooooo",
-// 	}
-// 	output_data, output_err := json.marshal(output, {})
-// 	output_string := transmute(string) output_data[:]
-
-// 	fmt.eprintln(output_string)
-// 	assert(output_err == nil)
-
-// 	input: Test_Struct2
-// 	input_err := json.unmarshal(output_data, &input, .JSON)
-
-// 	fmt.eprintln(input, input_err)
-// 	assert(input_err == nil)
+// 	// fmt.eprintln("yo")
 // }
 
 main_update :: proc(window: ^Window) {
@@ -298,15 +327,145 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 	return 0
 } 
 
+Word_Result :: struct {
+	text: string,
+	index_codepoint_start: int,
+	index_codepoint_end: int,
+}
+
+words_extract :: proc(words: ^[dynamic]Word_Result, text: string) -> []Word_Result {
+	clear(words)
+	ds: cutf8.Decode_State
+	index_codepoint_start := -1
+	index_byte_start := -1
+
+	word_push_check :: proc(
+		words: ^[dynamic]Word_Result, 
+		text: string, 
+		ds: cutf8.Decode_State,
+		index_codepoint_current: int, 
+		index_codepoint_start: ^int, 
+		index_byte_start: int,
+	) {
+		if index_codepoint_start^ != -1 {
+			append(words, Word_Result {
+				text = text[index_byte_start:ds.byte_offset_old],
+				index_codepoint_start = index_codepoint_start^,
+				index_codepoint_end = index_codepoint_current,
+			})
+
+			index_codepoint_start^ = -1
+		}		
+	}
+
+	for codepoint, index in cutf8.ds_iter(&ds, text) {
+		if unicode.is_alpha(codepoint) {
+			if index_codepoint_start == -1 {
+				index_codepoint_start = index
+				index_byte_start = ds.byte_offset_old
+			}
+		} else {
+			word_push_check(words, text, ds, index, &index_codepoint_start, index_byte_start)
+		}
+	}
+
+	word_push_check(words, text, ds, ds.codepoint_count, &index_codepoint_start, index_byte_start)
+	return words[:]
+}
+
+words_extract_test :: proc() {
+	words := make([dynamic]Word_Result, 0, 32)
+	w1 := "testing this out man"
+	words_extract(&words, w1)
+	fmt.eprintln(words[:], "\n")
+	w2 := "test"
+	words_extract(&words, w2)
+	fmt.eprintln(words[:], "\n")
+}
+
+words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
+	text := strings.to_string(task.box.builder)
+	words := words_extract(&rt_words, text)
+
+	builder := strings.builder_make(0, 256, context.temp_allocator)
+	ds: cutf8.Decode_State
+
+	for word in words {
+		// lower case each word
+		strings.builder_reset(&builder)
+		ds = {}
+		for codepoint in cutf8.ds_iter(&ds, word.text) {
+			strings.write_rune(&builder, unicode.to_lower(codepoint))
+		}
+		res := rax.CustomFind(rt, raw_data(builder.buf), len(builder.buf))
+
+		// render the result when not found
+		if !res.valid {
+			fcs_task(task)
+			state := fontstash.wrap_state_init(
+				&gs.fc, 
+				task.box.wrapped_lines[:], 
+				word.index_codepoint_start, 
+				word.index_codepoint_end,
+			)
+			scaled_size := f32(state.isize / 10)
+			line_width := LINE_WIDTH + int(2 * TASK_SCALE)
+
+			for fontstash.wrap_state_iter(&gs.fc, &state) {
+				rect := RectI {
+					task.box.bounds.l + int(state.x_from),
+					task.box.bounds.l + int(state.x_to),
+					task.box.bounds.t + int(f32(state.y) * scaled_size) - line_width,
+					task.box.bounds.t + int(f32(state.y) * scaled_size),
+				}
+				
+				render_sine(target, rect, RED)
+			}
+		}
+	}
+}
+
 main :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
 	
-	spall.init(mem.Megabyte)
-	spall.header()
-	defer spall.write_and_destroy("test.spall")
-	spall.begin("init all")
+	spall.init("test.spall", mem.Megabyte)
+	defer spall.destroy()
+
+	spall.begin("init all", 0)
+
+	rt = rax.New()
+	defer rax.Free(rt)
+
+	// feed data to
+	thread.run(proc() {
+		spall.scoped("rax load", 1)
+
+		bytes, ok := os.read_entire_file("big.txt", context.allocator)
+		defer delete(bytes)
+
+		// NOTE ASSUMING ASCII ENCODING
+		// check for words in file, to lower all
+		word: [256]u8
+		word_index: uint
+		for i in 0..<len(bytes) {
+			b := rune(bytes[i])
+
+			if !unicode.is_alpha(b) {
+				if word_index != 0 {
+					rax.Insert(rt, &word[0], word_index, nil, nil)
+				}
+
+				word_index = 0
+			} else {
+				word[word_index] = u8(unicode.to_lower(b))
+				word_index += 1
+			}
+		}
+
+		rt_loaded = true
+	})
 
 	task_data_init()
 
@@ -367,6 +526,6 @@ main :: proc() {
 	// do actual loading later because options might change the path
 	gs_update_after_load()
 
-	spall.end()
+	spall.end(0)
 	gs_message_loop()
 }
