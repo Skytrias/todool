@@ -172,10 +172,11 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			ctrl := element.window.ctrl
 			handled := false
 
-			if command, ok := element.window.shortcut_state.box[combo]; ok {
-				assert(box.um != nil)
-				handled = shortcuts_command_execute_box(box.um, box, &box.box, command, ctrl, shift, false)
-			}
+			// TODO
+			// if command, ok := element.window.shortcut_state.box[combo]; ok {
+			// 	assert(box.um != nil)
+			// 	handled = shortcuts_command_execute_box(box.um, box, &box.box, command, ctrl, shift, false)
+			// }
 
 			if handled {
 				element_repaint(element)
@@ -351,16 +352,17 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			ctrl := element.window.ctrl
 			handled := false
 
-			if command, ok := element.window.shortcut_state.box[combo]; ok {
-				handled = shortcuts_command_execute_box(
-					&um_task, 
-					task_box, 
-					&task_box.box, 
-					command, 
-					ctrl, shift,
-					true,
-				)
-			}
+			// TODO
+			// if command, ok := element.window.shortcut_state.box[combo]; ok {
+			// 	handled = shortcuts_command_execute_box(
+			// 		&um_task, 
+			// 		task_box, 
+			// 		&task_box.box, 
+			// 		command, 
+			// 		ctrl, shift,
+			// 		true,
+			// 	)
+			// }
 
 			if handled {
 				element_repaint(element)

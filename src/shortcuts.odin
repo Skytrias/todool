@@ -9,311 +9,437 @@ import "core:mem"
 import "../cutf8"
 import "../tfd"
 
-// TODO change allocation scheme to allowe error free realocation of strings
+// // push default box shortcuts
+// shortcuts_push_box_default :: proc(window: ^Window) {
+// 	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
+// 	mapping_push_to = &window.shortcut_state.box
+// 	mapping_push("move_left", "ctrl+shift+left", "ctrl+left", "shift+left", "left")
+// 	mapping_push("move_right", "ctrl+shift+right", "ctrl+right", "shift+right", "right")
+// 	mapping_push("home", "shift+home", "home")
+// 	mapping_push("end", "shift+end", "end")
+// 	mapping_push("backspace", "ctrl+backspace", "shift+backspace", "backspace")
+// 	mapping_push("delete", "shift+delete", "delete")
+// 	mapping_push("select_all", "ctrl+a")
+// 	mapping_push("copy", "ctrl+c")
+// 	mapping_push("cut", "ctrl+x")
+// 	mapping_push("paste", "ctrl+v")
+// 	// mapping_push_v021_box(window, false)
+// }
 
-// shortcut state that holds all shortcuts
-// key_combo -> command -> command execution
-Shortcut_State :: struct {
-	arena: mem.Arena,
-	arena_backing: []byte,
-	box: map[string]string,
-	general: map[string]string,
-}
-mapping_push_to: ^map[string]string
-mapping_check: bool
+// shortcut_commands_box := map[string]string {
+// 	"move_up" = "moves the thing up",
+// }
 
-shortcut_state_init :: proc(s: ^Shortcut_State, arena_cap: int) {
-	s.arena_backing = make([]byte, arena_cap)
-	mem.arena_init(&s.arena, s.arena_backing)
-	s.box = make(map[string]string, 32)
-	s.general = make(map[string]string, 128)
-}
+commands: map[string]A
+combos: ^B
 
-shortcut_state_destroy :: proc(s: ^Shortcut_State) {
-	delete(s.box)
-	delete(s.general)
-	free_all(mem.arena_allocator(&s.arena))
-	delete(s.arena_backing)
-}
-
-// push general command with N combos
-mapping_push :: proc(command: string, combos: ..string) {
-	for combo in combos {
-		mapping_push_to[strings.clone(combo)] = strings.clone(command)
-	}
+ShortcutC :: struct {
+	call: proc(),
+	comment: string,
 }
 
-// skips already existing combos in the mapping
-mapping_push_checked :: proc(command: string, combos: ..string) {
-	for combo in combos {
-		if mapping_check && combo in mapping_push_to {
-			continue
-		}
-
-		mapping_push_to[strings.clone(combo)] = strings.clone(command)
-	}		
-}
-
-// clear all shortcuts
-shortcuts_clear :: proc(window: ^Window) {
-	s := &window.shortcut_state
-	clear(&s.box)
-	clear(&s.general)
-	free_all(mem.arena_allocator(&s.arena))
-}
-
-// push default box shortcuts
-shortcuts_push_box_default :: proc(window: ^Window) {
-	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
-	mapping_push_to = &window.shortcut_state.box
-	mapping_push("move_left", "ctrl+shift+left", "ctrl+left", "shift+left", "left")
-	mapping_push("move_right", "ctrl+shift+right", "ctrl+right", "shift+right", "right")
-	mapping_push("home", "shift+home", "home")
-	mapping_push("end", "shift+end", "end")
-	mapping_push("backspace", "ctrl+backspace", "shift+backspace", "backspace")
-	mapping_push("delete", "shift+delete", "delete")
-	mapping_push("select_all", "ctrl+a")
-	mapping_push("copy", "ctrl+c")
-	mapping_push("cut", "ctrl+x")
-	mapping_push("paste", "ctrl+v")
-	mapping_push_v021_box(window, false)
+Combo_Node :: struct {
+	prev, next: ^B,
+	combo: string,
+	command: string,
 }
 
 Shortcut :: struct {
 	command: string, // "move_up"
+	combos: string, // seperated by spaces
 	call: proc(),
 	comment: string, // does whatever
-
-	// seperated by spaces
-	combinations: strings.Builder, // ctrl+up up
 }
 
-shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
-	ctrl := mode_panel.window.ctrl
-	shift := mode_panel.window.shift
-	handled = true
+shortcuts_push: ^[dynamic]Shortcut
 
-	switch command {
-		case "move_up": todool_move_up()
-		case "move_down": todool_move_down()
-		case "move_up_stack": todool_move_up_stack()
-		case "move_down_stack": todool_move_down_stack()
-		
-		case "indent_jump_low_prev": todool_indent_jump_low_prev()
-		case "indent_jump_low_next": todool_indent_jump_low_next()
-		case "indent_jump_same_prev": todool_indent_jump_same_prev()
-		case "indent_jump_same_next": todool_indent_jump_same_next()
-		case "indent_jump_scope": todool_indent_jump_scope()
+shortcuts_push_box :: proc(push_to: ^[dynamic]Shortcut) {
+	shortcuts_push = push_to
+
+	a :: proc(
+		command: string, 
+		combos: string, 
+		call: proc(),
+		comment: string,
+	) {
+		append(shortcuts_push, Shortcut { command, combos, call, comment })
+	}
+
+	a("move_left", "ctrl+shift+left ctrl+left shift+left left", )
+	a("move_right", "ctrl+shift+right ctrl+right shift+right right")
+	a("home", "shift+home", "home")
+	a("end", "shift+end", "end")
+	a("backspace", "ctrl+backspace shift+backspace backspace")
+	a("delete", "shift+delete delete")
+	a("select_all", "ctrl+a")
+	a("copy", "ctrl+c")
+	a("cut", "ctrl+x")
+	a("paste", "ctrl+v")
+}
+
+shortcuts_push_todool :: proc(push_to: ^[dynamic]Shortcut) {
+	shortcuts_push = push_to
 	
-		case "bookmark_jump_prev": todool_bookmark_jump(true)
-		case "bookmark_jump_next": todool_bookmark_jump(false)
-		
-		case "tag_toggle1": tag_toggle(0x01)
-		case "tag_toggle2": tag_toggle(0x02)
-		case "tag_toggle3": tag_toggle(0x04)
-		case "tag_toggle4": tag_toggle(0x08)
-		case "tag_toggle5": tag_toggle(0x10)
-		case "tag_toggle6": tag_toggle(0x20)
-		case "tag_toggle7": tag_toggle(0x40)
-		case "tag_toggle8": tag_toggle(0x80)
+	a :: proc(
+		command: string, 
+		combos: string, 
+		call: proc(),
+		comment: string,
+	) {
+		append(shortcuts_push, Shortcut { command, combos, call, comment })
+	}
 
-		case "delete_tasks": todool_delete_tasks()
-		case "delete_on_empty": todool_delete_on_empty()
-		
-		case "copy_tasks_to_clipboard": todool_copy_tasks_to_clipboard()
-		case "copy_tasks": todool_copy_tasks()
-		case "duplicate_line": todool_duplicate_line()
-		case "cut_tasks": todool_cut_tasks()
-		case "paste_tasks": todool_paste_tasks()
-		case "paste_tasks_from_clipboard": todool_paste_tasks_from_clipboard()
-		case "center": todool_center()
-		
-		case "tasks_to_lowercase": todool_tasks_to_lowercase()
-		case "tasks_to_uppercase": todool_tasks_to_uppercase()
-		
-		case "change_task_state": todool_change_task_state(shift)
-		case "changelog_generate": changelog_spawn()
+	// movement
+	a("move_up", "shift+up ctrl+up up", todool_move_up, "select the upper visible task")
+	a("move_down", "shift+down ctrl+down down", todool_move_down, "select the lower visible task")
+	a("indent_jump_low_prev", "ctrl+shift+, ctrl+,", todool_indent_jump_low_prev, "")
+	a("indent_jump_low_next", "ctrl+shift+. ctrl+.", todool_indent_jump_low_next, "")
+	a("indent_jump_same_prev", "ctrl+shift+up ctrl+up", todool_indent_jump_same_prev, "")
+	a("indent_jump_same_next", "ctrl+shift+down ctrl+down", todool_indent_jump_same_next, "")
+	a("indent_jump_scope", "ctrl+shift+m ctrl+m", todool_indent_jump_scope, "cycle jump between the start/end task of the parents children")
+	a("select_all", "ctrl+shift+a", todool_select_all, "select all visible tasks")
 
-		case "selection_stop": todool_selection_stop()
-		
-		case "toggle_folding": todool_toggle_folding()
-		case "toggle_bookmark": todool_toggle_bookmark()
+	bprev := proc() { todool_bookmark_jump(true) }
+	bnext := proc() { todool_bookmark_jump(false) }
+	a("bookmark_jump_prev", "ctrl+shift+tab", bprev, "cycle jump to the previous bookmark")
+	a("bookmark_jump_next", "ctrl+tab", bnext, "cycle jump to the next bookmark")
 
-		case "indentation_shift_right": todool_indentation_shift(1)
-		case "indentation_shift_left": todool_indentation_shift(-1)
+	a("tasks_to_uppercase", "ctrl+shift+j", todool_tasks_to_uppercase, "uppercase the starting letters of each word for the selected tasks")
+	a("tasks_to_lowercase", "ctrl+shift+l", todool_tasks_to_lowercase, "lowercase all the content for the selected tasks")
 
-		case "pomodoro_toggle1": pomodoro_stopwatch_hot_toggle(0)
-		case "pomodoro_toggle2": pomodoro_stopwatch_hot_toggle(1)
-		case "pomodoro_toggle3": pomodoro_stopwatch_hot_toggle(2)
+	a("delete_on_empty", "ctrl+backspace backspace", todool_delete_on_empty, "deletes the task on no text content")
+	a("delete_tasks", "ctrl+d ctrl+shift+k", todool_delete_tasks, "deletes the selected tasks")
 
-		case "mode_list": todool_mode_list()
-		case "mode_kanban": todool_mode_kanban()
-		case "theme_editor": theme_editor_spawn()
+	// copy/paste	
+	a("copy_tasks_to_clipboard", "ctrl+shift+c ctrl+alt+c ctrl+shift+alt+c alt+c", todool_copy_tasks_to_clipboard, "copy the selected tasks STRING content to the clipboard")
+	a("copy_tasks", "ctrl+c", todool_copy_tasks, "deep copy the selected tasks to the copy buffer")
+	a("duplicate_line", "ctrl+l", todool_duplicate_line, "duplicates the current line")
+	a("cut_tasks", "ctrl+x", todool_cut_tasks, "cut the selected tasks to the copy buffer")
+	a("paste_tasks", "ctrl+v", todool_paste_tasks, "paste the content from the copy buffer")
+	a("paste_tasks_from_clipboard", "ctrl+shift+v", todool_paste_tasks_from_clipboard, "paste the clipboard content based on the indentation")
+	a("center", "ctrl+e", todool_center, "center the camera vertically")
 
-		case "insert_sibling": todool_insert_sibling(false)
-		case "insert_child": todool_insert_child()
+	a("selection_stop", "left right", todool_selection_stop, "stops task selection")
+	a("change_task_state", "ctrl+shift+q ctrl+q", todool_change_task_state, "cycles through the task states forwards/backwards")
+	a("toggle_folding", "ctrl+j", todool_toggle_folding, "toggle the task folding")
+	a("toggle_bookmark", "ctrl+b", todool_toggle_bookmark, "toggle the task bookmark")
 
-		case "shift_up": todool_shift_up()
-		case "shift_down": todool_shift_down()
+	a("tag_toggle1", "ctrl+1", tag_toggle1, "toggle the task tag 1")
+	a("tag_toggle2", "ctrl+2", tag_toggle2, "toggle the task tag 2")
+	a("tag_toggle3", "ctrl+3", tag_toggle3, "toggle the task tag 3")
+	a("tag_toggle4", "ctrl+4", tag_toggle4, "toggle the task tag 4")
+	a("tag_toggle5", "ctrl+5", tag_toggle5, "toggle the task tag 5")
+	a("tag_toggle6", "ctrl+6", tag_toggle6, "toggle the task tag 6")
+	a("tag_toggle7", "ctrl+7", tag_toggle7, "toggle the task tag 7")
+	a("tag_toggle8", "ctrl+8", tag_toggle8, "toggle the task tag 8")
+	
+	// shifts
+	sr :: proc() { todool_indentation_shift(1) }
+	sl :: proc() { todool_indentation_shift(-1) }
+	a("indentation_shift_right", "tab", sr, "shift the selected tasks to the right")
+	a("indentation_shift_left", "shift+tab", sl, "shift the selected tasks to the left")
+	a("shift_down", "alt+down", todool_shift_down, "shift the selected tasks down while keeping the same indentation")
+	a("shift_up", "alt+up", todool_shift_up, "shift the selected tasks up while keeping the same indentation")
 
-		case "select_all": todool_select_all()
+	// pomodoro
+	a("pomodoro_toggle1", "alt+1", pomodoro_stopwatch_hot_toggle0, "toggle the pomodoro work timer")
+	a("pomodoro_toggle2", "alt+2", pomodoro_stopwatch_hot_toggle1, "toggle the pomodoro short break timer")
+	a("pomodoro_toggle3", "alt+3", pomodoro_stopwatch_hot_toggle2, "toggle the pomodoro long break timer")
 
-		case "undo": todool_undo()
-		case "redo": todool_redo()
-		case "save": todool_save(false)
-		case "save_as": todool_save(true)
-		case "new_file": todool_new_file()
-		case "load": todool_load()
+	// modes	
+	a("mode_list", "alt+q", todool_mode_list, "change to the list mode")
+	a("mode_kanban", "alt+w", todool_mode_kanban, "change to the kanban mode")
 
-		case "goto": todool_goto()
-		case "search": todool_search()
-		case "escape": todool_escape()
+	// windows
+	a("theme_editor", "alt+e", theme_editor_spawn, "spawn the theme editor window")
+	a("changelog", "alt+x", changelog_spawn, "spawn the changelog generator window")
 
-		//v021
-		case "select_children": todool_select_children()
-		case "indent_jump_nearby_prev": todool_indent_jump_nearby(true)
-		case "indent_jump_nearby_next": todool_indent_jump_nearby(false)
-		case "fullscreen_toggle": window_fullscreen_toggle(window_main)
+	// insertion
+	a("insert_sibling", "return", proc() { todool_insert_sibling(false) }, "insert a task below with the same indentation")
+	a("insert_child", "ctrl+return", todool_insert_child, "insert a task below with increased indentation")
 
-		//v022
-		case "sort_locals": todool_sort_locals()
-		case "insert_sibling_above": todool_insert_sibling(true)
-		case "scale_increase": todool_scale(0.1)
-		case "scale_decrease": todool_scale(-0.1)
+	// misc	
+	a("undo", "ctrl+z", todool_undo, "undo the last set of actions")
+	a("redo", "ctrl+y", todool_redo, "redo the last set of actions")
+	s1 :: proc() { todool_save(false) }
+	s2 :: proc() { todool_save(true) }
+	a("save", "ctrl+s", s1, "save everything - will use last task save location if set")
+	a("save_as", "ctrl+shift+s", s2, "save everything - location forced by prompt")
+	a("load", "ctrl+o", todool_load, "load task content through file prompt")
+	a("new_file", "ctrl+n", todool_new_file, "empty the task content - will try to save before")
+	a("escape", "escape", todool_escape, "escape out of prompts or focused elements")
 
-		case: {
-			handled = false
+	// drops
+	a("goto", "ctrl+g", todool_goto, "spawn the goto prompt")
+	a("search", "ctrl+f", todool_search, "spawn the search prompt")
+}
+
+// iterate by whitespace, utf8 conform
+combo_iterate :: proc(text: ^string) -> (res: string, ok: bool) {
+	temp := text^
+	state: rune
+	codepoint: rune
+	start := -1
+	index: int
+	set: bool
+
+	for len(text) > 0 {
+		if cutf8.decode(&state, &codepoint, text[0]) {
+			if codepoint != ' ' {
+				if start == -1 {
+					start = index
+				}
+			} else {
+				if start != -1 {
+					res = temp[start:index]
+					set = true
+				}
+			}
 		}
+
+		index += 1
+		text^ = text^[1:]
+
+		// check inbetween
+		if set {
+			ok = true
+			return
+		}
+	}
+
+	// add last one
+	if start != -1 {
+		res = temp[start:]
+		ok = true
 	}
 
 	return
 }
 
-shortcuts_push_todool_default :: proc(window: ^Window) {
-	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
-	mapping_push_to = &window.shortcut_state.general
-	mapping_push("move_up", "shift+up", "ctrl+up", "up")
-	mapping_push("move_down", "shift+down", "ctrl+down", "down")
-	
-	mapping_push("indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
-	mapping_push("indent_jump_low_next", "ctrl+shift+.", "ctrl+.")
-	mapping_push("indent_jump_same_prev", "ctrl+shift+up", "ctrl+up")
-	mapping_push("indent_jump_same_next", "ctrl+shift+down", "ctrl+down")
-	mapping_push("indent_jump_scope", "ctrl+shift+m", "ctrl+m")
-	
-	mapping_push("bookmark_jump_prev", "ctrl+shift+tab")
-	mapping_push("bookmark_jump_next", "ctrl+tab")
-
-	mapping_push("tasks_to_uppercase", "ctrl+shift+j")
-	mapping_push("tasks_to_lowercase", "ctrl+shift+l")
-
-	mapping_push("delete_on_empty", "ctrl+backspace", "backspace")
-	mapping_push("delete_tasks", "ctrl+d", "ctrl+shift+k")
-	
-	mapping_push("copy_tasks_to_clipboard", "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c")
-	mapping_push("copy_tasks", "ctrl+c")
-	mapping_push("duplicate_line", "ctrl+l")
-	mapping_push("cut_tasks", "ctrl+x")
-	mapping_push("paste_tasks", "ctrl+v")
-	mapping_push("paste_tasks_from_clipboard", "ctrl+shift+v")
-	mapping_push("center", "ctrl+e")
-	
-	mapping_push("change_task_state", "ctrl+shift+q", "ctrl+q")
-	
-	mapping_push("selection_stop", "left", "right")
-	mapping_push("toggle_folding", "ctrl+j")
-	mapping_push("toggle_bookmark", "ctrl+b")
-
-	mapping_push("tag_toggle1", "ctrl+1")
-	mapping_push("tag_toggle2", "ctrl+2")
-	mapping_push("tag_toggle3", "ctrl+3")
-	mapping_push("tag_toggle4", "ctrl+4")
-	mapping_push("tag_toggle5", "ctrl+5")
-	mapping_push("tag_toggle6", "ctrl+6")
-	mapping_push("tag_toggle7", "ctrl+7")
-	mapping_push("tag_toggle8", "ctrl+8")
-	
-	mapping_push("changelog_generate", "alt+x")
-	
-	mapping_push("indentation_shift_right", "tab")
-	mapping_push("indentation_shift_left", "shift+tab")
-
-	mapping_push("pomodoro_toggle1", "alt+1")
-	mapping_push("pomodoro_toggle2", "alt+2")
-	mapping_push("pomodoro_toggle3", "alt+3")
-	
-	mapping_push("mode_list", "alt+q")
-	mapping_push("mode_kanban", "alt+w")
-	mapping_push("theme_editor", "alt+e")
-
-	mapping_push("insert_sibling", "return")
-	mapping_push("insert_child", "ctrl+return")
-
-	mapping_push("shift_down", "alt+down")
-	mapping_push("shift_up", "alt+up")
-	mapping_push("select_all", "ctrl+shift+a")
-
-	mapping_push("undo", "ctrl+z")
-	mapping_push("redo", "ctrl+y")
-	mapping_push("save", "ctrl+s")
-	mapping_push("save_as", "ctrl+shift+s")
-	mapping_push("new_file", "ctrl+n")
-	mapping_push("load", "ctrl+o")
-
-	mapping_push("goto", "ctrl+g")
-	mapping_push("search", "ctrl+f")
-	mapping_push("escape", "escape")
-
-	mapping_push_v021_todool(window, false)
-	mapping_push_v022_todool(window, false)
+combo_iterate_test :: proc() {
+	text := "ctrl+up         ctrl+down"
+	fmt.eprintln(text)
+	for combo in combo_iterate(&text) {
+		fmt.eprintf("\tres: %s\n", combo)
+	}
 }
 
-mapping_push_v021_todool :: proc(window: ^Window, maybe: bool) {
-	mapping_check = maybe
-	mapping_push_to = &window.shortcut_state.general
-	mapping_push_checked("select_children", "ctrl+h")
-	mapping_push_checked("move_up_stack", "ctrl+shift+home", "ctrl+home")
-	mapping_push_checked("move_down_stack", "ctrl+shift+end", "ctrl+end")
-	mapping_push_checked("indent_jump_nearby_prev", "alt+left")
-	mapping_push_checked("indent_jump_nearby_next", "alt+right")
-	mapping_push_checked("fullscreen_toggle", "f11")
-	mapping_check = false
-}
+// shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
+// 	ctrl := mode_panel.window.ctrl
+// 	shift := mode_panel.window.shift
+// 	handled = true
 
-mapping_push_v021_box :: proc(window: ^Window, maybe: bool) {
-	mapping_check = maybe
-	mapping_push_to = &window.shortcut_state.box
-	mapping_push_checked("undo", "ctrl+z")
-	mapping_push_checked("redo", "ctrl+y")
-	mapping_check = false
-}
-
-mapping_push_v022_todool :: proc(window: ^Window, maybe: bool) {
-	mapping_check = maybe
-	mapping_push_to = &window.shortcut_state.general
-	mapping_push_checked("sort_locals", "alt+a")
-	mapping_push_checked("insert_sibling_above", "shift+return")
-	mapping_push_checked("scale_increase", "ctrl++")
-	mapping_push_checked("scale_decrease", "ctrl+-")
-	mapping_check = false
-}
-
-// use this on newest release
-mapping_push_newest_version :: proc(window: ^Window) {
-	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
-	mapping_push_v021_todool(window, true)
-	mapping_push_v021_box(window, true)
-	mapping_push_v022_todool(window, true)
-}
-
-// shortcuts_todool_commands_help :: proc(command: string) {
 // 	switch command {
-// 		case "move_up"
+// 		case "move_up": todool_move_up()
+// 		case "move_down": todool_move_down()
+// 		case "move_up_stack": todool_move_up_stack()
+// 		case "move_down_stack": todool_move_down_stack()
+		
+// 		case "indent_jump_low_prev": todool_indent_jump_low_prev()
+// 		case "indent_jump_low_next": todool_indent_jump_low_next()
+// 		case "indent_jump_same_prev": todool_indent_jump_same_prev()
+// 		case "indent_jump_same_next": todool_indent_jump_same_next()
+// 		case "indent_jump_scope": todool_indent_jump_scope()
+	
+// 		case "bookmark_jump_prev": todool_bookmark_jump(true)
+// 		case "bookmark_jump_next": todool_bookmark_jump(false)
+		
+// 		case "tag_toggle1": tag_toggle(0x01)
+// 		case "tag_toggle2": tag_toggle(0x02)
+// 		case "tag_toggle3": tag_toggle(0x04)
+// 		case "tag_toggle4": tag_toggle(0x08)
+// 		case "tag_toggle5": tag_toggle(0x10)
+// 		case "tag_toggle6": tag_toggle(0x20)
+// 		case "tag_toggle7": tag_toggle(0x40)
+// 		case "tag_toggle8": tag_toggle(0x80)
+
+// 		case "delete_tasks": todool_delete_tasks()
+// 		case "delete_on_empty": todool_delete_on_empty()
+		
+// 		case "copy_tasks_to_clipboard": todool_copy_tasks_to_clipboard()
+// 		case "copy_tasks": todool_copy_tasks()
+// 		case "duplicate_line": todool_duplicate_line()
+// 		case "cut_tasks": todool_cut_tasks()
+// 		case "paste_tasks": todool_paste_tasks()
+// 		case "paste_tasks_from_clipboard": todool_paste_tasks_from_clipboard()
+// 		case "center": todool_center()
+		
+// 		case "tasks_to_lowercase": todool_tasks_to_lowercase()
+// 		case "tasks_to_uppercase": todool_tasks_to_uppercase()
+		
+// 		case "change_task_state": todool_change_task_state()
+// 		case "changelog_generate": changelog_spawn()
+
+// 		case "selection_stop": todool_selection_stop()
+		
+// 		case "toggle_folding": todool_toggle_folding()
+// 		case "toggle_bookmark": todool_toggle_bookmark()
+
+// 		case "indentation_shift_right": todool_indentation_shift(1)
+// 		case "indentation_shift_left": todool_indentation_shift(-1)
+
+// 		case "pomodoro_toggle1": pomodoro_stopwatch_hot_toggle(0)
+// 		case "pomodoro_toggle2": pomodoro_stopwatch_hot_toggle(1)
+// 		case "pomodoro_toggle3": pomodoro_stopwatch_hot_toggle(2)
+
+// 		case "mode_list": todool_mode_list()
+// 		case "mode_kanban": todool_mode_kanban()
+// 		case "theme_editor": theme_editor_spawn()
+
+// 		case "insert_sibling": todool_insert_sibling(false)
+// 		case "insert_child": todool_insert_child()
+
+// 		case "shift_up": todool_shift_up()
+// 		case "shift_down": todool_shift_down()
+
+// 		case "select_all": todool_select_all()
+
+// 		case "undo": todool_undo()
+// 		case "redo": todool_redo()
+// 		case "save": todool_save(false)
+// 		case "save_as": todool_save(true)
+// 		case "new_file": todool_new_file()
+// 		case "load": todool_load()
+
+// 		case "goto": todool_goto()
+// 		case "search": todool_search()
+// 		case "escape": todool_escape()
+
+// 		//v021
+// 		case "select_children": todool_select_children()
+// 		case "indent_jump_nearby_prev": todool_indent_jump_nearby(true)
+// 		case "indent_jump_nearby_next": todool_indent_jump_nearby(false)
+// 		case "fullscreen_toggle": window_fullscreen_toggle(window_main)
+
+// 		//v022
+// 		case "sort_locals": todool_sort_locals()
+// 		case "insert_sibling_above": todool_insert_sibling(true)
+// 		case "scale_increase": todool_scale(0.1)
+// 		case "scale_decrease": todool_scale(-0.1)
+
+// 		case: {
+// 			handled = false
+// 		}
 // 	}
+
+// 	return
 // }
 
-// shortcuts_comments_check :: proc() {
+// shortcuts_push_todool_default :: proc(window: ^Window) {
+// 	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
+// 	mapping_push_to = &window.shortcut_state.general
+// 	mapping_push("move_up", "shift+up", "ctrl+up", "up")
+// 	mapping_push("move_down", "shift+down", "ctrl+down", "down")
+	
+// 	mapping_push("indent_jump_low_prev", "ctrl+shift+,", "ctrl+,")
+// 	mapping_push("indent_jump_low_next", "ctrl+shift+.", "ctrl+.")
+// 	mapping_push("indent_jump_same_prev", "ctrl+shift+up", "ctrl+up")
+// 	mapping_push("indent_jump_same_next", "ctrl+shift+down", "ctrl+down")
+// 	mapping_push("indent_jump_scope", "ctrl+shift+m", "ctrl+m")
+	
+// 	mapping_push("bookmark_jump_prev", "ctrl+shift+tab")
+// 	mapping_push("bookmark_jump_next", "ctrl+tab")
 
+// 	mapping_push("tasks_to_uppercase", "ctrl+shift+j")
+// 	mapping_push("tasks_to_lowercase", "ctrl+shift+l")
+
+// 	mapping_push("delete_on_empty", "ctrl+backspace", "backspace")
+// 	mapping_push("delete_tasks", "ctrl+d", "ctrl+shift+k")
+	
+// 	mapping_push("copy_tasks_to_clipboard", "ctrl+shift+c", "ctrl+alt+c", "ctrl+shift+alt+c", "alt+c")
+// 	mapping_push("copy_tasks", "ctrl+c")
+// 	mapping_push("duplicate_line", "ctrl+l")
+// 	mapping_push("cut_tasks", "ctrl+x")
+// 	mapping_push("paste_tasks", "ctrl+v")
+// 	mapping_push("paste_tasks_from_clipboard", "ctrl+shift+v")
+// 	mapping_push("center", "ctrl+e")
+	
+// 	mapping_push("change_task_state", "ctrl+shift+q", "ctrl+q")
+	
+// 	mapping_push("selection_stop", "left", "right")
+// 	mapping_push("toggle_folding", "ctrl+j")
+// 	mapping_push("toggle_bookmark", "ctrl+b")
+
+// 	mapping_push("tag_toggle1", "ctrl+1")
+// 	mapping_push("tag_toggle2", "ctrl+2")
+// 	mapping_push("tag_toggle3", "ctrl+3")
+// 	mapping_push("tag_toggle4", "ctrl+4")
+// 	mapping_push("tag_toggle5", "ctrl+5")
+// 	mapping_push("tag_toggle6", "ctrl+6")
+// 	mapping_push("tag_toggle7", "ctrl+7")
+// 	mapping_push("tag_toggle8", "ctrl+8")
+	
+// 	mapping_push("changelog_generate", "alt+x")
+	
+// 	mapping_push("indentation_shift_right", "tab")
+// 	mapping_push("indentation_shift_left", "shift+tab")
+
+// 	mapping_push("pomodoro_toggle1", "alt+1")
+// 	mapping_push("pomodoro_toggle2", "alt+2")
+// 	mapping_push("pomodoro_toggle3", "alt+3")
+	
+// 	mapping_push("mode_list", "alt+q")
+// 	mapping_push("mode_kanban", "alt+w")
+// 	mapping_push("theme_editor", "alt+e")
+
+// 	mapping_push("insert_sibling", "return")
+// 	mapping_push("insert_child", "ctrl+return")
+
+// 	mapping_push("shift_down", "alt+down")
+// 	mapping_push("shift_up", "alt+up")
+// 	mapping_push("select_all", "ctrl+shift+a")
+
+// 	mapping_push("undo", "ctrl+z")
+// 	mapping_push("redo", "ctrl+y")
+// 	mapping_push("save", "ctrl+s")
+// 	mapping_push("save_as", "ctrl+shift+s")
+// 	mapping_push("new_file", "ctrl+n")
+// 	mapping_push("load", "ctrl+o")
+
+// 	mapping_push("goto", "ctrl+g")
+// 	mapping_push("search", "ctrl+f")
+// 	mapping_push("escape", "escape")
+
+// 	mapping_push_v021_todool(window, false)
+// 	mapping_push_v022_todool(window, false)
+// }
+
+// mapping_push_v021_todool :: proc(window: ^Window, maybe: bool) {
+// 	mapping_check = maybe
+// 	mapping_push_to = &window.shortcut_state.general
+// 	mapping_push_checked("select_children", "ctrl+h")
+// 	mapping_push_checked("move_up_stack", "ctrl+shift+home", "ctrl+home")
+// 	mapping_push_checked("move_down_stack", "ctrl+shift+end", "ctrl+end")
+// 	mapping_push_checked("indent_jump_nearby_prev", "alt+left")
+// 	mapping_push_checked("indent_jump_nearby_next", "alt+right")
+// 	mapping_push_checked("fullscreen_toggle", "f11")
+// 	mapping_check = false
+// }
+
+// mapping_push_v021_box :: proc(window: ^Window, maybe: bool) {
+// 	mapping_check = maybe
+// 	mapping_push_to = &window.shortcut_state.box
+// 	mapping_push_checked("undo", "ctrl+z")
+// 	mapping_push_checked("redo", "ctrl+y")
+// 	mapping_check = false
+// }
+
+// mapping_push_v022_todool :: proc(window: ^Window, maybe: bool) {
+// 	mapping_check = maybe
+// 	mapping_push_to = &window.shortcut_state.general
+// 	mapping_push_checked("sort_locals", "alt+a")
+// 	mapping_push_checked("insert_sibling_above", "shift+return")
+// 	mapping_push_checked("scale_increase", "ctrl++")
+// 	mapping_push_checked("scale_decrease", "ctrl+-")
+// 	mapping_check = false
+// }
+
+// // use this on newest release
+// mapping_push_newest_version :: proc(window: ^Window) {
+// 	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
+// 	mapping_push_v021_todool(window, true)
+// 	mapping_push_v021_box(window, true)
+// 	mapping_push_v022_todool(window, true)
 // }
 
 todool_delete_on_empty :: proc() {
@@ -573,11 +699,12 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 	}
 }
 
-todool_change_task_state :: proc(shift: bool) {
+todool_change_task_state :: proc() {
 	if task_head == -1 {
 		return
 	}
 
+	shift := window_main.shift
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 	iter := ti_init()
@@ -942,6 +1069,15 @@ tag_toggle :: proc(bit: u8) {
 
 	element_repaint(mode_panel)
 }
+
+tag_toggle1 :: proc() { tag_toggle(0x01) }
+tag_toggle2 :: proc() { tag_toggle(0x02) }
+tag_toggle3 :: proc() { tag_toggle(0x04) }
+tag_toggle4 :: proc() { tag_toggle(0x08) }
+tag_toggle5 :: proc() { tag_toggle(0x10) }
+tag_toggle6 :: proc() { tag_toggle(0x20) }
+tag_toggle7 :: proc() { tag_toggle(0x40) }
+tag_toggle8 :: proc() { tag_toggle(0x80) }
 
 Undo_Item_Task_Swap :: struct {
 	a, b: ^^Task,

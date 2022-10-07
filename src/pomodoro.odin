@@ -133,6 +133,10 @@ pomodoro_stopwatch_reset :: #force_inline proc() {
 	}
 }
 
+pomodoro_stopwatch_hot_toggle0 :: proc() { pomodoro_stopwatch_hot_toggle(0) }
+pomodoro_stopwatch_hot_toggle1 :: proc() { pomodoro_stopwatch_hot_toggle(1) }
+pomodoro_stopwatch_hot_toggle2 :: proc() { pomodoro_stopwatch_hot_toggle(2) }
+
 // toggle stopwatch on or off based on index
 pomodoro_stopwatch_hot_toggle :: proc(index: int) {
 	defer {

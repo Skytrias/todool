@@ -152,7 +152,8 @@ Window :: struct {
 	ctrl, shift, alt: bool,
 
 	// assigned shortcuts to procedures in window
-	shortcut_state: Shortcut_State,
+	shortcuts_box: [dynamic]Shortcut,
+	shortcuts_general: [dynamic]Shortcut,
 
 	// wether a dialog is currently showing
 	dialog: ^Element,
@@ -428,7 +429,8 @@ window_init :: proc(
 	res.element.window = res
 	res.window_next = gs.windows
 	gs.windows = res
-	shortcut_state_init(&res.shortcut_state, shortcut_cap)
+	res.shortcuts_box = make([dynamic]Shortcut, 0, 32)
+	res.shortcuts_general = make([dynamic]Shortcut, 0, shortcut_cap)
 
 	// set hovered panel
 	{
@@ -961,7 +963,8 @@ window_title_push_builder :: proc(window: ^Window, builder: ^strings.Builder) {
 
 window_deallocate :: proc(window: ^Window) {
 	log.info("WINDOW: Deallocate START")
-	shortcut_state_destroy(&window.shortcut_state)
+	delete(window.shortcuts_box)
+	delete(window.shortcuts_general)
 
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)

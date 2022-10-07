@@ -23,41 +23,7 @@ TRACK_MEMORY :: false
 TODOOL_RELEASE :: false
 
 // rework scrollbar to just float and take and be less intrusive
-
-main8 :: proc() {
-	words_extract_test()
-
-	// fmt.eprintln("~~~deletion~~~")
-	// b := strings.builder_make(0, 256)
-	// for i in 0..<len(word) {
-	// 	strings.builder_reset(&b)
-	// 	strings.write_string(&b, word[0:i])
-	// 	strings.write_string(&b, word[i + 1:])
-	// 	fmt.eprintln(strings.to_string(b))
-	// }
-
-	// fmt.eprintln("~~~transposition~~~")
-	// for i in 0..<len(word) - 1 {
-	// 	strings.builder_reset(&b)
-	// 	strings.write_string(&b, word[0:i])
-	// 	strings.write_string(&b, word[i + 1:])
-	// 	strings.write_byte(&b, word[i])
-	// 	strings.write_string(&b, word[i + 2:])
-	// 	fmt.eprintln(strings.to_string(b))
-	// }
-
-	// fmt.eprintln("~~~alteration~~~")
-	// for i in 0..<len {
-	// 	strings.builder_reset(&b)
-	// 	strings.write_string(&b, word[0:i])
-	// 	strings.write_string(&b, word[i + 1:])
-	// 	strings.write_byte(&b, word[i])
-	// 	strings.write_string(&b, word[i + 2:])
-	// 	fmt.eprintln(strings.to_string(b))
-	// }
-}
-
-// 	// rax.Show(rt)
+// have spall push threaded content based on ids or sdl timers
 
 // 	if true {
 // 		it: rax.Iterator
@@ -222,8 +188,6 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				return 0
 			}
 
-			s := &window.shortcut_state
-
 			task_head_tail_clamp()
 			if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
 				box := tasks_visible[task_head].box
@@ -237,8 +201,25 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				}
 			}
 
-			if command, ok := s.general[combo]; ok {
-				if shortcuts_command_execute_todool(command) {
+			// lookup general
+			{
+				spall.scoped("shortcut general search")
+				shortcuts := window.shortcuts_general
+				found: bool
+
+				shortcut_search: for shortcut in shortcuts {
+					text := shortcut.combos
+
+					for c in combo_iterate(&text) {
+						if c == combo {
+							shortcut.call()
+							found = true
+							break shortcut_search
+						}
+					}
+				}
+
+				if found {
 					return 1
 				}
 			}
@@ -469,7 +450,7 @@ main :: proc() {
 
 	task_data_init()
 
-	window := window_init(nil, {}, "Todool", 900, 900, mem.Megabyte * 2)
+	window := window_init(nil, {}, "Todool", 900, 900, 1024)
 	window.on_resize = proc(window: ^Window) {
 		cam := mode_panel_cam()
 		cam.freehand = true
@@ -481,13 +462,16 @@ main :: proc() {
 	{
 		spall.scoped("load keymap")
 		// keymap loading
-		if loaded := keymap_load("save.keymap"); !loaded {
-			shortcuts_push_todool_default(window)
-			shortcuts_push_box_default(window)
-			log.info("KEYMAP: Load failed -> Loading default")
-		} else {
-			log.info("KEYMAP: Load successful")
-		}
+
+		shortcuts_push_todool(&window_main.shortcuts_general)
+
+		// if loaded := keymap_load("save.keymap"); !loaded {
+		// 	shortcuts_push_todool_default(window)
+		// 	shortcuts_push_box_default(window)
+		// 	log.info("KEYMAP: Load failed -> Loading default")
+		// } else {
+		// 	log.info("KEYMAP: Load successful")
+		// }
 	}
 
 	{
