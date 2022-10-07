@@ -1062,6 +1062,9 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 						window->on_focus_gained()
 					}
 
+					// reset mouse
+					window_set_cursor(window, .Arrow)
+
 					// flush key event when gained
 					sdl.FlushEvent(.KEYDOWN)
 				}

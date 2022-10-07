@@ -2688,26 +2688,32 @@ task_dragging_end :: proc() -> bool {
 }
 
 mode_panel_context_menu_spawn :: proc() {
-	menu := menu_init(mode_panel.window, {})
+	menu := menu_init(mode_panel.window, { .Panel_Expand })
 
 	p := menu.panel
 	p.gap = 5
 	p.shadow = true
 	p.background_index = 2
 
-	button_init(p, { .HF }, "Theme Editor").invoke = proc(data: rawptr) {
+	button_init(p, {}, "Theme Editor").invoke = proc(data: rawptr) {
 		button := cast(^Button) data
 		theme_editor_spawn()
 		menu_close(button.window)
 	}
 
-	button_init(p, { .HF }, "Generate Changelog").invoke = proc(data: rawptr) {
+	// button_init(p, {}, "Keymap Editor").invoke = proc(data: rawptr) {
+	// 	button := cast(^Button) data
+	// 	keymap_spawn()
+	// 	menu_close(button.window)
+	// }
+
+	button_init(p, {}, "Changelog Generator").invoke = proc(data: rawptr) {
 		button := cast(^Button) data
 		changelog_spawn()
 		menu_close(button.window)
 	}
 	
-	button_init(p, { .HF }, "Load Tutorial").invoke = proc(data: rawptr) {
+	button_init(p, {}, "Load Tutorial").invoke = proc(data: rawptr) {
 		button := cast(^Button) data
 
 	  if !todool_check_for_saving(window_main) {

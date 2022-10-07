@@ -9,6 +9,8 @@ import "core:mem"
 import "../cutf8"
 import "../tfd"
 
+// TODO change allocation scheme to allowe error free realocation of strings
+
 // shortcut state that holds all shortcuts
 // key_combo -> command -> command execution
 Shortcut_State :: struct {
@@ -75,6 +77,15 @@ shortcuts_push_box_default :: proc(window: ^Window) {
 	mapping_push("cut", "ctrl+x")
 	mapping_push("paste", "ctrl+v")
 	mapping_push_v021_box(window, false)
+}
+
+Shortcut :: struct {
+	command: string, // "move_up"
+	call: proc(),
+	comment: string, // does whatever
+
+	// seperated by spaces
+	combinations: strings.Builder, // ctrl+up up
 }
 
 shortcuts_command_execute_todool :: proc(command: string) -> (handled: bool) {
@@ -269,7 +280,6 @@ mapping_push_v021_todool :: proc(window: ^Window, maybe: bool) {
 	mapping_check = false
 }
 
-
 mapping_push_v021_box :: proc(window: ^Window, maybe: bool) {
 	mapping_check = maybe
 	mapping_push_to = &window.shortcut_state.box
@@ -295,6 +305,16 @@ mapping_push_newest_version :: proc(window: ^Window) {
 	mapping_push_v021_box(window, true)
 	mapping_push_v022_todool(window, true)
 }
+
+// shortcuts_todool_commands_help :: proc(command: string) {
+// 	switch command {
+// 		case "move_up"
+// 	}
+// }
+
+// shortcuts_comments_check :: proc() {
+
+// }
 
 todool_delete_on_empty :: proc() {
 	if task_head == -1 {
