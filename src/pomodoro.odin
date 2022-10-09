@@ -133,17 +133,14 @@ pomodoro_stopwatch_reset :: #force_inline proc() {
 	}
 }
 
-pomodoro_stopwatch_hot_toggle0 :: proc() { pomodoro_stopwatch_hot_toggle(0) }
-pomodoro_stopwatch_hot_toggle1 :: proc() { pomodoro_stopwatch_hot_toggle(1) }
-pomodoro_stopwatch_hot_toggle2 :: proc() { pomodoro_stopwatch_hot_toggle(2) }
-
 // toggle stopwatch on or off based on index
-pomodoro_stopwatch_hot_toggle :: proc(index: int) {
+pomodoro_stopwatch_hot_toggle :: proc(du: u32) {
 	defer {
 		element_hide(sb.stats.button_pomodoro_reset, !pomodoro.stopwatch.running)
 		element_repaint(mode_panel)
 	}
 	
+	index := int(clamp(du, 0, 2))
 	if index == pomodoro.index {
 		pomodoro_stopwatch_toggle()
 		return

@@ -171,7 +171,7 @@ theme_panel_locked :: proc(panel: ^Panel) -> bool {
 	return checkbox.state
 }
 
-theme_editor_spawn :: proc() {
+theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	if !theme_editor.open {
 		theme_editor = {}
 		theme_editor.open = true

@@ -214,7 +214,7 @@ changelog_update_invoke :: proc(data: rawptr) {
 	changelog.window.update_next = true
 }
 
-changelog_spawn :: proc() {
+changelog_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	if changelog.window != nil {
 		return
 	}

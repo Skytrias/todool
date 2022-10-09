@@ -152,8 +152,7 @@ Window :: struct {
 	ctrl, shift, alt: bool,
 
 	// assigned shortcuts to procedures in window
-	shortcuts_box: [dynamic]Shortcut,
-	shortcuts_general: [dynamic]Shortcut,
+	keymap: Keymap,
 
 	// wether a dialog is currently showing
 	dialog: ^Element,
@@ -352,7 +351,7 @@ window_init :: proc(
 	flags: Element_Flags,
 	title: cstring, 
 	w, h: i32,
-	shortcut_cap: int,
+	command_cap: int,
 ) -> (res: ^Window) {
 	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
@@ -429,8 +428,7 @@ window_init :: proc(
 	res.element.window = res
 	res.window_next = gs.windows
 	gs.windows = res
-	res.shortcuts_box = make([dynamic]Shortcut, 0, 32)
-	res.shortcuts_general = make([dynamic]Shortcut, 0, shortcut_cap)
+	keymap_init(&res.keymap, command_cap)
 
 	// set hovered panel
 	{
@@ -963,8 +961,7 @@ window_title_push_builder :: proc(window: ^Window, builder: ^strings.Builder) {
 
 window_deallocate :: proc(window: ^Window) {
 	log.info("WINDOW: Deallocate START")
-	delete(window.shortcuts_box)
-	delete(window.shortcuts_general)
+	keymap_destroy(&window.keymap)
 
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)
@@ -998,15 +995,15 @@ window_build_combo :: proc(window: ^Window, key: sdl.KeyboardEvent) -> (res: str
 	builder_reset(b)
 	
 	if window.ctrl {
-		write_string(b, "ctrl+")
+		write_string(b, "ctrl ")
 	}
 	
 	if window.shift {
-		write_string(b, "shift+")
+		write_string(b, "shift ")
 	}
 	
 	if window.alt {
-		write_string(b, "alt+")
+		write_string(b, "alt ")
 	}
 	
 	key_name := sdl.GetKeyName(key.keysym.sym)

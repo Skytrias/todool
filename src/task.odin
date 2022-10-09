@@ -2423,12 +2423,12 @@ task_context_menu_spawn :: proc(task: ^Task) {
 
 		b1 := button_init(panel, { .HF }, "<-")
 		b1.invoke = proc(data: rawptr) {
-			todool_indentation_shift(-1)
+			todool_indentation_shift(COMBO_NEGATIVE)
 		}
 		label := label_init(panel, {  .HF, .Label_Center }, "indent")
 		b2 := button_init(panel, { .HF }, "->")
 		b2.invoke = proc(data: rawptr) {
-			todool_indentation_shift(1)
+			todool_indentation_shift(COMBO_POSITIVE)
 		}
 	}
 

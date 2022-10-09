@@ -19,8 +19,15 @@ import "../spall"
 import "../rax"
 import "../cutf8"
 
-TRACK_MEMORY :: false
+TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
+
+// KEYMAP REWORK
+// add super key
+// add comments to save file
+// add description
+// keymap load newer combos per version by default
+// keymap editor GUI
 
 // rework scrollbar to just float and take and be less intrusive
 // have spall push threaded content based on ids or sdl timers
@@ -201,28 +208,35 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				}
 			}
 
-			// lookup general
 			{
-				spall.scoped("shortcut general search")
-				shortcuts := window.shortcuts_general
-				found: bool
-
-				shortcut_search: for shortcut in shortcuts {
-					text := shortcut.combos
-
-					for c in combo_iterate(&text) {
-						if c == combo {
-							shortcut.call()
-							found = true
-							break shortcut_search
-						}
-					}
-				}
-
-				if found {
+				spall.scoped("keymap general execute")
+				if keymap_combo_execute(&window.keymap, combo) {
 					return 1
 				}
 			}
+
+			// // lookup general
+			// {
+			// 	spall.scoped("shortcut general search")
+			// 	shortcuts := window.shortcuts_general
+			// 	found: bool
+
+			// 	shortcut_search: for shortcut in shortcuts {
+			// 		text := shortcut.combos
+
+			// 		for c in combo_iterate(&text) {
+			// 			if c == combo {
+			// 				shortcut.call()
+			// 				found = true
+			// 				break shortcut_search
+			// 			}
+			// 		}
+			// 	}
+
+			// 	if found {
+			// 		return 1
+			// 	}
+			// }
 
 			return 0
 		}
@@ -463,7 +477,9 @@ main :: proc() {
 		spall.scoped("load keymap")
 		// keymap loading
 
-		shortcuts_push_todool(&window_main.shortcuts_general)
+		keymap_push_todool_commands(&window_main.keymap)
+		keymap_push_todool_combos(&window_main.keymap)
+		// shortcuts_push_todool(&window_main.shortcuts_general)
 
 		// if loaded := keymap_load("save.keymap"); !loaded {
 		// 	shortcuts_push_todool_default(window)
