@@ -11,6 +11,7 @@ import "core:bytes"
 import "core:log"
 import "core:os"
 import "core:encoding/json"
+import "core:math/bits"
 import "../cutf8"
 
 /* 
@@ -706,52 +707,63 @@ json_load_misc :: proc(path: string) -> bool {
 
 // CUSTOM FORMAT: 
 // [SECTION]
-// move_up = shift+up ctrl+up up
+// up = move_up 
+// shift up = move_up SHIFT
 keymap_save :: proc(path: string) -> bool {
 	arena, _ := arena_scoped(mem.Megabyte)
 	context.allocator = mem.arena_allocator(&arena)
 
-	// b := strings.builder_make(0, mem.Kilobyte * 2)
-	// s := &window_main.shortcut_state
+	b := strings.builder_make(0, mem.Kilobyte * 2)
 
-	// write_content :: proc(b: ^strings.Builder, name: string, mapping: map[string]string) {
-	// 	strings.write_string(b, name)
-	// 	strings.write_byte(b, '\n')
-	// 	rows := make(map[string]strings.Builder, len(mapping))
+	write_content :: proc(
+		b: ^strings.Builder, 
+		name: string, 
+		keymap: ^Keymap,
+	) {
+		strings.write_string(b, name)
+		strings.write_byte(b, '\n')
 
-	// 	// gather row data
-	// 	for k, v in mapping {
-			
+		// NOTE could add removal of non existant commands
+		for c := keymap.combo_start; c != nil; c = c.next {
+			strings.write_byte(b, '\t')
+			strings.write_string(b, c.combo)
+			strings.write_string(b, " = ")
+			strings.write_string(b, c.command)
 
-	// 		if row, ok := &rows[v]; ok {
-	// 			strings.write_byte(row, ' ')
-	// 			strings.write_string(row, k)
-	// 		} else {
-	// 			row_builder := strings.builder_make(0, 64)
-	// 			fmt.sbprintf(&row_builder, "\t%s = %s", v, k)
-	// 			rows[v] = row_builder
-	// 		}
-	// 	}
+			// write optional data
 
-	// 	// write each row
-	// 	for _, row in rows {
-	// 		strings.write_string(b, strings.to_string(row))
-	// 		strings.write_byte(b, '\n')
-	// 	}		
+			if c.du != COMBO_EMPTY {
+				if c.du >= COMBO_VALUE {
+					strings.write_uint(b, uint(c.du), 16)
+				} else {
+					for i in 0..<5 {
+						bit := bits.bitfield_extract(c.du, uint(i), 1)
+						
+						if bit != 0x00 {
+							stringified := du_string(i)
+							strings.write_byte(b, ' ')
+							strings.write_string(b, stringified)
+						}
+					}
+				}
+			}
 
-	// 	strings.write_string(b, "[END]\n")
-	// }
+			strings.write_byte(b, '\n')
+		}
 
-	// write_content(&b, "[BOX]", s.box)
-	// strings.write_byte(&b, '\n')
-	// write_content(&b, "[TODOOL]", s.general)
+		strings.write_string(b, "[END]\n")
+	}
 
-	// file_path := bpath_temp(path)
-	// ok := gs_write_safely(file_path, b.buf[:])
-	// if !ok {
-	// 	log.error("SAVE: Keymap save failed")
-	// 	return false
-	// }
+	write_content(&b, "[BOX]", &window_main.keymap_box)
+	strings.write_byte(&b, '\n')
+	write_content(&b, "[TODOOL]", &window_main.keymap_custom)
+
+	file_path := bpath_temp(path)
+	ok := gs_write_safely(file_path, b.buf[:])
+	if !ok {
+		log.error("SAVE: Keymap save failed")
+		return false
+	}
 
 	return true
 }

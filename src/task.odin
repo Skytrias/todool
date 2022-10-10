@@ -505,8 +505,8 @@ ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
 	return
 }
 
-task_head_tail_check_begin :: proc() ->  bool {
-	if !mode_panel.window.shift && task_head != task_tail {
+task_head_tail_check_begin :: proc(shift: bool) ->  bool {
+	if !shift && task_head != task_tail {
 		task_tail = task_head
 		return false
 	}
@@ -515,8 +515,8 @@ task_head_tail_check_begin :: proc() ->  bool {
 }
 
 // set line selection to head when no shift
-task_head_tail_check_end :: proc() {
-	if !mode_panel.window.shift {
+task_head_tail_check_end :: #force_inline proc(shift: bool) {
+	if !shift {
 		task_tail = task_head
 	}
 }
@@ -1795,9 +1795,10 @@ tag_mode_size :: proc(tag_mode: int) -> (res: int) {
 
 task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 	// set line to the head
-	task_head_tail_check_begin()
+	shift := window_main.shift
+	task_head_tail_check_begin(shift)
 	task_head = task.visible_index
-	task_head_tail_check_end()
+	task_head_tail_check_end(shift)
 
 	if only_box {
 		if task_head != task_tail {

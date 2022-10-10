@@ -152,7 +152,8 @@ Window :: struct {
 	ctrl, shift, alt: bool,
 
 	// assigned shortcuts to procedures in window
-	keymap: Keymap,
+	keymap_box: Keymap,
+	keymap_custom: Keymap,
 
 	// wether a dialog is currently showing
 	dialog: ^Element,
@@ -428,7 +429,8 @@ window_init :: proc(
 	res.element.window = res
 	res.window_next = gs.windows
 	gs.windows = res
-	keymap_init(&res.keymap, command_cap)
+	keymap_init(&res.keymap_box, 16)
+	keymap_init(&res.keymap_custom, command_cap)
 
 	// set hovered panel
 	{
@@ -961,7 +963,8 @@ window_title_push_builder :: proc(window: ^Window, builder: ^strings.Builder) {
 
 window_deallocate :: proc(window: ^Window) {
 	log.info("WINDOW: Deallocate START")
-	keymap_destroy(&window.keymap)
+	keymap_destroy(&window.keymap_box)
+	keymap_destroy(&window.keymap_custom)
 
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)

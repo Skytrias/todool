@@ -168,15 +168,13 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Key_Combination: {
 			combo := (cast(^string) dp)^
-			shift := element.window.shift
-			ctrl := element.window.ctrl
+			assert(box.um != nil)
+			kbox = { box, box.um, element, false, false }
 			handled := false
 
-			// TODO
-			// if command, ok := element.window.shortcut_state.box[combo]; ok {
-			// 	assert(box.um != nil)
-			// 	handled = shortcuts_command_execute_box(box.um, box, &box.box, command, ctrl, shift, false)
-			// }
+			if keymap_combo_execute(&box.window.keymap_box, combo) {
+				handled = !kbox.failed
+			}
 
 			if handled {
 				element_repaint(element)
@@ -191,7 +189,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Update: {
 			if di == UPDATE_FOCUS_GAINED {
-				box_move_end(box, false)
+				box_move_end_simple(box)
 			}
 
 			element_repaint(element)	
@@ -263,7 +261,7 @@ text_box_init :: proc(
 	res = element_init(Text_Box, parent, flags, text_box_message, allocator, index_at)
 	box_init(&res.box, 32)
 	strings.write_string(&res.builder, text)
-	box_move_end(&res.box, false)
+	box_move_end_simple(&res.box)
 	// log.info("box init", res.head, res.tail, len(res.builder.buf))
 	return	
 }
@@ -348,21 +346,12 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Key_Combination: {
 			combo := (cast(^string) dp)^
-			shift := element.window.shift
-			ctrl := element.window.ctrl
 			handled := false
+			kbox = { task_box, &um_task, element, true, false }
 
-			// TODO
-			// if command, ok := element.window.shortcut_state.box[combo]; ok {
-			// 	handled = shortcuts_command_execute_box(
-			// 		&um_task, 
-			// 		task_box, 
-			// 		&task_box.box, 
-			// 		command, 
-			// 		ctrl, shift,
-			// 		true,
-			// 	)
-			// }
+			if keymap_combo_execute(&task_box.window.keymap_box, combo) {
+				handled = !kbox.failed
+			}
 
 			if handled {
 				element_repaint(element)
@@ -404,84 +393,13 @@ task_box_init :: proc(
 	res = element_init(Task_Box, parent, flags, task_box_message, allocator, index_at)
 	box_init(&res.box, 64)
 	strings.write_string(&res.builder, text)
-	box_move_end(&res.box, false)
+	box_move_end_simple(&res.box)
 	return
 }
 
 //////////////////////////////////////////////
 // Box input
 //////////////////////////////////////////////
-
-// evaluate command text to actual execution of command
-shortcuts_command_execute_box :: proc(
-	manager: ^Undo_Manager,
-	element: ^Element,
-	box: ^Box,
-	command: string,
-	ctrl: bool,
-	shift: bool,
-	msg_by_task: bool,
-) -> (handled: bool) {
-	handled = true
-
-	switch command {
-		case "move_left": box_move_left(box, ctrl, shift)
-		case "move_right": box_move_right(box, ctrl, shift)
-		case "home": box_move_home(box, shift)
-		case "end": box_move_end(box, shift)
-		case "backspace": handled = box_backspace(manager, element, box, ctrl, shift, msg_by_task)
-		case "delete": handled = box_delete(manager, element, box, ctrl, shift, msg_by_task)
-		case "select_all": box_select_all(box)
-
-		case "copy": {
-			handled = box_copy_selection(element.window, box)
-			last_was_task_copy = false
-		}
-
-		case "cut": {
-			if box.tail != box.head {
-				handled = box_copy_selection(element.window, box)
-				box_delete(manager, element, box, ctrl, shift, msg_by_task)
-				last_was_task_copy = false
-			} else {
-				handled = false
-			}
-		}
-
-		case "paste": {
-			if !last_was_task_copy {
-				handled = box_paste(manager, element, box, msg_by_task)
-			} else {
-				handled = false
-			}
-		}
-
-		case "undo", "redo": {
-			assert(manager != nil)
-
-			if msg_by_task {
-				handled = false
-				return
-			}
-
-			do_redo := command == "redo"
-			if !undo_is_empty(manager, do_redo) {
-				undo_invoke(manager, do_redo)
-				element_message(element, .Value_Changed)
-				box.change_start = time.tick_now()
-				handled = true
-			} else {
-				handled = false
-			}
-		}
-
-		case: {
-			handled = false
-		}
-	}
-
-	return
-}
 
 // copy selection to window storage
 box_copy_selection :: proc(window: ^Window, box: ^Box) -> (found: bool) {
@@ -534,81 +452,6 @@ box_paste :: proc(
 	}
 
 	return
-}
-
-box_move_left :: proc(box: ^Box, ctrl, shift: bool) {
-	box_move_caret(box, true, ctrl, shift)
-	box_check_shift(box, shift)
-}
-
-box_move_right :: proc(box: ^Box, ctrl, shift: bool) {
-	box_move_caret(box, false, ctrl, shift)
-	box_check_shift(box, shift)
-}
-
-box_move_home :: proc(box: ^Box, shift: bool) {
-	box.head = 0
-	box_check_shift(box, shift)
-}
-
-box_move_end :: proc(box: ^Box, shift: bool) {
-	length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
-	box.head = length
-	box_check_shift(box, shift)
-}
-
-box_backspace :: proc(
-	manager: ^Undo_Manager,
-	element: ^Element, 
-	box: ^Box,
-	ctrl, shift: bool,
-	msg_by_task: bool,
-) -> bool {
-	old_head := box.head
-	old_tail := box.tail
-
-	// skip none
-	if box.head == 0 && box.tail == 0 {
-		return false
-	}
-
-	forced_selection: int
-	if box.head == box.tail {
-		box_move_caret(box, true, ctrl, shift)
-		forced_selection = -1
-	}
-
-	box_replace(manager, element, box, "", forced_selection, true, msg_by_task)
-
-	// if nothing changes, dont handle
-	if box.head == old_head && box.tail == old_tail {
-		return false
-	}
-
-	return true
-}
-
-box_delete :: proc(
-	manager: ^Undo_Manager,
-	element: ^Element, 
-	box: ^Box, 
-	ctrl, shift: bool,
-	msg_by_task: bool,
-) -> bool {
-	forced_selection: int
-	if box.head == box.tail {
-		box_move_caret(box, false, ctrl, shift)
-		forced_selection = 1
-	}
-
-	box_replace(manager, element, box, "", forced_selection, true, msg_by_task)
-	return true
-}
-
-box_select_all :: proc(box: ^Box) {
-	length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
-	box.head = length
-	box.tail = 0
 }
 
 // commit and reset changes if any
@@ -1552,3 +1395,132 @@ undo_box_lowercased_content :: proc(manager: ^Undo_Manager, item: rawptr) {
 	text := strings.to_string(data.builder^)
 	builder_write_lowercased_string(data.builder, text)
 }
+
+// state to pass
+KBox :: struct {
+	box: ^Box,
+	um: ^Undo_Manager,
+	element: ^Element,
+	by_task: bool,
+	failed: bool, // result that can be checked
+}
+
+// local state used by kbox commands since they need a bit of state
+kbox: KBox
+
+kbox_move_left :: proc(du: u32) {
+	ctrl, shift := du_ctrl_shift(du)
+	box_move_caret(kbox.box, true, ctrl, shift)
+	box_check_shift(kbox.box, shift)
+}
+
+kbox_move_right :: proc(du: u32) {
+	ctrl, shift := du_ctrl_shift(du)
+	box_move_caret(kbox.box, false, ctrl, shift)
+	box_check_shift(kbox.box, shift)		
+}
+
+kbox_move_home :: proc(du: u32) {
+	shift := du_shift(du)
+	kbox.box.head = 0
+	box_check_shift(kbox.box, shift)
+}
+
+box_move_end_simple :: proc(box: ^Box) {
+	length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
+	box.head = length
+	box_check_shift(box, false)
+}
+
+kbox_move_end :: proc(du: u32) {
+	shift := du_shift(du)
+	length := cutf8.ds_recount(&kbox.box.ds, strings.to_string(kbox.box.builder))
+	kbox.box.head = length
+	box_check_shift(kbox.box, shift)
+}
+
+kbox_select_all :: proc(du: u32) {
+	length := cutf8.ds_recount(&kbox.box.ds, strings.to_string(kbox.box.builder))
+	kbox.box.head = length
+	kbox.box.tail = 0
+}
+
+kbox_backspace :: proc(du: u32) {
+	old_head := kbox.box.head
+	old_tail := kbox.box.tail
+	ctrl, shift := du_ctrl_shift(du)
+
+	// skip none
+	if kbox.box.head == 0 && kbox.box.tail == 0 {
+		kbox.failed = true
+		return
+	}
+
+	forced_selection: int
+	if kbox.box.head == kbox.box.tail {
+		box_move_caret(kbox.box, true, ctrl, shift)
+		forced_selection = -1
+	}
+
+	box_replace(kbox.um, kbox.element, kbox.box, "", forced_selection, true, kbox.by_task)
+
+	// if nothing changes, dont handle
+	if kbox.box.head == old_head && kbox.box.tail == old_tail {
+		kbox.failed = true
+		return
+	}
+}
+
+kbox_delete :: proc(du: u32) {
+	ctrl, shift := du_ctrl_shift(du)
+
+	forced_selection: int
+	if kbox.box.head == kbox.box.tail {
+		box_move_caret(kbox.box, false, ctrl, shift)
+		forced_selection = 1
+	}
+
+	box_replace(kbox.um, kbox.element, kbox.box, "", forced_selection, true, kbox.by_task)
+}
+
+kbox_copy :: proc(du: u32) {
+	kbox.failed = !box_copy_selection(kbox.element.window, kbox.box)
+	last_was_task_copy = false
+}
+
+kbox_cut :: proc(du: u32) {
+	if kbox.box.tail != kbox.box.head {
+		kbox.failed = !box_copy_selection(kbox.element.window, kbox.box)
+		kbox_delete(0x00)
+		last_was_task_copy = false
+	} else {
+		kbox.failed = true
+	}
+}
+
+kbox_paste :: proc(du: u32) {
+	if !last_was_task_copy {
+		kbox.failed = !box_paste(kbox.um, kbox.element, kbox.box, kbox.by_task)
+	} else {
+		kbox.failed = true
+	}
+}
+
+kbox_undo_redo :: proc(du: u32, do_redo: bool) {
+	if kbox.by_task {
+		kbox.failed = true
+		return
+	}
+
+	if !undo_is_empty(kbox.um, do_redo) {
+		undo_invoke(kbox.um, do_redo)
+		element_message(kbox.element, .Value_Changed)
+		kbox.box.change_start = time.tick_now()
+	} else {
+		kbox.failed = true
+	}
+}
+
+kbox_undo :: proc(du: u32) { kbox_undo_redo(du, false) }
+kbox_redo :: proc(du: u32) { kbox_undo_redo(du, true) }
+

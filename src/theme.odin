@@ -187,17 +187,17 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 				handled := true
 
 				switch combo {
-					case "ctrl+s": {
+					case "ctrl s": {
 						json_save_misc("save.sjson")
 					}
 
-					case "ctrl+c": {
+					case "ctrl c": {
 						p := theme_selected_panel()
 						color_mod := cast(^Color) p.data
 						theme_editor.color_copy = color_mod^
 					}
 
-					case "ctrl+v": {
+					case "ctrl v": {
 						found: bool
 
 						if clipboard_has_content() {

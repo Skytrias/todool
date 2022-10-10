@@ -260,12 +260,12 @@ search_init :: proc(parent: ^Element) {
 					}
 
 					// next
-					case "f3", "ctrl+n": {
+					case "f3", "ctrl n": {
 						ss_find_next()
 					}
 
 					// prev 
-					case "shift+f3", "ctrl+shift+n": {
+					case "shift f3", "ctrl shift n": {
 						ss_find_prev()
 					}
 
