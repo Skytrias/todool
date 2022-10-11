@@ -75,7 +75,6 @@ Sidebar :: struct {
 
 	pomodoro_label: ^Label,
 	label_line: ^Label,
-	// label_task: ^Label,
 }
 sb: Sidebar
 
@@ -87,6 +86,8 @@ Sidebar_Options :: struct {
 	checkbox_uppercase_word: ^Checkbox,
 	checkbox_bordered: ^Checkbox,
 	checkbox_hide_statusbar: ^Checkbox,
+	checkbox_vim: ^Checkbox,
+	checkbox_spell_checking: ^Checkbox,
 	slider_volume: ^Slider,
 	slider_opacity: ^Slider,
 
@@ -324,6 +325,8 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			box := cast(^Checkbox) data
 			element_hide(custom_split.statusbar.stat, box.state)
 		}
+		checkbox_vim = checkbox_init(panel, flags, "Use VIM bindings", false)
+		checkbox_spell_checking = checkbox_init(panel, flags, "Use Spell-Checking", false)
 	
 		slider_volume = slider_init(panel, flags, 1)
 		slider_volume.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -683,6 +686,14 @@ options_tag_mode :: #force_inline proc() -> int {
 
 options_uppercase_word :: #force_inline proc() -> bool {
 	return sb.options.checkbox_uppercase_word.state
+}
+
+options_vim_use :: #force_inline proc() -> bool {
+	return sb.options.checkbox_vim.state
+}
+
+options_spell_checking :: #force_inline proc() -> bool {
+	return sb.options.checkbox_spell_checking.state
 }
 
 visuals_use_animations :: #force_inline proc() -> bool {

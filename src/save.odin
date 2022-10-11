@@ -6,6 +6,7 @@ import "core:slice"
 import "core:time"
 import "core:io"
 import "core:strings"
+import "core:strconv"
 import "core:mem"
 import "core:bytes"
 import "core:log"
@@ -404,6 +405,8 @@ Misc_Save_Load :: struct {
 		gap_vertical: f32,
 		kanban_width: f32,
 		task_margin: f32,
+		vim: bool,
+		spell_checking: bool,
 	},
 
 	tags: struct {
@@ -526,6 +529,8 @@ json_save_misc :: proc(path: string) -> bool {
 			sb.options.slider_gap_vertical.position,
 			sb.options.slider_kanban_width.position,
 			sb.options.slider_task_margin.position,
+			options_vim_use(),
+			options_spell_checking(),
 		},
 
 		tags = {
@@ -655,6 +660,8 @@ json_load_misc :: proc(path: string) -> bool {
 	slider_set(sb.options.slider_gap_vertical, misc.options.gap_vertical)
 	slider_set(sb.options.slider_kanban_width, misc.options.kanban_width)
 	slider_set(sb.options.slider_task_margin, misc.options.task_margin)
+	checkbox_set(sb.options.checkbox_vim, misc.options.vim)
+	checkbox_set(sb.options.checkbox_spell_checking, misc.options.spell_checking)
 
 	// theme
 	{
@@ -722,25 +729,35 @@ keymap_save :: proc(path: string) -> bool {
 	) {
 		strings.write_string(b, name)
 		strings.write_byte(b, '\n')
+		count: int
 
-		// NOTE could add removal of non existant commands
 		for c := keymap.combo_start; c != nil; c = c.next {
+			if cmd, ok1 := keymap.commands[c.command]; ok1 {
+				if comment, ok2 := keymap_comments[cmd]; ok2 {
+					strings.write_string(b, "\t// ")
+					strings.write_string(b, comment)
+					strings.write_byte(b, '\n')
+				} else {
+					// NOTE skip non found command
+					continue
+				}
+			}
+
 			strings.write_byte(b, '\t')
 			strings.write_string(b, c.combo)
 			strings.write_string(b, " = ")
 			strings.write_string(b, c.command)
 
 			// write optional data
-
 			if c.du != COMBO_EMPTY {
 				if c.du >= COMBO_VALUE {
-					strings.write_uint(b, uint(c.du), 16)
+					fmt.sbprintf(b, " 0x%2x", uint(c.du - COMBO_VALUE))
 				} else {
 					for i in 0..<5 {
 						bit := bits.bitfield_extract(c.du, uint(i), 1)
 						
 						if bit != 0x00 {
-							stringified := du_string(i)
+							stringified := du_to_string(i)
 							strings.write_byte(b, ' ')
 							strings.write_string(b, stringified)
 						}
@@ -749,6 +766,13 @@ keymap_save :: proc(path: string) -> bool {
 			}
 
 			strings.write_byte(b, '\n')
+
+			if count > 5 {
+				count = 0
+				strings.write_byte(b, '\n')
+			} else {
+				count += 1
+			}
 		}
 
 		strings.write_string(b, "[END]\n")
@@ -757,6 +781,10 @@ keymap_save :: proc(path: string) -> bool {
 	write_content(&b, "[BOX]", &window_main.keymap_box)
 	strings.write_byte(&b, '\n')
 	write_content(&b, "[TODOOL]", &window_main.keymap_custom)
+	strings.write_byte(&b, '\n')
+	write_content(&b, "[VIM-NORMAL]", &keymap_vim_normal)
+	strings.write_byte(&b, '\n')
+	write_content(&b, "[VIM-INSERT]", &keymap_vim_insert)
 
 	file_path := bpath_temp(path)
 	ok := gs_write_safely(file_path, b.buf[:])
@@ -772,102 +800,87 @@ keymap_load :: proc(path: string) -> bool {
 	bytes := bpath_file_read(path) or_return
 	defer delete(bytes)
 
-	arena, _ := arena_scoped(mem.Megabyte)
-	context.allocator = mem.arena_allocator(&arena)
+	section_read :: proc(
+		keymap: ^Keymap,
+		content: ^string, 
+		section: string, 
+	) -> (ok: bool) {
+		found_section: bool
+		du: u32
+		du_index: int
+		command: string
 
-	// section_read :: proc(content: ^string, section: string, expected: int) -> (mapping: map[string]string, ok: bool) {
-	// 	mapping = make(map[string]string, expected)
-	// 	found_section: bool
-	// 	ds: cutf8.Decode_State
+		for line in strings.split_lines_iterator(content) {
+			// end reached for the section
+			if line == "[END]" {
+				break
+			}
 
-	// 	for line in strings.split_lines_iterator(content) {
-	// 		// end reached for the section
-	// 		if line == "[END]" {
-	// 			break
-	// 		}
+			// TODO optimize to auto detect combo / command / du sections
 
-	// 		if !found_section {
-	// 			// can skip empty lines
-	// 			if line == section {
-	// 				found_section = true
-	// 			}
-	// 		} else {
-	// 			word_start := -1
-	// 			first_found: bool
-	// 			first_word: string
-	// 			line_valid: bool
-	// 			only_space := true
-	// 			ds = {}
+			if !found_section {
+				// can skip empty lines
+				if line == section {
+					found_section = true
+				}
+			} else {
+				trimmed := strings.trim_space(line)
 
-	// 			for codepoint, codepoint_index in cutf8.ds_iter(&ds, line) {
-	// 				if codepoint == '=' {
-	// 					line_valid = true
-	// 				}
+				// skip comments
+				if len(trimmed) == 0 {
+					continue
+				} else if len(trimmed) > 1 {
+					if trimmed[0] == '/' && trimmed[1] == '/' {
+						continue
+					}
+				}
 
-	// 				// word validity
-	// 				if unicode.is_letter(codepoint) || codepoint == '+' {
-	// 					if word_start == -1 {
-	// 						word_start = ds.byte_offset_old
-	// 					}
+				head, _, tail := strings.partition(trimmed, " = ")
+				if head != "" {
+					du = 0x00
+					du_index = 0
+					command_du := tail
 
-	// 					only_space = false
-	// 				} else if unicode.is_space(codepoint) {
-	// 					// ignoring spacing
-	// 					if word_start != -1 {
-	// 						word := line[word_start:ds.byte_offset_old]
-	// 						word_start = -1
+					for text in combo_iterate(&command_du) {
+						if du_index == 0 {
+							command = text
+						} else {
+							du_res := du_from_string(text)
 
-	// 						// insert first word as value
-	// 						if !first_found {
-	// 							first_word = word
-	// 							first_found = true
-	// 						} else {
-	// 							mapping[word] = first_word
-	// 						}
-	// 					}
-	// 				}
-	// 			}
+							// interpret data uint value
+							if du_res != COMBO_EMPTY {
+								du |= du_res
+							} else {
+								if val, ok := strconv.parse_uint(text); ok {
+									du = u32(val)
+								} else {
 
-	// 			// check end of word
-	// 			if word_start != -1 {
-	// 				word := line[word_start:ds.byte_offset]
+								}
+							}
+						}
 
-	// 				if first_found {
-	// 					mapping[word] = first_word
-	// 				}
-	// 			}
+						du_index += 1
+					}
 
-	// 			// invalid typed line disallowed, empty line allowed
-	// 			if !line_valid && !only_space {
-	// 				return
-	// 			}
+					keymap_push_combo(keymap, head, command, du)
+				}
+			}
+		}
 
-	// 			// log.info(line, first_word, len(mapping))
-	// 		}
-	// 	}
+		ok = found_section
+		return
+	}
 
-	// 	ok = len(mapping) != 0 && found_section
-	// 	return
-	// }
+	content := string(bytes)
+	section_read(&window_main.keymap_box, &content, "[BOX]") or_return
+	section_read(&window_main.keymap_custom, &content, "[TODOOL]") or_return
+	section_read(&keymap_vim_normal, &content, "[VIM-NORMAL]") or_return
+	section_read(&keymap_vim_insert, &content, "[VIM-INSERT]") or_return
 
-	// content := string(bytes)
-	// box := section_read(&content, "[BOX]", 32) or_return
-	// general := section_read(&content, "[TODOOL]", 128) or_return
-
-	// // NOTE ONLY TRANSFERS DATA ON ALL SUCCESS
-	// {
-	// 	shortcuts_clear(window_main)
-	// 	s := &window_main.shortcut_state
-	// 	context.allocator = mem.arena_allocator(&s.arena)
-
-	// 	for combo, command in box {
-	// 		s.box[strings.clone(combo)] = strings.clone(command)
-	// 	}
-
-	// 	for combo, command in general {
-	// 		s.general[strings.clone(combo)] = strings.clone(command)
-	// 	}
-	// }
+	// fmt.eprintln(keymap_combo_size(&window_main.keymap_box))
+	// fmt.eprintln(keymap_combo_size(&window_main.keymap_custom))
+	// fmt.eprintln(keymap_combo_size(&keymap_vim_normal))
+	// fmt.eprintln(keymap_combo_size(&keymap_vim_insert))
 
 	// mapping_push_newest_version(window_main)
 	return true

@@ -56,6 +56,23 @@ TODOOL_RELEASE :: false
 // 	// fmt.eprintln("yo")
 // }
 
+main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: rawptr) -> int {
+	task_head_tail_clamp()
+	if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
+		box := tasks_visible[task_head].box
+		
+		if element_message(box, msg, di, dp) == 1 {
+			cam := mode_panel_cam()
+			cam.freehand = false
+			mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r, false, false)
+			mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b, true)
+			return 1
+		}
+	}
+
+	return 0
+}
+
 main_update :: proc(window: ^Window) {
 	task_set_children_info()
 	task_set_visible_tasks()
@@ -174,44 +191,36 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		case .Key_Combination: {
 			handled := true
 			combo := (cast(^string) dp)^
-
-			// when ALLOW_SCALE {
-			// 	if combo == "ctrl++" {
-			// 		scaling_inc(0.1)
-			// 		// center_next_frame = true
-			// 		element_repaint(element)
-			// 		return 1
-			// 	}
-
-			// 	if combo == "ctrl+-" {
-			// 		scaling_inc(-0.1)
-			// 		// center_next_frame = true
-			// 		element_repaint(element)
-			// 		return 1
-			// 	}
-			// }
-
+	
 			if window_focused_shown(window) {
 				return 0
 			}
 
-			task_head_tail_clamp()
-			if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
-				box := tasks_visible[task_head].box
-				
-				if element_message(box, msg, di, dp) == 1 {
-					cam := mode_panel_cam()
-					cam.freehand = false
-					mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r, false, false)
-					mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b, true)
+			if options_vim_use() {
+				if vim_insert_mode {
+					if main_box_key_combination(window, msg, di, dp) == 1 {
+						return 1
+					}
+	
+					// allow unicode insertion
+					if keymap_combo_execute(&keymap_vim_insert, combo) {
+						return 1
+					}
+				} else {
+					// ignore unicode insertion always
+					keymap_combo_execute(&keymap_vim_normal, combo)
 					return 1
 				}
-			}
-
-			{
-				spall.scoped("keymap general execute")
-				if keymap_combo_execute(&window.keymap_custom, combo) {
+			} else {
+				if main_box_key_combination(window, msg, di, dp) == 1 {
 					return 1
+				}
+
+				{
+					spall.scoped("keymap general execute")
+					if keymap_combo_execute(&window.keymap_custom, combo) {
+						return 1
+					}
 				}
 			}
 
@@ -381,7 +390,7 @@ words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
 				word.index_codepoint_end,
 			)
 			scaled_size := f32(state.isize / 10)
-			line_width := LINE_WIDTH + int(2 * TASK_SCALE)
+			line_width := LINE_WIDTH + int(4 * TASK_SCALE)
 
 			for fontstash.wrap_state_iter(&gs.fc, &state) {
 				rect := RectI {
@@ -455,18 +464,27 @@ main :: proc() {
 		// keymap loading
 
 		keymap_push_todool_commands(&window_main.keymap_custom)
-		keymap_push_todool_combos(&window_main.keymap_custom)
-
 		keymap_push_box_commands(&window_main.keymap_box)
-		keymap_push_box_combos(&window_main.keymap_box)
+		// NOTE push default todool to vim too
+		keymap_push_todool_commands(&keymap_vim_normal)
+		keymap_push_vim_normal_commands(&keymap_vim_normal)
+		keymap_push_vim_insert_commands(&keymap_vim_insert)
 
-		// if loaded := keymap_load("save.keymap"); !loaded {
-		// 	shortcuts_push_todool_default(window)
-		// 	shortcuts_push_box_default(window)
-		// 	log.info("KEYMAP: Load failed -> Loading default")
-		// } else {
-		// 	log.info("KEYMAP: Load successful")
-		// }
+		if loaded := keymap_load("save.keymap"); !loaded {
+			// just clear since data could be loaded
+			keymap_clear_combos(&window_main.keymap_custom)
+			keymap_clear_combos(&window_main.keymap_box)
+			keymap_clear_combos(&keymap_vim_normal)
+			keymap_clear_combos(&keymap_vim_insert)
+			
+			keymap_push_todool_combos(&window_main.keymap_custom)
+			keymap_push_box_combos(&window_main.keymap_box)
+			keymap_push_vim_normal_combos(&keymap_vim_normal)
+			keymap_push_vim_insert_combos(&keymap_vim_insert)
+			log.info("KEYMAP: Load failed -> Loading default")
+		} else {
+			log.info("KEYMAP: Load successful")
+		}
 	}
 
 	{

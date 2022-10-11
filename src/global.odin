@@ -488,6 +488,10 @@ gs_update_after_load :: proc() {
 	}
 }
 
+window_repaint :: #force_inline proc(window: ^Window) {
+	window.update_next = true
+}
+
 window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: string) {
 	floaty := window.hovered_panel
 	element_hide(floaty, false)

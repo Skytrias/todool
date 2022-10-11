@@ -126,8 +126,9 @@ void main(void) {
 		color_goal.a *= alpha;
 	} else if (v_kind == RK_Sine) {
 		// basic sine wave, inverted for only wave coloring
-		float distance = sdCircleWave(v_pos - v_uv, 0.5, 0.8);
+		float distance = sdCircleWave(v_pos - v_uv, 0.4, 2);
 		// float alpha = 1.0 - smoothstep(0, 0.5, distance);
+		// float alpha = distance;
 		float alpha = 1 - distance;
 		color_goal.a *= alpha;
 	} else if (v_kind == RK_SV) {

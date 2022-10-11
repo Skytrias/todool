@@ -9,434 +9,6 @@ import "core:mem"
 import "../cutf8"
 import "../tfd"
 
-// // push default box shortcuts
-// shortcuts_push_box_default :: proc(window: ^Window) {
-// 	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
-// 	mapping_push_to = &window.shortcut_state.box
-// 	mapping_push("move_left", "ctrl+shift+left", "ctrl+left", "shift+left", "left")
-// 	mapping_push("move_right", "ctrl+shift+right", "ctrl+right", "shift+right", "right")
-// 	mapping_push("home", "shift+home", "home")
-// 	mapping_push("end", "shift+end", "end")
-// 	mapping_push("backspace", "ctrl+backspace", "shift+backspace", "backspace")
-// 	mapping_push("delete", "shift+delete", "delete")
-// 	mapping_push("select_all", "ctrl+a")
-// 	mapping_push("copy", "ctrl+c")
-// 	mapping_push("cut", "ctrl+x")
-// 	mapping_push("paste", "ctrl+v")
-// 	// mapping_push_v021_box(window, false)
-// }
-
-// shortcut_commands_box := map[string]string {
-// 	"move_up" = "moves the thing up",
-// }
-
-// TODO could do a specialized allocator but it has to reallow memory regions
-// like a memory pool, but needs to allow custom sized strings
-//
-// NOTE heap is easier for now
-Keymap :: struct {
-	commands: map[string]Command,
-	combo_start: ^Combo_Node,
-	combo_end: ^Combo_Node,
-}
-
-Command :: struct {
-	call: proc(du: u32),
-	comment: string,
-}
-
-Combo_Node :: struct {
-	next: ^Combo_Node,
-	combo: string,
-	command: string,
-	du: u32,
-}
-
-// combo extension flags
-COMBO_EMPTY :: 0x00
-COMBO_FALSE :: COMBO_EMPTY
-COMBO_CTRL :: 0x01
-COMBO_SHIFT :: 0x02
-COMBO_TRUE :: 0x04
-COMBO_NEGATIVE :: 0x08
-COMBO_POSITIVE :: 0x10
-COMBO_VALUE :: 0x20
-
-// reinterpret data uint to proper data
-du_bool :: proc(du: u32) -> bool {
-	return du == COMBO_TRUE
-}
-du_shift :: proc(du: u32) -> bool {
-	return du == COMBO_SHIFT
-}
-du_pos_neg :: proc(du: u32) -> int {
-	return du == COMBO_NEGATIVE ? -1 : du == COMBO_POSITIVE ? 1 : 0
-}
-du_ctrl :: proc(du: u32) -> bool {
-	return du == COMBO_CTRL
-}
-du_ctrl_shift :: proc(du: u32) -> (bool, bool) {
-	return du & COMBO_CTRL == COMBO_CTRL, du & COMBO_SHIFT == COMBO_SHIFT
-}
-du_value :: proc(du: u32) -> (value: u32, ok: bool) {
-	ok = du & COMBO_VALUE == COMBO_VALUE
-	value = du - COMBO_VALUE
-	return
-}
-// convert du to string for output
-du_string :: proc(index: int) -> string {
-	switch index {
-		case 0: return "CTRL"
-		case 1: return "SHIFT"
-		case 2: return "TRUE"
-		case 3: return "NEGATIVE"
-		case 4: return "POSITIVE"
-	}
-
-	return ""
-}
-
-// execute a command by combo from a keymap
-keymap_combo_execute :: proc(keymap: ^Keymap, combo: string) -> bool {
-	for node := keymap.combo_start; node != nil; node = node.next {
-		if combo == node.combo {
-			if cmd, ok := keymap.commands[node.command]; ok  {
-				cmd.call(node.du)
-			}
-
-			return true
-		}
-	} 
-
-	return false
-}
-
-keymap_init :: proc(keymap: ^Keymap, cap: int) {
-	keymap.commands = make(map[string]Command, cap)
-}
-
-keymap_destroy :: proc(keymap: ^Keymap) {
-	delete(keymap.commands)
-	keymap_clear_combos(keymap)
-}
-
-// push a combo to the SLL
-keymap_push_combo :: proc(
-	keymap: ^Keymap, 
-	combo: string,
-	command: string,
-	du: u32,
-) {
-	node := new(Combo_Node)
-	node.combo = strings.clone(combo)
-	node.command = strings.clone(command)
-	node.du = du
-
-	if keymap.combo_start == nil {
-		keymap.combo_start = node
-	}
-
-	if keymap.combo_end != nil {
-		keymap.combo_end.next = node
-	}
-
-	keymap.combo_end = node
-}
-
-// free all nodes
-keymap_clear_combos :: proc(keymap: ^Keymap) {
-	next: ^Combo_Node
-	node := keymap.combo_start
-	for node != nil {
-		next = node.next
-		delete(node.command)
-		delete(node.combo)
-		free(node)
-		node = next
-	}	
-
-	keymap.combo_start = nil
-	keymap.combo_end = nil
-}
-
-keymap_push_box_commands :: proc(keymap: ^Keymap) {
-	commands_push = &keymap.commands
-	CP1("box_move_left", kbox_move_left, "moves the caret to the left, SHIFT for selection, CTRL for extended moves")
-	CP1("box_move_right", kbox_move_right, "moves the caret to the right, SHIFT for selection, CTRL for extended moves")
-	CP1("box_move_home", kbox_move_home, "moves the caret to the start, SHIFT for selection")
-	CP1("box_move_end", kbox_move_end, "moves the caret to the end, SHIFT for selection")
-	CP1("box_select_all", kbox_select_all, "selects all characters")
-	
-	CP1("box_backspace", kbox_backspace, "deletes the character to the left, CTRL for word based")
-	CP1("box_delete", kbox_delete, "deletes the character to the right, CTRL for word based")
-	
-	CP1("box_copy", kbox_copy, "pushes selection to the copy buffer")
-	CP1("box_cut", kbox_cut, "cuts selection and pushes to the copy buffer")
-	CP1("box_paste", kbox_paste, "pastes text from copy buffer")
-
-	CP1("box_undo", kbox_undo, "undos local changes")
-	CP1("box_redo", kbox_redo, "redos local changes")
-}
-
-keymap_push_box_combos :: proc(keymap: ^Keymap) {
-	keymap_push = keymap
-	CP2("left", "box_move_left")
-	CP2("shift left", "box_move_left", COMBO_SHIFT)
-	CP2("ctrl left", "box_move_left", COMBO_CTRL)
-	CP2("ctrl shift left", "box_move_left", COMBO_CTRL | COMBO_SHIFT)
-
-	CP2("right", "box_move_right")
-	CP2("shift right", "box_move_right", COMBO_SHIFT)
-	CP2("ctrl right", "box_move_right", COMBO_CTRL)
-	CP2("ctrl shift right", "box_move_right", COMBO_CTRL | COMBO_SHIFT)
-
-	CP2("home", "box_move_home")
-	CP2("shift home", "box_move_home", COMBO_SHIFT)
-	CP2("end", "box_move_end")
-	CP2("shift end", "box_move_end", COMBO_SHIFT)
-
-	CP2("backspace", "box_backspace")
-	CP2("shift backspace", "box_backspace")
-	CP2("ctrl backspace", "box_backspace", COMBO_CTRL)
-
-	CP2("delete", "box_delete")
-	CP2("shift delete", "box_delete")
-	CP2("ctrl delete", "box_delete", COMBO_CTRL)
-
-	CP2("ctrl a", "box_select_all")
-	CP2("ctrl c", "box_copy")
-	CP2("ctrl x", "box_cut")
-	CP2("ctrl v", "box_paste")
-
-	CP2("ctrl z", "box_undo")
-	CP2("ctrl y", "box_redo")
-}
-
-// shortcuts_push_box :: proc(push_to: ^[dynamic]Shortcut) {
-// 	shortcuts_push = push_to
-
-// 	a :: proc(
-// 		command: string, 
-// 		combos: string, 
-// 		call: proc(),
-// 		comment: string,
-// 	) {
-// 		append(shortcuts_push, Shortcut { command, combos, call, comment })
-// 	}
-
-// 	a("move_left", "ctrl+shift+left ctrl+left shift+left left", )
-// 	a("move_right", "ctrl+shift+right ctrl+right shift+right right")
-// 	a("home", "shift+home", "home")
-// 	a("end", "shift+end", "end")
-// 	a("backspace", "ctrl+backspace shift+backspace backspace")
-// 	a("delete", "shift+delete delete")
-// 	a("select_all", "ctrl+a")
-// 	a("copy", "ctrl+c")
-// 	a("cut", "ctrl+x")
-// 	a("paste", "ctrl+v")
-// }
-
-commands_push: ^map[string]Command
-CP1 :: proc(command: string, call: proc(du: u32), comment: string) {
-	commands_push[command] = { call, comment }
-}
-
-keymap_push: ^Keymap
-CP2 :: proc(combo: string, command: string, du: u32 = 0x00) {
-	keymap_push_combo(keymap_push, combo, command, du)
-}
-
-keymap_push_todool_commands :: proc(keymap: ^Keymap) {
-	commands_push = &keymap.commands
-
-	// movement
-	CP1("move_up", todool_move_up, "select the upper visible task")
-	CP1("move_down", todool_move_down, "select the lower visible task")
-	CP1("indent_jump_low_prev", todool_indent_jump_low_prev, "")
-	CP1("indent_jump_low_next", todool_indent_jump_low_next, "")
-	CP1("indent_jump_same_prev", todool_indent_jump_same_prev, "")
-	CP1("indent_jump_same_next", todool_indent_jump_same_next, "")
-	CP1("indent_jump_scope", todool_indent_jump_scope, "cycle jump between the start/end task of the parents children")
-	CP1("select_all", todool_select_all, "select all visible tasks")
-
-	CP1("bookmark_jump", todool_bookmark_jump, "cycle jump to the previous bookmark")
-
-	CP1("tasks_to_uppercase", todool_tasks_to_uppercase, "uppercase the starting letters of each word for the selected tasks")
-	CP1("tasks_to_lowercase", todool_tasks_to_lowercase, "lowercase all the content for the selected tasks")
-
-	CP1("delete_on_empty", todool_delete_on_empty, "deletes the task on no text content")
-	CP1("delete_tasks", todool_delete_tasks, "deletes the selected tasks")
-
-	// copy/paste	
-	CP1("copy_tasks_to_clipboard", todool_copy_tasks_to_clipboard, "copy the selected tasks STRING content to the clipboard")
-	CP1("copy_tasks", todool_copy_tasks, "deep copy the selected tasks to the copy buffer")
-	CP1("duplicate_line", todool_duplicate_line, "duplicates the current line")
-	CP1("cut_tasks", todool_cut_tasks, "cut the selected tasks to the copy buffer")
-	CP1("paste_tasks", todool_paste_tasks, "paste the content from the copy buffer")
-	CP1("paste_tasks_from_clipboard", todool_paste_tasks_from_clipboard, "paste the clipboard content based on the indentation")
-	CP1("center", todool_center, "center the camera vertically")
-
-	CP1("selection_stop", todool_selection_stop, "stops task selection")
-	CP1("change_task_state", todool_change_task_state, "cycles through the task states forwards/backwards")
-	CP1("toggle_folding", todool_toggle_folding, "toggle the task folding")
-	CP1("toggle_bookmark", todool_toggle_bookmark, "toggle the task bookmark")
-
-	CP1("toggle_tag", todool_toggle_tag, "toggle the task tag bit")
-	
-	// shifts
-	CP1("indentation_shift", todool_indentation_shift, "shift the selected tasks to the left/right")
-	CP1("shift_down", todool_shift_down, "shift the selected tasks down while keeping the same indentation")
-	CP1("shift_up", todool_shift_up, "shift the selected tasks up while keeping the same indentation")
-
-	// pomodoro
-	CP1("pomodoro_toggle", pomodoro_stopwatch_hot_toggle, "toggle the pomodoro work/short break/long break timer")
-
-	// modes	
-	CP1("mode_list", todool_mode_list, "change to the list mode")
-	CP1("mode_kanban", todool_mode_kanban, "change to the kanban mode")
-
-	// windows
-	CP1("theme_editor", theme_editor_spawn, "spawn the theme editor window")
-	CP1("changelog", changelog_spawn, "spawn the changelog generator window")
-
-	// insertion
-	CP1("insert_sibling", todool_insert_sibling, "insert a task with the same indentation, SHIFT for above")
-	CP1("insert_child", todool_insert_child, "insert a task below with increased indentation")
-
-	// misc	
-	CP1("undo", todool_undo, "undo the last set of actions")
-	CP1("redo", todool_redo, "redo the last set of actions")
-	CP1("save", todool_save, "save everything - will use last task save location if set | TRUE to force prompt")
-	CP1("load", todool_load, "load task content through file prompt")
-	CP1("new_file", todool_new_file, "empty the task content - will try to save before")
-	CP1("escape", todool_escape, "escape out of prompts or focused elements")
-
-	// drops
-	CP1("goto", todool_goto, "spawn the goto prompt")
-	CP1("search", todool_search, "spawn the search prompt")
-
-	// v021
-	CP1("select_children", todool_select_children, "select parents children, cycles through start/end on repeat")	
-	CP1("indent_jump_nearby", todool_indent_jump_nearby, "jump to nearest task with different state, SHIFT for backwards")
-	CP1("fullscreen_toggle", todool_fullscreen_toggle, "toggle between (fake) fullscren and windowed")
-
-	// v022
-	CP1("sort_locals", todool_sort_locals, "sorts the local children based on task state")
-	CP1("scale_tasks", todool_scale, "scales the tasks up, TRUE for down")
-}
-
-keymap_push_todool_combos :: proc(keymap: ^Keymap) {
-	keymap_push = keymap
-	
-	// movement & selection variants
-	CP2("up", "move_up")
-	CP2("shift up", "move_up", COMBO_SHIFT)
-	CP2("down", "move_down")
-	CP2("shift down", "move_down", COMBO_SHIFT)
-
-	CP2("ctrl ,", "indent_jump_low_prev")
-	CP2("ctrl shift ,", "indent_jump_low_prev", COMBO_SHIFT)
-	CP2("ctrl .", "indent_jump_low_next")
-	CP2("ctrl shift .", "indent_jump_low_next", COMBO_SHIFT)
-	
-	CP2("ctrl up", "indent_jump_same_prev")
-	CP2("ctrl shift up", "indent_jump_same_prev", COMBO_SHIFT)
-	CP2("ctrl down", "indent_jump_same_next")
-	CP2("ctrl shift down", "indent_jump_same_next", COMBO_SHIFT)
-
-	CP2("ctrl m", "indent_jump_scope")
-	CP2("ctrl shift m", "indent_jump_scope", COMBO_SHIFT)
-	CP2("ctrl shift a", "select_all")
-
-	// commands
-	CP2("ctrl tab", "bookmark_jump")
-	CP2("ctrl shift tab", "bookmark_jump", COMBO_SHIFT)
-	CP2("ctrl shift j", "tasks_to_uppercase")
-	CP2("ctrl shift l", "tasks_to_lowercase")
-	CP2("ctrl e", "center")
-
-	// deletion
-	CP2("backspace", "delete_on_empty")
-	CP2("ctrl backspace", "delete_on_empty")
-	CP2("ctrl d", "delete_tasks")
-	CP2("ctrl shift k", "delete_tasks")
-
-	// copy/paste
-	CP2("ctrl alt c", "copy_tasks_to_clipboard")
-	CP2("ctrl shift c", "copy_tasks_to_clipboard")
-	CP2("ctrl shift alt c", "copy_tasks_to_clipboard")
-	CP2("alt c", "copy_tasks_to_clipboard")
-	CP2("ctrl c", "copy_tasks")
-	CP2("ctrl l", "duplicate_line")
-	CP2("ctrl x", "cut_tasks")
-	CP2("ctrl v", "paste_tasks")
-	CP2("ctrl shift v", "paste_tasks_from_clipboard")
-
-	// misc
-	CP2("left", "selection_stop")
-	CP2("right", "selection_stop")
-	CP2("ctrl q", "change_task_state")
-	CP2("ctrl j", "toggle_folding")
-	CP2("ctrl b", "toggle_bookmark")
-
-	// tags
-	CP2("ctrl 1", "toggle_tag", COMBO_VALUE + 0x01)
-	CP2("ctrl 2", "toggle_tag", COMBO_VALUE + 0x02)
-	CP2("ctrl 3", "toggle_tag", COMBO_VALUE + 0x04)
-	CP2("ctrl 4", "toggle_tag", COMBO_VALUE + 0x08)
-	CP2("ctrl 5", "toggle_tag", COMBO_VALUE + 0x10)
-	CP2("ctrl 6", "toggle_tag", COMBO_VALUE + 0x20)
-	CP2("ctrl 7", "toggle_tag", COMBO_VALUE + 0x40)
-	CP2("ctrl 8", "toggle_tag", COMBO_VALUE + 0x80)
-
-	// shifts
-	CP2("tab", "indentation_shift", COMBO_POSITIVE)
-	CP2("shift tab", "indentation_shift", COMBO_NEGATIVE)
-	CP2("alt down", "shift_down")
-	CP2("alt up", "shift_up")
-
-	// modes
-	CP2("alt q", "mode_list")
-	CP2("alt w", "mode_kanban")
-
-	// windows
-	CP2("alt e", "theme_editor")
-	CP2("alt x", "changelog")
-
-	// insertion
-	CP2("return", "insert_sibling")
-	CP2("shift return", "insert_sibling", COMBO_SHIFT)
-	CP2("ctrl return", "insert_child")
-
-	// misc
-	CP2("ctrl z", "undo")
-	CP2("ctrl y", "redo")
-	CP2("ctrl s", "save")
-	CP2("ctrl shift s", "save", COMBO_TRUE)
-	CP2("ctrl o", "load")
-	CP2("ctrl n", "new_file")
-	CP2("escape", "escape")
-
-	// drops
-	CP2("ctrl g", "goto")
-	CP2("ctrl f", "search")
-
-	// v021
-	CP2("ctrl h", "select_children")
-	CP2("ctrl home", "move_up_stack")
-	CP2("ctrl shift home", "move_up_stack", COMBO_SHIFT)
-	CP2("ctrl end", "move_down_stack")
-	CP2("ctrl shift end", "move_down_stack", COMBO_SHIFT)
-	CP2("f11", "fullscreen_toggle")
-
-	// v022
-	CP2("alt a", "sort_locals")
-	CP2("ctrl -", "scale_tasks", COMBO_NEGATIVE)
-	CP2("ctrl +", "scale_tasks", COMBO_POSITIVE)
-	CP2("alt right", "jump_nearby")
-	CP2("alt left", "jump_nearby", COMBO_SHIFT)
-}
-
 // iterate by whitespace, utf8 conform
 combo_iterate :: proc(text: ^string) -> (res: string, ok: bool) {
 	temp := text^
@@ -486,44 +58,6 @@ combo_iterate_test :: proc() {
 		fmt.eprintf("\tres: %s\n", combo)
 	}
 }
-
-// mapping_push_v021_todool :: proc(window: ^Window, maybe: bool) {
-// 	mapping_check = maybe
-// 	mapping_push_to = &window.shortcut_state.general
-// 	mapping_push_checked("select_children", "ctrl+h")
-// 	mapping_push_checked("move_up_stack", "ctrl+shift+home", "ctrl+home")
-// 	mapping_push_checked("move_down_stack", "ctrl+shift+end", "ctrl+end")
-// 	mapping_push_checked("indent_jump_nearby_prev", "alt+left")
-// 	mapping_push_checked("indent_jump_nearby_next", "alt+right")
-// 	mapping_push_checked("fullscreen_toggle", "f11")
-// 	mapping_check = false
-// }
-
-// mapping_push_v021_box :: proc(window: ^Window, maybe: bool) {
-// 	mapping_check = maybe
-// 	mapping_push_to = &window.shortcut_state.box
-// 	mapping_push_checked("undo", "ctrl+z")
-// 	mapping_push_checked("redo", "ctrl+y")
-// 	mapping_check = false
-// }
-
-// mapping_push_v022_todool :: proc(window: ^Window, maybe: bool) {
-// 	mapping_check = maybe
-// 	mapping_push_to = &window.shortcut_state.general
-// 	mapping_push_checked("sort_locals", "alt+a")
-// 	mapping_push_checked("insert_sibling_above", "shift+return")
-// 	mapping_push_checked("scale_increase", "ctrl++")
-// 	mapping_push_checked("scale_decrease", "ctrl+-")
-// 	mapping_check = false
-// }
-
-// // use this on newest release
-// mapping_push_newest_version :: proc(window: ^Window) {
-// 	context.allocator = mem.arena_allocator(&window.shortcut_state.arena)
-// 	mapping_push_v021_todool(window, true)
-// 	mapping_push_v021_box(window, true)
-// 	mapping_push_v022_todool(window, true)
-// }
 
 todool_delete_on_empty :: proc(du: u32) {
 	if task_head == -1 {
@@ -2098,4 +1632,59 @@ todool_scale :: proc(du: u32) {
 
 todool_fullscreen_toggle :: proc(du: u32) {
 	window_fullscreen_toggle(window_main)
+}
+
+// set mode and issue repaint on change
+VIM :: proc(insert: bool) {
+	old := vim_insert_mode
+	vim_insert_mode = insert
+
+	if old != insert {
+		custom_split.statusbar.vim_panel.color = insert ? &theme.text_bad : &theme.text_good
+		window_repaint(window_main)
+	}
+}
+
+vim_insert_mode_set :: proc(du: u32) {
+	VIM(true)
+}
+
+vim_normal_mode_set :: proc(du: u32) {
+	VIM(false)
+}
+
+// I, insert mode & box to beginning
+vim_insert_mode_beginning :: proc(du: u32) {
+	VIM(true)
+	kbox.box.head = 0
+	box_check_shift(kbox.box, false)
+}
+
+vim_insert_below :: proc(du: u32) {
+	VIM(true)
+	todool_insert_sibling(COMBO_EMPTY)
+}
+
+vim_insert_above :: proc(du: u32) {
+	VIM(true)
+	fmt.eprintln("run")
+	todool_insert_sibling(COMBO_SHIFT)
+}
+
+// TODO visual move to left
+vim_move_left :: proc(du: u32) {
+		
+}
+
+// TODO visual move to right
+vim_move_right :: proc(du: u32) {
+		
+}
+
+vim_move_up :: proc(du: u32) {
+	todool_move_up(du)
+}
+
+vim_move_down :: proc(du: u32) {
+	todool_move_down(du)
 }

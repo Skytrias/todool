@@ -973,12 +973,12 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			} else {
 				text := strings.to_string(label.builder)
 				fcs_element(element)
-				return int(string_width(text))
+				return string_width(text)
 			}
 		}
 
 		case .Get_Height: {
-			return int(efont_size(element))
+			return efont_size(element)
 		}
 
 		// disables label intersection, sets to parent result

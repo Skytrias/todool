@@ -1523,4 +1523,3 @@ kbox_undo_redo :: proc(du: u32, do_redo: bool) {
 
 kbox_undo :: proc(du: u32) { kbox_undo_redo(du, false) }
 kbox_redo :: proc(du: u32) { kbox_undo_redo(du, true) }
-

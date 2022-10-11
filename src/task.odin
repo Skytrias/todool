@@ -21,6 +21,11 @@ rt: ^rax.State
 rt_loaded: bool
 rt_words: [dynamic]Word_Result
 
+// keymap special
+keymap_vim_normal: Keymap
+keymap_vim_insert: Keymap
+vim_insert_mode := false
+
 // last save
 last_save_location: string
 
@@ -153,6 +158,10 @@ task_head_tail_call :: proc(
 }
 
 task_data_init :: proc() {
+	keymap_init_comments()
+	keymap_init(&keymap_vim_normal, 64)
+	keymap_init(&keymap_vim_insert, 32)
+
 	undo_manager_init(&um_task)
 	undo_manager_init(&um_search)
 	undo_manager_init(&um_goto)
@@ -191,6 +200,10 @@ last_save_set :: proc(next: string = "") {
 }
 
 task_data_destroy :: proc() {
+	keymap_destroy_comments()
+	keymap_destroy(&keymap_vim_normal)
+	keymap_destroy(&keymap_vim_insert)
+
 	delete(task_clear_checking)
 	delete(task_move_stack)
 
@@ -1316,7 +1329,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			ss_draw_highlights(target, panel)
 
 			// word error highlight
-			if task_head != -1 && task_head == task_tail && rt_loaded {
+			if options_spell_checking() && task_head != -1 && task_head == task_tail && rt_loaded {
 				render_push_clip(target, panel.clip)
 				task := tasks_visible[task_head] 
 				words_highlight_missing(target, task)
