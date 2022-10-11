@@ -3,70 +3,6 @@ package src
 import "core:fmt"
 import "core:strings"
 
-// import "core:fmt"
-// import "core:mem"
-
-// Keymap :: struct {
-// 	window: ^Window,
-// 	panel: ^Panel,
-// }
-// keymap: Keymap
-// keymap_color_pattern := Color { 255, 255, 255, 50 }
-
-// keymap_window_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-// 	window := cast(^Window) element
-
-// 	#partial switch msg {
-// 		case .Destroy: {
-// 			keymap = {}
-// 		}
-// 	}
-
-// 	return 0
-// }
-
-// keymap_spawn :: proc() {
-// 	if keymap.window != nil {
-// 		return
-// 	}
-
-// 	keymap.window = window_init(nil, {}, "Keymap Editor", 700, 700, mem.Kilobyte)
-// 	keymap.window.element.message_user = keymap_window_message
-// 	// keymap.window.update = proc(window: ^Window) {}
-
-// 	keymap.panel = panel_init(
-// 		&keymap.window.element,
-// 		{ .HF, .VF, .Panel_Default_Background, .Panel_Scroll_Vertical },
-// 		5,
-// 		5,
-// 	)
-// 	keymap.panel.background_index = 0
-
-// 	{
-// 		ss := &window_main.shortcut_state
-// 		index: int
-
-// 		for k, v in &ss.general {
-// 			p := panel_init(keymap.panel, { .HF, .Panel_Horizontal }, 5, 5)
-// 			p.color = (index % 2) == 0 ? nil : &keymap_color_pattern
-// 			p.rounded = true
-// 			b1 := button_init(p, { .HF }, k)
-// 			b1.data = &v
-// 			b1.invoke = proc(data: rawptr) {
-// 				combo := cast(^string) data
-// 				fmt.eprintln("combo", combo)
-// 				// invoke record next key combo
-// 			}
-// 			b2 := button_init(p, { .HF }, v)
-// 			b2.invoke = proc(data: rawptr) {
-// 				// spawn lister with selectable & info per key command maybe with text box
-// 			}
-// 			index += 1
-// 		}
-// 	}
-// }
-
-
 // TODO could do a specialized allocator but it has to reallow memory regions
 // like a memory pool, but needs to allow custom sized strings
 //
@@ -81,7 +17,7 @@ Keymap :: struct {
 Command :: proc(u32)
 
 Combo_Node :: struct {
-	next: ^Combo_Node,
+	prev, next: ^Combo_Node,
 	combo: string,
 	command: string,
 	du: u32,
@@ -126,6 +62,7 @@ du_to_string :: proc(index: int) -> string {
 		case 2: return "TRUE"
 		case 3: return "NEGATIVE"
 		case 4: return "POSITIVE"
+		case 5: return "VALUE"
 	}
 
 	return ""
@@ -181,12 +118,31 @@ keymap_push_combo :: proc(
 	if keymap.combo_start == nil {
 		keymap.combo_start = node
 	}
-	
+
 	if keymap.combo_end != nil {
 		keymap.combo_end.next = node
+		node.prev = keymap.combo_end
 	}
 
 	keymap.combo_end = node
+}
+
+keymap_remove_combo :: proc(keymap: ^Keymap, combo: ^Combo_Node) {
+	// set start / end
+	if keymap.combo_start == combo {
+		keymap.combo_start = combo.next
+	}
+	if keymap.combo_end == combo {
+		keymap.combo_end = combo.prev
+	}
+
+	// set prev / next
+	if combo.prev != nil {
+		combo.prev.next = combo.next
+	}
+	if combo.next != nil {
+		combo.next.prev = combo.prev
+	}
 }
 
 // free all nodes
@@ -365,12 +321,6 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 	keymap_push = keymap
 	
-	// movement & selection variants
-	CP2("up", "move_up")
-	CP2("shift up", "move_up", COMBO_SHIFT)
-	CP2("down", "move_down")
-	CP2("shift down", "move_down", COMBO_SHIFT)
-
 	// commands
 	CP2("ctrl tab", "bookmark_jump")
 	CP2("ctrl shift tab", "bookmark_jump", COMBO_SHIFT)
@@ -383,20 +333,20 @@ keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 	CP2("ctrl d", "delete_tasks")
 	CP2("ctrl shift k", "delete_tasks")
 
-	// copy/paste
+	// copy/paste raw text
 	CP2("ctrl alt c", "copy_tasks_to_clipboard")
 	CP2("ctrl shift c", "copy_tasks_to_clipboard")
 	CP2("ctrl shift alt c", "copy_tasks_to_clipboard")
 	CP2("alt c", "copy_tasks_to_clipboard")
+	CP2("ctrl shift v", "paste_tasks_from_clipboard")
+
+	// copy/paste
 	CP2("ctrl c", "copy_tasks")
 	CP2("ctrl l", "duplicate_line")
 	CP2("ctrl x", "cut_tasks")
 	CP2("ctrl v", "paste_tasks")
-	CP2("ctrl shift v", "paste_tasks_from_clipboard")
 
 	// misc
-	CP2("left", "selection_stop")
-	CP2("right", "selection_stop")
 	CP2("ctrl q", "change_task_state")
 	CP2("ctrl j", "toggle_folding")
 	CP2("ctrl b", "toggle_bookmark")
@@ -428,7 +378,6 @@ keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 	CP2("ctrl shift end", "move_down_stack", COMBO_SHIFT)
 
 	// v022
-	CP2("alt a", "sort_locals")
 	CP2_CROSS()
 }
 
@@ -439,6 +388,9 @@ keymap_push_vim_normal_commands :: proc(keymap: ^Keymap) {
 	CP1("insert_mode_beginning", vim_insert_mode_beginning)
 	CP1("insert_above", vim_insert_above)
 	CP1("insert_below", vim_insert_below)
+	CP1("insert_below", vim_insert_below)
+	CP1("visual_move_left", vim_visual_move_left)
+	CP1("visual_move_right", vim_visual_move_right)
 }
 
 keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
@@ -450,6 +402,10 @@ keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
 	CP2("k", "move_up")
 	CP2("shift k", "move_up", COMBO_SHIFT)
 	CP2("d", "delete_tasks")
+	CP2("h", "visual_move_left")
+	CP2("l", "visual_move_right")
+
+	// inserts
 	CP2("i", "insert_mode")
 	CP2("shift i", "insert_mode_beginning")
 	CP2("o", "insert_below")
@@ -462,8 +418,12 @@ keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
 	CP2("p", "paste_tasks")
 	CP2("y", "duplicate_line")
 
+	// copy/paste raw text
+	CP2("shift c", "copy_tasks_to_clipboard")
+	CP2("shift v", "paste_tasks_from_clipboard")
+
 	// state sets
-	CP2("v", "toggle_folding")
+	CP2("n", "toggle_folding")
 	CP2("b", "toggle_bookmark")
 	CP2("q", "change_task_state")
 	CP2("shift q", "change_task_state", COMBO_SHIFT)
@@ -489,6 +449,15 @@ keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
 
 // combos that vim & todool need
 CP2_CROSS :: proc() {
+	CP2("left", "selection_stop")
+	CP2("right", "selection_stop")
+
+	// movement & selection variants
+	CP2("up", "move_up")
+	CP2("shift up", "move_up", COMBO_SHIFT)
+	CP2("down", "move_down")
+	CP2("shift down", "move_down", COMBO_SHIFT)
+
 	// shifts
 	CP2("tab", "indentation_shift", COMBO_POSITIVE)
 	CP2("shift tab", "indentation_shift", COMBO_NEGATIVE)
@@ -536,6 +505,8 @@ CP2_CROSS :: proc() {
 	CP2("alt right", "jump_nearby")
 	CP2("alt left", "jump_nearby", COMBO_SHIFT)
 	CP2("ctrl e", "center")
+
+	CP2("alt a", "sort_locals")
 }
 
 keymap_push_vim_insert_commands :: proc(keymap: ^Keymap) {
@@ -629,4 +600,6 @@ keymap_init_comments :: proc() {
 	CP3(vim_insert_above, "insert a task above the current line")
 	CP3(vim_insert_below, "insert a task below the current line")
 	CP3(vim_normal_mode_set, "enter normal mode")
+	CP3(vim_visual_move_left, "move to the closest task to the left visually")
+	CP3(vim_visual_move_right, "move to the closest task to the right visually")
 }

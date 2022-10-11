@@ -260,16 +260,16 @@ changelog_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			p3 := panel_init(p2, { .HF, .Panel_Horizontal, .Panel_Default_Background })
 			p3.background_index = 2
 			p3.rounded = true
-			button_init(p3, { .HF }, "Clipboard").invoke = proc(data: rawptr) {
+			button_init(p3, { .HF }, "Clipboard").invoke = proc(button: ^Button, data: rawptr) {
 				text := changelog_result()
 				clipboard_set_with_builder(text)
 				changelog_result_pop_tasks()
 			}
-			button_init(p3, { .HF }, "Terminal").invoke = proc(data: rawptr) {
+			button_init(p3, { .HF }, "Terminal").invoke = proc(button: ^Button, data: rawptr) {
 				fmt.println(changelog_result())
 				changelog_result_pop_tasks()
 			}
-			button_init(p3, { .HF }, "File").invoke = proc(data: rawptr) {
+			button_init(p3, { .HF }, "File").invoke = proc(button: ^Button, data: rawptr) {
 				path := bpath_temp("changelog.txt")
 				gs_write_safely(path, changelog.td.builder.buf[:])
 				changelog_result_pop_tasks()

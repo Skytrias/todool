@@ -39,7 +39,7 @@ vim_label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			target := element.window.target
 			fcs_element(element)
 			fcs_ahv()
-			fcs_color(theme.text_default)
+			fcs_color(theme.panel[0])
 			render_string_rect(target, element.bounds, text)
 		}
 

@@ -592,7 +592,7 @@ render_hovered_highlight :: #force_inline proc(target: ^Render_Target, bounds: R
 Button :: struct {
 	using element: Element,
 	builder: strings.Builder,
-	invoke: proc(data: rawptr),
+	invoke: proc(button: ^Button, data: rawptr),
 }
 
 button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -603,7 +603,6 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			target := element.window.target
 			pressed := element.window.pressed == element
 			hovered := element.window.hovered == element
-
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
 			if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
@@ -637,7 +636,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 		case .Clicked: {
 			if button.invoke != nil {
-				button.invoke(button.data)
+				button->invoke(button.data)
 			}
 		}
 
@@ -673,7 +672,6 @@ button_init :: proc(
 ) -> (res: ^Button) {
 	res = element_init(Button, parent, flags | { .Tab_Stop }, button_message, allocator)
 	res.builder = strings.builder_make(0, 32)
-	res.data = res
 	strings.write_string(&res.builder, text)
 	res.message_user = message_user
 	return
@@ -1757,14 +1755,15 @@ panel_floaty_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 panel_floaty_init :: proc(
 	parent: ^Element,
-	flags: Element_Flags,
+	panel_flags: Element_Flags,
 	allocator := context.allocator,
 ) -> (res: ^Panel_Floaty) {
-	res	= element_init(Panel_Floaty, parent, flags, panel_floaty_message, allocator)
+	res	= element_init(Panel_Floaty, parent, {}, panel_floaty_message, allocator)
 	res.z_index = 255
 	
-	p := panel_init(res, { .Panel_Default_Background })
-	p.margin = int(4 * SCALE)
+	flags := panel_flags + { .Panel_Default_Background }
+	p := panel_init(res, flags)
+	p.margin = 4
 	p.rounded = true
 	res.panel = p
 	return

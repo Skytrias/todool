@@ -98,6 +98,8 @@ todool_move_up :: proc(du: u32) {
 	task := tasks_visible[max(task_head, 0)]
 	element_repaint(mode_panel)
 	element_message(task.box, .Box_Set_Caret, BOX_END)
+
+	vim_visual_left_right_wait_task = nil
 }
 
 todool_move_down :: proc(du: u32) {
@@ -115,6 +117,8 @@ todool_move_down :: proc(du: u32) {
 	task := tasks_visible[min(task_head, len(tasks_visible) - 1)]
 	element_message(task.box, .Box_Set_Caret, BOX_END)
 	element_repaint(mode_panel)
+
+	vim_visual_left_right_wait_task = nil
 }
 
 todool_move_up_stack :: proc(du: u32) {
@@ -141,6 +145,8 @@ todool_move_up_stack :: proc(du: u32) {
 		task = tasks_visible[task_head]
 		element_message(task.box, .Box_Set_Caret, BOX_END)
 		element_repaint(mode_panel)
+
+		vim_visual_left_right_wait_task = nil
 	}
 }
 
@@ -164,6 +170,8 @@ todool_move_down_stack :: proc(du: u32) {
 		task = tasks_visible[task_head]
 		element_message(task.box, .Box_Set_Caret, BOX_END)
 		element_repaint(mode_panel)		
+
+		vim_visual_left_right_wait_task = nil
 	}
 }
 
@@ -188,6 +196,8 @@ todool_indent_jump_low_prev :: proc(du: u32) {
 			break
 		}
 	}
+
+	vim_visual_left_right_wait_task = nil
 }
 
 todool_indent_jump_low_next :: proc(du: u32) {
@@ -211,6 +221,8 @@ todool_indent_jump_low_next :: proc(du: u32) {
 			break
 		}
 	}
+
+	vim_visual_left_right_wait_task = nil
 }
 
 todool_indent_jump_same_prev :: proc(du: u32) {
@@ -234,6 +246,8 @@ todool_indent_jump_same_prev :: proc(du: u32) {
 			break
 		}
 	} 
+
+	vim_visual_left_right_wait_task = nil
 }
 
 todool_indent_jump_same_next :: proc(du: u32) {
@@ -257,6 +271,8 @@ todool_indent_jump_same_next :: proc(du: u32) {
 			break
 		}
 	} 
+
+	vim_visual_left_right_wait_task = nil
 }
 
 todool_bookmark_jump :: proc(du: u32) {
@@ -269,6 +285,7 @@ todool_bookmark_jump :: proc(du: u32) {
 		task_head = task.visible_index
 		task_tail = task.visible_index
 		element_repaint(mode_panel)
+		vim_visual_left_right_wait_task = nil
 	}
 }
 
@@ -1687,4 +1704,134 @@ vim_move_up :: proc(du: u32) {
 
 vim_move_down :: proc(du: u32) {
 	todool_move_down(du)
+}
+
+vim_visual_move_left :: proc(du: u32) {
+	if task_head == -1 {
+		return
+	}
+
+	switch mode_panel.mode {
+		case .Kanban: {
+			current := tasks_visible[task_head]
+			b := current.bounds
+			closest_task: ^Task
+			closest_distance := max(f32)
+			middle := b.t + rect_height_halfed(b)
+
+			if vim_visual_reptition_check(current, -1) {
+				return
+			}
+
+			// find closest distance
+			for task in tasks_visible {
+				if task.bounds.r < b.l {
+					dist_x := task.bounds.r - b.l 
+					dist_y := (task.bounds.t + rect_height_halfed(task.bounds)) - middle
+					temp := f32(dist_x * dist_x) + f32(dist_y * dist_y)
+
+					if temp < closest_distance {
+						closest_distance = temp
+						closest_task = task
+					}
+				}
+			}
+
+			if closest_task != nil {
+				task_head = closest_task.visible_index
+				task_tail = closest_task.visible_index
+				window_repaint(window_main)
+				
+				vim_visual_left_right_wait_task = current
+				vim_visual_left_right_wait_direction = 1
+			}
+		}
+
+		case .List: {
+			todool_move_down(COMBO_EMPTY)
+		}
+	}
+}
+
+vim_visual_move_right :: proc(du: u32) {
+	if task_head == -1 {
+		return
+	}
+
+	switch mode_panel.mode {
+		case .Kanban: {
+			current := tasks_visible[task_head]
+			b := current.bounds
+			closest_task: ^Task
+			closest_distance := max(f32)
+			middle := b.t + rect_height_halfed(b)
+
+			if vim_visual_reptition_check(current, 1) {
+				return
+			}
+
+			// find closest distance
+			for task in tasks_visible {
+				if b.r < task.bounds.r {
+					dist_x := task.bounds.l - b.r 
+					dist_y := (task.bounds.t + rect_height_halfed(task.bounds)) - middle
+					temp := f32(dist_x * dist_x) + f32(dist_y * dist_y)
+
+					if temp < closest_distance {
+						closest_distance = temp
+						closest_task = task
+					}
+				}
+			}
+
+			if closest_task != nil {
+				task_head = closest_task.visible_index
+				task_tail = closest_task.visible_index
+				window_repaint(window_main)
+
+				vim_visual_left_right_wait_task = current
+				vim_visual_left_right_wait_direction = -1
+			}
+		}
+
+		case .List: {
+			todool_move_up(COMBO_EMPTY)
+		}
+	}
+}
+
+// NOTE this is for speedup & sane traversal
+// repition will break once you move around the tasks 
+// moves to the last repeated task when we keep reversing back and forth
+vim_visual_reptition_check :: proc(task: ^Task, direction: int) -> bool {
+	// fmt.eprintln(vim_visual_left_right_wait_direction, direction)
+
+	if vim_visual_left_right_wait_task != nil || vim_visual_left_right_wait_direction == 0 {
+		if direction == vim_visual_left_right_wait_direction {
+			// need to check if the task is still inside the tasks visible, in case it was deleted
+			if vim_visual_left_right_wait_task in task_clear_checking {
+				found: bool
+				for task in tasks_visible {
+					if task == vim_visual_left_right_wait_task {
+						found = true
+						break
+					}
+				}
+
+				if !found {
+					return false
+				}
+			}
+
+			vim_visual_left_right_wait_direction *= -1
+			task_head = vim_visual_left_right_wait_task.visible_index
+			task_tail = vim_visual_left_right_wait_task.visible_index
+			vim_visual_left_right_wait_task = task
+			window_repaint(window_main)
+			// fmt.eprintln("WE GOOD")
+			return true
+		}
+	}
+
+	return false
 }

@@ -25,6 +25,9 @@ rt_words: [dynamic]Word_Result
 keymap_vim_normal: Keymap
 keymap_vim_insert: Keymap
 vim_insert_mode := false
+// return to same task if still waiting for move break
+vim_visual_left_right_wait_task: ^Task
+vim_visual_left_right_wait_direction: int // direction -1 = left, 1 = right
 
 // last save
 last_save_location: string
@@ -2393,15 +2396,15 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		button_panel.outline = true
 		// button_panel.color = DARKEN
 		b1 := button_init(button_panel, {}, "Normal")
-		b1.invoke = proc(data: rawptr) {
+		b1.invoke = proc(button: ^Button, data: rawptr) {
 			todool_change_task_selection_state_to(.Normal)
 		}
 		b2 := button_init(button_panel, {}, "Done")
-		b2.invoke = proc(data: rawptr) {
+		b2.invoke = proc(button: ^Button, data: rawptr) {
 			todool_change_task_selection_state_to(.Done)
 		}
 		b3 := button_init(button_panel, {}, "Canceled")
-		b3.invoke = proc(data: rawptr) {
+		b3.invoke = proc(button: ^Button, data: rawptr) {
 			todool_change_task_selection_state_to(.Canceled)
 		}
 	} else {
@@ -2436,12 +2439,12 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		panel.outline = true
 
 		b1 := button_init(panel, { .HF }, "<-")
-		b1.invoke = proc(data: rawptr) {
+		b1.invoke = proc(button: ^Button, data: rawptr) {
 			todool_indentation_shift(COMBO_NEGATIVE)
 		}
 		label := label_init(panel, {  .HF, .Label_Center }, "indent")
 		b2 := button_init(panel, { .HF }, "->")
-		b2.invoke = proc(data: rawptr) {
+		b2.invoke = proc(button: ^Button, data: rawptr) {
 			todool_indentation_shift(COMBO_POSITIVE)
 		}
 	}
@@ -2449,29 +2452,25 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	// deletion
 	{
 		b2 := button_init(p, {}, "Cut")
-		b2.invoke = proc(data: rawptr) {
-			button := cast(^Button) data
+		b2.invoke = proc(button: ^Button, data: rawptr) {
 			todool_cut_tasks()
 			menu_close(button.window)
 		}
 
 		b3 := button_init(p, {}, "Copy")
-		b3.invoke = proc(data: rawptr) {
-			button := cast(^Button) data
+		b3.invoke = proc(button: ^Button, data: rawptr) {
 			todool_copy_tasks()
 			menu_close(button.window)
 		}
 
 		b4 := button_init(p, {}, "Paste")
-		b4.invoke = proc(data: rawptr) {
-			button := cast(^Button) data
+		b4.invoke = proc(button: ^Button, data: rawptr) {
 			todool_paste_tasks()
 			menu_close(button.window)
 		}
 
 		b1 := button_init(p, {}, "Delete")
-		b1.invoke = proc(data: rawptr) {
-			button := cast(^Button) data
+		b1.invoke = proc(button: ^Button, data: rawptr) {
 			todool_delete_tasks()
 			menu_close(button.window)
 		}
@@ -2520,9 +2519,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	{
 		b1_text := task_seperator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
 		b1 := button_init(p, {}, b1_text)
-		b1.invoke = proc(data: rawptr) {
-			button := cast(^Button) data
-
+		b1.invoke = proc(button: ^Button, data: rawptr) {
 			task := tasks_visible[task_head]
 			valid := task_seperator_is_valid(task)
 			task_set_seperator(task, !valid)
@@ -2533,9 +2530,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		b2_text := task_highlight == task ? "Remove Highlight" : "Set Highlight"
 		b2 := button_init(p, {}, b2_text)
 
-		b2.invoke = proc(data: rawptr) {
-			button := cast(^Button) data
-
+		b2.invoke = proc(button: ^Button, data: rawptr) {
 			task := tasks_visible[task_head]
 			if task == task_highlight {
 				task_highlight = nil
@@ -2709,27 +2704,22 @@ mode_panel_context_menu_spawn :: proc() {
 	p.shadow = true
 	p.background_index = 2
 
-	button_init(p, {}, "Theme Editor").invoke = proc(data: rawptr) {
-		button := cast(^Button) data
+	button_init(p, {}, "Theme Editor").invoke = proc(button: ^Button, data: rawptr) {
 		theme_editor_spawn()
 		menu_close(button.window)
 	}
 
-	// button_init(p, {}, "Keymap Editor").invoke = proc(data: rawptr) {
-	// 	button := cast(^Button) data
-	// 	keymap_spawn()
+	// button_init(p, {}, "Keymap Editor").invoke = proc(button: ^Button, data: rawptr) {
+	// 	keymap_editor_spawn()
 	// 	menu_close(button.window)
 	// }
 
-	button_init(p, {}, "Changelog Generator").invoke = proc(data: rawptr) {
-		button := cast(^Button) data
+	button_init(p, {}, "Changelog Generator").invoke = proc(button: ^Button, data: rawptr) {
 		changelog_spawn()
 		menu_close(button.window)
 	}
 	
-	button_init(p, {}, "Load Tutorial").invoke = proc(data: rawptr) {
-		button := cast(^Button) data
-
+	button_init(p, {}, "Load Tutorial").invoke = proc(button: ^Button, data: rawptr) {
 	  if !todool_check_for_saving(window_main) {
 		  tasks_load_reset()
 		  last_save_set("")

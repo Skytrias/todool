@@ -288,11 +288,11 @@ search_init :: proc(parent: ^Element) {
 	}
 
 	b1 := button_init(p, {}, "Find Next")
-	b1.invoke = proc(data: rawptr) {
+	b1.invoke = proc(button: ^Button, data: rawptr) {
 		ss_find_next()
 	}
 	b2 := button_init(p, {}, "Find Prev")
-	b2.invoke = proc(data: rawptr) {
+	b2.invoke = proc(button: ^Button, data: rawptr) {
 		ss_find_prev()
 	}
 

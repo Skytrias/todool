@@ -24,8 +24,6 @@ TODOOL_RELEASE :: false
 
 // KEYMAP REWORK
 // add super key
-// add comments to save file
-// add description
 // keymap load newer combos per version by default
 // keymap editor GUI
 

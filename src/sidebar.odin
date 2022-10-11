@@ -464,14 +464,14 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 		b1 := button_init(top, { .HF }, "Clear")
 		b1.hover_info = "Clear all archive entries"
-		b1.invoke = proc(data: rawptr) {
+		b1.invoke = proc(button: ^Button, data: rawptr) {
 			element_destroy_descendents(sb.archive.buttons, true)
 			sb.archive.head = -1
 			sb.archive.tail = -1
 		}
 		b2 := button_init(top, { .HF }, "Copy")
 		b2.hover_info = "Copy selected archive region for next task copy"
-		b2.invoke = proc(data: rawptr) {
+		b2.invoke = proc(button: ^Button, data: rawptr) {
 			if sb.archive.head == -1 {
 				return
 			}
@@ -525,7 +525,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 		label_time_accumulated = label_init(panel, { .HF, .Label_Center })
 		b1 := button_init(panel, flags, "Reset acummulated")
-		b1.invoke = proc(data: rawptr) {
+		b1.invoke = proc(button: ^Button, data: rawptr) {
 			pomodoro.accumulated = {}
 			pomodoro.celebration_goal_reached = false
 		}
@@ -541,7 +541,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 			b := button_init(sub, flags, "Add")
 			b.data = s
-			b.invoke = proc(data: rawptr) {
+			b.invoke = proc(button: ^Button, data: rawptr) {
 				slider := cast(^Slider) data
 				// sb.options.slider_work_today.position += (slider.position / 60)
 				minutes := time.Duration(slider.position * 60) * time.Minute

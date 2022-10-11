@@ -2146,11 +2146,7 @@ menu_close :: proc(window: ^Window) -> bool {
 // }
 
 menu_init :: proc(window: ^Window, flags: Element_Flags) -> (menu: ^Panel_Floaty) {
-	menu = panel_floaty_init(&window.element, {})
-	// menu.panel.flags = flags
-	// menu.panel.flags ~= { .Panel_Default_Background }
-	menu.panel.flags += flags
-	// menu.panel.color = RED
+	menu = panel_floaty_init(&window.element, flags)
 	menu.x = window.cursor_x
 	menu.y = window.cursor_y
 	window.menu = menu
@@ -2162,10 +2158,10 @@ menu_add_item :: proc(
 	menu: ^Panel_Floaty, 
 	flags: Element_Flags,
 	text: string,
-	invoke: proc(data: rawptr),
+	invoke: proc(^Button, rawptr),
 	data: rawptr = nil,
 ) {
-	button := button_init(menu.panel, {}, text)
+	button := button_init(menu.panel, flags, text)
 	button.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		button := cast(^Button) element
 

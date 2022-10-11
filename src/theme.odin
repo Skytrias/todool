@@ -435,7 +435,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		button_panel.rounded = true
 
 		b1 := button_init(button_panel, {}, "Randomize Simple")
-		b1.invoke = proc(data: rawptr) {
+		b1.invoke = proc(button: ^Button, data: rawptr) {
 			for i in 0..<theme_editor.panel_list_index {
 				p := theme_editor.panel_list[i]
 				locked := theme_panel_locked(p)
@@ -452,7 +452,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			gs_update_all_windows()
 		}		
 		b2 := button_init(button_panel, {}, "Randomize HSV")
-		b2.invoke = proc(data: rawptr) {
+		b2.invoke = proc(button: ^Button, data: rawptr) {
 			rand_hue := theme_editor.checkbox_hue.state
 			rand_sat := theme_editor.checkbox_sat.state
 			rand_value := theme_editor.checkbox_value.state
@@ -491,17 +491,17 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		}	
 
 		r1 := button_init(button_panel, {}, "Reset / Light")
-		r1.invoke = proc(data: rawptr) {
+		r1.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_light
 			gs_update_all_windows()
 		}
 		r2 := button_init(button_panel, {}, "Reset / Black")
-		r2.invoke = proc(data: rawptr) {
+		r2.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_black
 			gs_update_all_windows()
 		}
 		// temp print theme
-		button_init(button_panel, {}, "Print").invoke = proc(data: rawptr) {
+		button_init(button_panel, {}, "Print").invoke = proc(button: ^Button, data: rawptr) {
 			fmt.eprintln(theme)
 		}
 
