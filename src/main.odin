@@ -392,11 +392,13 @@ words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
 			line_width := LINE_WIDTH + int(4 * TASK_SCALE)
 
 			for fontstash.wrap_state_iter(&gs.fc, &state) {
+				y := task.box.bounds.t + int(f32(state.y) * scaled_size) - line_width / 2
+				
 				rect := RectI {
 					task.box.bounds.l + int(state.x_from),
 					task.box.bounds.l + int(state.x_to),
-					task.box.bounds.t + int(f32(state.y) * scaled_size) - line_width,
-					task.box.bounds.t + int(f32(state.y) * scaled_size),
+					y,
+					y + line_width,
 				}
 				
 				render_sine(target, rect, RED)

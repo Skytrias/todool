@@ -1672,6 +1672,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				} else {
 					if task_head == task_tail {
 						scaled_size := fcs_task(task)
+						fcs_ahv(.Left, .Top)
 						element_box_mouse_selection(task.box, task.box, di, true, 0, scaled_size)
 						element_repaint(task)
 						return 1
@@ -1824,6 +1825,7 @@ task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 		} else {
 			old_tail := task.box.tail
 			scaled_size := fcs_task(task)
+			fcs_ahv(.Left, .Top)
 			element_box_mouse_selection(task.box, task.box, clicks, false, 0, scaled_size)
 
 			if task.window.shift && clicks == 0 {

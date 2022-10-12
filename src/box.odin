@@ -222,6 +222,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			old_tail := box.tail
 			scaled_size := efont_size(element)
+			fcs_ahv(.Left, .Top)
 			element_box_mouse_selection(box, box, di, false, box.scroll, scaled_size)
 
 			if element.window.shift && di == 0 {
@@ -232,6 +233,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		case .Mouse_Drag: {
 			if element.window.pressed_button == MOUSE_LEFT {
 				scaled_size := efont_size(element)
+				fcs_ahv(.Left, .Top)
 				element_box_mouse_selection(box, box, di, true, box.scroll, scaled_size)
 				element_repaint(box)
 			}
@@ -782,6 +784,7 @@ box_render_selection :: proc(
 	}
 }
 
+// NOTE careful with font AH/AV alignment
 // mouse selection
 element_box_mouse_selection :: proc(
 	element: ^Element,

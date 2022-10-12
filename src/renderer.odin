@@ -966,7 +966,8 @@ render_sine :: proc(
 
 	vertices[3] = vertices[1]
 	vertices[4] = vertices[2]
-	center_x, center_y := rect_center(r)
+	// center_x, center_y := rect_center(r)
+	center_x, center_y := f32(r.l), f32(r.t)
 
 	for i in 0..<6 {
 		vertices[i].color = color
