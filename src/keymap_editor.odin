@@ -125,15 +125,12 @@ keymap_editor_spawn :: proc() {
 			ke.issue_removal = false
 			children := panel_children(ke.issue_removal_panel)
 			keymap := cast(^Keymap) ke.issue_removal_panel.data
-			fmt.eprintln("trytry")
 
+			// TODO this feels dirty
 			for c, i in children {
-				fmt.eprintln("i", i)
-				// button := cast(^KE_Button) c
-				// button.node = &keymap.combos[i]
+				keymap_editor_update_combo_data(cast(^Panel) c, &keymap.combos[i])
 			}
 
-			fmt.eprintln("sup")
 			window_repaint(ke.window)
 		}
 	}
@@ -166,6 +163,8 @@ keymap_editor_spawn :: proc() {
 
 	keymap_editor_push_keymap(&window_main.keymap_box, "Box")
 	keymap_editor_push_keymap(&window_main.keymap_custom, "Todool")
+	keymap_editor_push_keymap(&keymap_vim_normal, "Vim Normal")
+	keymap_editor_push_keymap(&keymap_vim_insert, "Vim Insert")
 }
 
 KE_Button :: struct {
@@ -267,6 +266,18 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 	return 0
 }
 
+// NOTE this has to be the same as the init code
+keymap_editor_update_combo_data :: proc(panel: ^Panel, combo: ^Combo_Node) {
+	b1 := cast(^KE_Button) panel.children[0]
+	b1.node = combo
+	b2 := cast(^KE_Button) panel.children[1]
+	b2.node = combo
+	b3 := cast(^Button) panel.children[2]
+	strings.builder_reset(&b3.builder)
+	fmt.sbprintf(&b3.builder, "0x%2x", combo.du)
+	b4 := cast(^Button) panel.children[3]
+}
+
 keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string) {
 	toggle := toggle_panel_init(ke.panel, { .HF }, {}, header, false)
 	toggle.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -324,18 +335,9 @@ keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string) {
 
 				element_repaint(button)
 				element_destroy(button.parent)
-				fmt.eprintln("try")
-			} else {
-				fmt.eprintln("failed")
-			}
+			} 
 		}
 	}
-
-	// badd := button_init(p, {}, "Add")
-	// badd.data = p
-	// badd.invoke = proc(button: ^Button, data: rawptr) {
-		
-	// }
 }
 
 keymap_editor_spawn_floaty_command :: proc(

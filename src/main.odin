@@ -406,7 +406,7 @@ words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
 }
 
 thread_rax_init :: proc(t: ^thread.Thread) {
-	spall.scoped("rax load", 1)
+	spall.scoped("rax load", u32(t.id))
 
 	bytes, ok := os.read_entire_file("big.txt", context.allocator)
 	defer delete(bytes)
