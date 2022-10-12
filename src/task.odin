@@ -164,8 +164,8 @@ task_head_tail_call :: proc(
 
 task_data_init :: proc() {
 	keymap_init_comments()
-	keymap_init(&keymap_vim_normal, 64)
-	keymap_init(&keymap_vim_insert, 32)
+	keymap_init(&keymap_vim_normal, 64, 256)
+	keymap_init(&keymap_vim_insert, 32, 32)
 
 	undo_manager_init(&um_task)
 	undo_manager_init(&um_search)
@@ -2711,10 +2711,10 @@ mode_panel_context_menu_spawn :: proc() {
 		menu_close(button.window)
 	}
 
-	// button_init(p, {}, "Keymap Editor").invoke = proc(button: ^Button, data: rawptr) {
-	// 	keymap_editor_spawn()
-	// 	menu_close(button.window)
-	// }
+	button_init(p, {}, "Keymap Editor").invoke = proc(button: ^Button, data: rawptr) {
+		keymap_editor_spawn()
+		menu_close(button.window)
+	}
 
 	button_init(p, {}, "Changelog Generator").invoke = proc(button: ^Button, data: rawptr) {
 		changelog_spawn()

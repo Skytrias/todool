@@ -353,6 +353,7 @@ window_init :: proc(
 	title: cstring, 
 	w, h: i32,
 	command_cap: int,
+	combos_cap: int,
 ) -> (res: ^Window) {
 	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
@@ -429,8 +430,8 @@ window_init :: proc(
 	res.element.window = res
 	res.window_next = gs.windows
 	gs.windows = res
-	keymap_init(&res.keymap_box, 16)
-	keymap_init(&res.keymap_custom, command_cap)
+	keymap_init(&res.keymap_box, 16, 32)
+	keymap_init(&res.keymap_custom, command_cap, combos_cap)
 
 	// set hovered panel
 	{

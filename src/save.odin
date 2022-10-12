@@ -731,8 +731,11 @@ keymap_save :: proc(path: string) -> bool {
 		strings.write_byte(b, '\n')
 		count: int
 
-		for c := keymap.combo_start; c != nil; c = c.next {
-			if cmd, ok1 := keymap.commands[c.command]; ok1 {
+		for node in &keymap.combos {
+			c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
+			c2 := strings.string_from_ptr(&node.command[0], int(node.command_index))
+
+			if cmd, ok1 := keymap.commands[c1]; ok1 {
 				if comment, ok2 := keymap_comments[cmd]; ok2 {
 					strings.write_string(b, "\t// ")
 					strings.write_string(b, comment)
@@ -744,17 +747,17 @@ keymap_save :: proc(path: string) -> bool {
 			}
 
 			strings.write_byte(b, '\t')
-			strings.write_string(b, c.combo)
+			strings.write_string(b, c1)
 			strings.write_string(b, " = ")
-			strings.write_string(b, c.command)
+			strings.write_string(b, c2)
 
 			// write optional data
-			if c.du != COMBO_EMPTY {
-				if c.du >= COMBO_VALUE {
-					fmt.sbprintf(b, " 0x%2x", uint(c.du - COMBO_VALUE))
+			if node.du != COMBO_EMPTY {
+				if node.du >= COMBO_VALUE {
+					fmt.sbprintf(b, " 0x%2x", uint(node.du - COMBO_VALUE))
 				} else {
 					for i in 0..<5 {
-						bit := bits.bitfield_extract(c.du, uint(i), 1)
+						bit := bits.bitfield_extract(node.du, uint(i), 1)
 						
 						if bit != 0x00 {
 							stringified := du_to_string(i)

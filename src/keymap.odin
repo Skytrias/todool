@@ -1,5 +1,6 @@
 package src
 
+import "core:mem"
 import "core:fmt"
 import "core:strings"
 
@@ -10,18 +11,21 @@ import "core:strings"
 Keymap :: struct {
 	// move_up = proc(u32) {}
 	commands: map[string]Command,
-	combo_start: ^Combo_Node,
-	combo_end: ^Combo_Node,
+	combos: [dynamic]Combo_Node,
+
+	combo_last: ^Combo_Node,
+}
+
+Combo_Node :: struct {
+	combo: [32]u8,
+	command: [32]u8,
+	
+	combo_index: u8,
+	command_index: u8,
+	du: u32,
 }
 
 Command :: proc(u32)
-
-Combo_Node :: struct {
-	prev, next: ^Combo_Node,
-	combo: string,
-	command: string,
-	du: u32,
-}
 
 // combo extension flags
 COMBO_EMPTY :: 0x00
@@ -79,28 +83,55 @@ du_from_string :: proc(text: string) -> u32 {
 	return COMBO_EMPTY		
 }
 
+keymap_combo_match :: proc(
+	keymap: ^Keymap, 
+	node: ^Combo_Node, 
+	combo: string,
+) -> (res: Command, ok: bool) {
+	c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
+	
+	if combo == c1 {
+		c2 := strings.string_from_ptr(&node.command[0], int(node.command_index))
+
+		if cmd, exists := keymap.commands[c2]; exists {
+			res = cmd
+			ok = true
+			return
+		}
+	}
+
+	return
+}
+
 // execute a command by combo from a keymap
 keymap_combo_execute :: proc(keymap: ^Keymap, combo: string) -> bool {
-	for node := keymap.combo_start; node != nil; node = node.next {
-		if combo == node.combo {
-			if cmd, ok := keymap.commands[node.command]; ok  {
-				cmd(node.du)
-			}
-
+	// lookup last used for speedup
+	if keymap.combo_last != nil {
+		if cmd, ok := keymap_combo_match(keymap, keymap.combo_last, combo); ok {
+			cmd(keymap.combo_last.du)
 			return true
 		}
-	} 
+	}
+
+	// lookup linear
+	for node in &keymap.combos {
+		if cmd, ok := keymap_combo_match(keymap, &node, combo); ok {
+			cmd(node.du)
+			return true
+		}
+	}
 
 	return false
 }
 
-keymap_init :: proc(keymap: ^Keymap, cap: int) {
-	keymap.commands = make(map[string]Command, cap)
+keymap_init :: proc(keymap: ^Keymap, commands_cap: int, combos_cap: int) {
+	keymap.commands = make(map[string]Command, commands_cap)
+	keymap.combos = make([dynamic]Combo_Node, 0, combos_cap)
 }
 
 keymap_destroy :: proc(keymap: ^Keymap) {
 	delete(keymap.commands)
-	keymap_clear_combos(keymap)
+	delete(keymap.combos)
 }
 
 // push a combo to the SLL
@@ -110,63 +141,42 @@ keymap_push_combo :: proc(
 	command: string,
 	du: u32,
 ) {
-	node := new(Combo_Node)
-	node.combo = strings.clone(combo)
-	node.command = strings.clone(command)
+	append(&keymap.combos, Combo_Node {})
+	node := &keymap.combos[len(keymap.combos) - 1]
+	
+	combo_index := min(len(node.combo), len(combo))
+	mem.copy(&node.combo[0], raw_data(combo), combo_index)
+	node.combo_index = u8(combo_index)
+
+	command_index := min(len(node.command), len(command))
+	mem.copy(&node.command[0], raw_data(command), command_index)
+	node.command_index = u8(command_index)
+
 	node.du = du
-
-	if keymap.combo_start == nil {
-		keymap.combo_start = node
-	}
-
-	if keymap.combo_end != nil {
-		keymap.combo_end.next = node
-		node.prev = keymap.combo_end
-	}
-
-	keymap.combo_end = node
 }
 
-keymap_remove_combo :: proc(keymap: ^Keymap, combo: ^Combo_Node) {
-	// set start / end
-	if keymap.combo_start == combo {
-		keymap.combo_start = combo.next
-	}
-	if keymap.combo_end == combo {
-		keymap.combo_end = combo.prev
-	}
+// keymap_remove_combo :: proc(keymap: ^Keymap, combo: ^Combo_Node) {
+	
+// 	// set start / end
+// 	if keymap.combo_start == combo {
+// 		keymap.combo_start = combo.next
+// 	}
+// 	if keymap.combo_end == combo {
+// 		keymap.combo_end = combo.prev
+// 	}
 
-	// set prev / next
-	if combo.prev != nil {
-		combo.prev.next = combo.next
-	}
-	if combo.next != nil {
-		combo.next.prev = combo.prev
-	}
-}
+// 	// set prev / next
+// 	if combo.prev != nil {
+// 		combo.prev.next = combo.next
+// 	}
+// 	if combo.next != nil {
+// 		combo.next.prev = combo.prev
+// 	}
+// }
 
 // free all nodes
 keymap_clear_combos :: proc(keymap: ^Keymap) {
-	next: ^Combo_Node
-	node := keymap.combo_start
-	for node != nil {
-		next = node.next
-		delete(node.command)
-		delete(node.combo)
-		free(node)
-		node = next
-	}	
-
-	keymap.combo_start = nil
-	keymap.combo_end = nil
-}
-
-keymap_combo_size :: proc(keymap: ^Keymap) -> (count: int) {
-	for node := keymap.combo_start; node != nil; node = node.next {
-		count += 1
-	}
-
-	return
+	clear(&keymap.combos)
 }
 
 commands_push: ^map[string]Command

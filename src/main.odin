@@ -459,7 +459,7 @@ main :: proc() {
 
 	task_data_init()
 
-	window := window_init(nil, {}, "Todool", 900, 900, 1024)
+	window := window_init(nil, {}, "Todool", 900, 900, 256, 256)
 	window.on_resize = proc(window: ^Window) {
 		cam := mode_panel_cam()
 		cam.freehand = true

@@ -745,38 +745,6 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 				element_repaint(element)
 			}
 		}
-
-		// case .Paint_Recursive: {
-		// 	target := element.window.target
-		// 	pressed := element.window.pressed == element
-		// 	hovered := element.window.hovered == element
-		// 	text_color := hovered || pressed ? theme.text_default : theme.text_blank
-
-		// 	if res := element_message(element, .Button_Highlight, 0, &text_color); res != 0 {
-		// 		if res == 1 {
-		// 			rect := element.bounds
-		// 			// rect.l = rect.r - (4 * SCALE)
-		// 			rect.r = rect.l + (4 * SCALE)
-		// 			render_rect(target, rect, text_color, 0)
-		// 		}
-		// 	}
-
-		// 	if hovered || pressed {
-		// 		render_rect_outline(target, element.bounds, text_color)
-		// 		render_hovered_highlight(target, element.bounds)
-		// 	}
-
-		// 	smallest_size := min(rect_width(element.bounds), rect_height(element.bounds))
-		// 	rect := element.bounds
-		// 	rect.l += rect_width_halfed(rect) - smallest_size / 2
-		// 	rect.r = rect.l + smallest_size
-		// 	render_texture_from_kind(target, kind, rect, text_color)
-		// 	return 1
-		// }
-
-		case .Destroy: {
-			free(element.data)
-		}
 	}
 
 	return 0

@@ -222,7 +222,7 @@ changelog_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	changelog.qlist = make([dynamic]Changelog_Task, 0, 64)
 	changelog.qparents = make(map[^Task]u8, 32)
 
-	changelog.window = window_init(nil, {}, "Changelog Genrator", 700, 700, 8)
+	changelog.window = window_init(nil, {}, "Changelog Genrator", 700, 700, 8, 8)
 	changelog.window.element.message_user = changelog_window_message
 	changelog.window.update = proc(window: ^Window) {
 		// only check once when window is updating
