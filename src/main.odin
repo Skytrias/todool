@@ -13,13 +13,14 @@ import "core:log"
 import "core:math/rand"
 import "core:unicode"
 import "core:thread"
+import "core:intrinsics"
 import sdl "vendor:sdl2"
 import "../fontstash"
 import "../spall"
 import "../rax"
 import "../cutf8"
 
-TRACK_MEMORY :: true
+TRACK_MEMORY :: false
 TODOOL_RELEASE :: false
 
 // KEYMAP REWORK
@@ -404,47 +405,57 @@ words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
 	}
 }
 
+thread_rax_init :: proc(t: ^thread.Thread) {
+	spall.scoped("rax load", 1)
+
+	bytes, ok := os.read_entire_file("big.txt", context.allocator)
+	defer delete(bytes)
+
+	// NOTE ASSUMING ASCII ENCODING
+	// check for words in file, to lower all
+	word: [256]u8
+	word_index: uint
+	for i in 0..<len(bytes) {
+		b := rune(bytes[i])
+
+		if !unicode.is_alpha(b) {
+			if word_index != 0 {
+				main_running := intrinsics.atomic_load(&main_thread_running)
+				if !main_running {
+					break
+				}
+				
+				rax.Insert(rt, &word[0], word_index, nil, nil)
+			}
+
+			word_index = 0
+		} else {
+			word[word_index] = u8(unicode.to_lower(b))
+			word_index += 1
+		}
+	}
+
+	intrinsics.atomic_store(&rt_loaded, true)
+	if t != nil {
+		thread.destroy(t)
+	}
+}
+
 main :: proc() {
+	spall.init("test.spall", mem.Megabyte)
+	spall.begin("init all", 0)
+	defer spall.destroy()
+
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
-	
-	spall.init("test.spall", mem.Megabyte)
-	defer spall.destroy()
-
-	spall.begin("init all", 0)
 
 	rt = rax.New()
 	defer rax.Free(rt)
 
 	// feed data to
-	thread.run(proc() {
-		spall.scoped("rax load", 1)
-
-		bytes, ok := os.read_entire_file("big.txt", context.allocator)
-		defer delete(bytes)
-
-		// NOTE ASSUMING ASCII ENCODING
-		// check for words in file, to lower all
-		word: [256]u8
-		word_index: uint
-		for i in 0..<len(bytes) {
-			b := rune(bytes[i])
-
-			if !unicode.is_alpha(b) {
-				if word_index != 0 {
-					rax.Insert(rt, &word[0], word_index, nil, nil)
-				}
-
-				word_index = 0
-			} else {
-				word[word_index] = u8(unicode.to_lower(b))
-				word_index += 1
-			}
-		}
-
-		rt_loaded = true
-	})
+	t := thread.create(thread_rax_init)
+	thread.start(t)
 
 	task_data_init()
 
@@ -520,7 +531,10 @@ main :: proc() {
 
 	// do actual loading later because options might change the path
 	gs_update_after_load()
-
 	spall.end(0)
+	
+	defer {
+		intrinsics.atomic_store(&main_thread_running, false)
+	}
 	gs_message_loop()
 }

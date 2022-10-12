@@ -12,6 +12,7 @@ import "core:math"
 import "core:intrinsics"
 import "core:slice"
 import "core:reflect"
+import "core:thread"
 import "../cutf8"
 import "../fontstash"
 import "../spall"
@@ -20,6 +21,7 @@ import "../rax"
 rt: ^rax.State
 rt_loaded: bool
 rt_words: [dynamic]Word_Result
+main_thread_running := true
 
 // keymap special
 keymap_vim_normal: Keymap
