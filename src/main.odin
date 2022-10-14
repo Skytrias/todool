@@ -455,7 +455,6 @@ thread_rax_init :: proc(t: ^thread.Thread) {
 }
 
 // import "core:simd/x86"
-
 import "core:simd"
 import "core:hash"
 main5 :: proc() {
@@ -575,8 +574,8 @@ main5 :: proc() {
 	sum: time.Duration
 
 	for i in 0..<iterations {
-		// sum += test_search_linear(content)
-		sum += test_search_simd(content)
+		sum += test_search_linear(content)
+		// sum += test_search_simd(content)
 	}
 
 	sum_milli := f32(time.duration_milliseconds(sum)) / f32(iterations)
