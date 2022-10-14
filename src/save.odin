@@ -618,8 +618,10 @@ json_load_misc :: proc(path: string) -> bool {
 			w := max(misc.hidden.window_width, 200)
 			h := max(misc.hidden.window_height, 200)
 			fmt.eprintln(misc.hidden.window_x, misc.hidden.window_y, w, h)
-			x := clamp(misc.hidden.window_x + w, 0, total_width) - w
-			y := clamp(misc.hidden.window_y + h, 0, total_height) - h
+			x := min(max(misc.hidden.window_x, 0) + w, total_width) - w
+			y := min(max(misc.hidden.window_y, 0) + h, total_height) - h
+			// x := misc.hidden.window_x
+			// y := misc.hidden.window_y
 			fmt.eprintln(x, y)
 
 			// x += 100000
