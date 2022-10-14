@@ -149,7 +149,7 @@ Window :: struct {
 	// key state
 	combo_builder: strings.Builder,
 	ignore_text_input: bool,
-	ctrl, shift, alt: bool,
+	ctrl, shift, alt, super: bool,
 
 	// assigned shortcuts to procedures in window
 	keymap_box: Keymap,
@@ -742,7 +742,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				}
 
 				if !handled && !window.ctrl && !window.alt {
-					match := combo == "tab" || combo == "shift+tab"
+					match := combo == "tab" || combo == "shift tab"
 					backwards := window.shift
 
 					// NOTE allows arrow based movement on dialog
@@ -1001,6 +1001,10 @@ window_build_combo :: proc(window: ^Window, key: sdl.KeyboardEvent) -> (res: str
 	using strings
 	b := &window.combo_builder
 	builder_reset(b)
+
+	if window.super {
+		write_string(b, "super ")
+	}
 	
 	if window.ctrl {
 		write_string(b, "ctrl ")
@@ -1222,6 +1226,19 @@ gs_allocator :: proc() -> mem.Allocator {
 	} else {
 		return context.allocator
 	}
+}
+
+gs_display_total_bounds :: proc() -> (width, height: int) {
+	rect: sdl.Rect
+	displays_count := sdl.GetNumVideoDisplays()
+
+	for i in 0..<displays_count {
+		sdl.GetDisplayBounds(i, &rect)
+		width += int(rect.w)
+		height += int(rect.h)
+	}
+
+	return
 }
 
 gs_init :: proc() {
@@ -1478,13 +1495,14 @@ gs_flush_events :: proc() {
 
 gs_process_events :: proc() {
 	// query ctrl, shift, alt state
-	ctrl, shift, alt: bool
+	ctrl, shift, alt, super: bool
 	num: i32
 	num = 0
 	state := sdl.GetKeyboardState(&num)
 	shift = state[sdl.SCANCODE_LSHIFT] == 1 || state[sdl.SCANCODE_RSHIFT] == 1
 	ctrl = state[sdl.SCANCODE_LCTRL] == 1 || state[sdl.SCANCODE_RCTRL] == 1
 	alt = state[sdl.SCANCODE_LALT] == 1 || state[sdl.SCANCODE_RALT] == 1
+	super = state[sdl.SCANCODE_LGUI] == 1 || state[sdl.SCANCODE_RGUI] == 1
 
 	// prep window state once
 	{
@@ -1493,6 +1511,7 @@ gs_process_events :: proc() {
 			w.ctrl = ctrl
 			w.shift = shift
 			w.alt = alt
+			w.super = super
 			w.ignore_text_input = false
 		}
 	}

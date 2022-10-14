@@ -17,7 +17,7 @@ Keymap :: struct {
 }
 
 Combo_Node :: struct {
-	combo: [32]u8,
+	combo: [48]u8,
 	command: [32]u8,
 	
 	combo_index: u8,
@@ -155,25 +155,6 @@ keymap_push_combo :: proc(
 	node.du = du
 }
 
-// keymap_remove_combo :: proc(keymap: ^Keymap, combo: ^Combo_Node) {
-	
-// 	// set start / end
-// 	if keymap.combo_start == combo {
-// 		keymap.combo_start = combo.next
-// 	}
-// 	if keymap.combo_end == combo {
-// 		keymap.combo_end = combo.prev
-// 	}
-
-// 	// set prev / next
-// 	if combo.prev != nil {
-// 		combo.prev.next = combo.next
-// 	}
-// 	if combo.next != nil {
-// 		combo.next.prev = combo.prev
-// 	}
-// }
-
 // free all nodes
 keymap_clear_combos :: proc(keymap: ^Keymap) {
 	clear(&keymap.combos)
@@ -261,6 +242,7 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	CP1("toggle_folding", todool_toggle_folding)
 	CP1("toggle_bookmark", todool_toggle_bookmark)
 	CP1("toggle_tag", todool_toggle_tag)
+	
 	// misc	
 	CP1("undo", todool_undo)
 	CP1("redo", todool_redo)
@@ -517,6 +499,10 @@ CP2_CROSS :: proc() {
 	CP2("ctrl e", "center")
 
 	CP2("alt a", "sort_locals")
+
+	CP2("alt 1", "pomodoro_toggle", COMBO_VALUE + 0x00)
+	CP2("alt 2", "pomodoro_toggle", COMBO_VALUE + 0x01)
+	CP2("alt 3", "pomodoro_toggle", COMBO_VALUE + 0x02)
 }
 
 keymap_push_vim_insert_commands :: proc(keymap: ^Keymap) {

@@ -264,6 +264,15 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			manager := mode_panel_manager_begin()
 			had_imports := false
 
+			if task_head == -1 {
+				return 0
+			}
+
+			task := tasks_visible[task_head]
+			task_insert_offset := task.index + 1
+			task_indentation := task.indentation
+
+			spall.scoped("Load Dropped Files")
 			for indice in element.window.drop_indices {
 				file_path := string(element.window.drop_file_name_builder.buf[old_indice:indice])
 
@@ -275,17 +284,18 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 						task_set_img(task, handle)
 					}
 				} else {
-					if !had_imports {
-						task_head_tail_push(manager)
-					}
-					had_imports = true
+					// if !had_imports {
+					// 	task_head_tail_push(manager)
+					// }
+					// had_imports = true
 
 					// import from code
 					content, ok := os.read_entire_file(file_path)
 					defer delete(content)
 
 					if ok {
-						pattern_load_content(manager, string(content))
+						spall.fscoped("%s", file_path)
+						had_imports |= pattern_load_content_simple(manager, content, task_indentation, &task_insert_offset)
 					}
 				}
 
@@ -293,6 +303,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			}
 
 			if had_imports {
+				task_head_tail_push(manager)
 				undo_group_end(manager)
 			}
 
@@ -443,14 +454,148 @@ thread_rax_init :: proc(t: ^thread.Thread) {
 	}
 }
 
+// import "core:simd/x86"
+
+import "core:simd"
+import "core:hash"
+main5 :: proc() {
+	file_path := "/home/skytrias/Downloads/essence-master/desktop/gui.cpp"
+	content, ok := os.read_entire_file(file_path)
+	defer delete(content)
+
+	if !ok {
+		return
+	}
+
+	test_search_linear :: proc(content: []byte) -> (diff: time.Duration) {
+		tick_start := time.tick_now()
+
+		temp := content
+		temp_length := len(temp)
+		pattern := "// TODO"
+		pattern_length := len(pattern)
+		pattern_hash := hash.fnv32(transmute([]byte) pattern)
+		b: u8
+
+		// for line in strings.split_lines_iterator(&temp) {
+		for i := 0; i < temp_length; i += 1 {
+			b = temp[i]
+
+			if b == '/' {
+				// TODO safety
+				if temp[i + 1] == '/' {
+					if i + pattern_length < temp_length {
+						h := hash.fnv32(temp[i:i + pattern_length])
+
+						if h == pattern_hash {
+						// if temp[i:i + pattern_length] == pattern {
+							// find end
+							end_index := -1
+							for j in i..<temp_length {
+								if temp[j] == '\n' {
+									end_index = j
+									break
+								}
+							}
+
+							if end_index != -1 {
+								// fmt.eprintln(string(temp[i:end_index]))
+								// task_push_undoable(manager, indentation, string(temp[i:end_index]), index_at^)
+								// index_at^ += 1
+								// i = end_index
+							}
+						}
+					}
+				}
+			}
+		}
+
+		diff = time.tick_since(tick_start)
+		return
+	}
+	
+	test_search_simd :: proc(content: []byte) -> (diff: time.Duration) {
+		tick_start := time.tick_now()
+		temp := content
+		temp_length := len(temp)
+
+		pattern := "// TODO"
+		p1 := pattern[0]
+		p2 := pattern[len(pattern) - 1]
+		first := simd.u8x32 { p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, p1, }
+		last := simd.u8x32 { p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, p2, }
+		// fmt.eprintln(first)
+		// fmt.eprintln(last)
+		// first := x86._mm_set1_epi8(i8(pattern[0]))
+		// last := x86._mm_set1_epi8(i8(pattern[len(pattern) - 1]))
+		// first := sse
+
+		for i := 0; i < temp_length; i += 16 {
+
+		}
+
+		// // for line in strings.split_lines_iterator(&temp) {
+		// for i := 0; i < temp_length; i += 1 {
+		// 	b = temp[i]
+
+		// 	if b == '/' {
+		// 		// TODO safety
+		// 		if temp[i + 1] == '/' {
+		// 			if i + pattern_length < temp_length {
+		// 				h := hash.fnv32(temp[i:i + pattern_length])
+
+		// 				if h == pattern_hash {
+		// 				// if temp[i:i + pattern_length] == pattern {
+		// 					// find end
+		// 					end_index := -1
+		// 					for j in i..<temp_length {
+		// 						if temp[j] == '\n' {
+		// 							end_index = j
+		// 							break
+		// 						}
+		// 					}
+
+		// 					if end_index != -1 {
+		// 						// fmt.eprintln(string(temp[i:end_index]))
+		// 						// task_push_undoable(manager, indentation, string(temp[i:end_index]), index_at^)
+		// 						// index_at^ += 1
+		// 						// i = end_index
+		// 					}
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// }
+
+		diff = time.tick_since(tick_start)
+		return
+	}
+
+	iterations := 100
+	sum: time.Duration
+
+	for i in 0..<iterations {
+		// sum += test_search_linear(content)
+		sum += test_search_simd(content)
+	}
+
+	sum_milli := f32(time.duration_milliseconds(sum)) / f32(iterations)
+	sum_micro := f32(time.duration_microseconds(sum)) / f32(iterations)
+	fmt.eprintf("avg %fms %fmys\n", sum_milli, sum_micro)
+}
+
 main :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)
 	defer spall.destroy()
 
+
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
+	
+	total_width, total_height := gs_display_total_bounds()
+	fmt.eprintln(total_width, total_height)
 
 	rt = rax.New()
 	defer rax.Free(rt)

@@ -613,8 +613,18 @@ json_load_misc :: proc(path: string) -> bool {
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
 			// log.warn("WINDOW SET POS", misc.hidden.window_x, misc.hidden.window_y)
-			window_set_position(window_main, misc.hidden.window_x, misc.hidden.window_y)
-			window_set_size(window_main, clamp(misc.hidden.window_width, 0, max(int)), clamp(misc.hidden.window_height, 0, max(int)))
+			total_width, total_height := gs_display_total_bounds()
+
+			w := max(misc.hidden.window_width, 200)
+			h := max(misc.hidden.window_height, 200)
+			fmt.eprintln(misc.hidden.window_x, misc.hidden.window_y, w, h)
+			x := clamp(misc.hidden.window_x + w, 0, total_width) - w
+			y := clamp(misc.hidden.window_y + h, 0, total_height) - h
+			fmt.eprintln(x, y)
+
+			// x += 100000
+			window_set_position(window_main, x, y)
+			window_set_size(window_main, w, h)
 		}
 
 		last_save_set(misc.hidden.last_save_location)
@@ -855,7 +865,7 @@ keymap_load :: proc(path: string) -> bool {
 								du |= du_res
 							} else {
 								if val, ok := strconv.parse_uint(text); ok {
-									du = u32(val)
+									du = u32(val + COMBO_VALUE)
 								} else {
 
 								}

@@ -18,6 +18,12 @@ import "../fontstash"
 import "../spall"
 import "../rax"
 
+// focus
+focusing: bool
+focus_head: int
+focus_tail: int
+
+// rax
 rt: ^rax.State
 rt_loaded: bool
 rt_words: [dynamic]Word_Result
@@ -2732,6 +2738,18 @@ mode_panel_context_menu_spawn :: proc() {
 
 		menu_close(button.window)
 	}
+
+	// button_init(p, {}, "Test").invoke = proc(button: ^Button, data: rawptr) {
+	// 	if focusing {
+	// 		focusing = false
+	// 	} else {
+	// 		focusing = true
+	// 		focus_head = 6
+	// 		focus_tail = 10
+	// 	}
+
+	// 	menu_close(button.window)
+	// }
 
 	menu_show(menu)
 }

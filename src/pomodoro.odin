@@ -140,7 +140,12 @@ pomodoro_stopwatch_hot_toggle :: proc(du: u32) {
 		element_repaint(mode_panel)
 	}
 	
-	index := int(clamp(du, 0, 2))
+	value, ok := du_value(du)
+	if !ok {
+		return
+	}
+
+	index := int(value)
 	if index == pomodoro.index {
 		pomodoro_stopwatch_toggle()
 		return

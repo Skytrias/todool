@@ -9,6 +9,7 @@ import "core:unicode"
 import "core:unicode/utf8"
 import "core:slice"
 import "core:strings"
+import "core:hash"
 
 // wanted pattern
 
@@ -273,6 +274,57 @@ pattern_token_string :: proc(tok: rune, allocator := context.temp_allocator) -> 
 	return fmt.aprintf("%q", tok)
 }
 
+PATTERN_FIND := "TODO"
+pattern_load_content_simple :: proc(
+	manager: ^Undo_Manager, 
+	content: []byte,
+	// content: string,
+	indentation: int,
+	index_at: ^int,
+) -> (found_any: bool) {
+	temp := content
+	temp_length := len(temp)
+	pattern := "// TODO"
+	pattern_length := len(pattern)
+	pattern_hash := hash.fnv32(transmute([]byte) pattern)
+	b: u8
+
+	// for line in strings.split_lines_iterator(&temp) {
+	for i := 0; i < temp_length; i += 1 {
+		b = temp[i]
+
+		if b == '/' {
+			// TODO safety
+			if temp[i + 1] == '/' {
+				if i + pattern_length < temp_length {
+					h := hash.fnv32(temp[i:i + pattern_length])
+
+					if h == pattern_hash {
+					// if temp[i:i + pattern_length] == pattern {
+						// find end
+						end_index := -1
+						for j in i..<temp_length {
+							if temp[j] == '\n' {
+								end_index = j
+								break
+							}
+						}
+
+						if end_index != -1 {
+							task_push_undoable(manager, indentation, string(temp[i:end_index]), index_at^)
+							index_at^ += 1
+							found_any = true
+							i = end_index
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return
+}
+
 pattern_load_content :: proc(manager: ^Undo_Manager, content: string) {
 	scanner := pattern_scanner_init(content)
 	defer pattern_scanner_destroy(scanner)
@@ -285,6 +337,9 @@ pattern_load_content :: proc(manager: ^Undo_Manager, content: string) {
 	multiline_count: int
 	was_comment: bool
 	inject_count: int
+
+	// TODO push to pattern stack instead of directly to list
+	// and do mem copy at end
 
 	for {
 		tok := pattern_scan(&scanner, was_comment)

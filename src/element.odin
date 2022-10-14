@@ -3288,6 +3288,7 @@ image_display_init :: proc(
 	res = element_init(Image_Display, parent, flags, image_display_message, allocator)
 	res.img = img
 	res.message_user = message_user
+	res.aspect = .Height
 	return
 }
 

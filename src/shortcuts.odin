@@ -717,7 +717,6 @@ todool_toggle_tag :: proc(du: u32) {
 	task_head_tail_push(manager)
 	iter := ti_init()
 
-
 	for task in ti_step(&iter) {
 		u8_xor_push(manager, &task.tags, bit)
 	}
