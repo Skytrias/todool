@@ -18,6 +18,8 @@ import "../fontstash"
 import "../spall"
 import "../rax"
 
+task_init_state_progress := true
+
 // focus
 focusing: bool
 focus_head: int
@@ -32,16 +34,25 @@ main_thread_running := true
 // keymap special
 keymap_vim_normal: Keymap
 keymap_vim_insert: Keymap
-vim_insert_mode := false
-// return to same task if still waiting for move break
-vim_visual_left_right_wait_task: ^Task
-vim_visual_left_right_wait_direction: int // direction -1 = left, 1 = right
+
+Vim_State :: struct {
+	insert_mode: bool,
+	
+	// return to same task if still waiting for move break
+	// left /right
+	rep_task: ^Task,
+	rep_direction: int, // direction -1 = left, 1 = right
+	rep_cam_x: f32,
+	rep_cam_y: f32,
+}
+vim: Vim_State
 
 // last save
 last_save_location: string
 
 TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
+PROGRESSBAR_HEIGHT :: 20
 
 um_task: Undo_Manager
 um_search: Undo_Manager
@@ -417,14 +428,17 @@ Task :: struct {
 
 	folded: bool,
 	has_children: bool,
+	children_count: u16, // exclusive count
 	state_count: [Task_State]int,
 
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
 	tags_rect: RectI,
+	progressbar_rect: RectI,
+	progress_animation: [Task_State]f32,
 
 	// wether we want to be able to jump to this task
-	bookmarked: bool,
+	bookmarked: bool, // TODO use bookmark.hide property instead?
 }
 
 Mode :: enum {
@@ -1063,6 +1077,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 		task := cast(^Task) mode_panel.children[i]
 		if task.has_children {
 			task.state_count = {}
+			task.children_count = 0
 		}
 	}
 
@@ -1090,6 +1105,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 		// count parent up based on this state		
 		if task.visible_parent != nil {
 			task.visible_parent.state_count[task.state] += 1
+			task.visible_parent.children_count += 1
 		}
 	}	
 
@@ -1746,6 +1762,11 @@ task_layout :: proc(
 	task.clip = rect_intersection(task.parent.clip, cut)
 	task.bounds = cut
 
+	if task.has_children {
+		height := int(PROGRESSBAR_HEIGHT * TASK_SCALE)
+		task.progressbar_rect = rect_cut_top(&cut, height)
+	}
+
 	// layout bookmark
 	element_hide(task.button_bookmark, !task.bookmarked)
 	if task.bookmarked {
@@ -1859,6 +1880,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Get_Height: {
 			line_size := task_font_size(element) * len(task.box.wrapped_lines)
+			line_size += int(f32(task.has_children ? PROGRESSBAR_HEIGHT : 0) * TASK_SCALE)
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + int(5 * TASK_SCALE) : 0
 			line_size += image_display_has_content(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
@@ -1888,6 +1910,22 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			// render panel front color
 			task_color := theme_panel(task.has_children ? .Parent : .Front)
 			render_rect(target, rect, task_color, ROUNDNESS)
+
+			if task.has_children {
+				render_rect(target, task.progressbar_rect, task_color, ROUNDNESS)
+				m := rect_margin(task.progressbar_rect, int(4 * TASK_SCALE))
+
+				// TODO could just store this count in u16				
+				total := task.state_count[.Normal] + task.state_count[.Done] + task.state_count[.Canceled]
+				
+				for state in Task_State {
+					if task.progress_animation[state] != 0 {
+						render_rect(target, m, theme_task_text(state), ROUNDNESS)
+					}
+
+					m.l += int(task.progress_animation[state] * rect_widthf(element.bounds))
+				}
+			}
 
 			// draw tags at an offset
 			if draw_tags {
@@ -1985,6 +2023,17 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				1,
 			)
 
+			for count, i in task.state_count {
+				always := true
+				state := Task_State(i)
+				value := f32(count) / f32(task.children_count)
+				handled |= animate_to(
+					&always,
+					&task.progress_animation[state],
+					value,
+				)
+			}
+
 			// fmt.eprintln(task.top_offset)
 
 			return int(handled)
@@ -1998,6 +2047,14 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 	}
 
 	return 0
+}
+
+task_progress_state_set :: proc(task: ^Task) {
+	for count, i in task.state_count {
+		state := Task_State(i)
+		value := f32(count) / f32(task.children_count)
+		task.progress_animation[state] = value
+	}
 }
 
 //////////////////////////////////////////////

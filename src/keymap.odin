@@ -354,9 +354,7 @@ keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 	CP2("ctrl 8", "toggle_tag", COMBO_VALUE + 0x80)
 
 	// insertion
-	CP2("return", "insert_sibling")
-	CP2("shift return", "insert_sibling", COMBO_SHIFT)
-	CP2("ctrl return", "insert_child")
+	CP2_INSERTION()
 
 	// misc
 	CP2("ctrl z", "undo")
@@ -371,6 +369,13 @@ keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 
 	// v022
 	CP2_CROSS()
+}
+
+CP2_INSERTION :: proc() {
+	// insertion
+	CP2("return", "insert_sibling")
+	CP2("shift return", "insert_sibling", COMBO_SHIFT)
+	CP2("ctrl return", "insert_child")
 }
 
 keymap_push_vim_normal_commands :: proc(keymap: ^Keymap) {
@@ -396,12 +401,16 @@ keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
 	CP2("d", "delete_tasks")
 	CP2("h", "visual_move_left")
 	CP2("l", "visual_move_right")
+	CP2("left", "visual_move_left")
+	CP2("right", "visual_move_right")
+	CP2("space", "toggle_folding")
 
 	// inserts
 	CP2("i", "insert_mode")
 	CP2("shift i", "insert_mode_beginning")
 	CP2("o", "insert_below")
 	CP2("shift o", "insert_above")
+	CP2("ctrl shift o", "insert_child")
 
 	// simplified
 	CP2("x", "cut_tasks")
@@ -443,6 +452,9 @@ keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
 CP2_CROSS :: proc() {
 	CP2("left", "selection_stop")
 	CP2("right", "selection_stop")
+	CP2("alt right", "jump_nearby")
+	CP2("alt left", "jump_nearby", COMBO_SHIFT)
+
 
 	// movement & selection variants
 	CP2("up", "move_up")
@@ -494,8 +506,6 @@ CP2_CROSS :: proc() {
 	CP2("ctrl -", "scale_tasks", COMBO_NEGATIVE)
 	CP2("ctrl +", "scale_tasks", COMBO_POSITIVE)
 	CP2("f11", "fullscreen_toggle")
-	CP2("alt right", "jump_nearby")
-	CP2("alt left", "jump_nearby", COMBO_SHIFT)
 	CP2("ctrl e", "center")
 
 	CP2("alt a", "sort_locals")
@@ -509,6 +519,10 @@ keymap_push_vim_insert_commands :: proc(keymap: ^Keymap) {
 	commands_push = &keymap.commands
 	CP1("normal_mode", vim_normal_mode_set)
 	CP1("delete_on_empty", todool_delete_on_empty)
+
+		// insertion
+	CP1("insert_sibling", todool_insert_sibling)
+	CP1("insert_child", todool_insert_child)
 }
 
 keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
@@ -517,6 +531,8 @@ keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
 	CP2("escape", "normal_mode")
 	CP2("backspace", "delete_on_empty")
 	CP2("ctrl backspace", "delete_on_empty")
+
+	CP2_INSERTION()
 }
 
 keymap_destroy_comments :: proc() {

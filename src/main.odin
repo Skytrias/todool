@@ -77,6 +77,14 @@ main_update :: proc(window: ^Window) {
 	task_set_visible_tasks()
 	task_check_parent_states(nil)
 
+	if task_init_state_progress {
+		for i in 0..<len(mode_panel.children) {
+			task := cast(^Task) mode_panel.children[i]
+			task_progress_state_set(task)
+		}
+		task_init_state_progress = false
+	}
+
 	// just set the font options once here
 	for task in tasks_visible {
 		task.font_options = task.has_children ? &font_options_bold : nil
@@ -196,7 +204,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			}
 
 			if options_vim_use() {
-				if vim_insert_mode {
+				if vim.insert_mode {
 					if main_box_key_combination(window, msg, di, dp) == 1 {
 						return 1
 					}

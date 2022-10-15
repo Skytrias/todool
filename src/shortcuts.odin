@@ -99,7 +99,7 @@ todool_move_up :: proc(du: u32) {
 	element_repaint(mode_panel)
 	element_message(task.box, .Box_Set_Caret, BOX_END)
 
-	vim_visual_left_right_wait_task = nil
+	vim.rep_task = nil
 }
 
 todool_move_down :: proc(du: u32) {
@@ -118,7 +118,7 @@ todool_move_down :: proc(du: u32) {
 	element_message(task.box, .Box_Set_Caret, BOX_END)
 	element_repaint(mode_panel)
 
-	vim_visual_left_right_wait_task = nil
+	vim.rep_task = nil
 }
 
 todool_move_up_stack :: proc(du: u32) {
@@ -146,7 +146,7 @@ todool_move_up_stack :: proc(du: u32) {
 		element_message(task.box, .Box_Set_Caret, BOX_END)
 		element_repaint(mode_panel)
 
-		vim_visual_left_right_wait_task = nil
+		vim.rep_task = nil
 	}
 }
 
@@ -171,7 +171,7 @@ todool_move_down_stack :: proc(du: u32) {
 		element_message(task.box, .Box_Set_Caret, BOX_END)
 		element_repaint(mode_panel)		
 
-		vim_visual_left_right_wait_task = nil
+		vim.rep_task = nil
 	}
 }
 
@@ -197,7 +197,7 @@ todool_indent_jump_low_prev :: proc(du: u32) {
 		}
 	}
 
-	vim_visual_left_right_wait_task = nil
+	vim.rep_task = nil
 }
 
 todool_indent_jump_low_next :: proc(du: u32) {
@@ -222,7 +222,7 @@ todool_indent_jump_low_next :: proc(du: u32) {
 		}
 	}
 
-	vim_visual_left_right_wait_task = nil
+	vim.rep_task = nil
 }
 
 todool_indent_jump_same_prev :: proc(du: u32) {
@@ -247,7 +247,7 @@ todool_indent_jump_same_prev :: proc(du: u32) {
 		}
 	} 
 
-	vim_visual_left_right_wait_task = nil
+	vim.rep_task = nil
 }
 
 todool_indent_jump_same_next :: proc(du: u32) {
@@ -272,7 +272,7 @@ todool_indent_jump_same_next :: proc(du: u32) {
 		}
 	} 
 
-	vim_visual_left_right_wait_task = nil
+	vim.rep_task = nil
 }
 
 todool_bookmark_jump :: proc(du: u32) {
@@ -285,7 +285,7 @@ todool_bookmark_jump :: proc(du: u32) {
 		task_head = task.visible_index
 		task_tail = task.visible_index
 		element_repaint(mode_panel)
-		vim_visual_left_right_wait_task = nil
+		vim.rep_task = nil
 	}
 }
 
@@ -1652,8 +1652,8 @@ todool_fullscreen_toggle :: proc(du: u32) {
 
 // set mode and issue repaint on change
 VIM :: proc(insert: bool) {
-	old := vim_insert_mode
-	vim_insert_mode = insert
+	old := vim.insert_mode
+	vim.insert_mode = insert
 
 	if old != insert {
 		custom_split.statusbar.vim_panel.color = insert ? &theme.text_bad : &theme.text_good
@@ -1685,16 +1685,6 @@ vim_insert_above :: proc(du: u32) {
 	VIM(true)
 	fmt.eprintln("run")
 	todool_insert_sibling(COMBO_SHIFT)
-}
-
-// TODO visual move to left
-vim_move_left :: proc(du: u32) {
-		
-}
-
-// TODO visual move to right
-vim_move_right :: proc(du: u32) {
-		
 }
 
 vim_move_up :: proc(du: u32) {
@@ -1741,8 +1731,7 @@ vim_visual_move_left :: proc(du: u32) {
 				task_tail = closest_task.visible_index
 				window_repaint(window_main)
 				
-				vim_visual_left_right_wait_task = current
-				vim_visual_left_right_wait_direction = 1
+				vim_visual_reptition_set(current, 1)
 			}
 		}
 
@@ -1788,8 +1777,7 @@ vim_visual_move_right :: proc(du: u32) {
 				task_tail = closest_task.visible_index
 				window_repaint(window_main)
 
-				vim_visual_left_right_wait_task = current
-				vim_visual_left_right_wait_direction = -1
+				vim_visual_reptition_set(current, -1)
 			}
 		}
 
@@ -1799,19 +1787,27 @@ vim_visual_move_right :: proc(du: u32) {
 	}
 }
 
+vim_visual_reptition_set :: proc(task: ^Task, direction: int) {
+	vim.rep_task = task
+	vim.rep_direction = direction
+	cam := mode_panel_cam()
+	vim.rep_cam_x = cam.offset_x
+	vim.rep_cam_y = cam.offset_y
+}
+
 // NOTE this is for speedup & sane traversal
 // repition will break once you move around the tasks 
 // moves to the last repeated task when we keep reversing back and forth
 vim_visual_reptition_check :: proc(task: ^Task, direction: int) -> bool {
-	// fmt.eprintln(vim_visual_left_right_wait_direction, direction)
+	// fmt.eprintln(vim.rep_direction, direction)
 
-	if vim_visual_left_right_wait_task != nil || vim_visual_left_right_wait_direction == 0 {
-		if direction == vim_visual_left_right_wait_direction {
+	if vim.rep_task != nil || vim.rep_direction == 0 {
+		if direction == vim.rep_direction {
 			// need to check if the task is still inside the tasks visible, in case it was deleted
-			if vim_visual_left_right_wait_task in task_clear_checking {
+			if vim.rep_task in task_clear_checking {
 				found: bool
 				for task in tasks_visible {
-					if task == vim_visual_left_right_wait_task {
+					if task == vim.rep_task {
 						found = true
 						break
 					}
@@ -1822,12 +1818,28 @@ vim_visual_reptition_check :: proc(task: ^Task, direction: int) -> bool {
 				}
 			}
 
-			vim_visual_left_right_wait_direction *= -1
-			task_head = vim_visual_left_right_wait_task.visible_index
-			task_tail = vim_visual_left_right_wait_task.visible_index
-			vim_visual_left_right_wait_task = task
+			vim.rep_direction *= -1
+			task_head = vim.rep_task.visible_index
+			task_tail = vim.rep_task.visible_index
+			vim.rep_task = task
+
+			// cam := mode_panel_cam()
+			// if visuals_use_animations() {
+			// 	element_animation_start(mode_panel)
+			// 	cam.ax.animating = true
+			// 	cam.ax.direction = CAM_CENTER
+			// 	cam.ax.goal = int(vim.rep_cam_x)
+				
+			// 	cam.ay.animating = true
+			// 	cam.ay.direction = CAM_CENTER
+			// 	cam.ay.goal = int(vim.rep_cam_y)
+			// } else {
+			// 	cam.offset_x = vim.rep_cam_x
+			// 	cam.offset_y = vim.rep_cam_y
+			// }
+			// cam.freehand = false
+
 			window_repaint(window_main)
-			// fmt.eprintln("WE GOOD")
 			return true
 		}
 	}

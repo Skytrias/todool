@@ -32,7 +32,7 @@ vim_label_init :: proc(
 
 vim_label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	v := cast(^Vim_Label)	element
-	text := vim_insert_mode ? "-- INSERT --" : "NORMAL"
+	text := vim.insert_mode ? "-- INSERT --" : "NORMAL"
 	
 	#partial switch msg {
 		case .Paint_Recursive: {
