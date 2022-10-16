@@ -189,6 +189,10 @@ element_hide :: proc(element: ^Element, state: bool) -> (res: bool) {
 
 // add or stop an element from animating
 element_animation_start :: proc(element: ^Element) {
+	if element == nil {
+		return
+	}
+
 	// find preexisting animation
 	for e in gs.animating {
 		if e == element {

@@ -65,10 +65,11 @@ todool_delete_on_empty :: proc(du: u32) {
 	}
 
 	task := tasks_visible[task_head]
-
+	
 	if len(task.box.builder.buf) == 0 {
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
+		task_state_progression = .Update_Animated
 		index := task.index
 		
 		if index == len(mode_panel.children) {
@@ -295,6 +296,7 @@ todool_delete_tasks :: proc(du: u32 = 0) {
 	}
 
 	manager := mode_panel_manager_scoped()
+	task_state_progression = .Update_Animated
 	task_head_tail_push(manager)
 	task_remove_selection(manager, true)
 	element_repaint(mode_panel)
@@ -338,6 +340,7 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 	task_head_tail_push(manager)
 	iter := ti_init()
 
+	task_state_progression = .Update_Animated
 	for task in ti_step(&iter) {
 		task_set_state_undoable(manager, task, state)
 	}
@@ -355,6 +358,7 @@ todool_change_task_state :: proc(du: u32) {
 	index: int
 
 	// modify all states
+	task_state_progression = .Update_Animated
 	for task in ti_step(&iter) {
 		index = int(task.state)
 		range_advance_index(&index, len(Task_State) - 1, shift)
@@ -494,6 +498,7 @@ todool_insert_sibling :: proc(du: u32) {
 	task_head_tail_push(manager)
 	shift := du_shift(du)
 	
+	task_state_progression = .Update_Animated
 	indentation: int
 	goal: int
 	if shift {
@@ -529,7 +534,8 @@ todool_insert_child :: proc(du: u32) {
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 	shift := du_shift(du)
-	
+	task_state_progression = .Update_Animated
+
 	if task_head < len(tasks_visible) - 1 {
 		goal = tasks_visible[task_head + 1].index
 	}
@@ -586,6 +592,7 @@ todool_shift_down :: proc(du: u32) {
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 
+	task_state_progression = .Update_Animated
 	for i := high + 1; i > low; i -= 1 {
 		x, y := task_xy_to_real(i, i - 1)
 		task_swap(manager, x, y)
@@ -607,6 +614,7 @@ todool_shift_up :: proc(du: u32) {
 	task_head_tail_push(manager)
 	low -= 1
 
+	task_state_progression = .Update_Animated
 	for i in low..<high {
 		x, y := task_xy_to_real(i, i + 1)
 		task_swap(manager, x, y)
@@ -921,6 +929,7 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	iter := ti_init()
 	
+	task_state_progression = .Update_Animated
 	for i in 0..<iter.range {
 		task := cast(^Task) mode_panel.children[iter.offset]
 		archive_push(strings.to_string(task.box.builder)) // only valid
@@ -969,6 +978,7 @@ todool_indentation_shift :: proc(du: u32) {
 
 	lowest := tasks_visible[iter.low - 1]
 	unfolded: bool
+	task_state_progression = .Update_Animated
 
 	for task in ti_step(&iter) {
 		if task.index == 0 {
@@ -1009,6 +1019,7 @@ todool_undo :: proc(du: u32) {
 		bookmark_index = -1
 
 		undo_invoke(manager, false)
+		task_state_progression = .Update_Instant
 		element_repaint(mode_panel)
 	}
 }
@@ -1020,6 +1031,7 @@ todool_redo :: proc(du: u32) {
 		bookmark_index = -1
 
 		undo_invoke(manager, true)
+		task_state_progression = .Update_Instant
 		element_repaint(mode_panel)
 	}
 }
@@ -1214,6 +1226,7 @@ todool_duplicate_line :: proc(du: u32) {
 	shift := du_shift(du)
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
+	task_state_progression = .Update_Animated
 	task_current := tasks_visible[task_head]
 	index, indentation := task_head_safe_index_indentation()
 	task_push_undoable(manager, indentation, strings.to_string(task_current.box.builder), index)
@@ -1250,6 +1263,7 @@ todool_paste_tasks :: proc(du: u32 = 0) {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
+	task_state_progression = .Update_Animated
 
 	// no selection
 	if task_head == -1 || task_head == task_tail {

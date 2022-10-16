@@ -77,13 +77,28 @@ main_update :: proc(window: ^Window) {
 	task_set_visible_tasks()
 	task_check_parent_states(nil)
 
-	if task_init_state_progress {
-		for i in 0..<len(mode_panel.children) {
-			task := cast(^Task) mode_panel.children[i]
-			task_progress_state_set(task)
+	switch task_state_progression {
+		case .Idle: {}
+		case .Update_Instant: {
+			for i in 0..<len(mode_panel.children) {
+				task := cast(^Task) mode_panel.children[i]
+
+				if task.has_children {
+					task_progress_state_set(task)
+				}
+			}
 		}
-		task_init_state_progress = false
+		case .Update_Animated: {
+			for i in 0..<len(mode_panel.children) {
+				task := cast(^Task) mode_panel.children[i]
+
+				if task.has_children {
+					element_animation_start(task)
+				}
+			}
+		}
 	}
+	task_state_progression = .Idle
 
 	// just set the font options once here
 	for task in tasks_visible {

@@ -18,7 +18,13 @@ import "../fontstash"
 import "../spall"
 import "../rax"
 
-task_init_state_progress := true
+Task_State_Progression :: enum {
+	Idle,
+	Update_Instant,
+	Update_Animated,
+}
+
+task_state_progression: Task_State_Progression = .Update_Instant
 
 // focus
 focusing: bool
@@ -52,7 +58,7 @@ last_save_location: string
 
 TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
-PROGRESSBAR_HEIGHT :: 20
+PROGRESSBAR_SIZE :: 100
 
 um_task: Undo_Manager
 um_search: Undo_Manager
@@ -434,7 +440,7 @@ Task :: struct {
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
 	tags_rect: RectI,
-	progressbar_rect: RectI,
+	// progressbar_rect: RectI,
 	progress_animation: [Task_State]f32,
 
 	// wether we want to be able to jump to this task
@@ -1106,6 +1112,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 		if task.visible_parent != nil {
 			task.visible_parent.state_count[task.state] += 1
 			task.visible_parent.children_count += 1
+			// fmt.eprintln(task.visible_parent.children_count)
 		}
 	}	
 
@@ -1388,6 +1395,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					render_rect_outline(target, rect, color)
 				}
 			}
+
+			task_render_progressbars(target)
 
 			// drag visualizing circle
 			if !drag_running && drag_circle {
@@ -1762,10 +1771,11 @@ task_layout :: proc(
 	task.clip = rect_intersection(task.parent.clip, cut)
 	task.bounds = cut
 
-	if task.has_children {
-		height := int(PROGRESSBAR_HEIGHT * TASK_SCALE)
-		task.progressbar_rect = rect_cut_top(&cut, height)
-	}
+	// // progressbar
+	// if task.has_children {
+	// 	size := int(PROGRESSBAR_SIZE * TASK_SCALE)
+	// 	task.progressbar_rect = rect_cut_right(&cut, size)
+	// }
 
 	// layout bookmark
 	element_hide(task.button_bookmark, !task.bookmarked)
@@ -1880,7 +1890,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Get_Height: {
 			line_size := task_font_size(element) * len(task.box.wrapped_lines)
-			line_size += int(f32(task.has_children ? PROGRESSBAR_HEIGHT : 0) * TASK_SCALE)
+			// line_size += int(f32(task.has_children ? DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL : 0) * TASK_SCALE)
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + int(5 * TASK_SCALE) : 0
 			line_size += image_display_has_content(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
@@ -1910,22 +1920,6 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			// render panel front color
 			task_color := theme_panel(task.has_children ? .Parent : .Front)
 			render_rect(target, rect, task_color, ROUNDNESS)
-
-			if task.has_children {
-				render_rect(target, task.progressbar_rect, task_color, ROUNDNESS)
-				m := rect_margin(task.progressbar_rect, int(4 * TASK_SCALE))
-
-				// TODO could just store this count in u16				
-				total := task.state_count[.Normal] + task.state_count[.Done] + task.state_count[.Canceled]
-				
-				for state in Task_State {
-					if task.progress_animation[state] != 0 {
-						render_rect(target, m, theme_task_text(state), ROUNDNESS)
-					}
-
-					m.l += int(task.progress_animation[state] * rect_widthf(element.bounds))
-				}
-			}
 
 			// draw tags at an offset
 			if draw_tags {
@@ -2031,10 +2025,10 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					&always,
 					&task.progress_animation[state],
 					value,
+					1,
+					0.01,
 				)
 			}
-
-			// fmt.eprintln(task.top_offset)
 
 			return int(handled)
 		}
@@ -2736,7 +2730,8 @@ task_dragging_end :: proc() -> bool {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-
+	task_state_progression = .Update_Animated	
+	
 	// paste lines with indentation change saved
 	visible_count: int
 	for i in 0..<len(drag_list) {
@@ -2851,6 +2846,55 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 			rect := task_highlight.bounds
 			rect = rect_margin(rect, int(-10 * TASK_SCALE))
 			render_rect(target, rect, theme.text_bad, ROUNDNESS)
+		}
+	}
+}
+
+task_render_progressbars :: proc(target: ^Render_Target) {
+	render_push_clip(target, mode_panel.clip)
+	builder := strings.builder_make(16, context.temp_allocator)
+
+	fcs_ahv()
+	fcs_font(font_regular)
+	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
+	fcs_color(theme_panel(.Parent))
+
+	w := int(100 * TASK_SCALE)
+	h := int((DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL) * TASK_SCALE)
+	off := int(-10 * TASK_SCALE)
+	// off := int(visuals_task_margin() / 2)
+	default_rect := rect_wh(0, 0, w, h)
+	low, high := task_low_and_high()
+
+	USE_PERCENTAGE :: true
+
+	for task in tasks_visible {
+		if task.has_children {
+			rect := rect_translate(
+				default_rect,
+				rect_xxyy(task.bounds.r - w + off, task.bounds.t + off)
+			)
+
+			prect := rect
+			progress_size := rect_widthf(rect)
+			alpha: f32 = low <= task.visible_index && task.visible_index <= high ? 0.25 : 1
+
+			for state in Task_State {
+				if task.progress_animation[state] != 0 {
+					render_rect(target, prect, color_alpha(theme_task_text(state), alpha), ROUNDNESS)
+				}
+
+				prect.l += int(task.progress_animation[state] * progress_size)
+			}
+
+			strings.builder_reset(&builder)
+			non_normal := int(task.children_count) - task.state_count[.Normal]
+			when USE_PERCENTAGE {
+				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(task.children_count) * 100)
+			} else {
+				fmt.sbprintf(&builder, "%d / %d", non_normal, task.children_count)
+			}
+			render_string_rect(target, rect, strings.to_string(builder))
 		}
 	}
 }
