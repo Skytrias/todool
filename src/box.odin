@@ -48,6 +48,9 @@ Box :: struct {
 
 	// when the latest change happened
 	change_start: time.Tick,
+
+	// index into where the string rendering started
+	info: Render_Info,
 }
 
 box_init :: proc(box: ^Box, cap: int) {
@@ -289,6 +292,7 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 	codepoint_index: int
 	back_color := theme_panel(.Front)
 	low, high := box_low_and_high(box)
+	render_info_begin(&box.info, target)
 
 	// draw each wrapped line
 	y_offset: int
@@ -304,6 +308,7 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 		y_offset += scaled_size
 	}
 
+	render_info_end(&box.info)
 	fcs_color(color)
 }
 
@@ -317,6 +322,7 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 
 	fcs_ahv(.Left, .Top)
 	fcs_color(color)
+	render_info_begin(&box.info, target)
 
 	// draw each wrapped line
 	y: int
@@ -325,7 +331,7 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 		y += scaled_size
 	}
 
-	fcs_color(color)
+	render_info_end(&box.info)
 }
 
 task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

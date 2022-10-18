@@ -340,6 +340,7 @@ keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 
 	// misc
 	CP2("ctrl q", "change_task_state")
+	CP2("ctrl shift q", "change_task_state", COMBO_SHIFT)
 	CP2("ctrl j", "toggle_folding")
 	CP2("ctrl b", "toggle_bookmark")
 
@@ -531,7 +532,7 @@ keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
 	CP2("escape", "normal_mode")
 	CP2("backspace", "delete_on_empty")
 	CP2("ctrl backspace", "delete_on_empty")
-
+	
 	CP2_INSERTION()
 }
 

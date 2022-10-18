@@ -6,6 +6,14 @@
 #include <xmmintrin.h>
 #include <emmintrin.h>
 
+// testing this out testing this out testing this out testing this out
+// 
+// TEST
+// T = testing this out testing this out testing this out testing this out
+// pattern = test
+// A = testing this out testing this ou
+// B = testtesttesttesttesttesttesttest
+
 int sse2_strstr(const char* s, size_t n, const char* needle, size_t k) {
 	const __m128i first = _mm_set1_epi8(needle[0]);
 	const __m128i last  = _mm_set1_epi8(needle[k - 1]);

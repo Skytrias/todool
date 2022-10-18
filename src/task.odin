@@ -2866,25 +2866,32 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	default_rect := rect_wh(0, 0, w, h)
 	low, high := task_low_and_high()
 
-	USE_PERCENTAGE :: true
+	USE_PERCENTAGE :: false
+	hovered := mode_panel.window.hovered
 
 	for task in tasks_visible {
+		// if hovered != task && hovered.parent != task {
+		// 	continue
+		// }
+
 		if task.has_children {
 			rect := rect_translate(
 				default_rect,
-				rect_xxyy(task.bounds.r - w + off, task.bounds.t + off)
+				rect_xxyy(task.bounds.r - w + off, task.bounds.t + off),
 			)
 
 			prect := rect
 			progress_size := rect_widthf(rect)
 			alpha: f32 = low <= task.visible_index && task.visible_index <= high ? 0.25 : 1
 
-			for state in Task_State {
+			for state, i in Task_State {
 				if task.progress_animation[state] != 0 {
-					render_rect(target, prect, color_alpha(theme_task_text(state), alpha), ROUNDNESS)
+					roundness := ROUNDNESS + (i == 0 ? 1 : 0)
+					render_rect(target, prect, color_alpha(theme_task_text(state), alpha), roundness)
 				}
 
 				prect.l += int(task.progress_animation[state] * progress_size)
+				// prect.r += i * 2
 			}
 
 			strings.builder_reset(&builder)

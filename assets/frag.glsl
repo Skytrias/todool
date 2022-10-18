@@ -93,7 +93,7 @@ void main(void) {
 			distance = (abs(distance + v_thickness) - v_thickness);
 		}
 		
-		float alpha = 1.0 - smoothstep(-1.0, 0.0, distance);
+		float alpha = 1.0 - smoothstep(-1, 0, distance);
 		color_goal.a *= alpha;
 	} else if (v_kind == RK_Glyph) {
 		float alpha = texture(u_sampler_font, v_uv).r;

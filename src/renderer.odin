@@ -733,6 +733,18 @@ shallow_texture_init :: proc(
 // GLYPH
 //////////////////////////////////////////////
 
+rendered_glyph_rect :: proc(info: ^Render_Info, codepoint_offset: int) -> (res: RectF) {
+	index := info.vertex_start + codepoint_offset * 6
+	v0 := info.target.vertices[index + 0]
+	v1 := info.target.vertices[index + 1]
+	v2 := info.target.vertices[index + 2]
+	res.l = v0.pos_xy.x
+	res.r = v1.pos_xy.x
+	res.t = v0.pos_xy.y
+	res.b = v2.pos_xy.y
+	return
+}
+
 // render a quad from the fontstash texture atlas
 render_glyph_quad :: proc(
 	target: ^Render_Target, 
@@ -798,6 +810,23 @@ render_string_rect :: proc(
 	}
 
   return iter.nextx
+}
+
+Render_Info :: struct {
+	target: ^Render_Target,
+	group: ^Render_Group,
+	vertex_start: int,
+	vertex_end: int,
+}
+
+render_info_begin :: proc(info: ^Render_Info, target: ^Render_Target) {
+	info.target = target		
+	info.group = &target.groups[len(target.groups) - 1]
+	info.vertex_start = info.group.vertex_end
+}
+
+render_info_end :: proc(info: ^Render_Info) {
+	info.vertex_end = info.group.vertex_end
 }
 
 // render a string at arbitrary xy
