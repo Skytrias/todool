@@ -50,7 +50,7 @@ Box :: struct {
 	change_start: time.Tick,
 
 	// index into where the string rendering started
-	info: Render_Info,
+	rendered_glyphs: [dynamic]Rendered_Glyph,
 }
 
 box_init :: proc(box: ^Box, cap: int) {
@@ -292,7 +292,6 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 	codepoint_index: int
 	back_color := theme_panel(.Front)
 	low, high := box_low_and_high(box)
-	render_info_begin(&box.info, target)
 
 	// draw each wrapped line
 	y_offset: int
@@ -300,15 +299,17 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 		iter := fontstash.text_iter_init(&gs.fc, wrap_line, f32(box.bounds.l), f32(box.bounds.t + y_offset))
 
 		for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+			append(&box.rendered_glyphs, Rendered_Glyph { x = iter.x, y = iter.y, codepoint = iter.codepoint })
+			rglyph := &box.rendered_glyphs[len(box.rendered_glyphs) - 1]
+
 			state.color = low <= codepoint_index && codepoint_index < high ? back_color : color
-			render_glyph_quad(target, group, state, &q)
+			render_glyph_quad_store(target, group, state, &q, rglyph)
 			codepoint_index += 1 
 		}
 
 		y_offset += scaled_size
 	}
 
-	render_info_end(&box.info)
 	fcs_color(color)
 }
 
@@ -322,17 +323,19 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 
 	fcs_ahv(.Left, .Top)
 	fcs_color(color)
-	render_info_begin(&box.info, target)
+
+	clear(&box.rendered_glyphs)
+	reserve(&box.rendered_glyphs, len(box.builder.buf))
 
 	// draw each wrapped line
 	y: int
 	for wrap_line, i in box.wrapped_lines {
-		render_string(target, box.bounds.l, box.bounds.t + y, wrap_line)
+		render_string_store(target, box.bounds.l, box.bounds.t + y, wrap_line, &box.rendered_glyphs)
 		y += scaled_size
 	}
-
-	render_info_end(&box.info)
 }
+
+// test sosososo test
 
 task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	task_box := cast(^Task_Box) element

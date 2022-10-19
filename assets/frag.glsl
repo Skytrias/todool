@@ -17,6 +17,7 @@ uniform sampler2D u_sampler_hue;
 uniform sampler2D u_sampler_kanban;
 uniform sampler2D u_sampler_list;
 uniform sampler2D u_sampler_drag;
+uniform sampler2D u_sampler_search;
 uniform sampler2D u_sampler_custom;
 uniform vec4 u_shadow_color;
 

@@ -1,5 +1,7 @@
 package src
 
+import "core:math"
+import "core:mem"
 import "core:fmt"
 import "core:strings"
 import "../fontstash"
@@ -65,6 +67,10 @@ ss_clear :: proc() {
 	current_index = -1
 }
 
+ss_has_results :: proc() -> bool {
+	return len(ss.entries) != 0
+}
+
 // push a ptr and set current counter
 ss_push_task :: proc(task: ^Task) {
 	using ss
@@ -98,6 +104,7 @@ ss_update :: proc(pattern: string) {
 	}
 
 	sf := string_finder_init(pattern)
+	defer string_finder_destroy(sf)
 
 	// find results
 	for i in 0..<len(tasks_visible) {
@@ -107,7 +114,7 @@ ss_update :: proc(pattern: string) {
 		index: int
 
 		for {
-			res := string_finder_next(&sf, text)
+			res := string_finder_next(&sf, text[index:])
 			if res == -1 {
 				break
 			}
@@ -118,7 +125,7 @@ ss_update :: proc(pattern: string) {
 
 			index += res
 			ss_push_result(index)
-			text = text[res + len(pattern):]
+			index += len(pattern)
 		}
 	}
 
@@ -167,58 +174,43 @@ ss_find_prev :: proc() {
 
 // draw the search results outline
 ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
-	if (.Hide in panel_search.flags) {
+	if (.Hide in panel_search.flags) || !ss_has_results() {
 		return
 	}
 
 	render_push_clip(target, panel.clip)
 	ds: cutf8.Decode_State
 	color := theme.text_good
-	fmt.eprintln("DRAW SERCH")
+	search_draw_index: int
+	GRAY :: Color { 100, 100, 100, 255 }
 
 	for entry in ss.entries {
 		task := entry.ptr
 		length := entry.length
-		// fcs_task(task)
+		top := task.box.bounds.t
+		height := rect_heightf(task.box.bounds)
+		scaled_size := f32(fcs_task(task))
 
-		if task.box.info.target != nil {
-			fmt.eprintln("DRAW TASKSERCH")
-			
-			for i in 0..<int(length) {
-				res := int(ss.results[entry.result_offset + i])
-				text := strings.to_string(task.box.builder)
-				ds = {}
+		for i in 0..<int(length) {
+			res := ss.results[entry.result_offset + i]
+			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines[:], int(res), int(res) + ss.pattern_rune_count)
+			scaled_size := f32(state.isize / 10)
 
-				for codepoint, codepoint_offset in cutf8.ds_iter(&ds, text) {
-					if res <= ds.byte_offset_old && ds.byte_offset_old < res + ss.pattern_rune_count {
-						rect := rendered_glyph_rect(&task.box.info, codepoint_offset)
-						fmt.eprintln(codepoint, rect)
-
-						// color := search_index == search_draw_index ? theme.text_good : theme.text_bad
-						render_rect_outline(target, rect_ftoi(rect), color, 0)
-					}
+			for fontstash.wrap_state_iter(&gs.fc, &state) {
+				rect := RectI {
+					task.box.bounds.l + int(state.x_from),
+					task.box.bounds.l + int(state.x_to),
+					task.box.bounds.t + int(f32(state.y - 1) * scaled_size),
+					task.box.bounds.t + int(f32(state.y) * scaled_size),
 				}
-			}
-		}
-
-		// for i in 0..<int(length) {
-		// 	res := ss.results[entry.result_offset + i]
-		// 	state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines[:], int(res.low), int(res.high))
-		// 	scaled_size := f32(state.isize / 10)
-
-		// 	for fontstash.wrap_state_iter(&gs.fc, &state) {
-		// 		rect := RectI {
-		// 			task.box.bounds.l + int(state.x_from),
-		// 			task.box.bounds.l + int(state.x_to),
-		// 			task.box.bounds.t + int(f32(state.y - 1) * scaled_size),
-		// 			task.box.bounds.t + int(f32(state.y) * scaled_size),
-		// 		}
 				
-		// 		color := theme.text_good
-		// 		// color := search_index == search_draw_index ? theme.text_good : theme.text_bad
-		// 		render_rect_outline(target, rect, color, 0)
-		// 	}
-		// }
+				// color := theme.text_good
+				color := ss.current_index == search_draw_index ? GRAY : theme.caret
+				render_rect_outline(target, rect, color, 0, 2)
+			}
+
+			search_draw_index += 1
+		}
 	}
 }
 
@@ -301,11 +293,84 @@ search_init :: proc(parent: ^Element) {
 	element_hide(panel_search, true)
 }
 
+// String_Finder :: struct {
+// 	pattern: string,
+// 	pattern_hash: u32,
+// 	pattern_pow: u32,
+// }
+
+// string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
+// 	res.pattern = pattern
+
+// 	hash_str_rabin_karp :: proc(s: string) -> (hash: u32 = 0, pow: u32 = 1) {
+// 		for i := 0; i < len(s); i += 1 {
+// 			hash = hash*PRIME_RABIN_KARP + u32(s[i])
+// 		}
+// 		sq := u32(PRIME_RABIN_KARP)
+// 		for i := len(s); i > 0; i >>= 1 {
+// 			if (i & 1) != 0 {
+// 				pow *= sq
+// 			}
+// 			sq *= sq
+// 		}
+// 		return
+// 	}
+
+// 	res.pattern_hash, res.pattern_pow = hash_str_rabin_karp(pattern)
+// 	return
+// }
+
+// string_finder_destroy :: proc(sf: String_Finder) {
+
+// }
+
+// @private PRIME_RABIN_KARP :: 16777619
+
+// string_finder_next :: proc(sf: ^String_Finder, text: string) -> int {
+// 	n := len(sf.pattern)
+// 	switch {
+// 	case n == 0:
+// 		return 0
+// 	case n == 1:
+// 		return strings.index_byte(text, sf.pattern[0])
+// 	case n == len(text):
+// 		if text == sf.pattern {
+// 			return 0
+// 		}
+// 		return -1
+// 	case n > len(text):
+// 		return -1
+// 	}
+
+// 	hash, pow := sf.pattern_hash, sf.pattern_pow
+// 	h: u32
+// 	for i := 0; i < n; i += 1 {
+// 		h = h*PRIME_RABIN_KARP + u32(text[i])
+// 	}
+// 	if h == hash && text[:n] == sf.pattern {
+// 		return 0
+// 	}
+// 	for i := n; i < len(text); /**/ {
+// 		h *= PRIME_RABIN_KARP
+// 		h += u32(text[i])
+// 		h -= pow * u32(text[i-n])
+// 		i += 1
+// 		if h == hash && text[i-n:i] == sf.pattern {
+// 			return i - n
+// 		}
+// 	}
+// 	return -1
+// }
+
 // taken from <https://go.dev/src/strings/search.go>
 String_Finder :: struct {
 	pattern: string,
 	bad_char_skip: [256]int,
 	good_suffix_skip: []int,
+}
+
+string_finder_destroy :: proc(sf: String_Finder) {
+	delete(sf.good_suffix_skip)
 }
 
 string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
@@ -331,7 +396,7 @@ string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
 	}
 
 	for i in 0..<last {
-		len_suffix := string_finder_longest_common_suffix(pattern, pattern[i:i + 1])
+		len_suffix := string_finder_longest_common_suffix(pattern, pattern[1:i + 1])
 
 		if pattern[i - len_suffix] != pattern[last-len_suffix] {
 			res.good_suffix_skip[last - len_suffix] = len_suffix + last - i
@@ -341,14 +406,14 @@ string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
 	return
 }
 
-string_finder_longest_common_suffix :: proc(a, b: string) -> int {
-	for i := 0; i < len(a) && i < len(b); i += 1 {
+string_finder_longest_common_suffix :: proc(a, b: string) -> (i: int) {
+	for ; i < len(a) && i < len(b); i += 1 {
 		if a[len(a) - 1 - i] != b[len(b) - 1 - i] {
-			return i
+			break
 		}
 	}
 
-	return 0
+	return
 }
 
 string_finder_next :: proc(sf: ^String_Finder, text: string) -> int {
@@ -372,114 +437,3 @@ string_finder_next :: proc(sf: ^String_Finder, text: string) -> int {
 	return -1
 }
 
-// import "core:hash"
-// main :: proc() {
-// 	file_path := "/home/skytrias/Downloads/essence-master/desktop/gui.cpp"
-// 	content, ok := os.read_entire_file(file_path)
-// 	defer delete(content)
-
-// 	if !ok {
-// 		return
-// 	}
-
-// 	test_search_rabin :: proc(content: []byte) -> (diff: time.Duration) {
-// 		tick_start := time.tick_now()
-// 		pattern := "// TODO"
-// 		pattern_hash, pattern_pow := hash_str_rabin_karp(pattern)
-// 		text := string(content)
-
-// 		for {
-// 			res := index_hash_pow(text, pattern, pattern_hash, pattern_pow)
-// 			if res == -1 {
-// 				break
-// 			}
-// 			text = text[res + len(pattern):]
-// 		}
-
-// 		diff = time.tick_since(tick_start)
-// 		return
-// 	}
-
-// 	test_search_linear :: proc(content: []byte) -> (diff: time.Duration) {
-// 		tick_start := time.tick_now()
-
-// 		temp := content
-// 		temp_length := len(temp)
-// 		pattern := "// TODO"
-// 		pattern_length := len(pattern)
-// 		pattern_hash := hash.fnv32(transmute([]byte) pattern)
-// 		b: u8
-
-// 		// for line in strings.split_lines_iterator(&temp) {
-// 		for i := 0; i < temp_length; i += 1 {
-// 			b = temp[i]
-
-// 			if b == '/' {
-// 				// TODO safety
-// 				if temp[i + 1] == '/' {
-// 					if i + pattern_length < temp_length {
-// 						h := hash.fnv32(temp[i:i + pattern_length])
-
-// 						if h == pattern_hash {
-// 						// if temp[i:i + pattern_length] == pattern {
-// 							// find end
-// 							end_index := -1
-// 							for j in i..<temp_length {
-// 								if temp[j] == '\n' {
-// 									end_index = j
-// 									break
-// 								}
-// 							}
-
-// 							if end_index != -1 {
-// 								// fmt.eprintln(string(temp[i:end_index]))
-// 								// task_push_undoable(manager, indentation, string(temp[i:end_index]), index_at^)
-// 								// index_at^ += 1
-// 								// i = end_index
-// 							}
-// 						}
-// 					}
-// 				}
-// 			}
-// 		}
-
-// 		diff = time.tick_since(tick_start)
-// 		return
-// 	}
-
-// 	test_search_finder :: proc(content: []byte) -> (diff: time.Duration) {
-// 		tick_start := time.tick_now()
-
-// 		sf := string_finder_init("// TODO")
-// 		text := string(content)
-//  		// accum: int
-
-// 		for {
-// 			res := string_finder_next(&sf, text)
-// 			if res == -1 {
-// 				break
-// 			}
-
-// 			// accum += res
-// 			// fmt.eprintln(accum, text[res:res + len(sf.pattern)])
-// 			text = text[res + len(sf.pattern):]
-// 		}
-
-// 		diff = time.tick_since(tick_start)
-// 		return
-			
-// 	}
-
-// 	iterations := 100
-// 	sum: time.Duration
-
-// 	for i in 0..<iterations {
-// 		// sum += test_search_linear(content)
-// 		// sum += test_search_rabin(content)
-// 		// sum += test_search_finder(content)
-// 	}
-
-// 	sum_milli := f32(time.duration_milliseconds(sum)) / f32(iterations)
-// 	sum_micro := f32(time.duration_microseconds(sum)) / f32(iterations)
-// 	fmt.eprintf("avg %fms %fmys\n", sum_milli, sum_micro)
-// }

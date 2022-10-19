@@ -1833,6 +1833,7 @@ task_layout :: proc(
 	
 	task.box.font_options = task.font_options
 	if move {
+		clear(&task.box.rendered_glyphs)
 		element_move(task.box, cut)
 	}
 

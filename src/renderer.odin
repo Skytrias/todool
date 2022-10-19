@@ -180,6 +180,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	render_target_fontstash_generate(res, gs.fc.width, gs.fc.height)
 	textures[.Fonts].uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_font")
 
+	// TODO only generate this for main window?
 	texture_generate_from_png(res, .SV, png_sv, "_sv")
 	texture_generate_from_png(res, .HUE, png_hue, "_hue")
 	texture_generate_from_png(res, .Kanban, png_mode_icon_kanban, "_kanban")
@@ -202,7 +203,7 @@ render_target_fontstash_generate :: proc(using target: ^Render_Target, width, he
 		format_b = gl.RED,
 	}
 	// TODO could do texture image2d with nil on resize?
-	texture_generate(target, .Fonts)  	
+	texture_generate(target, .Fonts)
 }
 
 render_target_destroy :: proc(using target: ^Render_Target) {
@@ -733,17 +734,17 @@ shallow_texture_init :: proc(
 // GLYPH
 //////////////////////////////////////////////
 
-rendered_glyph_rect :: proc(info: ^Render_Info, codepoint_offset: int) -> (res: RectF) {
-	index := info.vertex_start + codepoint_offset * 6
-	v0 := info.target.vertices[index + 0]
-	v1 := info.target.vertices[index + 1]
-	v2 := info.target.vertices[index + 2]
-	res.l = v0.pos_xy.x
-	res.r = v1.pos_xy.x
-	res.t = v0.pos_xy.y
-	res.b = v2.pos_xy.y
-	return
-}
+// rendered_glyph_rect :: proc(info: ^Render_Info, codepoint_offset: int) -> (res: RectF) {
+// 	index := info.vertex_start + codepoint_offset * 6
+// 	v0 := info.target.vertices[index + 0]
+// 	v1 := info.target.vertices[index + 1]
+// 	v2 := info.target.vertices[index + 2]
+// 	res.l = v0.pos_xy.x
+// 	res.r = v1.pos_xy.x
+// 	res.t = v0.pos_xy.y
+// 	res.b = v2.pos_xy.y
+// 	return
+// }
 
 // render a quad from the fontstash texture atlas
 render_glyph_quad :: proc(
@@ -810,23 +811,6 @@ render_string_rect :: proc(
 	}
 
   return iter.nextx
-}
-
-Render_Info :: struct {
-	target: ^Render_Target,
-	group: ^Render_Group,
-	vertex_start: int,
-	vertex_end: int,
-}
-
-render_info_begin :: proc(info: ^Render_Info, target: ^Render_Target) {
-	info.target = target		
-	info.group = &target.groups[len(target.groups) - 1]
-	info.vertex_start = info.group.vertex_end
-}
-
-render_info_end :: proc(info: ^Render_Info) {
-	info.vertex_end = info.group.vertex_end
 }
 
 // render a string at arbitrary xy
@@ -1071,4 +1055,61 @@ render_element_clipped_old :: proc(target: ^Render_Target, element: ^Element) {
 			render_rect_outline(target, child.bounds, theme.text_good)
 		}
 	}
+}
+
+Rendered_Glyph :: struct {
+	vertices: []Render_Vertex,
+	x, y: f32,
+	codepoint: rune,
+}
+
+// render a quad from the fontstash texture atlas
+render_glyph_quad_store :: proc(
+	target: ^Render_Target, 
+	group: ^Render_Group, 
+	state: ^fontstash.State,
+	q: ^fontstash.Quad,
+	rglyph: ^Rendered_Glyph,
+) {
+	v := render_target_push_vertices(target, group, 6)
+	v[0].uv_xy = { q.s0, q.t0 }
+	v[1].uv_xy = { q.s1, q.t0 }
+	v[2].uv_xy = { q.s0, q.t1 }
+	v[5].uv_xy = { q.s1, q.t1 }
+
+	v[0].pos_xy = { q.x0, q.y0 }
+	v[1].pos_xy = { q.x1, q.y0 }
+	v[2].pos_xy = { q.x0, q.y1 }
+	v[5].pos_xy = { q.x1, q.y1 }
+
+	v[3] = v[1]
+	v[4] = v[2]
+
+	for vertex in &v {
+		vertex.color = state.color
+		vertex.kind = .Glyph
+	}
+
+	rglyph.vertices = v
+}
+
+// render a string at arbitrary xy
+render_string_store :: proc(
+	target: ^Render_Target,
+	x, y: int,
+	text: string,
+	rendered_glyphs: ^[dynamic]Rendered_Glyph,
+) -> f32 {
+	group := &target.groups[len(target.groups) - 1]
+	state := fontstash.state_get(&gs.fc)
+	iter := fontstash.text_iter_init(&gs.fc, text, f32(x), f32(y))
+	q: fontstash.Quad
+
+	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+		append(rendered_glyphs, Rendered_Glyph { x = iter.x, y = iter.y, codepoint = iter.codepoint })
+		rglyph := &rendered_glyphs[len(rendered_glyphs) - 1]
+		render_glyph_quad_store(target, group, state, &q, rglyph)
+	}
+
+	return iter.nextx
 }

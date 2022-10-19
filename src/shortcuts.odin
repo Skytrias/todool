@@ -976,7 +976,7 @@ todool_indentation_shift :: proc(du: u32) {
 	task_head_tail_push(manager)
 	iter := ti_init()
 
-	lowest := tasks_visible[iter.low - 1]
+	lowest := tasks_visible[max(iter.low - 1, 0)]
 	unfolded: bool
 	task_state_progression = .Update_Animated
 
