@@ -176,7 +176,8 @@ text_iter_init :: proc(
 		}
 		case .Right: {
 			width := text_bounds(ctx, text, x, y, nil)
-			x -= width
+			// NOTE CUSTOM RIGHT OFFSET
+			x -= width + 5
 		}
 	}
 

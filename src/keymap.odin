@@ -83,6 +83,23 @@ du_from_string :: proc(text: string) -> u32 {
 	return COMBO_EMPTY		
 }
 
+keymap_command_find_combo :: proc(
+	keymap: ^Keymap, 
+	command: string,
+	du: u32 = COMBO_EMPTY,
+) -> (res: ^Combo_Node) {
+	for node in &keymap.combos {
+		c2 := strings.string_from_ptr(&node.command[0], int(node.command_index))
+
+		if c2 == command && node.du == du {
+			res = &node
+			return
+		}
+	}	
+
+	return
+}
+
 keymap_combo_match :: proc(
 	keymap: ^Keymap, 
 	node: ^Combo_Node, 
@@ -260,7 +277,7 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	CP1("indent_jump_same_prev", todool_indent_jump_same_prev)
 	CP1("indent_jump_same_next", todool_indent_jump_same_next)
 	CP1("indent_jump_scope", todool_indent_jump_scope)
-	CP1("indent_jump_nearby", todool_indent_jump_nearby)
+	CP1("jump_nearby", todool_jump_nearby)
 	CP1("select_all", todool_select_all)
 
 	// shifts
@@ -603,7 +620,7 @@ keymap_init_comments :: proc() {
 	CP3(todool_goto, "spawn the goto prompt")
 	CP3(todool_search, "spawn the search prompt")
 	CP3(todool_select_children, "select parents children, cycles through start/end on repeat")
-	CP3(todool_indent_jump_nearby, "jump to nearest task with different state | SHIFT for backwards")
+	CP3(todool_jump_nearby, "jump to nearest task with different state | SHIFT for backwards")
 	CP3(todool_fullscreen_toggle, "toggle between (fake) fullscren and windowed")
 	CP3(todool_sort_locals, "sorts the local children based on task state")
 	CP3(todool_scale, "scales the tasks up, TRUE for down")

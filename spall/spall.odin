@@ -5,7 +5,7 @@ import "core:time"
 import "core:os"
 
 MAGIC :: u64(0x0BADF00D)
-MEASURE :: true
+MEASURE :: false
 
 Header :: struct #packed {
 	magic:          u64,

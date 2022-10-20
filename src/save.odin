@@ -407,6 +407,10 @@ Misc_Save_Load :: struct {
 		task_margin: f32,
 		vim: bool,
 		spell_checking: bool,
+		
+		progressbar_show: bool,
+		progressbar_percentage: bool,
+		progressbar_hover_only: bool,
 	},
 
 	tags: struct {
@@ -531,6 +535,11 @@ json_save_misc :: proc(path: string) -> bool {
 			sb.options.slider_task_margin.position,
 			options_vim_use(),
 			options_spell_checking(),
+
+			// progressbar
+			progressbar_show(),
+			progressbar_percentage(),
+			progressbar_hover_only(),
 		},
 
 		tags = {
@@ -669,6 +678,10 @@ json_load_misc :: proc(path: string) -> bool {
 	slider_set(sb.options.slider_task_margin, misc.options.task_margin)
 	checkbox_set(sb.options.checkbox_vim, misc.options.vim)
 	checkbox_set(sb.options.checkbox_spell_checking, misc.options.spell_checking)
+	// progressbar 
+	checkbox_set(sb.options.checkbox_progressbar_show, misc.options.progressbar_show)
+	checkbox_set(sb.options.checkbox_progressbar_percentage, misc.options.progressbar_percentage)
+	checkbox_set(sb.options.checkbox_progressbar_hover_only, misc.options.progressbar_hover_only)
 
 	// theme
 	{
@@ -742,7 +755,7 @@ keymap_save :: proc(path: string) -> bool {
 			c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
 			c2 := strings.string_from_ptr(&node.command[0], int(node.command_index))
 
-			if cmd, ok1 := keymap.commands[c1]; ok1 {
+			if cmd, ok1 := keymap.commands[c2]; ok1 {
 				if comment, ok2 := keymap_comments[cmd]; ok2 {
 					strings.write_string(b, "\t// ")
 					strings.write_string(b, comment)

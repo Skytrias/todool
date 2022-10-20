@@ -652,7 +652,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			fcs_element(element)
 			text := strings.to_string(button.builder)
 			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
-			return int(width)
+			return width
 		}
 
 		case .Get_Height: {
@@ -3405,4 +3405,284 @@ toggle_panel_init :: proc(
 	res.message_user = message_user
 	element_hide(res.panel, hide)
 	return
+}
+
+Menu_Bar :: struct {
+	using element: Element,
+	active: bool,
+}
+
+menu_bar_init :: proc(parent: ^Element) -> (res: ^Menu_Bar) {
+	res = element_init(Menu_Bar, parent, {}, menu_bar_message, context.allocator)
+	return
+}
+
+menu_bar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	bar := cast(^Menu_Bar) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			render_rect(target, element.bounds, theme.background[0])
+		}
+
+		case .Layout: {
+			bounds := element.bounds
+
+			for c in element.children {
+				w := element_message(c, .Get_Width)
+				cut := rect_cut_left(&bounds, w)
+				element_move(c, cut)
+			}
+
+			if element.window.menu == nil {
+				bar.active = false
+			}
+		}
+	}
+
+	return 0
+}
+
+Menu_Bar_Field :: struct {
+	using element: Element,
+	text: string,
+	menu_info: int,
+	invoke: proc(panel: ^Panel),
+}
+
+menu_bar_field_init :: proc(
+	parent: ^Element, 
+	text: string,
+	menu_info: int,
+) -> (res: ^Menu_Bar_Field) {
+	res = element_init(Menu_Bar_Field, parent, {}, menu_bar_field_message, context.allocator)
+	res.text = text
+	res.menu_info = menu_info
+	return
+}
+
+menu_bar_field_invoke :: proc(field: ^Menu_Bar_Field) {
+	if field.invoke != nil {
+		if menu := menu_bar_push(field.window, field.menu_info); menu != nil {
+			field.invoke(menu.panel)
+			menu_bar_show(menu, field)
+		}
+	}
+}
+
+menu_bar_field_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	field := cast(^Menu_Bar_Field) element
+
+	#partial switch msg {
+		case .Get_Width: {
+			fcs_element(element)
+			width := string_width(field.text) + int(TEXT_MARGIN_HORIZONTAL * SCALE)
+			return int(width)
+		}
+
+		case .Get_Height: {
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+		}
+
+		case .Update: {
+			bar := cast(^Menu_Bar) element.parent
+
+			if bar.active && di == UPDATE_HOVERED {
+				menu_bar_field_invoke(field)
+			}
+
+			element_repaint(element)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Clicked: {
+			bar := cast(^Menu_Bar) element.parent
+			bar.active = true
+			
+			if field.invoke != nil {
+				menu_bar_field_invoke(field)
+			}
+		}
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, text_color)
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			fcs_element(field)
+			fcs_ahv()
+			fcs_color(theme.text_default)
+			render_string_rect(target, element.bounds, field.text)
+		}
+	}
+
+	return 0
+}
+
+// simple top split
+
+Menu_Split :: struct {
+	using element: Element,
+}
+
+menu_split_init :: proc(parent: ^Element) -> (res: ^Menu_Split) {
+	res = element_init(Menu_Split, parent, {}, menu_split_message, context.allocator)
+	return
+}
+
+menu_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	split := cast(^Menu_Split) element
+
+	#partial switch msg {
+		case .Layout: {
+			if len(element.children) > 1 {
+				a := element.children[0]
+				b := element.children[1]
+				bounds := element.bounds
+				height := int(DEFAULT_FONT_SIZE * SCALE) + int(TEXT_MARGIN_VERTICAL * SCALE)
+				element_move(a, rect_cut_top(&bounds, height))
+				element_move(b, bounds)
+			}
+		}
+	}
+
+	return 0
+}
+
+Menu_Bar_Line :: struct {
+	using element: Element,
+	icon: Icon,
+	builder: strings.Builder,
+	
+	command: string,
+	command_du: u32,
+
+	command_custom: proc(),
+}
+
+// spacer for menus
+mbs :: proc(parent: ^Element) {
+	spacer_init(parent, {}, 10, 10, .Thin)
+}
+
+mbl :: menu_bar_line_init
+menu_bar_line_init :: proc(
+	parent: ^Element,
+	text: string,
+	command: string = "",
+	command_du: u32 = COMBO_EMPTY,
+	icon: Icon = .None,
+) -> (res: ^Menu_Bar_Line) {
+	res = element_init(Menu_Bar_Line, parent, {}, menu_bar_line_message, context.allocator)
+	res.builder = strings.builder_make(0, len(text))
+	strings.write_string(&res.builder, text)
+	res.command = command
+	res.command_du = command_du
+	res.icon = icon
+	return
+}
+
+menu_bar_line_combo :: proc(line: ^Menu_Bar_Line) -> (
+	node: ^Combo_Node,
+	combo_text: string,
+) {
+	if line.command != "" {
+		node = keymap_command_find_combo(
+			&window_main.keymap_custom, 
+			line.command,
+			line.command_du,
+		)
+
+		if node != nil {
+			combo_text = strings.string_from_ptr(&node.combo[0], int(node.combo_index))
+		}
+	}
+
+	return
+}
+
+menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	line := cast(^Menu_Bar_Line) element
+	FIXED_ICON_WIDTH :: 30
+	FIXED_COMBO_SPACE :: 30
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			bounds := element.bounds
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if hovered || pressed {
+				render_rect(target, element.bounds, { 0, 0, 0, 100 })
+			}
+
+			icon_width := int(FIXED_ICON_WIDTH * SCALE)
+			icon_rect := rect_cut_left(&bounds, icon_width)
+			if line.icon != .None {
+				fcs_icon(SCALE)
+				fcs_ahv()
+				fcs_color(text_color)
+				render_icon_rect(target, icon_rect, line.icon)
+			}
+
+			fcs_element(element)
+			fcs_color(text_color)
+
+			if combo, c1 := menu_bar_line_combo(line); combo != nil {
+				fcs_ahv(.Right, .Middle)
+				render_string_rect(target, bounds, c1)
+			}
+
+			fcs_ahv(.Left, .Middle)
+			text := strings.to_string(line.builder)
+			render_string_rect(target, bounds, text)
+		}	
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Get_Width: {
+			line_width := int(FIXED_ICON_WIDTH * SCALE)
+
+			fcs_element(element)
+			line_width += string_width(strings.to_string(line.builder))
+
+			if combo, c1 := menu_bar_line_combo(line); combo != nil {
+				line_width += string_width(c1) + int(FIXED_COMBO_SPACE * SCALE)
+			}
+
+			return max(int(50 * SCALE), line_width + 10)
+		}
+
+		case .Clicked: {
+			if cmd, ok := window_main.keymap_custom.commands[line.command]; ok {
+				cmd(line.command_du)
+			}
+
+			menu_close(window_main)
+		}
+
+		case .Get_Height: {
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+		}
+
+		case .Destroy: {
+			delete(line.builder.buf)
+		}
+	}
+
+	return 0
 }

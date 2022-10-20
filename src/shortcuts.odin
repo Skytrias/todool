@@ -51,13 +51,13 @@ combo_iterate :: proc(text: ^string) -> (res: string, ok: bool) {
 	return
 }
 
-combo_iterate_test :: proc() {
-	text := "ctrl+up         ctrl+down"
-	fmt.eprintln(text)
-	for combo in combo_iterate(&text) {
-		fmt.eprintf("\tres: %s\n", combo)
-	}
-}
+// combo_iterate_test :: proc() {
+// 	text := "ctrl+up         ctrl+down"
+// 	fmt.eprintln(text)
+// 	for combo in combo_iterate(&text) {
+// 		fmt.eprintf("\tres: %s\n", combo)
+// 	}
+// }
 
 todool_delete_on_empty :: proc(du: u32) {
 	if task_head == -1 {
@@ -1467,7 +1467,7 @@ todool_select_children :: proc(du: u32) {
 }
 
 // jumps to nearby state changes
-todool_indent_jump_nearby :: proc(du: u32) {
+todool_jump_nearby :: proc(du: u32) {
 	shift := du_shift(du)
 
 	if task_head == -1 {

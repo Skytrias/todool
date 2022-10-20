@@ -31,30 +31,6 @@ TODOOL_RELEASE :: false
 // rework scrollbar to just float and take and be less intrusive
 // have spall push threaded content based on ids or sdl timers
 
-// 	if true {
-// 		it: rax.Iterator
-// 		rax.Start(&it, rt)
-// 		defer rax.Stop(&it)
-		
-// 		res := rax.seek_string(&it, ">", "test")
-// 		if res {
-// 			for rax.next(&it) {
-// 				if rax.compare_string(&it, "==", "wow") {
-// 					break
-// 				}
-
-// 				text := strings.string_from_ptr(it.key, int(it.key_len))
-// 				fmt.eprintln("Key:", it.key, text)
-// 			}
-// 		}
-// 		fmt.eprintln("res", res)
-// 	}
-
-// 	// fmt.eprintln()
-
-// 	// fmt.eprintln("yo")
-// }
-
 main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: rawptr) -> int {
 	task_head_tail_clamp()
 	if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
@@ -490,7 +466,118 @@ thread_rax_init :: proc(t: ^thread.Thread) {
 	}
 }
 
+menu_bar_push :: proc(window: ^Window, menu_info: int) -> (res: ^Panel_Floaty) {
+	res = menu_init_or_replace_new(window, { .Panel_Expand }, menu_info)
+	if res != nil {
+		res.panel.margin = 0
+		res.panel.rounded = false
+	}
+	return 
+}
+
+menu_bar_show :: proc(menu: ^Panel_Floaty, element: ^Element) {
+	menu_show(menu)
+	menu.x = element.bounds.l
+	menu.y = element.bounds.b
+}
+
 main :: proc() {
+	gs_init()
+	context.logger = gs.logger
+	context.allocator = gs_allocator()
+
+	window := window_init(nil, {}, "Todool", 900, 900, 256, 256)
+	window_main = window
+	keymap_push_todool_commands(&window_main.keymap_custom)
+	keymap_push_todool_combos(&window_main.keymap_custom)
+
+	split := menu_split_init(&window.element)
+	menu := menu_bar_init(split)
+	menu_bar_field_init(menu, "File", 1).invoke = proc(p: ^Panel) {
+		mbl(p, "New File", "new_file")
+		mbl(p, "Open File", "load")
+		mbl(p, "Save", "save")
+		mbl(p, "Save As...", "save", COMBO_TRUE)
+		// mbs(p)
+		// mbl(p, "Quit").command_custom
+	}
+	menu_bar_field_init(menu, "View", 2).invoke = proc(p: ^Panel) {
+		mbl(p, "Mode List", "mode_list")
+		mbl(p, "Mode Kanban", "mode_kanban")
+		mbs(p)
+		mbl(p, "Theme Editor", "theme_editor")
+		mbl(p, "Changelog", "changelog")
+		mbs(p)
+		mbl(p, "Goto", "goto")
+		mbl(p, "Search", "search")
+		mbs(p)
+		mbl(p, "Scale Tasks Up", "scale_tasks", COMBO_NEGATIVE)
+		mbl(p, "Scale Tasks Down", "scale_tasks", COMBO_POSITIVE)
+		mbl(p, "Center View", "center")
+		mbl(p, "Toggle Progressbars", "toggle_progressbars")
+	}
+	menu_bar_field_init(menu, "Edit", 3).invoke = proc(p: ^Panel) {
+		mbl(p, "Undo", "undo")
+		mbl(p, "Redo", "redo")
+		mbs(p)
+		mbl(p, "Cut", "cut_tasks")
+		mbl(p, "Copy", "copy_tasks")
+		mbl(p, "Copy To Clipboard", "copy_tasks_to_clipboard")
+		mbl(p, "Paste", "paste_tasks")
+		mbl(p, "Paste From Clipboard", "paste_tasks_from_clipboard")
+		mbs(p)
+		mbl(p, "Shift Left", "indentation_shift", COMBO_NEGATIVE)
+		mbl(p, "Shift Right", "indentation_shift", COMBO_POSITIVE)
+		mbl(p, "Shift Up", "shift_up")
+		mbl(p, "Shift Down", "shift_down")
+		mbs(p)
+		mbl(p, "Sort Locals", "sort_locals")
+		mbl(p, "To Uppercase", "tasks_to_uppercase")
+		mbl(p, "To Lowercase", "tasks_to_lowercase")
+	}
+	menu_bar_field_init(menu, "Task-State", 4).invoke = proc(p: ^Panel) {
+		mbl(p, "Completion Forward", "change_task_state")
+		mbl(p, "Completion Backward", "change_task_state", COMBO_SHIFT)
+		mbs(p)
+		mbl(p, "Folding", "toggle_folding")
+		mbl(p, "Bookmark", "toggle_bookmark")
+		mbs(p)
+		mbl(p, "Tag 1", "toggle_tag", COMBO_VALUE + 0x01)
+		mbl(p, "Tag 2", "toggle_tag", COMBO_VALUE + 0x02)
+		mbl(p, "Tag 3", "toggle_tag", COMBO_VALUE + 0x04)
+		mbl(p, "Tag 4", "toggle_tag", COMBO_VALUE + 0x08)
+		mbl(p, "Tag 5", "toggle_tag", COMBO_VALUE + 0x10)
+		mbl(p, "Tag 6", "toggle_tag", COMBO_VALUE + 0x20)
+		mbl(p, "Tag 7", "toggle_tag", COMBO_VALUE + 0x40)
+		mbl(p, "Tag 8", "toggle_tag", COMBO_VALUE + 0x80)
+	}
+	menu_bar_field_init(menu, "Movement", 5).invoke = proc(p: ^Panel) {
+		mbl(p, "Move Up", "move_up")
+		mbl(p, "Move Down", "move_down")
+		mbs(p)
+		mbl(p, "Jump Low Indentation Up", "indent_jump_low_prev")
+		mbl(p, "Jump Low Indentation Down", "indent_jump_low_next")
+		mbl(p, "Jump Same Indentation Up", "indent_jump_same_prev")
+		mbl(p, "Jump Same Indentation Down", "indent_jump_same_next")
+		mbl(p, "Jump Scoped", "indent_jump_scope")
+		mbs(p)
+		mbl(p, "Jump Nearby Different State Forward", "jump_nearby")
+		mbl(p, "Jump Nearby Different State Backward", "jump_nearby", COMBO_SHIFT)
+		mbs(p)
+		mbl(p, "Move Up Stack", "move_up_stack")
+		mbl(p, "Move Down Stack", "move_down_stack")
+		mbs(p)
+		mbl(p, "Select All", "select_all")
+		mbl(p, "Select Children", "select_children")
+	}
+	p2 := panel_init(split, { .Panel_Default_Background })
+	p2.background_index = 1
+
+	gs_update_after_load()
+	gs_message_loop()			
+}
+
+main4 :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
@@ -547,6 +634,8 @@ main :: proc() {
 
 	{
 		spall.scoped("gen elements")
+
+
 		// add_shortcuts(window)
 		panel := panel_init(&window.element, { .Panel_Horizontal, .Tab_Movement_Allowed })
 		sidebar_panel_init(panel)

@@ -162,6 +162,7 @@ Window :: struct {
 
 	// menu
 	menu: ^Panel_Floaty,
+	menu_info: int,
 
 	// proc that gets called before layout & draw
 	update: proc(window: ^Window),
@@ -385,7 +386,18 @@ window_init :: proc(
 		#partial switch msg {
 			case .Layout: {
 				for child in element.children {
-					element_move(child, element.bounds)
+					if child != window.menu {
+						element_move(child, element.bounds)
+					}
+				}
+
+				if window.menu != nil {
+					window.menu.clip = element.bounds
+					element_message(window.menu, .Layout)
+					window.menu.clip = window.menu.panel.bounds
+					window.menu.bounds = window.menu.panel.bounds
+					// window.menu.clip = rect_intersection(element.bounds, window.menu.bounds)
+					// fmt.eprintln("try", window.menu.bounds, window.menu.clip)
 				}
 			}
 
@@ -2164,6 +2176,7 @@ menu_close :: proc(window: ^Window) -> bool {
 	element_destroy(window.menu)
 	element_repaint(&window.element)
 	window.menu = nil
+	window.menu_info = 0
 	return true
 }
 
@@ -2172,7 +2185,38 @@ menu_close :: proc(window: ^Window) -> bool {
 // 	return window.menu == nil || (.Hide in window.menu.flags)
 // }
 
-menu_init :: proc(window: ^Window, flags: Element_Flags) -> (menu: ^Panel_Floaty) {
+menu_init_or_replace_new :: proc(
+	window: ^Window, 
+	flags: Element_Flags, 
+	menu_info: int,
+) -> (menu: ^Panel_Floaty) {
+	if window.menu_info == 0 || window.menu_info != menu_info {
+		menu = menu_init_or_replace(window, flags, menu_info)
+	}	
+
+	return
+}
+
+// replace existing menu
+menu_init_or_replace :: proc(
+	window: ^Window, 
+	flags: Element_Flags, 
+	menu_info: int = 0,
+) -> (menu: ^Panel_Floaty) {
+	if window.menu == nil {
+		return menu_init(window, flags, menu_info)
+	} else {
+		element_destroy(window.menu)
+		return menu_init(window, flags, menu_info)
+	}
+}
+
+menu_init :: proc(
+	window: ^Window, 
+	flags: Element_Flags, 
+	menu_info: int = -1,
+) -> (menu: ^Panel_Floaty) {
+	window.menu_info = menu_info
 	menu = panel_floaty_init(&window.element, flags)
 	menu.x = window.cursor_x
 	menu.y = window.cursor_y
