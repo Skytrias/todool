@@ -291,6 +291,7 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 
 	CP1("scale_tasks", todool_scale)
 	CP1("fullscreen_toggle", todool_fullscreen_toggle)
+	CP1("toggle_progressbars", todool_toggle_progressbars)
 
 	// movement
 	CP1("tasks_to_uppercase", todool_tasks_to_uppercase)
@@ -456,7 +457,6 @@ CP2_CROSS :: proc() {
 	CP2("alt right", "jump_nearby")
 	CP2("alt left", "jump_nearby", COMBO_SHIFT)
 
-
 	// movement & selection variants
 	CP2("up", "move_up")
 	CP2("shift up", "move_up", COMBO_SHIFT)
@@ -506,6 +506,7 @@ CP2_CROSS :: proc() {
 	// newer
 	CP2("ctrl -", "scale_tasks", COMBO_NEGATIVE)
 	CP2("ctrl +", "scale_tasks", COMBO_POSITIVE)
+	CP2("f1", "toggle_progressbars")
 	CP2("f11", "fullscreen_toggle")
 	CP2("ctrl e", "center")
 

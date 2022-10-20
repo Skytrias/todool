@@ -1541,17 +1541,22 @@ gs_process_events :: proc() {
 
 gs_message_loop :: proc() {
 	context.logger = gs.logger
+	flux_render_last_frame: bool
 	
 	for gs.running {
+		flux_has_animations := len(gs.flux.values) != 0
+
 		// when animating
-		if len(gs.animating) != 0 || len(gs.flux.values) != 0 {
-			gs.frame_start = sdl.GetPerformanceCounter()
+		if len(gs.animating) != 0 || flux_has_animations || flux_render_last_frame {
 			gs_process_animations()
-			gs_process_events()
 			
-			if len(gs.flux.values) != 0 {
+			if flux_has_animations || flux_render_last_frame {
 				gs_update_all_windows()
 			}	
+
+			gs.frame_start = sdl.GetPerformanceCounter()
+			gs_process_events()
+			flux_render_last_frame = false
 		} else {
 			// wait for event to arive
 			available := sdl.WaitEvent(nil)
@@ -1574,8 +1579,10 @@ gs_message_loop :: proc() {
 			gs.dt = f32(elapsed_ms)
 		}
 
-		if len(gs.flux.values) != 0 {
-			ease.flux_update(&gs.flux, f64(gs.dt))
+		ease.flux_update(&gs.flux, f64(gs.dt))
+		// render last frame
+		if len(gs.flux.values) == 0 && flux_has_animations {
+			flux_render_last_frame = true
 		}
 	}
 
@@ -1593,7 +1600,7 @@ gs_update_all_windows :: proc() {
 // send animations messages
 gs_process_animations :: proc() {
 	for element in gs.animating {
-		// allow elmeent to animate multiple things until it returns 0
+		// allow element to animate multiple things until it returns 0
 		if element_message(element, .Animate) == 0 {
 			element_animation_stop(element)
 		}

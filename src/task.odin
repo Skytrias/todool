@@ -25,6 +25,7 @@ Task_State_Progression :: enum {
 }
 
 task_state_progression: Task_State_Progression = .Update_Instant
+progressbars_alpha: f32 // animation
 
 // focus
 focusing: bool
@@ -58,7 +59,6 @@ last_save_location: string
 
 TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
-PROGRESSBAR_SIZE :: 100
 
 um_task: Undo_Manager
 um_search: Undo_Manager
@@ -440,7 +440,6 @@ Task :: struct {
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
 	tags_rect: RectI,
-	// progressbar_rect: RectI,
 	progress_animation: [Task_State]f32,
 
 	// wether we want to be able to jump to this task
@@ -1089,6 +1088,10 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 
 	changed_any: bool
 
+	if manager != nil {
+		undo_group_continue(manager)
+	}
+
 	// count up states
 	for i := len(mode_panel.children) - 1; i >= 0; i -= 1 {
 		task := cast(^Task) mode_panel.children[i]
@@ -1112,11 +1115,12 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 		if task.visible_parent != nil {
 			task.visible_parent.state_count[task.state] += 1
 			task.visible_parent.children_count += 1
-			// fmt.eprintln(task.visible_parent.children_count)
 		}
 	}	
 
-	// log.info("CHECK", changed_any)
+	if manager != nil {
+		undo_group_end(manager)
+	}
 }
 
 // in real indicess
@@ -1360,6 +1364,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_element_clipped(target, child)
 			}
 
+			task_repaint_timestamps()
 			ss_draw_highlights(target, panel)
 
 			// word error highlight
@@ -1771,12 +1776,6 @@ task_layout :: proc(
 	task.clip = rect_intersection(task.parent.clip, cut)
 	task.bounds = cut
 
-	// // progressbar
-	// if task.has_children {
-	// 	size := int(PROGRESSBAR_SIZE * TASK_SCALE)
-	// 	task.progressbar_rect = rect_cut_right(&cut, size)
-	// }
-
 	// layout bookmark
 	element_hide(task.button_bookmark, !task.bookmarked)
 	if task.bookmarked {
@@ -2018,17 +2017,21 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				1,
 			)
 
-			for count, i in task.state_count {
-				always := true
-				state := Task_State(i)
-				value := f32(count) / f32(task.children_count)
-				handled |= animate_to(
-					&always,
-					&task.progress_animation[state],
-					value,
-					1,
-					0.01,
-				)
+			if task.has_children {
+				for count, i in task.state_count {
+					always := true
+					state := Task_State(i)
+					// in case this gets run too early to avoid divide by 0
+					value := f32(count) / max(f32(task.children_count), 1)
+
+					handled |= animate_to(
+						&always,
+						&task.progress_animation[state],
+						value,
+						1,
+						0.01,
+					)
+				}
 			}
 
 			return int(handled)
@@ -2852,6 +2855,10 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 }
 
 task_render_progressbars :: proc(target: ^Render_Target) {
+	if progressbars_alpha == 0 {
+		return
+	}
+
 	render_push_clip(target, mode_panel.clip)
 	builder := strings.builder_make(16, context.temp_allocator)
 
@@ -2866,14 +2873,14 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	// off := int(visuals_task_margin() / 2)
 	default_rect := rect_wh(0, 0, w, h)
 	low, high := task_low_and_high()
-
-	USE_PERCENTAGE :: false
 	hovered := mode_panel.window.hovered
+	use_percentage := progressbar_percentage()
+	hover_only := progressbar_hover_only()
 
 	for task in tasks_visible {
-		// if hovered != task && hovered.parent != task {
-		// 	continue
-		// }
+		if hover_only && hovered != task && hovered.parent != task {
+			continue
+		}
 
 		if task.has_children {
 			rect := rect_translate(
@@ -2884,6 +2891,7 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			prect := rect
 			progress_size := rect_widthf(rect)
 			alpha: f32 = low <= task.visible_index && task.visible_index <= high ? 0.25 : 1
+			alpha = min(progressbars_alpha, alpha)
 
 			for state, i in Task_State {
 				if task.progress_animation[state] != 0 {
@@ -2897,12 +2905,65 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 
 			strings.builder_reset(&builder)
 			non_normal := int(task.children_count) - task.state_count[.Normal]
-			when USE_PERCENTAGE {
+			if use_percentage {
 				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(task.children_count) * 100)
 			} else {
 				fmt.sbprintf(&builder, "%d / %d", non_normal, task.children_count)
 			}
 			render_string_rect(target, rect, strings.to_string(builder))
+		}
+	}
+}
+
+timestamp_check :: proc(text: string) -> (index: int) {
+	index = -1
+	
+	if len(text) >= 8 && unicode.is_digit(rune(text[0])) {
+		// find 2 minus signs without break
+		// 2022-01-28 
+		minus_count := 0
+		index = 0
+
+		for index < 10 {
+			b := rune(text[index])
+		
+			if b == '-' {
+				minus_count += 1
+			}
+
+			if !(b == '-' || unicode.is_digit(b)) {
+				break
+			}
+
+			index += 1
+		}
+
+		if minus_count != 2 {
+			index = -1
+		}
+	} 
+
+	return
+}
+
+task_repaint_timestamps :: proc() {
+	if task_head == -1 {
+		return
+	}
+
+	for task in tasks_visible {
+		text := strings.to_string(task.box.builder)
+
+		if res := timestamp_check(text); res != -1 {
+			if len(task.box.rendered_glyphs) != 0 {
+				for i in 0..<res {
+					b := task.box.rendered_glyphs[i]
+
+					for v in &b.vertices {
+						v.color = RED
+					}
+				}
+			}
 		}
 	}
 }

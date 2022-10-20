@@ -91,6 +91,7 @@ Sidebar_Options :: struct {
 	slider_volume: ^Slider,
 	slider_opacity: ^Slider,
 
+	// visuals
 	slider_tab: ^Slider,
 	slider_gap_vertical: ^Slider,
 	slider_gap_horizontal: ^Slider,
@@ -98,6 +99,11 @@ Sidebar_Options :: struct {
 	slider_task_margin: ^Slider,
 	slider_animation_speed: ^Slider,
 	checkbox_use_animations: ^Checkbox,	
+
+	// progressbar
+	checkbox_progressbar_show: ^Checkbox,
+	checkbox_progressbar_percentage: ^Checkbox,
+	checkbox_progressbar_hover_only: ^Checkbox,
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -402,6 +408,16 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		slider_animation_speed.hover_info = "Animation speed multiplier of all linear animations"
 
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
+	
+		// progressbar
+		{
+			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
+			header := label_init(panel, { .HF, .Label_Center }, "Progressbars")
+			header.font_options = &font_options_header
+			checkbox_progressbar_show = checkbox_init(panel, flags, "Show", true)
+			checkbox_progressbar_percentage = checkbox_init(panel, flags, "Use Percentage", false)
+			checkbox_progressbar_hover_only = checkbox_init(panel, flags, "Hover Only", false)
+		}
 	}
 
 	// tags
@@ -724,6 +740,16 @@ visuals_task_margin :: #force_inline proc() -> f32 {
 visuals_animation_speed :: #force_inline proc() -> f32 {
 	value := math.remap(sb.options.slider_animation_speed.position, 0, 1, ANIMATION_SPEED_MIN, ANIMATION_SPEED_MAX)
 	return value
+}
+
+progressbar_show :: #force_inline proc() -> bool {
+	return sb.options.checkbox_progressbar_show.state
+}
+progressbar_percentage :: #force_inline proc() -> bool {
+	return sb.options.checkbox_progressbar_percentage.state
+}
+progressbar_hover_only :: #force_inline proc() -> bool {
+	return sb.options.checkbox_progressbar_hover_only.state
 }
 
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

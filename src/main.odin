@@ -73,9 +73,20 @@ main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: raw
 }
 
 main_update :: proc(window: ^Window) {
+	// animate progressbars 
+	{
+		state := progressbar_show()
+		if state && progressbars_alpha == 0 {
+			gs_animate(&progressbars_alpha, 1, .Quadratic_In, time.Millisecond * 200)
+		}
+		if !state && progressbars_alpha == 1 {
+			gs_animate(&progressbars_alpha, 0, .Quadratic_In, time.Millisecond * 100)
+		}
+	}
+
 	task_set_children_info()
 	task_set_visible_tasks()
-	task_check_parent_states(nil)
+	task_check_parent_states(&um_task)
 
 	switch task_state_progression {
 		case .Idle: {}
@@ -94,6 +105,8 @@ main_update :: proc(window: ^Window) {
 
 				if task.has_children {
 					element_animation_start(task)
+				} else {
+					task.progress_animation = {}
 				}
 			}
 		}
@@ -214,7 +227,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			handled := true
 			combo := (cast(^string) dp)^
 	
-			if window_focused_shown(window) {
+			if window_focused_shown(window) || window.dialog != nil {
 				return 0
 			}
 
@@ -486,9 +499,6 @@ main :: proc() {
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
 	
-	total_width, total_height := gs_display_total_bounds()
-	fmt.eprintln(total_width, total_height)
-
 	rt = rax.New()
 	defer rax.Free(rt)
 
