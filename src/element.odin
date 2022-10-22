@@ -22,6 +22,13 @@ UPDATE_PRESSED_LEAVE :: 4
 UPDATE_FOCUS_GAINED :: 5
 UPDATE_FOCUS_LOST :: 6
 
+di_update_interacted :: proc(di: int) -> bool {
+	return di == UPDATE_HOVERED || 
+		di == UPDATE_HOVERED_LEAVE ||
+		di == UPDATE_PRESSED ||
+		di == UPDATE_PRESSED_LEAVE
+}
+
 SCROLLBAR_SIZE :: 15
 TEXT_MARGIN_VERTICAL :: 10
 TEXT_MARGIN_HORIZONTAL :: 10
@@ -1021,6 +1028,7 @@ Slider :: struct {
 	position: f32,
 	builder: strings.Builder,
 	formatting: Slider_Format_Proc,
+	interact: f32,
 }
 
 slider_default_formatting :: proc(
@@ -1048,10 +1056,11 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			}
 
 			slide := element.bounds
-			slide.t = slide.b - int(4 * SCALE)
-			slide.b = slide.t + int(3 * SCALE)
-			slide.l += 2
-			slide.r = slide.l + int(slider.position	* f32(rect_width(slide) - 2)) 
+			size := int((slider.interact * 0.5 + 1) * 4 * SCALE)
+			slide.t = slide.b - size
+			slide.b -= 1
+			slide.l += 1
+			slide.r = slide.l + int(slider.position	* f32(rect_width(slide) - 1)) 
 			render_rect(target, slide, text_color, 0)
 
 			strings.builder_reset(&slider.builder)
@@ -1069,6 +1078,9 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Update: {
+			if di_update_interacted(di) {
+				element_animation_start(slider)
+			} 
 			element_repaint(element)
 		}
 
@@ -1083,6 +1095,24 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		case .Destroy: {
 			delete(slider.builder.buf)
 		}
+
+		case .Animate: {
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			always := true
+			goal := f32(pressed ? 1 : hovered ? 0.5 : 0)
+
+			handled := animate_to(
+				&always,
+				&slider.interact,
+				goal,
+				2,
+				0.01,
+			)
+			// fmt.eprintf("goal %.8f %v\n", slider.interact, handled)
+
+			return int(handled)
+		}
 	}
 
 	// change slider position and cause repaint
@@ -1094,6 +1124,7 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			unit = math.round(unit * 10) / 10
 		}
 
+		element_animation_start(slider)
 		slider.position = 
 			clamp(
 				unit,
@@ -3428,7 +3459,8 @@ menu_bar_push :: proc(window: ^Window, menu_info: int) -> (res: ^Panel_Floaty) {
 	if res != nil {
 		res.panel.margin = 0
 		res.panel.rounded = false
-		res.panel.background_index = 2
+		res.panel.outline = true
+		res.panel.background_index = 1
 	}
 	return 
 }
@@ -3540,9 +3572,8 @@ menu_bar_field_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			hovered := element.window.hovered == element
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
-			if hovered || pressed {
-				render_rect_outline(target, element.bounds, text_color)
-				render_hovered_highlight(target, element.bounds)
+			if hovered || pressed || element.window.menu_info == field.menu_info {
+				render_rect(target, element.bounds, { 0, 0, 0, 100 })
 			}
 
 			fcs_element(field)

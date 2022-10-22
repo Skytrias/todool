@@ -684,7 +684,13 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 			b := &gs.cstring_builder
 			strings.builder_reset(b)
-			strings.write_string(b, "xdg-open")
+
+			when ODIN_OS == .Linux {
+				strings.write_string(b, "xdg-open")
+			} else when ODIN_OS == .Windows {
+				strings.write_string(b, "start.exe")
+			}
+
 			strings.write_byte(b, ' ')
 			strings.write_string(b, text)
 			strings.write_byte(b, '\x00')
