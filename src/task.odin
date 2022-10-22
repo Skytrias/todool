@@ -24,6 +24,7 @@ Task_State_Progression :: enum {
 	Update_Animated,
 }
 
+task_menu_bar: ^Menu_Bar
 task_state_progression: Task_State_Progression = .Update_Instant
 progressbars_alpha: f32 // animation
 
@@ -133,8 +134,6 @@ Custom_Split :: struct {
 	image_display: ^Image_Display, // fullscreen display
 	vscrollbar: ^Scrollbar,
 	hscrollbar: ^Scrollbar,
-	
-	statusbar: Statusbar,
 }
 
 // simply write task text with indentation into a builder
@@ -2190,10 +2189,10 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			bounds := element.bounds
 			// log.info("BOUNDS", element.bounds, window_rect(window_main))
 
-			if .Hide not_in split.statusbar.stat.flags {
-				bot := rect_cut_bottom(&bounds, int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE * 2))
-				element_move(split.statusbar.stat, bot)
-			}
+			// if .Hide not_in split.statusbar.stat.flags {
+			// 	bot := rect_cut_bottom(&bounds, int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE * 2))
+			// 	element_move(split.statusbar.stat, bot)
+			// }
 
 			if .Hide not_in panel_search.flags {
 				bot := rect_cut_bottom(&bounds, int(50 * SCALE))
@@ -2236,8 +2235,6 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := split.window.rect
 
 	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
-	statusbar_init(custom_split)
-
 	custom_split.vscrollbar = scrollbar_init(custom_split, {}, false, context.allocator)
 	custom_split.vscrollbar.force_visible = true	
 	custom_split.hscrollbar = scrollbar_init(custom_split, {}, true, context.allocator)
@@ -2966,4 +2963,90 @@ task_repaint_timestamps :: proc() {
 			}
 		}
 	}
+}
+
+todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Bar) {
+	split = menu_split_init(parent)
+	menu = menu_bar_init(split)
+	
+	menu_bar_field_init(menu, "File", 1).invoke = proc(p: ^Panel) {
+		mbl(p, "New File", "new_file")
+		mbl(p, "Open File", "load")
+		mbl(p, "Save", "save")
+		mbl(p, "Save As...", "save", COMBO_TRUE)
+		// mbs(p)
+		// mbl(p, "Quit").command_custom
+	}
+	menu_bar_field_init(menu, "View", 2).invoke = proc(p: ^Panel) {
+		mbl(p, "Mode List", "mode_list")
+		mbl(p, "Mode Kanban", "mode_kanban")
+		mbs(p)
+		mbl(p, "Theme Editor", "theme_editor")
+		mbl(p, "Changelog", "changelog")
+		mbs(p)
+		mbl(p, "Goto", "goto")
+		mbl(p, "Search", "search")
+		mbs(p)
+		mbl(p, "Scale Tasks Up", "scale_tasks", COMBO_NEGATIVE)
+		mbl(p, "Scale Tasks Down", "scale_tasks", COMBO_POSITIVE)
+		mbl(p, "Center View", "center")
+		mbl(p, "Toggle Progressbars", "toggle_progressbars")
+	}
+	menu_bar_field_init(menu, "Edit", 3).invoke = proc(p: ^Panel) {
+		mbl(p, "Undo", "undo")
+		mbl(p, "Redo", "redo")
+		mbs(p)
+		mbl(p, "Cut", "cut_tasks")
+		mbl(p, "Copy", "copy_tasks")
+		mbl(p, "Copy To Clipboard", "copy_tasks_to_clipboard")
+		mbl(p, "Paste", "paste_tasks")
+		mbl(p, "Paste From Clipboard", "paste_tasks_from_clipboard")
+		mbs(p)
+		mbl(p, "Shift Left", "indentation_shift", COMBO_NEGATIVE)
+		mbl(p, "Shift Right", "indentation_shift", COMBO_POSITIVE)
+		mbl(p, "Shift Up", "shift_up")
+		mbl(p, "Shift Down", "shift_down")
+		mbs(p)
+		mbl(p, "Sort Locals", "sort_locals")
+		mbl(p, "To Uppercase", "tasks_to_uppercase")
+		mbl(p, "To Lowercase", "tasks_to_lowercase")
+	}
+	menu_bar_field_init(menu, "Task-State", 4).invoke = proc(p: ^Panel) {
+		mbl(p, "Completion Forward", "change_task_state")
+		mbl(p, "Completion Backward", "change_task_state", COMBO_SHIFT)
+		mbs(p)
+		mbl(p, "Folding", "toggle_folding")
+		mbl(p, "Bookmark", "toggle_bookmark")
+		mbs(p)
+		mbl(p, "Tag 1", "toggle_tag", COMBO_VALUE + 0x01)
+		mbl(p, "Tag 2", "toggle_tag", COMBO_VALUE + 0x02)
+		mbl(p, "Tag 3", "toggle_tag", COMBO_VALUE + 0x04)
+		mbl(p, "Tag 4", "toggle_tag", COMBO_VALUE + 0x08)
+		mbl(p, "Tag 5", "toggle_tag", COMBO_VALUE + 0x10)
+		mbl(p, "Tag 6", "toggle_tag", COMBO_VALUE + 0x20)
+		mbl(p, "Tag 7", "toggle_tag", COMBO_VALUE + 0x40)
+		mbl(p, "Tag 8", "toggle_tag", COMBO_VALUE + 0x80)
+	}
+	menu_bar_field_init(menu, "Movement", 5).invoke = proc(p: ^Panel) {
+		mbl(p, "Move Up", "move_up")
+		mbl(p, "Move Down", "move_down")
+		mbs(p)
+		mbl(p, "Jump Low Indentation Up", "indent_jump_low_prev")
+		mbl(p, "Jump Low Indentation Down", "indent_jump_low_next")
+		mbl(p, "Jump Same Indentation Up", "indent_jump_same_prev")
+		mbl(p, "Jump Same Indentation Down", "indent_jump_same_next")
+		mbl(p, "Jump Scoped", "indent_jump_scope")
+		mbs(p)
+		mbl(p, "Jump Nearby Different State Forward", "jump_nearby")
+		mbl(p, "Jump Nearby Different State Backward", "jump_nearby", COMBO_SHIFT)
+		mbs(p)
+		mbl(p, "Move Up Stack", "move_up_stack")
+		mbl(p, "Move Down Stack", "move_down_stack")
+		mbs(p)
+		mbl(p, "Select All", "select_all")
+		mbl(p, "Select Children", "select_children")
+	}
+	// p2 := panel_init(split, { .Panel_Default_Background })
+	// p2.background_index = 1
+	return
 }

@@ -1670,7 +1670,7 @@ VIM :: proc(insert: bool) {
 	vim.insert_mode = insert
 
 	if old != insert {
-		custom_split.statusbar.vim_panel.color = insert ? &theme.text_bad : &theme.text_good
+		statusbar.vim_panel.color = insert ? &theme.text_bad : &theme.text_good
 		window_repaint(window_main)
 	}
 }

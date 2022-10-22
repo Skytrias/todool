@@ -650,7 +650,7 @@ texture_update_subimage :: proc(
 	rect: [4]f32,
 	data: rawptr,
 ) {
-	log.info("RENDERER: Update subimage")
+	// log.info("RENDERER: Update subimage")
 	w := rect[2] - rect[0]
 	h := rect[3] - rect[1]
 

@@ -86,6 +86,7 @@ Sidebar_Options :: struct {
 	checkbox_uppercase_word: ^Checkbox,
 	checkbox_bordered: ^Checkbox,
 	checkbox_hide_statusbar: ^Checkbox,
+	checkbox_hide_menubar: ^Checkbox,
 	checkbox_vim: ^Checkbox,
 	checkbox_spell_checking: ^Checkbox,
 	slider_volume: ^Slider,
@@ -329,7 +330,12 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		checkbox_hide_statusbar = checkbox_init(panel, flags, "Hide Statusbar", false)
 		checkbox_hide_statusbar.invoke = proc(data: rawptr) {
 			box := cast(^Checkbox) data
-			element_hide(custom_split.statusbar.stat, box.state)
+			element_hide(statusbar.stat, box.state)
+		}
+		checkbox_hide_menubar = checkbox_init(panel, flags, "Hide Menubar", false)
+		checkbox_hide_menubar.invoke = proc(data: rawptr) {
+			box := cast(^Checkbox) data
+			element_hide(task_menu_bar, box.state)
 		}
 		checkbox_vim = checkbox_init(panel, flags, "Use VIM bindings", false)
 		checkbox_spell_checking = checkbox_init(panel, flags, "Use Spell-Checking", false)

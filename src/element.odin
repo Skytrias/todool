@@ -3407,14 +3407,37 @@ toggle_panel_init :: proc(
 	return
 }
 
+//////////////////////////////////////////////
+// menu bar and sub elements
+//////////////////////////////////////////////
+
+// layouts sub buttons in the expected way
 Menu_Bar :: struct {
 	using element: Element,
-	active: bool,
+	active: bool, // active to enable hover switching of floaty menus
 }
 
 menu_bar_init :: proc(parent: ^Element) -> (res: ^Menu_Bar) {
 	res = element_init(Menu_Bar, parent, {}, menu_bar_message, context.allocator)
 	return
+}
+
+// recreate menu with set properties
+menu_bar_push :: proc(window: ^Window, menu_info: int) -> (res: ^Panel_Floaty) {
+	res = menu_init_or_replace_new(window, { .Panel_Expand }, menu_info)
+	if res != nil {
+		res.panel.margin = 0
+		res.panel.rounded = false
+		res.panel.background_index = 2
+	}
+	return 
+}
+
+// start showing menu but underneath the element
+menu_bar_show :: proc(menu: ^Panel_Floaty, element: ^Element) {
+	menu_show(menu)
+	menu.x = element.bounds.l
+	menu.y = element.bounds.b
 }
 
 menu_bar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -3423,12 +3446,13 @@ menu_bar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
-			render_rect(target, element.bounds, theme.background[0])
+			render_rect(target, element.bounds, theme.background[2])
 		}
 
 		case .Layout: {
 			bounds := element.bounds
 
+			// layout elements left to right
 			for c in element.children {
 				w := element_message(c, .Get_Width)
 				cut := rect_cut_left(&bounds, w)
@@ -3444,11 +3468,12 @@ menu_bar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 	return 0
 }
 
+// single textual field of a menu bar
 Menu_Bar_Field :: struct {
 	using element: Element,
 	text: string,
-	menu_info: int,
-	invoke: proc(panel: ^Panel),
+	menu_info: int, // used to change between submenus and stop recreating
+	invoke: proc(panel: ^Panel), // how the menu is created internally
 }
 
 menu_bar_field_init :: proc(
@@ -3462,6 +3487,7 @@ menu_bar_field_init :: proc(
 	return
 }
 
+// only create menu when invoke is valid
 menu_bar_field_invoke :: proc(field: ^Menu_Bar_Field) {
 	if field.invoke != nil {
 		if menu := menu_bar_push(field.window, field.menu_info); menu != nil {
@@ -3529,8 +3555,8 @@ menu_bar_field_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 	return 0
 }
 
-// simple top split
-
+// simple top split at some px
+// optional bottom split for statusbar
 Menu_Split :: struct {
 	using element: Element,
 }
@@ -3549,8 +3575,24 @@ menu_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				a := element.children[0]
 				b := element.children[1]
 				bounds := element.bounds
-				height := int(DEFAULT_FONT_SIZE * SCALE) + int(TEXT_MARGIN_VERTICAL * SCALE)
-				element_move(a, rect_cut_top(&bounds, height))
+
+				// top bar
+				if .Hide not_in a.flags {
+					size := int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE)
+					element_move(a, rect_cut_top(&bounds, size))
+				}
+
+				// opt bottom bar
+				if len(element.children) == 3 {
+					c := element.children[2]
+
+					if .Hide not_in c.flags {
+						size := int(DEFAULT_FONT_SIZE * SCALE + TEXT_MARGIN_VERTICAL * SCALE * 2)
+						element_move(c, rect_cut_bottom(&bounds, size))
+					}
+				}
+
+				// middle section
 				element_move(b, bounds)
 			}
 		}
@@ -3559,6 +3601,7 @@ menu_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 	return 0
 }
 
+// single line commonly used with optional icon, text + key command or custom call
 Menu_Bar_Line :: struct {
 	using element: Element,
 	icon: Icon,

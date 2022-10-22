@@ -17,6 +17,7 @@ Statusbar :: struct {
 	vim_mode_label: ^Vim_Label,
 	// label_vim_buffer: ^Label,
 }
+statusbar: Statusbar
 
 Vim_Label :: struct {
 	using element: Element,
@@ -56,10 +57,8 @@ vim_label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 	return 0
 }
 
-statusbar_init :: proc(split: ^Custom_Split) {
-	s := &split.statusbar
-	using s
-	stat = element_init(Element, split, {}, statusbar_message, context.allocator)
+statusbar_init :: proc(using statusbar: ^Statusbar, parent: ^Element) {
+	stat = element_init(Element, parent, {}, statusbar_message, context.allocator)
 	label_info = label_init(stat, { .Label_Center })
 
 	task_panel = panel_init(stat, { .HF, .Panel_Horizontal }, 5, 5)
@@ -114,9 +113,7 @@ statusbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 	return 0
 }
 
-statusbar_update :: proc() {
-	s := &custom_split.statusbar
-
+statusbar_update :: proc(using statusbar: ^Statusbar) {
 	// update checkbox if hidden by key command
 	// {
 	// 	checkbox := &sb.options.checkbox_hide_statusbar
@@ -125,15 +122,15 @@ statusbar_update :: proc() {
 	// 	}
 	// }
 
-	if .Hide in s.stat.flags {
+	if .Hide in stat.flags {
 		return
 	}
 
-	element_hide(s.vim_panel, !options_vim_use())
+	element_hide(vim_panel, !options_vim_use())
 
 	// info
 	{
-		b := &s.label_info.builder
+		b := &label_info.builder
 		strings.builder_reset(b)
 
 		if task_head == -1 {
@@ -178,7 +175,7 @@ statusbar_update :: proc() {
 
 	// tasks
 	for state, i in Task_State {
-		label := s.label_task_state[state]
+		label := label_task_state[state]
 		b := &label.builder
 		strings.builder_reset(b)
 		strings.write_string(b, task_names[i])
@@ -199,7 +196,7 @@ statusbar_update :: proc() {
 			}
 		}
 		
-		b := &s.label_task_count.builder
+		b := &label_task_count.builder
 		strings.builder_reset(b)
 
 		strings.write_string(b, "Total ")
