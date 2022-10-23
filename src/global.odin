@@ -386,18 +386,16 @@ window_init :: proc(
 		#partial switch msg {
 			case .Layout: {
 				for child in element.children {
-					if child != window.menu {
+					if child.message_class == panel_floaty_message {
+						// layout floaty panels only with their own custom size
+						floaty := cast(^Panel_Floaty) child
+						floaty.clip = element.bounds
+						element_message(floaty, .Layout)
+						floaty.clip = floaty.panel.bounds
+						floaty.bounds = floaty.panel.bounds
+					} else {
 						element_move(child, element.bounds)
 					}
-				}
-
-				if window.menu != nil {
-					window.menu.clip = element.bounds
-					element_message(window.menu, .Layout)
-					window.menu.clip = window.menu.panel.bounds
-					window.menu.bounds = window.menu.panel.bounds
-					// window.menu.clip = rect_intersection(element.bounds, window.menu.bounds)
-					// fmt.eprintln("try", window.menu.bounds, window.menu.clip)
 				}
 			}
 

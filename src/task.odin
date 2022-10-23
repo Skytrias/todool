@@ -2826,9 +2826,7 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 
 	exists := false
 
-	for i in 0..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
-		
+	for task in tasks_visible {
 		if task_highlight == task {
 			exists = true
 			continue
