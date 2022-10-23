@@ -625,6 +625,11 @@ keymap_init_comments :: proc() {
 	CP3(todool_sort_locals, "sorts the local children based on task state")
 	CP3(todool_scale, "scales the tasks up, TRUE for down")
 
+	// newer
+	CP3(todool_move_up_stack, "jump up the stack, saving the last position")
+	CP3(todool_move_down_stack, "jump down the stack using the saved positions")
+	CP3(todool_toggle_progressbars, "toggle progressbars from rendering")
+
 	// vim
 	CP3(vim_insert_mode_set, "enter insert mode")
 	CP3(vim_insert_mode_beginning, "enter insert mode and move to start of line")

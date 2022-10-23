@@ -1511,6 +1511,10 @@ kbox_cut :: proc(du: u32) {
 }
 
 kbox_paste :: proc(du: u32) {
+	if clipboard_check_changes() {
+		last_was_task_copy = false
+	}
+
 	if !last_was_task_copy {
 		kbox.failed = !box_paste(kbox.um, kbox.element, kbox.box, kbox.by_task)
 	} else {

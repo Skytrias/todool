@@ -1045,7 +1045,8 @@ slider_default_formatting :: proc(
 
 slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	slider := cast(^Slider) element
-	SLIDER_ADD :: 8
+	// SLIDER_ADD :: 8
+	SLIDER_ADD :: 0
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -1053,71 +1054,71 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			hovered := element.window.hovered == element
 			target := element.window.target
 	
-			// CLIPPED STYLE		
-			// bounds := element.bounds
-			// clips := [2]RectI {
-			// 	rect_cut_left(&bounds, int(slider.position	* rect_widthf(bounds))),
-			// 	bounds,
-			// }
-			
-			// text_color := hovered || pressed ? theme.text_default : theme.text_blank
-			// colors := [2]Color {
-			// 	text_color,
-			// 	theme.background[1],
-			// }
-
-			// fcs_element(slider)
-			// fcs_ahv()
-			// strings.builder_reset(&slider.builder)
-			// slider.formatting(&slider.builder, slider.position)
-			// text := strings.to_string(slider.builder)
-
-			// for i in 0..<2 {
-			// 	render_push_clip(target, clips[i])
-			// 	fcs_color(colors[1 - i])
-			// 	render_rect(target, element.bounds, colors[i], ROUNDNESS)
-			// 	render_string_rect(target, element.bounds, text)
-			// }
-
-			// render_push_clip(target, element.bounds)
-			// render_rect_outline(target, element.bounds, text_color)
-
-			text_color := hovered || pressed ? theme.text_default : theme.text_blank
-			render_rect_outline(target, element.bounds, text_color)
-
+			// CLIPPED STYLE
 			bounds := element.bounds
-			bot := rect_cut_bottom(&bounds, int(SLIDER_ADD * SCALE))
-
-			{
-				slide := bot
-				slide_color := text_color
-				// slide.t += SLIDER_ADD / 2 - int(slider.interact * SLIDER_ADD / 2)
-				slide.l += 1
-				slide.b -= 1
-
-				{
-					temp := slide
-					temp.b = temp.t + LINE_WIDTH
-					render_rect(target, temp, slide_color)
-				}
-
-				slide.r = slide.l + int(slider.position	* f32(rect_width(slide) - 1))
-				// slide_color := color_alpha(text_color, slider.interact * 0.5 + 0.5)
-				render_rect(target, slide, slide_color, 0)
+			clips := [2]RectI {
+				rect_cut_left(&bounds, int(slider.position	* rect_widthf(bounds))),
+				bounds,
+			}
+			
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+			colors := [2]Color {
+				text_color,
+				theme.background[1],
 			}
 
-			scaled_size := fcs_element(slider)
+			fcs_element(slider)
 			fcs_ahv()
-			fcs_color(text_color)
 			strings.builder_reset(&slider.builder)
 			slider.formatting(&slider.builder, slider.position)
 			text := strings.to_string(slider.builder)
 
-			if hovered {
-				render_hovered_highlight(target, element.bounds)
+			for i in 0..<2 {
+				render_push_clip(target, clips[i])
+				fcs_color(colors[1 - i])
+				render_rect(target, element.bounds, colors[i], ROUNDNESS)
+				render_string_rect(target, element.bounds, text)
 			}
 
-			render_string_rect(target, bounds, text)
+			render_push_clip(target, element.bounds)
+			render_rect_outline(target, element.bounds, text_color)
+
+			// text_color := hovered || pressed ? theme.text_default : theme.text_blank
+			// render_rect_outline(target, element.bounds, text_color)
+
+			// bounds := element.bounds
+			// bot := rect_cut_bottom(&bounds, int(SLIDER_ADD * SCALE))
+
+			// {
+			// 	slide := bot
+			// 	slide_color := text_color
+			// 	// slide.t += SLIDER_ADD / 2 - int(slider.interact * SLIDER_ADD / 2)
+			// 	slide.l += 1
+			// 	slide.b -= 1
+
+			// 	{
+			// 		temp := slide
+			// 		temp.b = temp.t + LINE_WIDTH
+			// 		render_rect(target, temp, slide_color)
+			// 	}
+
+			// 	slide.r = slide.l + int(slider.position	* f32(rect_width(slide) - 1))
+			// 	// slide_color := color_alpha(text_color, slider.interact * 0.5 + 0.5)
+			// 	render_rect(target, slide, slide_color, 0)
+			// }
+
+			// scaled_size := fcs_element(slider)
+			// fcs_ahv()
+			// fcs_color(text_color)
+			// strings.builder_reset(&slider.builder)
+			// slider.formatting(&slider.builder, slider.position)
+			// text := strings.to_string(slider.builder)
+
+			// if hovered {
+			// 	render_hovered_highlight(target, element.bounds)
+			// }
+
+			// render_string_rect(target, bounds, text)
 		}
 
 		case .Get_Cursor: {

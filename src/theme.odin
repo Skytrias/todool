@@ -40,9 +40,11 @@ Theme :: struct {
 	panel: [2]Color, // 2 variants, parent - front
 
 	text_default: Color,
+	text_blank: Color,
 	text_good: Color,
 	text_bad: Color,
-	text_blank: Color,
+	text_link: Color,
+	text_date: Color,
 
 	shadow: Color,
 	
@@ -57,9 +59,11 @@ Theme_Save_Load :: struct {
 	panel: [2]u32, // 2 variants, parent - front
 
 	text_default: u32,
+	text_blank: u32,
 	text_good: u32,
 	text_bad: u32,
-	text_blank: u32,
+	text_link: u32,
+	text_date: u32,
 
 	shadow: u32,
 	
@@ -89,6 +93,8 @@ theme_default_light := Theme {
 	text_blank = { 75, 75, 75, 255 },
 	text_good = { 25, 200, 25, 255 },
 	text_bad = { 200, 25, 25, 255 },
+	text_link = { 0, 0, 255, 255 },
+	text_date = { 50, 160, 230, 255 },
 
 	shadow = BLACK,
 	
@@ -122,9 +128,11 @@ theme_default_black := Theme {
 		{40, 40, 40, 255},
 	}, 
 	text_default = {201, 201, 201, 255}, 
+	text_blank = {150, 150, 150, 255}, 
 	text_good = {138, 234, 85, 255}, 
 	text_bad = {77, 144, 222, 255}, 
-	text_blank = {150, 150, 150, 255}, 
+	text_link = { 0, 0, 255, 255 },
+	text_date = { 50, 160, 230, 255 },
 	shadow = {110, 110, 110, 255}, 
 	caret = {252, 77, 77, 255}, 
 	caret_selection = {226, 167, 32, 255}, 
@@ -381,10 +389,12 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 	{
 		t := toggle_panel_init(p, { .HF }, {}, "Text", true)
-		color_slider(t.panel, &theme.text_default, "text default")
-		color_slider(t.panel, &theme.text_blank, "text blank")
-		color_slider(t.panel, &theme.text_good, "text good")
-		color_slider(t.panel, &theme.text_bad, "text bad")
+		color_slider(t.panel, &theme.text_default, "default")
+		color_slider(t.panel, &theme.text_blank, "blank")
+		color_slider(t.panel, &theme.text_good, "good")
+		color_slider(t.panel, &theme.text_bad, "bad")
+		color_slider(t.panel, &theme.text_link, "link")
+		color_slider(t.panel, &theme.text_date, "date")
 	}
 
 	{
@@ -493,11 +503,23 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		r1 := button_init(button_panel, {}, "Reset / Light")
 		r1.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_light
+
+			for i in 0..<theme_editor.panel_list_index {
+				p := theme_editor.panel_list[i]
+				theme_reformat_panel_sliders(p)
+			}
+
 			gs_update_all_windows()
 		}
 		r2 := button_init(button_panel, {}, "Reset / Black")
 		r2.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_black
+			
+			for i in 0..<theme_editor.panel_list_index {
+				p := theme_editor.panel_list[i]
+				theme_reformat_panel_sliders(p)
+			}
+
 			gs_update_all_windows()
 		}
 		// temp print theme

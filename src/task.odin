@@ -719,7 +719,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			target := element.window.target
 			pressed := element.window.pressed == element
 			hovered := element.window.hovered == element
-			color := BLUE
+			color := theme.text_link
 
 			fcs_color(color)
 			fcs_task(button)
@@ -1230,7 +1230,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			gap_horizontal_scaled := int(visuals_gap_horizontal() * TASK_SCALE)
 			kanban_width_scaled := int(visuals_kanban_width() * TASK_SCALE)
 			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-			task_min_width := int((rect_widthf(mode_panel.bounds) - 50) * TASK_SCALE)
+			task_min_width := int(max(300, (rect_widthf(mode_panel.bounds) - 50) * TASK_SCALE))
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
 
 			switch panel.mode {
@@ -1559,6 +1559,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Left_Down: {
 			element_reset_focus(element.window)
+
+			// add task on double click
+			clicks := di % 2
+			if clicks == 1 {
+				if task_head != -1 {
+					task := tasks_visible[task_head]
+					diff_y := element.window.cursor_y - (task.bounds.t + rect_height_halfed(task.bounds))
+					todool_insert_sibling(diff_y < 0 ? COMBO_SHIFT : COMBO_EMPTY)
+				}
+			}
 		}
 
 		case .Animate: {
@@ -2961,7 +2971,7 @@ task_repaint_timestamps :: proc() {
 					b := task.box.rendered_glyphs[i]
 
 					for v in &b.vertices {
-						v.color = RED
+						v.color = theme.text_date
 					}
 				}
 			}

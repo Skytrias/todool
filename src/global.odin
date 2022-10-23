@@ -208,9 +208,9 @@ Global_State :: struct {
 	// builder to store clipboard content
 	copy_builder: strings.Builder,
 
-	running: bool,
 	cursors: [Cursor]^sdl.Cursor,
 
+	running: bool,
 	frame_start: u64,
 	dt: f32,
 
@@ -233,6 +233,9 @@ Global_State :: struct {
 
 	font_regular_path: string,
 	font_bold_path: string,
+
+	// checks if the content has changed recently
+	clipboard_content_length: int,
 
 	track: mem.Tracking_Allocator,
 	fc: fontstash.Font_Context,
@@ -583,7 +586,12 @@ window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
 		log.error("WINDOW BORDER SIZE call not supported")
 	}
 
-	left, right, top, bottom = 0, 0, 0, 0
+	when ODIN_OS == .Linux {
+
+	} else {
+		left, right, top, bottom = 0, 0, 0, 0
+	}
+
 	return
 }
 
@@ -2110,6 +2118,22 @@ clipboard_set_with_builder :: proc(text: string) -> i32 {
 sdl_push_empty_event :: #force_inline proc() {
 	custom_event: sdl.Event
 	sdl.PushEvent(&custom_event)
+}
+
+clipboard_check_changes :: proc() -> bool {
+	spall.scoped("clipboard changes check")
+
+	if clipboard_has_content() {
+		text := sdl.GetClipboardText()
+		old := gs.clipboard_content_length
+		gs.clipboard_content_length = len(text)
+
+		if old != gs.clipboard_content_length {
+			return true
+		}
+	}
+
+	return false
 }
 
 //////////////////////////////////////////////
