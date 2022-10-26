@@ -12,6 +12,8 @@ import "../spall"
 import "../fontstash"
 import "../art"
 
+word_results: [dynamic]Word_Result
+
 Word_Result :: struct {
 	text: string,
 	index_codepoint_start: int,
@@ -69,48 +71,50 @@ words_extract_test :: proc() {
 }
 
 words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
+	spall.scoped("highlight missing")
 	text := strings.to_string(task.box.builder)
-	words := words_extract(&rt_words, text)
+	words := words_extract(&word_results, text)
 
 	builder := strings.builder_make(0, 256, context.temp_allocator)
 	ds: cutf8.Decode_State
 
-	// TODO do this
-	// for word in words {
-	// 	// lower case each word
-	// 	strings.builder_reset(&builder)
-	// 	ds = {}
-	// 	for codepoint in cutf8.ds_iter(&ds, word.text) {
-	// 		strings.write_rune(&builder, unicode.to_lower(codepoint))
-	// 	}
-	// 	res := rax.CustomFind(rt, raw_data(builder.buf), len(builder.buf))
+	for word in words {
+		// lower case each word
+		strings.builder_reset(&builder)
+		ds = {}
+		for codepoint in cutf8.ds_iter(&ds, word.text) {
+			// TODO CHECK UTF8 WORD HERE?
+			strings.write_rune(&builder, unicode.to_lower(codepoint))
+		}
+		// res := rax.CustomFind(rt, raw_data(builder.buf), len(builder.buf))
+		exists := art.comp_search(strings.to_string(builder))
 
-	// 	// render the result when not found
-	// 	if !res.valid {
-	// 		fcs_task(task)
-	// 		state := fontstash.wrap_state_init(
-	// 			&gs.fc, 
-	// 			task.box.wrapped_lines[:], 
-	// 			word.index_codepoint_start, 
-	// 			word.index_codepoint_end,
-	// 		)
-	// 		scaled_size := f32(state.isize / 10)
-	// 		line_width := LINE_WIDTH + int(4 * TASK_SCALE)
+		// render the result when not found
+		if !exists {
+			fcs_task(task)
+			state := fontstash.wrap_state_init(
+				&gs.fc, 
+				task.box.wrapped_lines[:], 
+				word.index_codepoint_start, 
+				word.index_codepoint_end,
+			)
+			scaled_size := f32(state.isize / 10)
+			line_width := LINE_WIDTH + int(4 * TASK_SCALE)
 
-	// 		for fontstash.wrap_state_iter(&gs.fc, &state) {
-	// 			y := task.box.bounds.t + int(f32(state.y) * scaled_size) - line_width / 2
+			for fontstash.wrap_state_iter(&gs.fc, &state) {
+				y := task.box.bounds.t + int(f32(state.y) * scaled_size) - line_width / 2
 				
-	// 			rect := RectI {
-	// 				task.box.bounds.l + int(state.x_from),
-	// 				task.box.bounds.l + int(state.x_to),
-	// 				y,
-	// 				y + line_width,
-	// 			}
+				rect := RectI {
+					task.box.bounds.l + int(state.x_from),
+					task.box.bounds.l + int(state.x_to),
+					y,
+					y + line_width,
+				}
 				
-	// 			render_sine(target, rect, RED)
-	// 		}
-	// 	}
-	// }
+				render_sine(target, rect, RED)
+			}
+		}
+	}
 }
 
 // build the ebook to a compressed format
@@ -140,9 +144,7 @@ compressed_trie_build :: proc() {
 		} else {
 			if word_index != 0 {
 				w := transmute(string) word[:word_index]
-				// fmt.eprintln(w)
 				art.ctrie_insert(w)
-				// rax.Insert(rt, &word[0], word_index, nil, nil)
 			}
 
 			word_index = 0
@@ -151,51 +153,22 @@ compressed_trie_build :: proc() {
 	
 	art.ctrie_print_size()
 
+	// init compressed tree
 	art.comp_init(mem.Megabyte * 2)
 	art.comp_push_ctrie(art.ctrie_root(), nil)
 	art.comp_print_size()
 
 	art.comp_write_to_file("../assets/comp_trie.bin")
+	art.comp_destroy()
 }
 
-// thread_rax_init :: proc(t: ^thread.Thread) {
-// 	spall.scoped("rax load", u32(t.id))
+spell_check_init :: proc() {
+	art.comp_read_from_file("../assets/comp_trie.bin")
+	word_results = make([dynamic]Word_Result, 0, 32)
+}
 
-// 	bytes, ok := os.read_entire_file("big.txt", context.allocator)
-// 	defer delete(bytes)
+spell_check_destroy :: proc() {
+	art.comp_destroy()
+	delete(word_results)
+}
 
-// 	// NOTE ASSUMING ASCII ENCODING
-// 	// check for words in file, to lower all
-// 	word: [256]u8
-// 	word_index: uint
-// 	for i in 0..<len(bytes) {
-// 		b := bytes[i]
-
-// 		// lowercase valid alpha
-// 		if 'A' <= b && b <= 'Z' {
-// 			old := b
-// 			b += 32
-// 		}
-
-// 		if 'a' <= b && b <= 'z' {
-// 			word[word_index] = b
-// 			word_index += 1
-// 		} else {
-// 			if word_index != 0 {
-// 				main_running := intrinsics.atomic_load(&main_thread_running)
-// 				if !main_running {
-// 					break
-// 				}
-				
-// 				rax.Insert(rt, &word[0], word_index, nil, nil)
-// 			}
-
-// 			word_index = 0
-// 		}
-// 	}
-
-// 	intrinsics.atomic_store(&rt_loaded, true)
-// 	if t != nil {
-// 		thread.destroy(t)
-// 	}
-// }

@@ -33,9 +33,6 @@ focus_head: int
 focus_tail: int
 
 // rax
-// rt: ^rax.State
-// rt_loaded: bool
-rt_words: [dynamic]Word_Result
 main_thread_running := true
 
 // keymap special
@@ -214,7 +211,7 @@ task_data_init :: proc() {
 	drag_list = make([dynamic]^Task, 0, 64)
 
 	pomodoro_init()
-	rt_words = make([dynamic]Word_Result, 0, 32)
+	spell_check_init()
 }
 
 last_save_set :: proc(next: string = "") {
@@ -247,7 +244,7 @@ task_data_destroy :: proc() {
 	undo_manager_destroy(&um_goto)
 	undo_manager_destroy(&um_sidebar_tags)
 
-	delete(rt_words)
+	spell_check_destroy()
 }
 
 // reset copy data
