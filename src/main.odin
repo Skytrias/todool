@@ -47,7 +47,122 @@ TODOOL_RELEASE :: false
 // 	gs_message_loop()			
 // }
 
+import "../art"
+import "core:math/bits"
+
 main :: proc() {
+	// {
+	// 	fmt.eprintln("TRIE size", size_of(art.Trie))
+	// 	t: art.Trie
+	// 	art.trie_insert(&t, "test")
+	// 	art.trie_insert(&t, "testing")
+	// 	art.trie_insert(&t, "text")
+	// 	art.trie_print(&t)
+	// 	art.trie_print_size(&t)
+	
+	// 	// art.comp_init()
+	// 	// art.comp_push_trie(&t, nil)
+	// 	// art.comp_print()
+	// 	// fmt.eprintln(len(art.comp))
+	// }
+
+	// {
+		// fmt.eprintln("CTRIE size", size_of(art.CTrie))
+		// art.ctrie_init(100)
+		// art.ctrie_insert("test")
+		// art.ctrie_insert("text")
+		// art.ctrie_print()
+		// art.ctrie_print_size()
+	// }
+
+	art.ctrie_init(80000)
+	defer art.ctrie_destroy()
+
+	bytes, ok := os.read_entire_file("big.txt", context.allocator)
+	defer delete(bytes)
+
+	// NOTE ASSUMING ASCII ENCODING
+	// check for words in file, to lower all
+	word: [256]u8
+	word_index: uint
+	for i in 0..<len(bytes) {
+		b := bytes[i]
+
+		// lowercase valid alpha
+		if 'A' <= b && b <= 'Z' {
+			old := b
+			b += 32
+		}
+
+		if 'a' <= b && b <= 'z' {
+			word[word_index] = b
+			word_index += 1
+		} else {
+			if word_index != 0 {
+				w := transmute(string) word[:word_index]
+				// fmt.eprintln(w)
+				art.ctrie_insert(w)
+				// rax.Insert(rt, &word[0], word_index, nil, nil)
+			}
+
+			word_index = 0
+		}
+	}
+	
+	art.ctrie_print_size()
+
+	art.comp_init(mem.Megabyte * 2)
+	art.comp_push_ctrie(art.ctrie_root(), nil)
+	art.comp_print_size()
+
+	fmt.eprintln(art.comp_search("aaron"))
+}
+
+// main :: proc() {
+// 	tree := art.init()
+// 	defer art.destroy(tree)
+
+// 	// fmt.eprintln(size_of(art.Node))
+
+// 	value1: int
+// 	value2: int
+// 	art.insert(&tree, "test", &value1)
+// 	art.insert(&tree, "testing", &value1)
+// 	art.insert(&tree, "yooooo", &value1)
+// 	// art.insert(&tree, "testing", &value2)
+// 	// fmt.eprintln(tree)
+// 	// fmt.eprintln(cast(^art.Node4) tree.root)
+// 	// out := art.search(&tree, "test")
+// 	// fmt.eprintln(out, out == &value1)
+
+// 	// iter testing
+// 	{
+// 		count: int
+// 		cb :: proc(data: rawptr, key: string, value: rawptr) -> int {
+// 			count := cast(^int) data
+// 			fmt.eprintln("iter:", count^, key)
+// 			count^ += 1
+// 			return 0
+// 		}
+// 		art.iter(&tree, cb, &count)
+// 	}
+
+// 	// n1 := art.node_new(.N4)
+// 	// fmt.eprintln(cast(^art.Node4) n1)
+// 	// fmt.eprintln(art.leaf_set(n1))
+// 	// fmt.eprintln(art.leaf_check(n1))
+
+// 	// test: int
+// 	// res := art.leaf_new("wowow", &test)
+// 	// fmt.eprintln(res, art.leaf_string(res), res.value == &test)
+
+// 	// fmt.eprintln(art.node_new(.N4))
+// 	// fmt.eprintln(art.node_new(.N16))
+// 	// fmt.eprintln(art.node_new(.N48))
+// 	// art.insert(t, "test")
+// }
+
+main5 :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()

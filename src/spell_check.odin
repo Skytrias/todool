@@ -122,9 +122,18 @@ thread_rax_init :: proc(t: ^thread.Thread) {
 	word: [256]u8
 	word_index: uint
 	for i in 0..<len(bytes) {
-		b := rune(bytes[i])
+		b := bytes[i]
 
-		if !unicode.is_alpha(b) {
+		// lowercase valid alpha
+		if 'A' <= b && b <= 'Z' {
+			old := b
+			b += 32
+		}
+
+		if 'a' <= b && b <= 'z' {
+			word[word_index] = b
+			word_index += 1
+		} else {
 			if word_index != 0 {
 				main_running := intrinsics.atomic_load(&main_thread_running)
 				if !main_running {
@@ -135,9 +144,6 @@ thread_rax_init :: proc(t: ^thread.Thread) {
 			}
 
 			word_index = 0
-		} else {
-			word[word_index] = u8(unicode.to_lower(b))
-			word_index += 1
 		}
 	}
 
