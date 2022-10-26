@@ -16,7 +16,6 @@ import "core:thread"
 import "../cutf8"
 import "../fontstash"
 import "../spall"
-import "../rax"
 
 Task_State_Progression :: enum {
 	Idle,
@@ -34,8 +33,8 @@ focus_head: int
 focus_tail: int
 
 // rax
-rt: ^rax.State
-rt_loaded: bool
+// rt: ^rax.State
+// rt_loaded: bool
 rt_words: [dynamic]Word_Result
 main_thread_running := true
 
@@ -1373,7 +1372,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			ss_draw_highlights(target, panel)
 
 			// word error highlight
-			if options_spell_checking() && task_head != -1 && task_head == task_tail && rt_loaded {
+			if options_spell_checking() && task_head != -1 && task_head == task_tail {
 				render_push_clip(target, panel.clip)
 				task := tasks_visible[task_head] 
 				words_highlight_missing(target, task)
