@@ -48,8 +48,23 @@ TODOOL_RELEASE :: false
 // 	gs_message_loop()			
 // }
 
+import "../regex"
 
 main :: proc() {
+	// fmt.eprintln("\tstart")
+	// defer fmt.eprintln("\tend")
+
+	// fmt.eprintln(regex.match("xyz", "testxyzyo"))
+	// fmt.eprintln(regex.match("xyz", "testxyyo      xz"))
+	// fmt.eprintln(regex.match("+a", "test"))
+
+	// regex.
+
+	res, err := regex.re2post("a(bb)+a")
+	fmt.eprintln(string(res), err)
+}
+
+main5 :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
