@@ -31,15 +31,15 @@ int sse2_strstr(const char* s, size_t n, const char* needle, size_t k) {
 			return 1;
 		}
 
-		// while (mask != 0) {
-		// 	const auto bitpos = bits::get_first_bit_set(mask);
+		while (mask != 0) {
+			const auto bitpos = bits::get_first_bit_set(mask);
 
-		// 	if (memcmp(s + i + bitpos + 1, needle + 1, k - 2) == 0) {
-		// 			return i + bitpos;
-		// 	}
+			if (memcmp(s + i + bitpos + 1, needle + 1, k - 2) == 0) {
+					return i + bitpos;
+			}
 
-		// 	mask = bits::clear_leftmost_set(mask);
-		// }
+			mask = bits::clear_leftmost_set(mask);
+		}
 	}
 
 	return 0;
@@ -55,7 +55,7 @@ static void print_time_us(const char* name, void(*fn)(void)) {
 	uint64_t delta_us = (end.tv_sec - start.tv_sec) * 1000000 + (end.tv_nsec - start.tv_nsec) / 1000;
 	printf("Running: '%s' took %lu u/s\n", name, delta_us);
 }
-
+	
 void test() {
 	const char* s1 = "// TODO testing this out";
 	const char* s2 = "// TODO";
@@ -64,7 +64,7 @@ void test() {
 }
 
 void test_simple() {
-	const char* s1 = "/home/skytrias/Downloads/essence-master/desktop/gui.cpp"
+	const char* s1 = "/home/skytrias/Downloads/essence-master/desktop/gui.cpp";
 	const char* s2 = "// TODO";
 	int res = sse2_strstr(s1, strlen(s1), s2, strlen(s2));
 }

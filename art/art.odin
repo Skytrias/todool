@@ -261,20 +261,44 @@ ascii_is_letter :: #force_inline proc(b: u8) -> bool {
 	return 'a' <= b && b <= 'z'
 }
 
-// searches the compressed trie for the wanted word
+// // searches the compressed trie for the wanted word
+// comp_search :: proc(key: string) -> bool {
+// 	alphabet_bits := cast(^u32) &comp[0]
+
+// 	for i in 0..<len(key) {
+// 		b := ascii_check_lower(key[i])
+
+// 		if ascii_is_letter(b) {
+// 			idx := b - 'a'
+// 			// comp_print_characters(alphabet_bits^)
+			
+// 			if res, ok := comp_bits_index_to_counted_one(alphabet_bits^, u32(idx)); ok {
+// 				next := mem.ptr_offset(alphabet_bits, res + 1)
+// 				alphabet_bits = cast(^u32) &comp[next^]
+// 			} else {
+// 				return false
+// 			}
+// 		} else {
+// 			return false
+// 		}
+// 	}
+
+// 	return true
+// }
+
 comp_search :: proc(key: string) -> bool {
-	alphabet_bits := cast(^u32) &comp[0]
+	alphabet := mem.slice_data_cast([]u32, comp)
+	next := u32(0)
 
 	for i in 0..<len(key) {
 		b := ascii_check_lower(key[i])
 
 		if ascii_is_letter(b) {
-			idx := b - 'a'
+			letter := b - 'a'
 			// comp_print_characters(alphabet_bits^)
-			
-			if res, ok := comp_bits_index_to_counted_one(alphabet_bits^, u32(idx)); ok {
-				next := mem.ptr_offset(alphabet_bits, res + 1)
-				alphabet_bits = cast(^u32) &comp[next^]
+
+			if res, ok := comp_bits_index_to_counted_one(alphabet[next], u32(letter)); ok {
+				next = alphabet[next + res + 1] / size_of(u32)
 			} else {
 				return false
 			}
@@ -282,7 +306,7 @@ comp_search :: proc(key: string) -> bool {
 			return false
 		}
 	}
-
+	
 	return true
 }
 
