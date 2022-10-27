@@ -412,11 +412,6 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 						task_set_img(task, handle)
 					}
 				} else {
-					// if !had_imports {
-					// 	task_head_tail_push(manager)
-					// }
-					// had_imports = true
-
 					// import from code
 					content, ok := os.read_entire_file(file_path)
 					defer delete(content)

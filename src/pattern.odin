@@ -282,7 +282,7 @@ pattern_load_content_simple :: proc(
 	indentation: int,
 	index_at: ^int,
 ) -> (found_any: bool) {
-	temp := content
+	temfp := content
 	temp_length := len(temp)
 	pattern := "// TODO"
 	pattern_length := len(pattern)
