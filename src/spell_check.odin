@@ -12,7 +12,20 @@ import "../spall"
 import "../fontstash"
 import "../art"
 
-word_results: [dynamic]Word_Result
+// TODO changes for strings interning
+// clear interned content?
+// custom cap for init call? instead of 16
+// call to check 
+
+Spell_Check :: struct {
+	word_results: [dynamic]Word_Result,
+	
+	// user dictionary
+	user_intern: strings.Intern,
+	user_backing: []byte,
+	user_arena: mem.Arena,
+}
+sc: Spell_Check
 
 Word_Result :: struct {
 	text: string,
@@ -70,10 +83,10 @@ words_extract_test :: proc() {
 	fmt.eprintln(words[:], "\n")
 }
 
-words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
+spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 	spall.scoped("highlight missing")
 	text := strings.to_string(task.box.builder)
-	words := words_extract(&word_results, text)
+	words := words_extract(&sc.word_results, text)
 
 	builder := strings.builder_make(0, 256, context.temp_allocator)
 	ds: cutf8.Decode_State
@@ -84,10 +97,10 @@ words_highlight_missing :: proc(target: ^Render_Target, task: ^Task) {
 		ds = {}
 		for codepoint in cutf8.ds_iter(&ds, word.text) {
 			// TODO CHECK UTF8 WORD HERE?
-			strings.write_rune(&builder, unicode.to_lower(codepoint))
+			strings.write_rune(&builder, codepoint)
 		}
 		// res := rax.CustomFind(rt, raw_data(builder.buf), len(builder.buf))
-		exists := art.comp_search(strings.to_string(builder))
+		exists := spell_check_mapping(strings.to_string(builder))
 
 		// render the result when not found
 		if !exists {
@@ -164,11 +177,58 @@ compressed_trie_build :: proc() {
 
 spell_check_init :: proc() {
 	art.comp_read_from_file("../assets/comp_trie.bin")
-	word_results = make([dynamic]Word_Result, 0, 32)
+	sc.word_results = make([dynamic]Word_Result, 0, 32)
+	
+	// backing string data for the dict
+	sc.user_backing = make([]byte, mem.Megabyte * 2)
+	mem.arena_init(&sc.user_arena, sc.user_backing)
+
+	// custom init of user dict
+	sc.user_intern.allocator = mem.arena_allocator(&sc.user_arena)
+	sc.user_intern.entries = make(map[string]^strings.Intern_Entry, 256, context.allocator)
+}
+
+spell_check_clear_user :: proc() {
+	clear(&sc.user_intern.entries)
+	free_all(mem.arena_allocator(&sc.user_arena))
 }
 
 spell_check_destroy :: proc() {
 	art.comp_destroy()
-	delete(word_results)
+	delete(sc.word_results)
+	delete(sc.user_backing)
+	strings.intern_destroy(&sc.user_intern)
 }
 
+// check if the word exists in the english dictionary 
+// or in the user dictionary
+spell_check_mapping :: proc(key: string) -> (res: bool) {
+	res = art.comp_search(key)
+
+	if !res {
+		_, found := sc.user_intern.entries[key]
+		res = found
+	}
+
+	return
+}
+
+// check to add non existent words to the spell checker user dictionary
+spell_check_mapping_words_add :: proc(word: string) {
+	words := words_extract(&sc.word_results, word)
+
+	for word_result in words {
+		spell_check_mapping_add(word_result.text)
+	}
+}
+
+spell_check_mapping_add :: proc(key: string) -> bool {
+	// only if the key doesnt exist in the compressed trie
+	if !art.comp_search(key) {
+		_, err := strings.intern_get(&sc.user_intern, key)
+		// fmt.eprintln("added --->", key)
+		return err == nil
+	}
+
+	return false
+}

@@ -61,6 +61,7 @@ box_init :: proc(box: ^Box, cap: int) {
 box_destroy :: proc(box: Box) {
 	delete(box.wrapped_lines)
 	delete(box.builder.buf)
+	delete(box.rendered_glyphs)
 }
 
 Text_Box :: struct {

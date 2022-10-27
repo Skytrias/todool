@@ -69,8 +69,6 @@ Theme_Save_Load :: struct {
 	
 	caret: u32,
 	caret_selection: u32,	
-	
-	tags: [8]u32,
 }
 
 Theme_Panel :: enum {

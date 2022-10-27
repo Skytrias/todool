@@ -56,6 +56,18 @@ opt data:
 // theme:
 */
 
+save_tag_color_signature := [8]u8 { 'T', 'A', 'G', 'C', 'O', 'L', 'O', 'R' }
+
+Save_Tag_Color_Header :: struct {
+	signature: [8]u8,
+	version: u8,
+	tag_mode: u8,
+}
+
+// additional data can be added later on
+// 8 strings (length u8 + []u8)
+// 8 colors (u32be)
+
 // NOTE should only increase, mark things as deprecated!
 Save_Tag :: enum u8 {
 	None, // Empty flag
@@ -69,6 +81,13 @@ Save_Tag :: enum u8 {
 }
 
 bytes_file_signature := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', 'F', 'F' }
+
+buffer_write_color :: proc(b: ^bytes.Buffer, color: Color) -> (err: io.Error) {
+	// CHECK is this safe endianness?
+	color_u32be := transmute(u32be) color
+	buffer_write_type(b, color_u32be) or_return
+	return
+}
 
 buffer_write_type :: proc(b: ^bytes.Buffer, type: $T) -> (err: io.Error) {
 	// NOTE could use pointer ^T instead?
@@ -85,10 +104,19 @@ buffer_write_builder :: proc(b: ^bytes.Buffer, builder: strings.Builder) -> (err
 	return
 }
 
-buffer_write_string :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error) {
+buffer_write_string_u16 :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error) {
 	count := u16be(len(text))
 	buffer_write_type(b, count) or_return
-	bytes.buffer_write_string(b, text) or_return
+	// TODO is this utf8 safe?
+	bytes.buffer_write_string(b, text[:count]) or_return
+	return
+}
+
+buffer_write_string_u8 :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error) {
+	count := u8(len(text))
+	buffer_write_type(b, count) or_return
+	// TODO is this utf8 safe?
+	bytes.buffer_write_string(b, text[:count]) or_return
 	return
 }
 
@@ -150,6 +178,8 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 		bytes.buffer_write_string(&buffer, strings.to_string(task.box.builder)) or_return
 	}
 
+	editor_save_tag_colors(&buffer) or_return
+
 	// write line to buffer if it doesnt exist yet
 	opt_write_line :: proc(buffer: ^bytes.Buffer, state: ^bool, index: int) -> (err: io.Error) {
 		if !state^ {
@@ -185,13 +215,13 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 		if image_display_has_content(task.image_display) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Image_Path) or_return
-			buffer_write_string(&buffer, task.image_display.img.cloned_path) or_return
+			buffer_write_string_u16(&buffer, task.image_display.img.cloned_path) or_return
 		}
 
 		if task_link_is_valid(task) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Link_Path) or_return
-			buffer_write_string(&buffer, strings.to_string(task.button_link.builder)) or_return
+			buffer_write_string_u8(&buffer, strings.to_string(task.button_link.builder)) or_return
 		}
 
 		if task_seperator_is_valid(task) {
@@ -259,8 +289,11 @@ editor_load_version :: proc(
 			for i in 0..<header.task_count {
 				block_task := reader_read_type(reader, Save_Task) or_return
 				text_byte_content := reader_read_bytes_out(reader, int(block_task.text_size)) or_return
+				word := string(text_byte_content[:])
 
-				line := task_push(int(block_task.indentation), string(text_byte_content[:]))
+				spell_check_mapping_words_add(word)
+
+				line := task_push(int(block_task.indentation), word)
 				line.state = Task_State(block_task.state)
 				line.tags = block_task.tags
 			}
@@ -313,6 +346,70 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 	return 
 }
 
+editor_save_tag_colors :: proc(b: ^bytes.Buffer) -> (err: io.Error) {
+	header := Save_Tag_Color_Header {
+		signature = save_tag_color_signature,
+		version = 1,
+		tag_mode = u8(options_tag_mode()),
+	}
+
+	// write out header with wanted info
+	buffer_write_type(b, header) or_return
+
+	// write out small string content 
+	for i in 0..<8 {
+		buffer_write_string_u8(b, strings.to_string(sb.tags.names[i]^)) or_return
+	}	
+
+	// write out colors
+	for i in 0..<8 {
+		buffer_write_color(b, theme.tags[i]) or_return
+	}
+
+	return
+}
+
+editor_read_tag_colors :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
+	// peek for tag save color byte signature
+	if bytes.reader_length(reader) > 8 {
+		signature := reader.s[reader.i:reader.i + 8]
+
+		if mem.compare(signature, save_tag_color_signature[:]) != 0 {
+			log.warn("LOAD: Save Tag Color Signature not found")
+		} else {
+			// found, read entire header
+			header := reader_read_type(reader, Save_Tag_Color_Header) or_return
+			
+			switch header.version {
+				case: {
+					log.warn("LOAD: unknown header version")
+				}
+
+				case 1: {
+					sb.tags.tag_show_mode = int(header.tag_mode)
+					toggle_selector_set(sb.tags.toggle_selector_tag, int(header.tag_mode))
+
+					for i in 0..<8 {
+						text_length := reader_read_type(reader, u8) or_return
+						text_content := reader_read_bytes_out(reader, int(text_length)) or_return
+						b := sb.tags.names[i]
+						strings.builder_reset(b)
+						strings.write_string(b, transmute(string) text_content)
+					}
+
+					for i in 0..<8 {
+						color := reader_read_type(reader, u32be) or_return
+						// CHECK is this safe to do since endianness?
+						theme.tags[i] = transmute(Color) color
+					}
+				}
+			}
+		}
+	}
+
+	return
+}
+
 editor_load :: proc(file_path: string) -> (err: io.Error) {
 	file_data, ok := os.read_entire_file(file_path)
 	defer delete(file_data)
@@ -333,6 +430,7 @@ editor_load :: proc(file_path: string) -> (err: io.Error) {
 		return
 	} 
 
+	spell_check_clear_user()
 	tasks_load_reset()
 
 	// header block
@@ -341,13 +439,14 @@ editor_load :: proc(file_path: string) -> (err: io.Error) {
 	block_size := reader_read_type(&reader, u32be) or_return
 	log.info("SAVE FILE FOUND VERSION", version)
 	editor_load_version(&reader, block_size, version) or_return
+	editor_read_tag_colors(&reader) or_return
 	editor_read_opt_tags(&reader) or_return
 
 	return
 }
 
 reader_read_type :: proc(r: ^bytes.Reader, $T: typeid) -> (output: T, err: io.Error) {
-	if r.i + size_of(T) >= i64(len(r.s)) {
+	if r.i + size_of(T) - 1 >= i64(len(r.s)) {
 		err = .EOF
 		return
 	}
@@ -416,11 +515,6 @@ Misc_Save_Load :: struct {
 		progressbar_hover_only: bool,
 	},
 
-	tags: struct {
-		names: [8]string,
-		tag_mode: int,
-	},
-
 	pomodoro: struct {
 		index: int,
 
@@ -457,23 +551,24 @@ json_save_misc :: proc(path: string) -> bool {
 	arena, _ := arena_scoped(mem.Megabyte * 10)
 	context.allocator = mem.arena_allocator(&arena)
 
-	// set tag data
-	tag_colors: [8]u32
-	tag_names: [8]string
-	for i in 0..<8 {
-		tag := sb.tags.names[i]
-		tag_names[i] = strings.to_string(tag^)
-	}
-
 	// create theme save data
 	theme_save: Theme_Save_Load
 	{
-		count := size_of(Theme) / size_of(Color)
-		for i in 0..<count {
-			from := mem.ptr_offset(cast(^Color) &theme, i)
-			to := mem.ptr_offset(cast(^u32) &theme_save, i)
-			to^ = transmute(u32) from^
-		}
+		// NOTE dumb but it works :D
+		theme_save.background = transmute([3]u32) theme.background
+		theme_save.panel = transmute([2]u32) theme.panel
+
+		theme_save.text_default = transmute(u32) theme.text_default
+		theme_save.text_blank = transmute(u32) theme.text_blank
+		theme_save.text_good = transmute(u32) theme.text_good
+		theme_save.text_bad = transmute(u32) theme.text_bad
+		theme_save.text_date = transmute(u32) theme.text_date
+		theme_save.text_link = transmute(u32) theme.text_link
+
+		theme_save.shadow = transmute(u32) theme.shadow
+
+		theme_save.caret = transmute(u32) theme.caret
+		theme_save.caret_selection = transmute(u32) theme.caret_selection
 	}
 
 	pomodoro_diff := time.stopwatch_duration(pomodoro.stopwatch)
@@ -544,11 +639,6 @@ json_save_misc :: proc(path: string) -> bool {
 			progressbar_show(),
 			progressbar_percentage(),
 			progressbar_hover_only(),
-		},
-
-		tags = {
-			tag_names,
-			options_tag_mode(),
 		},
 
 		pomodoro = {
@@ -660,14 +750,14 @@ json_load_misc :: proc(path: string) -> bool {
 		slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
 	}
 
-	// tag data
-	sb.tags.tag_show_mode = misc.tags.tag_mode
-	toggle_selector_set(sb.tags.toggle_selector_tag, misc.tags.tag_mode)
-	for i in 0..<8 {
-		tag := sb.tags.names[i]
-		strings.builder_reset(tag)
-		strings.write_string(tag, misc.tags.names[i])
-	}	
+	// // tag data
+	// sb.tags.tag_show_mode = misc.tags.tag_mode
+	// toggle_selector_set(sb.tags.toggle_selector_tag, misc.tags.tag_mode)
+	// for i in 0..<8 {
+	// 	tag := sb.tags.names[i]
+	// 	strings.builder_reset(tag)
+	// 	strings.write_string(tag, misc.tags.names[i])
+	// }	
 
 	// options
 	slider_set(sb.options.slider_tab, misc.options.tab)

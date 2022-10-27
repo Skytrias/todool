@@ -1372,7 +1372,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if options_spell_checking() && task_head != -1 && task_head == task_tail {
 				render_push_clip(target, panel.clip)
 				task := tasks_visible[task_head] 
-				words_highlight_missing(target, task)
+				spell_check_render_missing_words(target, task)
 			}
 
 			// TODO looks shitty when swapping

@@ -21,7 +21,7 @@ import "../spall"
 import "../cutf8"
 import "../art"
 
-TRACK_MEMORY :: false
+TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 
 // KEYMAP REWORK
@@ -296,6 +296,9 @@ main_update :: proc(window: ^Window) {
 			task := tasks_visible[old_task_head]
 			manager := mode_panel_manager_begin()
 			box_force_changes(manager, task.box)
+
+			// add spell checking results to user dictionary
+			spell_check_mapping_words_add(strings.to_string(task.box.builder))
 		}
 	}
 
