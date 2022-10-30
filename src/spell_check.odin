@@ -10,7 +10,9 @@ import "core:strings"
 import "../cutf8"
 import "../spall"
 import "../fontstash"
-import "../art"
+import "../btrie"
+
+DISABLE_USER :: true
 
 // TODO changes for strings interning
 // clear interned content?
@@ -132,8 +134,8 @@ spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 
 // build the ebook to a compressed format
 compressed_trie_build :: proc() {
-	art.ctrie_init(80000)
-	defer art.ctrie_destroy()
+	btrie.ctrie_init(80000)
+	defer btrie.ctrie_destroy()
 
 	bytes, ok := os.read_entire_file("../assets/big.txt", context.allocator)
 	defer delete(bytes)
@@ -157,26 +159,27 @@ compressed_trie_build :: proc() {
 		} else {
 			if word_index != 0 {
 				w := transmute(string) word[:word_index]
-				art.ctrie_insert(w)
+				btrie.ctrie_insert(w)
 			}
 
 			word_index = 0
 		}
 	}
 	
-	art.ctrie_print_size()
+	btrie.ctrie_print_size()
 
 	// init compressed tree
-	art.comp_init(mem.Megabyte * 2)
-	art.comp_push_ctrie(art.ctrie_root(), nil)
-	art.comp_print_size()
+	btrie.comp_init(mem.Megabyte * 2)
+	btrie.comp_push_ctrie(btrie.ctrie_root(), nil)
+	btrie.comp_print_size()
+	btrie.comp_print()
 
-	art.comp_write_to_file("../assets/comp_trie.bin")
-	art.comp_destroy()
+	btrie.comp_write_to_file("../assets/comp_trie.bin")
+	btrie.comp_destroy()
 }
 
 spell_check_init :: proc() {
-	art.comp_read_from_file("../assets/comp_trie.bin")
+	btrie.comp_read_from_file("../assets/comp_trie.bin")
 	sc.word_results = make([dynamic]Word_Result, 0, 32)
 	
 	// backing string data for the dict
@@ -194,7 +197,7 @@ spell_check_clear_user :: proc() {
 }
 
 spell_check_destroy :: proc() {
-	art.comp_destroy()
+	btrie.comp_destroy()
 	delete(sc.word_results)
 	delete(sc.user_backing)
 	strings.intern_destroy(&sc.user_intern)
@@ -203,11 +206,13 @@ spell_check_destroy :: proc() {
 // check if the word exists in the english dictionary 
 // or in the user dictionary
 spell_check_mapping :: proc(key: string) -> (res: bool) {
-	res = art.comp_search(key)
+	res = btrie.comp_search(key)
 
 	if !res {
-		_, found := sc.user_intern.entries[key]
-		res = found
+		when !DISABLE_USER {
+			_, found := sc.user_intern.entries[key]
+			res = found
+		}
 	}
 
 	return
@@ -224,7 +229,7 @@ spell_check_mapping_words_add :: proc(word: string) {
 
 spell_check_mapping_add :: proc(key: string) -> bool {
 	// only if the key doesnt exist in the compressed trie
-	if !art.comp_search(key) {
+	if !btrie.comp_search(key) {
 		_, err := strings.intern_get(&sc.user_intern, key)
 		// fmt.eprintln("added --->", key)
 		return err == nil

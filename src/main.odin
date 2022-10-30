@@ -19,7 +19,7 @@ import sdl "vendor:sdl2"
 import "../fontstash"
 import "../spall"
 import "../cutf8"
-import "../art"
+import "../btrie"
 
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
@@ -51,20 +51,46 @@ TODOOL_RELEASE :: false
 import "../regex"
 
 main :: proc() {
-	// fmt.eprintln("\tstart")
-	// defer fmt.eprintln("\tend")
+	fmt.eprintln("~~~START~~~")
+	defer fmt.eprintln("~~~ END ~~~")
 
-	// fmt.eprintln(regex.match("xyz", "testxyzyo"))
-	// fmt.eprintln(regex.match("xyz", "testxyyo      xz"))
-	// fmt.eprintln(regex.match("+a", "test"))
+	state := regex.state_init()
+	defer regex.state_destroy(&state)
 
-	// regex.
+	res, err := regex.compile(&state, "abba")
+	fmt.eprintln("compile", res, err)
+	regex.state_print(&state)
 
-	res, err := regex.re2post("a(bb)+a")
-	fmt.eprintln(string(res), err)
+	// call :: proc(regexp: string, key: string) {
+	// 	post, err := regex.re2post(regexp)
+	// 	if err != .None {
+	// 		fmt.eprintln("ERR: re2post %v = %v", post, err)
+	// 		return
+	// 	}
+
+	// 	fmt.eprintln("res:", string(post))
+	// 	start := regex.post2nfa(string(post))
+	// 	if start == nil {
+	// 		fmt.eprintln("ERR: post2nfa nil")
+	// 		return
+	// 	}
+
+	// 	fmt.eprintln("state count", regex.nstate, start)
+	// 	regex.lists_init()
+
+	// 	fmt.eprintln("~~~")
+	// 	if regex.match(start, key) {
+	// 		fmt.eprintln("matched!", key)
+	// 	} else {
+	// 		fmt.eprintln("no match found :(")
+	// 	}
+	// }
+
+	// call("abba", "abba")
+	// // call("a", "a")
 }
 
-main5 :: proc() {
+main55 :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
