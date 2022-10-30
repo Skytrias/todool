@@ -4,7 +4,6 @@ import "core:unicode"
 import "core:fmt"
 import "core:reflect"
 import "core:io"
-import "core:bytes"
 import "core:mem"
 import "core:strings"
 
@@ -27,65 +26,45 @@ Regex_Type :: enum u8 {
 	Not_Whitespace, 
 }
 
-// byte buffer to store more dynamic data
-// only type + additional data stored
-State :: struct {
-	buffer: bytes.Buffer,
+Re :: struct #packed {
+	type: Regex_Type,
+	c: u8,
 }
 
-state_init :: proc(cap: int = mem.Kilobyte) -> (res: State) {
-	bytes.buffer_init_allocator(&res.buffer, 0, cap)
-	return
-}
-
-state_destroy :: proc(state: ^State) {
-	bytes.buffer_destroy(&state.buffer)
-}
-
-state_push_type :: proc(state: ^State, type: Regex_Type) -> (err: io.Error) {
-	bytes.buffer_write_byte(&state.buffer, transmute(u8) type) or_return
-	return
-}
-
-state_push_type_char :: proc(state: ^State, c: u8) -> (err: io.Error) {
-	bytes.buffer_write_byte(&state.buffer, transmute(u8) Regex_Type.Char) or_return
-	bytes.buffer_write_byte(&state.buffer, c) or_return
-	return
-}
-
-compile :: proc(state: ^State, pattern: string) -> (res: []byte, err: io.Error) {
-	bytes.buffer_reset(&state.buffer)
+compile :: proc(push: ^[dynamic]Re, pattern: string) -> (res: []Re, ok: bool) {
+	clear(push)
 	p := pattern
+	ok = true
 	
 	for len(p) > 0 {
 		c := p[0]
 		defer p = p[1:]
 
 		switch c {
-			case '^': state_push_type(state, .Begin) or_return
-			case '$': state_push_type(state, .End) or_return
-			case '.': state_push_type(state, .Dot) or_return
-			case '*': state_push_type(state, .Star) or_return
-			case '+': state_push_type(state, .Plus) or_return
-			case '?': state_push_type(state, .Questionmark) or_return
+			case '^': append(push, Re { type = .Begin })
+			case '$': append(push, Re { type = .End })
+			case '.': append(push, Re { type = .Dot })
+			case '*': append(push, Re { type = .Star })
+			case '+': append(push, Re { type = .Plus })
+			case '?': append(push, Re { type = .Questionmark })
 
 			// escaped character classes
 			case '\\': {
-				if len(pattern) > 1 {
+				if len(p) > 1 {
 					p = p[1:]
 
-					switch pattern[0] {
+					switch p[0] {
 						// meta character
-						case 'd': state_push_type(state, .Digit) or_return
-						case 'D': state_push_type(state, .Not_Digit) or_return
-						case 'w': state_push_type(state, .Alpha) or_return
-						case 'W': state_push_type(state, .Not_Alpha) or_return
-						case 's': state_push_type(state, .Whitespace) or_return
-						case 'S': state_push_type(state, .Not_Whitespace) or_return
+						case 'd': append(push, Re { type = .Digit }) 
+						case 'D': append(push, Re { type = .Not_Digit })
+						case 'w': append(push, Re { type = .Alpha }) 
+						case 'W': append(push, Re { type = .Not_Alpha })
+						case 's': append(push, Re { type = .Whitespace }) 
+						case 'S': append(push, Re { type = .Not_Whitespace })
 
 						// push escaped character
 						case: {
-							state_push_type_char(state, pattern[0]) or_return
+							append(push, Re { .Char, p[0] })
 						}
 					}
 				}
@@ -98,36 +77,27 @@ compile :: proc(state: ^State, pattern: string) -> (res: []byte, err: io.Error) 
 
 			case: {
 				// fmt.eprintln("push")
-				state_push_type_char(state, c) or_return
+				append(push, Re { .Char, c })
 			}
 		}
 
 		// end
 	}
 	
-	state_push_type(state, .Unused) or_return
+	append(push, Re { type = .Unused })
 
 	// get result
-	res = state.buffer.buf[:]
-	return
+	res = push[:]
+	return 
 }
 
-state_print :: proc(state: ^State) {
-	if bytes.buffer_is_empty(&state.buffer) {
-		return
-	}
-
-	print(state.buffer.buf[:])
-}
-
-print :: proc(data: []byte) {
+print :: proc(data: []Re) {
 	b := data
 	enum_names := reflect.enum_field_names(Regex_Type)
 
 	for len(b) > 0 {
-		type := transmute(Regex_Type) b[0]
+		type := b[0].type
 		type_index := int(type)
-		defer b = b[1:]
 
 		// exit early
 		if type == .Unused {
@@ -139,29 +109,31 @@ print :: proc(data: []byte) {
 		if type == .Char_Class || type == .Inv_Char_Class {
 			// TODO
 		} else  if type == .Char {
-			b = b[1:]
-			c := b[0]
-			fmt.eprintf(" %v", rune(c))
+			fmt.eprintf(" %v", rune(b[0].c))
 		}
 
 		fmt.eprintf("\n")
+		b = b[1:]
 	}
 }
 
 match_digit_ascii :: proc(c: u8) -> bool {
-	return false
+	return '0' <= c && c <= '9'
 }
 match_digit_utf8 :: unicode.is_digit
 match_digit :: proc { match_digit_utf8, match_digit_ascii }
 
 match_alpha_ascii :: proc(c: u8) -> bool {
-	return false
+	return ('A' <= c && c <= 'Z') || ('a' <= c && c <= 'z')
 }
 match_alpha_utf8 :: unicode.is_alpha
 match_alpha :: proc { match_alpha_utf8, match_alpha_ascii }
 
 match_whitespace_ascii :: proc(c: u8) -> bool {
-	return false  	
+	switch c {
+	case '\t', '\n', '\v', '\f', '\r', ' ', 0x85, 0xa0: return true
+	case:                                               return false
+	} 	
 }
 match_whitespace_utf8 :: unicode.is_space
 match_whitespace :: proc { match_whitespace_utf8, match_whitespace_ascii }
@@ -266,11 +238,10 @@ match_char_class_utf8 :: proc(c: rune, str: string) -> bool {
 match_char_class :: proc { match_char_class_utf8, match_char_class_ascii }
 
 match_one_ascii :: proc(
-	b: ^[]byte,
-	type: Regex_Type, 
+	p: Re, 
 	c: u8,
 ) -> bool {
-	#partial switch type {
+	#partial switch p.type {
 		case .Dot: return match_dot_ascii(c)
 		// TODO
 		case .Char_Class: return match_char_class_ascii(c, "")
@@ -285,12 +256,8 @@ match_one_ascii :: proc(
 		
 		// interpret dynamic data
 		case: {
-			// check byte in data
-			read_char := b[1]
-			b^ = b[1:]
-
-			// fmt.eprintln("has to match", rune(read_char), rune(t[0]))
-			return read_char == c
+			fmt.eprintln("matching one:", rune(p.c), rune(c), p.c == c)
+			return p.c == c
 		}
 	}
 
@@ -306,85 +273,179 @@ match_one :: proc { match_one_utf8, match_one_ascii }
   	
 // }
 
-match_pattern_ascii :: proc(data: []byte, text: string) -> (match_length: int) {
-	b := data
-	t := text
-
-	fmt.eprintln(text, data)
-
-	for len(b) > 0 && len(t) > 0 {
-		type := transmute(Regex_Type) b[0]
-		
-		// only when there are two valid bytes next
-		if len(b) > 2 {
-			next := transmute(Regex_Type) b[1]
-
-			if type == .Unused || next == .Questionmark {
-				// return match_question
-			} else if next == .Star {
-				// return match_star_ascii(type, t, &match_length)
-			} else if next == .Plus {
-
-			} 
- 		} else if len(b) > 1 {
-			next := transmute(Regex_Type) b[1]
-
-			// end early?
- 			if type == .End && next == .Unused {
- 				if len(t) == 0 {
- 					return 
- 				}
- 			}
- 		}
-
- 		// advance match length
-		match_length += 1
-		
-		// if !match_one_ascii(type, t[0], &b) {
-		// 	return
-		// }
-
-		b = b[1:]
-		t = t[1:]
-	}
-
-	return
-}
-
-state_match :: proc(state: ^State, regexp, text: string) -> int {
-	res, err := compile(state, regexp)
-	state_print(state)
-
-	if err == nil {
-		return match_pattern_ascii(res, text)
-	} 
-
-	return 0
-}
-
 match_star_ascii :: proc(
-	type: Regex_Type, 
+	b: []Re,
+	p: Re, 
 	text: string,
 	match_length: ^int,
 ) -> bool {
 	pre_length := match_length^
-	pre_point := text
 	text_offset := 0
 
-	// for len(t) > 0 && match_one_ascii(type, t) {
-	// 	t = t[1:]
-	// 	match_length^ += 1
-	// }
+	for len(text) > text_offset && match_one_ascii(p, text[text_offset]) {
+		text_offset += 1
+		match_length^ += 1
+	}
 
-	// for len(t) >= pre_point {
-	// 	if match_pattern_ascii(data, ) {
-	// 		return true
-	// 	}
+	for text_offset >= 0 {
+		if match_pattern_ascii(b, text[text_offset:], match_length) {
+			return true
+		}
 
-	// 	t := t[]
-	// 	match_length^ -= 1
-	// }
+		text_offset -= 1
+		match_length^ -= 1
+	}
 
 	match_length^ = pre_length
 	return false
 }
+
+match_plus_ascii :: proc(
+	b: []Re,
+	p: Re, 
+	text: string,
+	match_length: ^int,
+) -> bool {
+	text_offset := 0
+	fmt.eprintln("+++try")
+
+	for len(text) > text_offset && match_one_ascii(p, text[text_offset]) {
+		fmt.eprintln("match +++++", text_offset)
+		text_offset += 1
+		match_length^ += 1
+	}
+
+	fmt.eprintln("mid+++++", text_offset)
+
+	for text_offset > 0 {
+		fmt.eprintln("it", text_offset, text[text_offset:])
+
+		if match_pattern_ascii(b, text[text_offset:], match_length) {
+			return true
+		}
+
+		text_offset -= 1
+		match_length^ -= 1
+	}
+
+	return false
+}
+
+match_question_ascii :: proc(
+	b: []Re,
+	p: Re, 
+	text: string,
+	match_length: ^int,
+) -> bool {
+	if p.type == .Unused {
+		return true
+	}
+
+	if match_pattern_ascii(b, text, match_length) {
+		return true
+	}
+
+	if len(text) > 0 {
+		// TODO maybe text[1]?
+		if match_one_ascii(p, text[0]) {
+			if match_pattern_ascii(b, text[1:], match_length) {
+				match_length^ += 1
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+match_pattern_ascii :: proc(b: []Re, text: string, match_length: ^int) -> bool {
+	t := text
+	pre := match_length^	
+	b := b
+	fmt.eprintln("PATTERN", text)
+	fmt.eprintln("\tWITH", b)
+
+	for len(b) > 0 && len(t) > 0 {
+		p0 := b[0]
+		
+		// only when there are two valid bytes next
+		if len(b) > 1 {
+			p1 := b[1]
+			// fmt.eprintln("check extra", p0.type, p1.type)
+
+			if p0.type == .Unused || p1.type == .Questionmark {
+				return match_question_ascii(b[2:], p0, t, match_length)
+			} else if p1.type == .Star {
+				return match_star_ascii(b[2:], p0, t, match_length)
+			} else if p1.type == .Plus {
+				fmt.eprintln("check extra")
+				return match_plus_ascii(b[2:], p0, t, match_length)
+			} else if p0.type == .End && p1.type == .Unused {
+				// end early?
+ 				if len(t) == 0 {
+ 					return true
+ 				}
+
+ 				return false
+ 			}
+ 		}
+
+ 		// advance match length
+		// match_length^ += 1
+		
+		if !match_one_ascii(p0, t[0]) {
+			break
+		}
+
+		match_length^ += 1
+		b = b[1:]
+		t = t[1:]
+	}
+
+	match_length^ = pre
+	return false
+}
+
+// match_
+
+match :: proc(pattern: string, text: string, match_length: ^int) -> int {
+	push := make([dynamic]Re, 0, 128, context.temp_allocator)
+	res, _ := compile(&push, pattern)
+	return matchp(res, text, match_length)
+}
+
+matchp :: proc(pattern: []Re, text: string, match_length: ^int) -> int {
+	match_length^ = 0 
+	text_offset: int
+
+	if len(pattern) != 0 {
+		if pattern[0].type == .Begin {
+			// return
+		} else {
+			t := text
+			
+			// reset iteration on fail
+			for len(text) > text_offset {
+				fmt.eprintln("--------------------------")
+				if match_pattern_ascii(pattern, text[text_offset:], match_length) {
+					return text_offset
+				}
+
+				text_offset += 1
+			}
+		}
+	}
+
+	return -1
+}
+
+// match_ :: proc(regexp, text: string) -> (match_length: int, found: bool) {
+// 	res, ok := compile(&push, regexp)
+// 	print(res)
+
+// 	if ok {
+// 		found = match_pattern_ascii(res, text, &match_length)
+// 	} 
+
+// 	return
+// }

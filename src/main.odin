@@ -50,21 +50,24 @@ TODOOL_RELEASE :: false
 
 import "../regex"
 
-main3 :: proc() {
+main :: proc() {
 	fmt.eprintln("~~~START~~~")
 	defer fmt.eprintln("~~~ END ~~~")
 
-	state := regex.state_init()
-	defer regex.state_destroy(&state)
+	// state := regex.state_init()
+	// defer regex.state_destroy(&state)
 
-	// res, err := regex.compile(&state, "abba")
-	// fmt.eprintln("compile", res, err)
-	// regex.state_print(&state)
-	match_length := regex.state_match(&state, "abba", "abzba")
-	fmt.eprintln("Match length", match_length)
+	// push := make([dynamic]regex.Re, 0, 100)
+	// res, ok := regex.compile(&push, "abba")
+	// fmt.eprintln("compile", res, ok)
+	// regex.print(res)
+	
+	match_length: int
+	offset := regex.match("abb+a", "abba", &match_length)
+	fmt.eprintln("Match length", match_length, offset)
 }
 
-main :: proc() {
+main8 :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
