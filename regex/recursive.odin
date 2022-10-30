@@ -97,7 +97,7 @@ compile :: proc(state: ^State, pattern: string) -> (res: []byte, err: io.Error) 
 			}
 
 			case: {
-				fmt.eprintln("push")
+				// fmt.eprintln("push")
 				state_push_type_char(state, c) or_return
 			}
 		}
@@ -265,7 +265,11 @@ match_char_class_utf8 :: proc(c: rune, str: string) -> bool {
 }
 match_char_class :: proc { match_char_class_utf8, match_char_class_ascii }
 
-match_one_ascii :: proc(type: Regex_Type, c: u8, data: rawptr) -> bool {
+match_one_ascii :: proc(
+	b: ^[]byte,
+	type: Regex_Type, 
+	c: u8,
+) -> bool {
 	#partial switch type {
 		case .Dot: return match_dot_ascii(c)
 		// TODO
@@ -281,10 +285,16 @@ match_one_ascii :: proc(type: Regex_Type, c: u8, data: rawptr) -> bool {
 		
 		// interpret dynamic data
 		case: {
-			other := (cast(^u8) data)^
-			return c == other
+			// check byte in data
+			read_char := b[1]
+			b^ = b[1:]
+
+			// fmt.eprintln("has to match", rune(read_char), rune(t[0]))
+			return read_char == c
 		}
 	}
+
+	return false
 }
 match_one_utf8 :: proc(type: Regex_Type, c: rune) -> bool {
 	// TODO
@@ -296,41 +306,85 @@ match_one :: proc { match_one_utf8, match_one_ascii }
   	
 // }
 
-match_pattern_ascii :: proc(data: []byte, text: string) -> (res: int) {
+match_pattern_ascii :: proc(data: []byte, text: string) -> (match_length: int) {
 	b := data
 	t := text
 
-	btype :: #force_inline proc(b: u8) -> Regex_Type {
-		return transmute(Regex_Type) b
-	}
+	fmt.eprintln(text, data)
 
-	for len(b) > 0 {
-		type := btype(b[0])
+	for len(b) > 0 && len(t) > 0 {
+		type := transmute(Regex_Type) b[0]
 		
-		// advance
-		defer {
-			b = b[1:]
-			t = t[1:]
-		}
-
+		// only when there are two valid bytes next
 		if len(b) > 2 {
 			next := transmute(Regex_Type) b[1]
 
 			if type == .Unused || next == .Questionmark {
 				// return match_question
 			} else if next == .Star {
-
+				// return match_star_ascii(type, t, &match_length)
 			} else if next == .Plus {
 
 			} 
  		} else if len(b) > 1 {
 			next := transmute(Regex_Type) b[1]
 
+			// end early?
  			if type == .End && next == .Unused {
- 				return len(t
+ 				if len(t) == 0 {
+ 					return 
+ 				}
  			}
  		}
+
+ 		// advance match length
+		match_length += 1
+		
+		// if !match_one_ascii(type, t[0], &b) {
+		// 	return
+		// }
+
+		b = b[1:]
+		t = t[1:]
 	}
 
+	return
+}
+
+state_match :: proc(state: ^State, regexp, text: string) -> int {
+	res, err := compile(state, regexp)
+	state_print(state)
+
+	if err == nil {
+		return match_pattern_ascii(res, text)
+	} 
+
 	return 0
+}
+
+match_star_ascii :: proc(
+	type: Regex_Type, 
+	text: string,
+	match_length: ^int,
+) -> bool {
+	pre_length := match_length^
+	pre_point := text
+	text_offset := 0
+
+	// for len(t) > 0 && match_one_ascii(type, t) {
+	// 	t = t[1:]
+	// 	match_length^ += 1
+	// }
+
+	// for len(t) >= pre_point {
+	// 	if match_pattern_ascii(data, ) {
+	// 		return true
+	// 	}
+
+	// 	t := t[]
+	// 	match_length^ -= 1
+	// }
+
+	match_length^ = pre_length
+	return false
 }

@@ -50,47 +50,21 @@ TODOOL_RELEASE :: false
 
 import "../regex"
 
-main :: proc() {
+main3 :: proc() {
 	fmt.eprintln("~~~START~~~")
 	defer fmt.eprintln("~~~ END ~~~")
 
 	state := regex.state_init()
 	defer regex.state_destroy(&state)
 
-	res, err := regex.compile(&state, "abba")
-	fmt.eprintln("compile", res, err)
-	regex.state_print(&state)
-
-	// call :: proc(regexp: string, key: string) {
-	// 	post, err := regex.re2post(regexp)
-	// 	if err != .None {
-	// 		fmt.eprintln("ERR: re2post %v = %v", post, err)
-	// 		return
-	// 	}
-
-	// 	fmt.eprintln("res:", string(post))
-	// 	start := regex.post2nfa(string(post))
-	// 	if start == nil {
-	// 		fmt.eprintln("ERR: post2nfa nil")
-	// 		return
-	// 	}
-
-	// 	fmt.eprintln("state count", regex.nstate, start)
-	// 	regex.lists_init()
-
-	// 	fmt.eprintln("~~~")
-	// 	if regex.match(start, key) {
-	// 		fmt.eprintln("matched!", key)
-	// 	} else {
-	// 		fmt.eprintln("no match found :(")
-	// 	}
-	// }
-
-	// call("abba", "abba")
-	// // call("a", "a")
+	// res, err := regex.compile(&state, "abba")
+	// fmt.eprintln("compile", res, err)
+	// regex.state_print(&state)
+	match_length := regex.state_match(&state, "abba", "abzba")
+	fmt.eprintln("Match length", match_length)
 }
 
-main55 :: proc() {
+main :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
