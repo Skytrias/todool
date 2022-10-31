@@ -54,17 +54,9 @@ main :: proc() {
 	fmt.eprintln("~~~START~~~")
 	defer fmt.eprintln("~~~ END ~~~")
 
-	// state := regex.state_init()
-	// defer regex.state_destroy(&state)
-
-	// push := make([dynamic]regex.Re, 0, 100)
-	// res, ok := regex.compile(&push, "abba")
-	// fmt.eprintln("compile", res, ok)
-	// regex.print(res)
-	
-	match_length: int
-	offset := regex.match("abb+a", "abba", &match_length)
-	fmt.eprintln("Match length", match_length, offset)
+	// pos, offset, err := regex.match_string("Hai-foobar", "f[o]+bar")
+	pos, offset, err := regex.match_string("abb+a", "123abba123abbab", { .ASCII_Only })
+	fmt.eprintln("match?", pos, offset, err)
 }
 
 main8 :: proc() {
