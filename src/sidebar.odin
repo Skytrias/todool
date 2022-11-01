@@ -275,6 +275,10 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		b2 := image_button_init(panel_info, { .HF }, .Kanban, SIZE, SIZE, mode_based_button_message)
 		b2.hover_info = "Kanban Mode"
 	}	
+
+	when PRESENTATION_MODE {
+		element_hide(panel_info, true)
+	}
 }
 
 sidebar_enum_panel_init :: proc(parent: ^Element) {
@@ -482,7 +486,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 		top := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background })
 		top.rounded = true
-		top.background_index = 2;
+		top.background_index = 2
 
 		b1 := button_init(top, { .HF }, "Clear")
 		b1.hover_info = "Clear all archive entries"
@@ -505,6 +509,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			last_was_task_copy = true
 			element_repaint(mode_panel)
 
+			// TODO FIX THIS
 			for i in low..<high + 1 {
 				button := cast(^Archive_Button) c[len(c) - 1 - i]
 				copy_push_empty(strings.to_string(button.builder))

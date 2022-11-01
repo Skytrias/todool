@@ -12,7 +12,7 @@ import "../spall"
 import "../fontstash"
 import "../btrie"
 
-DISABLE_USER :: true
+DISABLE_USER :: false
 
 // TODO changes for strings interning
 // clear interned content?

@@ -1452,12 +1452,12 @@ Panel :: struct {
 
 panel_calculate_per_fill :: proc(panel: ^Panel, hspace, vspace: int) -> (per_fill, count: int) {
 	horizontal := .Panel_Horizontal in panel.flags 
-	available := horizontal ? hspace : vspace;
+	available := horizontal ? hspace : vspace
 	fill: int
 
 	for child in panel.children {
 		if (.Hide in child.flags) || (.Non_Client) in child.flags {
-			continue;
+			continue
 		}
 
 		count += 1
@@ -2177,6 +2177,12 @@ scrollbar_inactive :: proc(scrollbar: ^Scrollbar) -> bool {
 
 scrollbar_valid :: proc(scrollbar: ^Scrollbar) -> bool {
 	return scrollbar != nil && (.Hide not_in scrollbar.flags)
+}
+
+scrollbar_position_set :: #force_inline proc(scrollbar: ^Scrollbar, pos: f32) {
+	if scrollbar != nil {
+		scrollbar.position = pos
+	}
 }
 
 //////////////////////////////////////////////
@@ -3330,11 +3336,11 @@ image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 		}
 
 		case .Get_Width: {
-			return has_content ? display.img.width : 100;
+			return has_content ? display.img.width : 100
 		}
 
 		case .Get_Height: {
-			return has_content ? display.img.height : 100;
+			return has_content ? display.img.height : 100
 		}
 	}
 

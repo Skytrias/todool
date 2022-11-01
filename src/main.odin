@@ -23,6 +23,7 @@ import "../btrie"
 
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
+PRESENTATION_MODE :: false
 
 // KEYMAP REWORK
 // add super key
@@ -48,18 +49,30 @@ TODOOL_RELEASE :: false
 // 	gs_message_loop()			
 // }
 
-import "../regex"
+// import "../regex"
+
+// main :: proc() {
+// 	fmt.eprintln("~~~START~~~")
+// 	defer fmt.eprintln("~~~ END ~~~")
+
+// 	// b1 := regex.Bset {}
+// 	// fmt.eprintln(b1)
+// 	// // fmt.eprintln(regex.bbyte(80))
+// 	// fmt.eprintln(regex.bbyte(0))
+// 	// fmt.eprintln(b1)
+
+// 	re, g, ok := regex.parse_expr("foobar")
+// 	// fmt.eprintln(re)
+// 	// fmt.eprintln(g)
+// 	// fmt.eprintln(ok)
+// 	// fmt.eprintln("damn")
+
+// 	// pos, offset, err := regex.match_string("Hai-foobar", "f[o]+bar")
+// 	// pos, offset, err := regex.match_string("abb+a", "123abba123abbab", { .ASCII_Only })
+// 	// fmt.eprintln("match?", pos, offset, err)
+// }
 
 main :: proc() {
-	fmt.eprintln("~~~START~~~")
-	defer fmt.eprintln("~~~ END ~~~")
-
-	// pos, offset, err := regex.match_string("Hai-foobar", "f[o]+bar")
-	pos, offset, err := regex.match_string("abb+a", "123abba123abbab", { .ASCII_Only })
-	fmt.eprintln("match?", pos, offset, err)
-}
-
-main8 :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
@@ -147,7 +160,11 @@ main8 :: proc() {
 	// do actual loading later because options might change the path
 	gs_update_after_load()
 	spall.end(0)
-	
+
+	when PRESENTATION_MODE {
+		window_border_set(window_main, false)
+	}
+
 	defer {
 		intrinsics.atomic_store(&main_thread_running, false)
 	}

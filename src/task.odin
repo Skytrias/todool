@@ -1369,10 +1369,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			ss_draw_highlights(target, panel)
 
 			// word error highlight
-			if options_spell_checking() && task_head != -1 && task_head == task_tail {
-				render_push_clip(target, panel.clip)
-				task := tasks_visible[task_head] 
-				spell_check_render_missing_words(target, task)
+			when !PRESENTATION_MODE {
+				if options_spell_checking() && task_head != -1 && task_head == task_tail {
+					render_push_clip(target, panel.clip)
+					task := tasks_visible[task_head] 
+					spell_check_render_missing_words(target, task)
+				}
 			}
 
 			// TODO looks shitty when swapping
@@ -1402,7 +1404,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
-			task_render_progressbars(target)
+			when !PRESENTATION_MODE {
+				task_render_progressbars(target)
+			}
 
 			// drag visualizing circle
 			if !drag_running && drag_circle {
@@ -2189,8 +2193,12 @@ goto_init :: proc(window: ^Window) {
 
 custom_split_set_scrollbars :: proc(split: ^Custom_Split) {
 	cam := mode_panel_cam()
-	split.vscrollbar.position = f32(-cam.offset_y)
-	split.hscrollbar.position = f32(-cam.offset_x)
+	if split.vscrollbar != nil {
+		split.vscrollbar.position = f32(-cam.offset_y)
+	}
+	if split.hscrollbar != nil {
+		split.hscrollbar.position = f32(-cam.offset_x)
+	}
 }
 
 custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -2229,13 +2237,17 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Scrolled_X: {
 			cam := &mode_panel.cam[mode_panel.mode]
-			cam.offset_x = math.round(-split.hscrollbar.position)
+			if split.hscrollbar != nil {
+				cam.offset_x = math.round(-split.hscrollbar.position)
+			}
 			cam.freehand = true
 		}
 
 		case .Scrolled_Y: {
 			cam := &mode_panel.cam[mode_panel.mode]
-			cam.offset_y = math.round(-split.vscrollbar.position)
+			if split.vscrollbar != nil {
+				cam.offset_y = math.round(-split.vscrollbar.position)
+			}	
 			cam.freehand = true
 		}
 	}
@@ -2247,10 +2259,14 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := split.window.rect
 
 	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
-	custom_split.vscrollbar = scrollbar_init(custom_split, {}, false, context.allocator)
-	custom_split.vscrollbar.force_visible = true	
-	custom_split.hscrollbar = scrollbar_init(custom_split, {}, true, context.allocator)
-	custom_split.hscrollbar.force_visible = true	
+
+	when !PRESENTATION_MODE {
+		custom_split.vscrollbar = scrollbar_init(custom_split, {}, false, context.allocator)
+		custom_split.vscrollbar.force_visible = true	
+		custom_split.hscrollbar = scrollbar_init(custom_split, {}, true, context.allocator)
+		custom_split.hscrollbar.force_visible = true	
+	}
+
 	custom_split.image_display = image_display_init(custom_split, {}, nil)
 	custom_split.image_display.aspect = .Mix
 	custom_split.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

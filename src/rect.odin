@@ -130,7 +130,7 @@ rect_bounding :: proc(a, b: RectI) -> RectI {
 	if a.t > b.t do a.t = b.t
 	if a.r < b.r do a.r = b.r
 	if a.b < b.b do a.b = b.b
-	return a;
+	return a
 }
 
 rect_contains :: proc(a: RectI, x, y: int) -> bool {

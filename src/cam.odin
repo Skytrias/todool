@@ -33,22 +33,22 @@ cam_init :: proc(cam: ^Pan_Camera, margin_x, margin_y: int) {
 
 cam_set_y :: proc(cam: ^Pan_Camera, to: int) {
 	cam.offset_y = f32(to)
-	custom_split.vscrollbar.position = f32(-cam.offset_y)
+	scrollbar_position_set(custom_split.vscrollbar, f32(-cam.offset_y))
 }
 
 cam_set_x :: proc(cam: ^Pan_Camera, to: int) {
 	cam.offset_x = f32(to)
-	custom_split.hscrollbar.position = f32(-cam.offset_x)
+	scrollbar_position_set(custom_split.hscrollbar, f32(-cam.offset_x))
 }
 
 cam_inc_y :: proc(cam: ^Pan_Camera, off: f32) {
 	cam.offset_y += off
-	custom_split.vscrollbar.position = f32(-cam.offset_y)
+	scrollbar_position_set(custom_split.vscrollbar, f32(-cam.offset_y))
 }
 
 cam_inc_x :: proc(cam: ^Pan_Camera, off: f32) {
 	cam.offset_x += off
-	custom_split.hscrollbar.position = f32(-cam.offset_x)
+	scrollbar_position_set(custom_split.hscrollbar, f32(-cam.offset_x))
 }
 
 // return the cam per mode
@@ -76,8 +76,8 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 		1,
 	)
 
-	custom_split.vscrollbar.position = f32(-cam.offset_y)
-	custom_split.hscrollbar.position = f32(-cam.offset_x)
+	scrollbar_position_set(custom_split.vscrollbar, f32(-cam.offset_y))
+	scrollbar_position_set(custom_split.hscrollbar, f32(-cam.offset_x))
 
 	lerp^ = res ? lerp^ + 0.5 : 1
 
