@@ -2669,7 +2669,7 @@ color_picker_init :: proc(
 }
 
 //////////////////////////////////////////////
-// enum selector
+// toggle selector
 //////////////////////////////////////////////
 
 Toggle_Selector :: struct {
@@ -2684,6 +2684,9 @@ Toggle_Selector :: struct {
 
 	// animation
 	cell_values: []f32,
+
+	// callback
+	changed: proc(toggle: ^Toggle_Selector),
 }
 
 toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -2818,6 +2821,12 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Destroy: {
 			delete(toggle.cells)
 			delete(toggle.cell_values)
+		}
+
+		case .Value_Changed: {
+			if toggle.changed != nil {
+				toggle->changed()
+			}
 		}
 	}
 

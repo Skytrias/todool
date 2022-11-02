@@ -2537,25 +2537,18 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		names := reflect.enum_field_names(Task_State)
 		t := toggle_selector_init(p, {}, int(task.state), len(Task_State), names)
 		t.data = task
-		t.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			toggle := cast(^Toggle_Selector) element
+		t.changed = proc(toggle: ^Toggle_Selector) {
+			manager := mode_panel_manager_scoped()
+			task_head_tail_push(manager)
 
-			// save state change in undo
-			if msg == .Value_Changed {
-				manager := mode_panel_manager_scoped()
-				task_head_tail_push(manager)
-
-				task := cast(^Task) element.data
-				state := cast(^u8) &task.state
-				item := Undo_Item_U8_Set {
-					state,
-					state^,
-				}
-				undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
-				state^ = u8(toggle.value)
+			task := cast(^Task) toggle.data
+			state := cast(^u8) &task.state
+			item := Undo_Item_U8_Set {
+				state,
+				state^,
 			}
-
-			return 0
+			undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
+			state^ = u8(toggle.value)
 		}
 	}
 

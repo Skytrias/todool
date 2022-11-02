@@ -1,11 +1,11 @@
 package src
 
+import "core:reflect"
 import "core:fmt"
 import "core:mem"
 import "core:math"
 import "core:strings"
 import "core:slice"
-// import "core:container/queue"
 
 //changelog generator output window
 //	descritiption what this window does
@@ -23,6 +23,13 @@ Changelog_Task :: struct {
 	remove: bool,
 }
 
+Changelog_Indexing :: enum {
+	None,
+	Numbers,
+	Stars_Non_Zero,
+	Stars_All,
+}
+
 Changelog :: struct {
 	window: ^Window,
 	panel: ^Panel,
@@ -36,6 +43,7 @@ Changelog :: struct {
 
 	qlist: [dynamic]Changelog_Task,
 	qparents: map[^Task]u8,
+	indexing: Changelog_Indexing,
 }
 changelog: Changelog
 
@@ -156,9 +164,24 @@ changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 	b := &td.builder
 	strings.builder_reset(b)
 
-	write :: proc(b: ^strings.Builder, task: ^Task, indentation: int) {
+	write :: proc(b: ^strings.Builder, task: ^Task, indentation: int, count: int) {
 		for i in 0..<indentation {
 			strings.write_byte(b, '\t')
+		}
+
+		switch changelog.indexing {
+			case .None: {}
+			case .Numbers: {
+				strings.write_int(b, count)
+				strings.write_byte(b, ':')
+				strings.write_byte(b, ' ')
+			}
+			case .Stars_Non_Zero: {
+				if indentation != 0 {
+					strings.write_string(b, "* ")
+				}
+			}
+			case .Stars_All: strings.write_string(b, "* ")
 		}
 
 		strings.write_string(b, strings.to_string(task.box.builder))
@@ -167,9 +190,11 @@ changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 
 	changelog_find()
 
+	count := 1
 	for qtask in changelog.qlist {
 		task := cast(^Task) mode_panel.children[qtask.task_index]
-		write(b, task, task.indentation)
+		write(b, task, task.indentation, count)
+		count += 1
 	}
 }
 
@@ -277,10 +302,10 @@ changelog_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		}
 
 		{
-			// toggle := toggle_panel_init(p1, { .HF }, { .Panel_Default_Background }, "Options", false)
-			// p2 := toggle.panel
+			toggle := toggle_panel_init(p1, { .HF }, { .Panel_Default_Background }, "Options", true)
+			p2 := toggle.panel
+			// p2 := panel_init(p1, { .HF, .Panel_Default_Background, .Panel_Horizontal })
 			
-			p2 := panel_init(p1, { .HF, .Panel_Default_Background, .Panel_Horizontal })
 			p2.background_index = 2
 			p2.margin = 5
 			p2.rounded = true
@@ -290,6 +315,13 @@ changelog_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			changelog.checkbox_include_canceled = checkbox_init(p2, { .HF }, "Include Canceled Tasks", true)
 			changelog.checkbox_include_canceled.invoke = changelog_update_invoke
 			changelog.checkbox_pop_tasks = checkbox_init(p2, { .HF }, "Pop Tasks", true)
+	
+			indexing_names := reflect.enum_field_names(Changelog_Indexing)
+			t := toggle_selector_init(p2, { .HF }, 0, len(Changelog_Indexing), indexing_names)
+			t.changed = proc(toggle: ^Toggle_Selector) {
+				changelog.indexing = Changelog_Indexing(toggle.value)
+				changelog_text_display_set(changelog.td)
+			}
 		}
 	}
 

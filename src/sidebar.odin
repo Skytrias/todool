@@ -465,16 +465,8 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			TAG_SHOW_COUNT,
 			tag_show_text[:],
 		)
-		toggle_selector_tag.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			toggle := cast(^Toggle_Selector) element
-
-			#partial switch msg {
-				case .Value_Changed: {
-					sb.tags.tag_show_mode = toggle.value
-				}
-			}
-
-			return 0
+		toggle_selector_tag.changed = proc(toggle: ^Toggle_Selector) {
+			sb.tags.tag_show_mode = toggle.value
 		}
 	}
 
