@@ -39,6 +39,7 @@ scaling_inc :: proc(amt: f32) {
 	// scaling_set(clamp(SCALE + amt, 0.05, 10), TASK_SCALE)
 	scaling_set(SCALE, clamp(TASK_SCALE + amt, 0.1, 10))
 	fontstash.reset(&gs.fc)
+	mode_panel_zoom_animate()
 }
 
 Font :: fontstash.Font

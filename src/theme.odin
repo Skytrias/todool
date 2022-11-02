@@ -278,8 +278,8 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background, .Panel_Scroll_Vertical }, 0, 5)
 	theme_editor.panel.margin = 10
 	
-	label := label_init(theme_editor.panel, {}, "Theme Editor")
-	label.font_options = &font_options_header
+	// label := label_init(theme_editor.panel, {}, "Theme Editor")
+	// label.font_options = &font_options_header
 	
 	Color_Pair :: struct {
 		color: ^Color,
@@ -369,7 +369,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 	p := theme_editor.panel
 	SPACER_WIDTH :: 10
-	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	// spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	
 	{
 		t := toggle_panel_init(p, { .HF }, {}, "Background", true)

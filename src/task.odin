@@ -12,6 +12,7 @@ import "core:math"
 import "core:intrinsics"
 import "core:slice"
 import "core:reflect"
+import "core:time"
 import "core:thread"
 import "../cutf8"
 import "../fontstash"
@@ -452,6 +453,7 @@ Mode_Panel :: struct {
 	using element: Element,
 	mode: Mode,
 	cam: [Mode]Pan_Camera,
+	zoom_highlight: f32,
 }
 
 // scoped version so you dont forget to call
@@ -466,6 +468,13 @@ mode_panel_manager_begin :: #force_inline proc() -> ^Undo_Manager {
 
 mode_panel_manager_end :: #force_inline proc(manager: ^Undo_Manager) {
 	undo_group_end(manager)
+}
+
+mode_panel_zoom_animate :: proc() {
+	if mode_panel != nil {
+		mode_panel.zoom_highlight = 2
+		gs_animate(&mode_panel.zoom_highlight, 0, .Quadratic_Out, time.Second)
+	} 
 }
 
 // line has selection
@@ -1466,6 +1475,23 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
+			// render zoom highlight text
+			if panel.zoom_highlight != 0 {
+				render_push_clip(target, panel.clip)
+				alpha := min(panel.zoom_highlight, 1)
+				color := color_alpha(theme.text_default, alpha)
+				rect := mode_panel.bounds
+				rect.l = rect.r - 100
+				rect.b = rect.t + 100
+				zoom := fmt.tprintf("%.2f", TASK_SCALE)
+				render_rect(target, rect_margin(rect, 20), color_alpha(theme_panel(.Front), alpha), ROUNDNESS)
+				fcs_ahv()
+				fcs_color(color)
+				fcs_font(font_regular)
+				fcs_size(DEFAULT_FONT_SIZE * SCALE)
+				render_string_rect(target, rect, zoom)
+			}
+
 			// draw the fullscreen image on top
 			if image_display_has_content_now(custom_split.image_display) {
 				render_push_clip(target, panel.clip)
@@ -1531,6 +1557,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				TASK_SCALE = clamp(res, 0.1, 10)
 				fontstash.reset(&gs.fc)
 				// fmt.eprintln("TASK SCALE", TASK_SCALE)
+
+				mode_panel_zoom_animate()
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
 				cam.freehand = true
@@ -1805,6 +1833,7 @@ task_layout :: proc(
 
 	if image_display_has_content_soon(task.image_display) {
 		top := rect_cut_top(&cut, int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE))
+		top.b -= 5
 
 		if move {
 			element_move(task.image_display, top)
@@ -1820,6 +1849,10 @@ task_layout :: proc(
 		
 		if move {
 			element_move(task.button_link, rect)
+		}
+	} else {
+		if task.button_link != nil {
+			task.button_link.bounds = {}
 		}
 	}
 
@@ -2221,6 +2254,9 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			if image_display_has_content_now(split.image_display) {
 				element_move(split.image_display, rect_margin(bounds, int(20 * SCALE)))
+			} else {
+				split.image_display.bounds = {}
+				split.image_display.clip = {}
 			}
 
 			// avoid layouting twice

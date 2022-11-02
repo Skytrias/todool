@@ -73,7 +73,7 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 			// measure max string width and lines
 			iter := strings.to_string(td.builder)
 			width: int
-			line_count: int
+			line_count := 1
 			scaled_size := fcs_element(element)
 			for line in strings.split_lines_iterator(&iter) {
 				tabs := tabs_count(line)

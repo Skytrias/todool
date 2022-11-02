@@ -364,6 +364,10 @@ element_find_by_point_custom :: proc(element: ^Element, p: ^Find_By_Point) -> in
 	for i := len(element.children) - 1; i >= 0; i -= 1 {
 		child := element.children[i]
 
+		if child.bounds == {} {
+			continue
+		}
+
 		if (.Hide not_in child.flags) && rect_contains(child.bounds, p.x, p.y) {
 			p.res = child
 			return 1
@@ -387,6 +391,10 @@ element_find_by_point :: proc(element: ^Element, x, y: int) -> ^Element {
 
 	for i := len(temp) - 1; i >= 0; i -= 1 {
 		child := temp[i]
+
+		if child.bounds == {} {
+			continue
+		}
 
 		if (.Disabled not_in child.flags) && (.Hide not_in child.flags) && rect_contains(child.clip, p.x, p.y) {
 			return element_find_by_point(child, x, y)
