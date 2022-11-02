@@ -684,7 +684,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			when ODIN_OS == .Linux {
 				strings.write_string(b, "xdg-open")
 			} else when ODIN_OS == .Windows {
-				strings.write_string(b, "start.exe")
+				strings.write_string(b, "start")
 			}
 
 			strings.write_byte(b, ' ')
@@ -1190,7 +1190,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
 
-			if image_display_has_content(custom_split.image_display) {
+			if image_display_has_content_now(custom_split.image_display) {
 				child := custom_split.image_display
 
 				if (.Hide not_in child.flags) && rect_contains(child.bounds, p.x, p.y) {
@@ -1467,7 +1467,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// draw the fullscreen image on top
-			if image_display_has_content(custom_split.image_display) {
+			if image_display_has_content_now(custom_split.image_display) {
 				render_push_clip(target, panel.clip)
 				element_message(custom_split.image_display, .Paint_Recursive)
 			}
@@ -1803,7 +1803,7 @@ task_layout :: proc(
 	// margin after bookmark
 	cut = rect_margin(cut, margin_scaled)
 
-	if image_display_has_content(task.image_display) {
+	if image_display_has_content_soon(task.image_display) {
 		top := rect_cut_top(&cut, int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE))
 
 		if move {
@@ -1908,7 +1908,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			// line_size += int(f32(task.has_children ? DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL : 0) * TASK_SCALE)
 
 			line_size += draw_tags ? tag_mode_size(tag_mode) + int(5 * TASK_SCALE) : 0
-			line_size += image_display_has_content(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
+			line_size += image_display_has_content_soon(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
 			line_size += task_link_is_valid(task) ? element_message(task.button_link, .Get_Height) : 0
 			line_size += task_seperator_is_valid(task) ? int(20 * TASK_SCALE) : 0
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 2)
@@ -2219,7 +2219,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 				element_move(panel_search, bot)
 			}
 
-			if image_display_has_content(split.image_display) {
+			if image_display_has_content_now(split.image_display) {
 				element_move(split.image_display, rect_margin(bounds, int(20 * SCALE)))
 			}
 

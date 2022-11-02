@@ -456,7 +456,7 @@ todool_selection_stop :: proc(du: u32) {
 }
 
 todool_escape :: proc(du: u32) {
-	if image_display_has_content(custom_split.image_display) {
+	if image_display_has_content_now(custom_split.image_display) {
 		custom_split.image_display.img = nil
 		element_repaint(mode_panel)
 		return

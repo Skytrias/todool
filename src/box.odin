@@ -445,9 +445,12 @@ box_paste :: proc(
 			if strings.has_suffix(text, ".png") {
 				task := tasks_visible[task_head]
 				handle := image_load_push(text)
-				task_set_img(task, handle)
-				found = true
-				return
+				
+				if handle != nil {
+					task_set_img(task, handle)
+					found = true
+					return
+				}
 			}
 
 			// TODO could be sped up probably

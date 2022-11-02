@@ -16,6 +16,10 @@ Keymap :: struct {
 	combo_last: ^Combo_Node,
 }
 
+keymap_query_info :: proc(using keymap: ^Keymap, name: string) {
+	fmt.eprintln("MAP", name, ":", len(commands), cap(commands))
+}
+
 Combo_Node :: struct {
 	combo: [48]u8,
 	command: [32]u8,

@@ -701,15 +701,16 @@ texture_destroy :: proc(using texture: ^Render_Texture) {
 // Shallow Texture
 //////////////////////////////////////////////
 
-shallow_texture_init :: proc(
-	target: ^Render_Target,
-	img: ^image.Image,
-) -> (handle: u32) {
+shallow_texture_init :: proc(img: ^image.Image) -> (handle: u32) {
 	gl.GenTextures(1, &handle)
 	gl.BindTexture(gl.TEXTURE_2D, handle)
 	defer gl.BindTexture(gl.TEXTURE_2D, 0)
 
 	// gl.PixelStorei(gl.UNPACK_ALIGNMENT, 1) 
+	// try loading the correct format
+	// log.info("loading ")
+	format := u32(img.channels == 4 ? gl.RGBA : gl.RGB)
+
 	gl.TexImage2D(
 		gl.TEXTURE_2D,
 		0,
@@ -717,7 +718,7 @@ shallow_texture_init :: proc(
 		i32(img.width), 
 		i32(img.height), 
 		0, 
-		gl.RGBA, 
+		format,
 		gl.UNSIGNED_BYTE, 
 		raw_data(img.pixels.buf),
 	)

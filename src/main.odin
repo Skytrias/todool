@@ -25,6 +25,8 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 
+// STORED IMAGES could be a double linked list
+
 // KEYMAP REWORK
 // add super key
 // keymap load newer combos per version by default
@@ -70,6 +72,62 @@ PRESENTATION_MODE :: false
 // 	// pos, offset, err := regex.match_string("Hai-foobar", "f[o]+bar")
 // 	// pos, offset, err := regex.match_string("abb+a", "123abba123abbab", { .ASCII_Only })
 // 	// fmt.eprintln("match?", pos, offset, err)
+// }
+
+// import il "core:container/intrusive/list"
+
+// main :: proc() {
+// 	fmt.eprintln("~~~START~~~")
+// 	defer fmt.eprintln("~~~ END ~~~")
+
+// 	NodeA :: struct {
+// 		x: int,
+// 		node: il.Node,
+// 	}
+
+// 	list: il.List
+// 	fmt.eprintln(il.is_empty(&list))
+
+// 	for i in 0..<10 {
+// 		n := new(NodeA)
+// 		n.x = i
+// 		il.push_back(&list, &n.node)
+// 	}
+
+// 	fmt.eprintln(il.is_empty(&list))
+// 	fmt.eprintln(list)
+
+// 	iter := il.iterator_head(list, NodeA, "node")
+// 	for ptr in il.iterate_next(&iter) {
+// 		fmt.eprintln(ptr)
+// 	}
+// }
+
+// test_track: mem.Tracking_Allocator
+// some_map: map[int]int
+
+// main :: proc() {
+// 	fmt.eprintln("start")
+// 	defer fmt.eprintln("end")
+
+// 	mem.tracking_allocator_init(&test_track, context.allocator)
+// 	defer {
+// 		gs_check_leaks(&test_track)
+// 		mem.tracking_allocator_destroy(&test_track)
+// 	}
+	
+// 	context.allocator = mem.tracking_allocator(&test_track)
+
+// 	data := new(int)
+// 	defer free(data)
+// 	some_map = make(map[int]int, 10)
+// 	defer delete(some_map)
+
+// 	for i in 0..<100 {
+// 		some_map[i] = i
+// 	}
+
+// 	fmt.eprintln(some_map)
 // }
 
 main :: proc() {
@@ -428,15 +486,31 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			task_indentation := task.indentation
 
 			spall.scoped("Load Dropped Files")
-			for indice in element.window.drop_indices {
-				file_path := string(element.window.drop_file_name_builder.buf[old_indice:indice])
+			for indice in window.drop_indices {
+				file_path := string(window.drop_file_name_builder.buf[old_indice:indice])
 
 				// image dropping
 				if strings.has_suffix(file_path, ".png") {
 					if task_head != -1 {
-						task := tasks_visible[task_head]
 						handle := image_load_push(file_path)
-						task_set_img(task, handle)
+						
+						if handle != nil {
+							// find task by mouse intersection
+							task := tasks_visible[task_head]
+							x, y := global_mouse_position()
+							window_x, window_y := window_get_position(window)
+							x -= window_x
+							y -= window_y
+
+							for t in &tasks_visible {
+								if rect_contains(t.bounds, x, y) {
+									task = t
+									break
+								}
+							}
+
+							task_set_img(task, handle)
+						}
 					}
 				} else {
 					// import from code

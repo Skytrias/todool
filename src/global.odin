@@ -226,7 +226,7 @@ Global_State :: struct {
 	flux: ease.Flux_Map(f32),
 
 	// stores multiple png images
-	stored_images: map[string]Stored_Image,
+	stored_images: [dynamic]Stored_Image,
 	stored_image_thread: ^thread.Thread,
 	
 	window_hovering_timer: sdl.TimerID,
@@ -248,24 +248,50 @@ Stored_Image :: struct {
 	handle: u32,
 	handle_set: bool,
 	loaded: bool,
-	cloned_path: string, // removed automatically
+	
+	path: [256]u8, // static path, clipped
+	path_length: u8,
+}
+
+image_path :: proc(img: ^Stored_Image) -> string {
+	return string(img.path[:img.path_length])
+}
+
+image_find :: proc(path: string) -> (index: int) {
+	index = -1
+	
+	for img, i in &gs.stored_images {
+		if image_path(&img) == path {
+			index = i
+			return 
+		}
+	}
+
+	return 
 }
 
 // push a load command and create a thread if not existing yet
 image_load_push :: proc(path: string) -> (res: ^Stored_Image) {
-	out, ok := &gs.stored_images[path]
+	if len(path) > 256 {
+		log.warn("Image Load: aborted due to long path name")
+		return
+	}
 
-	if !ok {
+	index := image_find(path)
+
+	if index == -1 {
 		if gs.stored_image_thread == nil {
 			gs.stored_image_thread = thread.create_and_start(image_load_process_on_thread)
 		} 
 
-		cloned_path := strings.clone(path, context.allocator)
-		gs.stored_images[cloned_path] = { cloned_path = path }
-		out = &gs.stored_images[path]
-	} 
+		append(&gs.stored_images, Stored_Image {})
+		res = &gs.stored_images[len(gs.stored_images) - 1]
+		res.path_length = u8(len(path))
+		copy(res.path[:], path[:])
+	} else {
+		res = &gs.stored_images[index]
+	}
 
-	res = out
 	return
 }
 
@@ -292,24 +318,30 @@ image_load_from_file :: proc(path: string) -> (res: ^image.Image) {
 
 // loads images on a seperate thread to the stored data
 image_load_process_on_thread :: proc(t: ^thread.Thread) {
-	for key, img in &gs.stored_images {
+	for img in &gs.stored_images {
 		// loading needs to be done
 		if !img.loaded {
-			img.backing = image_load_from_file(key)
+			fmt.eprintln("try image load")
+			img.backing = image_load_from_file(image_path(&img))
 			img.loaded = true
+			fmt.eprintln("image load done")
+
 			// fmt.eprintln("image load finished", key, img.backing == nil)
 		}
 	}
 
+	sdl_push_empty_event()
+	intrinsics.atomic_store(&window_main.update_next, true)
 	gs.stored_image_thread = nil
 	thread.destroy(t)
 }
 
 image_load_process_texture_handles :: proc(window: ^Window) {
-	for key, img in &gs.stored_images {
+	sdl.GL_MakeCurrent(window.w, window.target.opengl_context)
+
+	for img in &gs.stored_images {
 		if img.backing != nil && img.loaded && !img.handle_set {
-			// fmt.eprintln("generated handle on main thread", img.handle)
-			img.handle = shallow_texture_init(window.target, img.backing)
+			img.handle = shallow_texture_init(img.backing)
 			img.handle_set = true
 		}
 	}
@@ -553,6 +585,12 @@ window_mouse_rect :: proc(window: ^Window, w := 1, h := 1) -> RectI {
 
 window_mouse_inside :: proc(window: ^Window) -> bool {
 	return rect_contains(window.rect, window.cursor_x, window.cursor_y)
+}
+
+global_mouse_position :: proc() -> (int, int) {
+	xx, yy: i32
+	sdl.GetGlobalMouseState(&xx, &yy)
+	return int(xx), int(yy)
 }
 
 // get xy
@@ -1403,6 +1441,8 @@ gs_init :: proc() {
 
 	window_hovering_timer = sdl.AddTimer(500, window_timer_callback, nil)
 	strings.builder_init(&cstring_builder, 0, 128)
+
+	stored_images = make([dynamic]Stored_Image, 0, 8)
 }
 
 gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
@@ -1444,11 +1484,9 @@ gs_destroy :: proc() {
 	sdl.RemoveTimer(window_hovering_timer)
 
 	if gs.stored_image_thread != nil {
+		thread.terminate(gs.stored_image_thread, 0)
 		thread.destroy(gs.stored_image_thread)
 		gs.stored_image_thread = nil
-	}
-	for key, value in gs.stored_images {
-		delete(key)
 	}
 	delete(gs.stored_images)
 
@@ -1475,6 +1513,9 @@ gs_destroy :: proc() {
 		gs_check_leaks(&track)
 		mem.tracking_allocator_destroy(&track)
 	}	
+
+	// reset allocator after being done!
+	context.allocator = runtime.default_allocator()
 
 	for cursor in cursors {
 		sdl.FreeCursor(cursor)
@@ -2036,6 +2077,7 @@ window_fullscreen_toggle :: proc(window: ^Window) {
 		sdl.SetWindowFullscreen(window.w, {})
 	} else {
 		sdl.SetWindowFullscreen(window.w, sdl.WINDOW_FULLSCREEN_DESKTOP)
+		// sdl.SetWindowFullscreen(window.w, sdl.WINDOW_FULLSCREEN)
 	}
 
 	window.fullscreened = !window.fullscreened

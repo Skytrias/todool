@@ -212,10 +212,11 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 			opt_write_tag(&buffer, .Folded) or_return			
 		}
 
-		if image_display_has_content(task.image_display) {
+		if image_display_has_path(task.image_display) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Image_Path) or_return
-			buffer_write_string_u16(&buffer, task.image_display.img.cloned_path) or_return
+			buffer_write_string_u16(&buffer, image_path(task.image_display.img)) or_return
+			fmt.eprintln("SAVE WRITE IMAGE PATH", image_path(task.image_display.img))
 		}
 
 		if task_link_is_valid(task) {
@@ -326,6 +327,7 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 					byte_content := reader_read_bytes_out(reader, int(length)) or_return
 
 					path := string(byte_content[:])
+					fmt.eprintln("LOAD IMAGE PATH", path)
 					handle := image_load_push(path)
 					task_set_img(task, handle)
 				}

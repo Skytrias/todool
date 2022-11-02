@@ -3295,7 +3295,7 @@ Image_Display :: struct {
 
 image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	display := cast(^Image_Display) element
-	has_content := image_display_has_content(display)
+	has_content := image_display_has_content_now(display)
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -3329,10 +3329,9 @@ image_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 				rect.b = rect.t + int(wanted_height)
 
 				render_texture_from_handle(target, display.img.handle, rect, WHITE)
+			} else {
+				render_rect(target, element.bounds, theme.background[0])
 			}
-			// } else {
-			// 	render_rect(target, element.bounds, GREEN)
-			// }
 		}
 
 		case .Get_Width: {
@@ -3361,7 +3360,15 @@ image_display_init :: proc(
 	return
 }
 
-image_display_has_content :: #force_inline proc(display: ^Image_Display) -> bool {
+image_display_has_path :: #force_inline proc(display: ^Image_Display) -> bool {
+	return display != nil && display.img != nil && display.img.path_length != 0
+}
+
+image_display_has_content_soon :: #force_inline proc(display: ^Image_Display) -> bool {
+	return display != nil && display.img != nil
+}
+
+image_display_has_content_now :: #force_inline proc(display: ^Image_Display) -> bool {
 	return display != nil && display.img != nil && display.img.loaded && display.img.handle_set
 }
 

@@ -311,7 +311,7 @@ pattern_load_content_simple :: proc(
 						}
 
 						if end_index != -1 {
-							task_push_undoable(manager, indentation, string(temp[i:end_index]), index_at^)
+							task_push_undoable(manager, indentation, string(temp[i + pattern_length:end_index]), index_at^)
 							index_at^ += 1
 							found_any = true
 							i = end_index
