@@ -25,8 +25,6 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 
-// STORED IMAGES could be a double linked list
-
 // KEYMAP REWORK
 // add super key
 // keymap load newer combos per version by default

@@ -319,15 +319,19 @@ image_load_from_file :: proc(path: string) -> (res: ^image.Image) {
 
 // loads images on a seperate thread to the stored data
 image_load_process_on_thread :: proc(t: ^thread.Thread) {
-	for img in &gs.stored_images {
-		// loading needs to be done
-		if !img.loaded {
-			fmt.eprintln("try image load")
-			img.backing = image_load_from_file(image_path(&img))
-			img.loaded = true
-			fmt.eprintln("image load done")
+	{
+		spall.scoped("Load images", u32(t.id))
 
-			// fmt.eprintln("image load finished", key, img.backing == nil)
+		for img in &gs.stored_images {
+			// loading needs to be done
+			if !img.loaded {
+				fmt.eprintln("try image load")
+				img.backing = image_load_from_file(image_path(&img))
+				img.loaded = true
+				fmt.eprintln("image load done")
+
+				// fmt.eprintln("image load finished", key, img.backing == nil)
+			}
 		}
 	}
 

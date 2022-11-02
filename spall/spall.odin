@@ -24,31 +24,23 @@ Event_Type :: enum u8 {
 	Instant             = 5,
 
 	Overwrite_Timestamp = 6, // Retroactively change timestamp units - useful for incrementally improving RDTSC frequency.
-	Update_Checksum     = 7, // Verify rolling checksum. Basic readers/writers can ignore/omit this.
-}
-
-Complete_Event :: struct #packed {
-	type: Event_Type,
-	pid:      u32,
-	tid:      u32,
-	time:     f64,
-	duration: f64,
-	name_len: u8,
 }
 
 Begin_Event :: struct #packed {
 	type: Event_Type,
-	pid:      u32,
-	tid:      u32,
-	time:     f64,
-	name_len: u8,
+	category: u8, // only used in json?
+	pid: u32,
+	tid: u32,
+	time_at: f64,
+	name_length: u8, // following byte content
+	args_length: u8, // not used yet
 }
 
 End_Event :: struct #packed {
 	type: Event_Type,
-	pid:  u32,
-	tid:  u32,
-	time: f64,
+	pid: u32,
+	tid: u32,
+	time_at: f64,
 }
 
 time_start: time.Time
@@ -68,7 +60,7 @@ init :: proc(path: string, cap: int) {
 
 		header := Header{
 			magic = MAGIC, 
-			version = 0, 
+			version = 1,
 			timestamp_unit = 1.0, 
 			must_be_0 = 0,
 		}
@@ -92,8 +84,8 @@ begin :: proc(name: string, tid: u32) {
 			type = .Begin,
 			pid  = 0,
 			tid  = tid,
-			time = ts,
-			name_len = name_length,
+			time_at = ts,
+			name_length = name_length,
 		}
 
 		begin_bytes := transmute([size_of(Begin_Event)]u8) event
@@ -110,7 +102,7 @@ end :: proc(tid: u32) {
 			type = .End,
 			pid  = 0,
 			tid  = tid,
-			time = ts,
+			time_at = ts,
 		}
 
 		end_bytes := transmute([size_of(End_Event)]u8) event
