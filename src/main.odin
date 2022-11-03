@@ -228,6 +228,7 @@ main :: proc() {
 	defer {
 		intrinsics.atomic_store(&main_thread_running, false)
 	}
+
 	gs_message_loop()
 }
 

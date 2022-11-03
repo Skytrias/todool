@@ -15,6 +15,7 @@ PM_State :: struct {
 	particles: [dynamic]PM_Particle,
 	spawn_next: bool,
 
+	// coloring
 	color_seed: i64,
 	color_count: f64,
 }
@@ -23,6 +24,7 @@ pm_state: PM_State
 PM_Particle :: struct {
 	lifetime: f32,
 	lifetime_count: f32,
+	delay: f32, // delay until drawn
 	x, y: f32,
 	xoff, yoff: f32, // camera offset at the spawn time
 	radius: f32,
@@ -76,11 +78,14 @@ power_mode_spawn_along_task_text :: proc(task: ^Task) {
 		text := strings.to_string(task.box.builder)
 		color := theme_task_text(task.state)
 		cam := mode_panel_cam()
+		cam.screenshake_counter = 0
 		ds: cutf8.Decode_State
+		count: int
 
 		for codepoint, i in cutf8.ds_iter(&ds, text) {
 			glyph := task.box.rendered_glyphs[i] 
-			power_mode_spawn_at(glyph.x, glyph.y, cam.offset_x, cam.offset_y, 4, color)
+			power_mode_spawn_at(glyph.x, glyph.y, cam.offset_x, cam.offset_y, 2, color, f32(count) * 0.002)
+			count += 1
 		}
 	}
 }
@@ -97,6 +102,7 @@ power_mode_spawn_at :: proc(
 	xoff, yoff: f32, 
 	count: int,
 	color := Color {},
+	delay: f32 = 0,
 ) {
 	using pm_state
 
@@ -109,7 +115,13 @@ power_mode_spawn_at :: proc(
 	for i in 0..<count {
 		life := rand.float32() * 0.5 + 0.5 // min is 0.5
 
-		// color
+		// custom delay
+		d := delay
+		if d == 0 {
+			d = rand.float32() * 0.25
+		}
+
+		// custom color
 		c := color 
 		if c == {} {
 			// normalize to 0 -> 1
@@ -120,6 +132,8 @@ power_mode_spawn_at :: proc(
 		append(&particles, PM_Particle {
 			lifetime = life,
 			lifetime_count = life,
+			delay = d,
+
 			x = x + rand.float32() * width - width / 2,
 			y = y + rand.float32() * height - height / 2,
 			radius = 2 + rand.float32() * size,
@@ -141,6 +155,11 @@ power_mode_update :: proc() {
 	for i := len(particles) - 1; i >= 0; i -= 1 {
 		p := &particles[i]
 
+		if p.delay > 0 {
+			p.delay -= gs.dt
+			continue
+		}
+
 		if p.lifetime_count > 0 {
 			p.lifetime_count -= gs.dt
 			x_dir := noise.noise_2d(p.seed, { f64(p.lifetime_count) / 2, 0 })
@@ -160,6 +179,10 @@ power_mode_render :: proc(target: ^Render_Target) {
 	xoff, yoff: f32
 
 	for p in &particles {
+		if p.delay > 0 {
+			continue
+		}
+
 		xoff = p.xoff + cam.offset_x
 		yoff = p.yoff + cam.offset_y
 
@@ -175,5 +198,20 @@ power_mode_running :: #force_inline proc() -> bool {
 }
 
 power_mode_issue_spawn :: #force_inline proc() {
-	pm_state.spawn_next = true
+	using pm_state
+	spawn_next = true
+
+	cam := mode_panel_cam()
+	cam.screenshake_counter = 0
 }
+
+// // returns the max lifetime of all particles to do screenshake from
+// power_mode_max_lifetime :: proc() -> (value: f32) {
+// 	using pm_state
+
+// 	for p in particles {
+// 		value = max(value, p.delay + p.lifetime)
+// 	}
+
+// 	return running_time + value
+// }

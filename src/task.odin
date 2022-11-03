@@ -1232,10 +1232,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Layout: {
 			bounds := element.bounds
 
-			bounds.l += int(cam.offset_x)
-			bounds.r += int(cam.offset_x)
-			bounds.t += int(cam.offset_y)
-			bounds.b += int(cam.offset_y)
+			cam_update_screenshake(cam, power_mode_running())
+			camx, camy := cam_offsets(cam)
+			bounds.l += int(camx)
+			bounds.r += int(camx)
+			bounds.t += int(camy)
+			bounds.b += int(camy)
 			gap_vertical_scaled := int(visuals_gap_vertical() * TASK_SCALE)
 			gap_horizontal_scaled := int(visuals_gap_horizontal() * TASK_SCALE)
 			kanban_width_scaled := int(visuals_kanban_width() * TASK_SCALE)
@@ -1362,10 +1364,11 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			task_highlight_render(target, false)
 
-			bounds.l -= int(cam.offset_x)
-			bounds.r -= int(cam.offset_x)
-			bounds.t -= int(cam.offset_y)
-			bounds.b -= int(cam.offset_y)
+			camx, camy := cam_offsets(cam)
+			bounds.l -= int(camx)
+			bounds.r -= int(camx)
+			bounds.t -= int(camy)
+			bounds.b -= int(camy)
 
 			mode_panel_draw_verticals(target)
 

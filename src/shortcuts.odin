@@ -572,6 +572,7 @@ todool_mode_list :: proc(du: u32) {
 		mode_panel.mode = .List
 		custom_split_set_scrollbars(custom_split)
 		element_repaint(mode_panel)
+		power_mode_clear()
 	}
 }
 
@@ -580,6 +581,7 @@ todool_mode_kanban :: proc(du: u32) {
 		mode_panel.mode = .Kanban
 		custom_split_set_scrollbars(custom_split)
 		element_repaint(mode_panel)
+		power_mode_clear()
 	}
 }
 
@@ -829,8 +831,6 @@ task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_
 		changelog_update_safe()
 
 		power_mode_spawn_along_task_text(task)
-		// text := strings.to_string(task.box.builder)
-		// power_mode_spawn_along_text(text, task.bounds.l, task.bounds.t)
 	}
 }
 

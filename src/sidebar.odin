@@ -772,6 +772,7 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			if set^ != index {
 				set^ = index
 				element_repaint(element)
+				power_mode_clear()
 			}
 		}
 	}

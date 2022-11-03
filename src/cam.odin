@@ -4,6 +4,9 @@ import "core:fmt"
 import "core:log"
 import "core:math"
 import "core:strings"
+import "core:math/rand"
+import "core:math/ease"
+import "core:intrinsics"
 
 CAM_CENTER :: 100
 
@@ -22,6 +25,31 @@ Pan_Camera :: struct {
 
 	ay: Pan_Camera_Animation,
 	ax: Pan_Camera_Animation,
+
+	// screenshake, running on power mode
+	screenshake_counter: f32,
+	screenshake_x, screenshake_y: f32,
+}
+
+// update lifetime
+cam_update_screenshake :: proc(using cam: ^Pan_Camera, update: bool) {
+	if update {
+		x := (rand.float32() * 2 - 1)
+		y := (rand.float32() * 2 - 1)
+		shake := f32(3)
+		screenshake_x = x * max(shake - screenshake_counter * shake * 2, 0)
+		screenshake_y = y * max(shake - screenshake_counter * shake * 2, 0)
+		screenshake_counter += gs.dt
+	} else {
+		screenshake_x = 0
+		screenshake_y = 0
+		screenshake_counter = 0
+	}
+}
+
+// return offsets + screenshake
+cam_offsets :: proc(cam: ^Pan_Camera) -> (f32, f32) {
+	return cam.offset_x + cam.screenshake_x, cam.offset_y + cam.screenshake_y
 }
 
 cam_init :: proc(cam: ^Pan_Camera, margin_x, margin_y: int) {
