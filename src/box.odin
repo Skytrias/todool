@@ -382,6 +382,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 		case .Unicode_Insertion: {
 			codepoint := (cast(^rune) dp)^
+			power_mode_issue_spawn()
 			box_insert(&um_task, element, task_box, codepoint, true)
 			element_repaint(element)
 			return 1
@@ -1484,6 +1485,10 @@ kbox_backspace :: proc(du: u32) {
 	if kbox.box.head == old_head && kbox.box.tail == old_tail {
 		kbox.failed = true
 		return
+	} 
+
+	if kbox.by_task {
+		power_mode_issue_spawn()
 	}
 }
 

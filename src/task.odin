@@ -186,6 +186,8 @@ task_data_init :: proc() {
 	keymap_init(&keymap_vim_normal, 64, 256)
 	keymap_init(&keymap_vim_insert, 32, 32)
 
+	power_mode_init()
+
 	undo_manager_init(&um_task)
 	undo_manager_init(&um_search)
 	undo_manager_init(&um_goto)
@@ -231,6 +233,7 @@ task_data_destroy :: proc() {
 	delete(task_clear_checking)
 	delete(task_move_stack)
 
+	power_mode_destroy()
 	pomodoro_destroy()
 	ss_destroy()
 	delete(tasks_visible)
@@ -473,8 +476,10 @@ mode_panel_manager_end :: #force_inline proc(manager: ^Undo_Manager) {
 mode_panel_zoom_animate :: proc() {
 	if mode_panel != nil {
 		mode_panel.zoom_highlight = 2
-		gs_animate(&mode_panel.zoom_highlight, 0, .Quadratic_Out, time.Second)
+		window_animate(window_main, &mode_panel.zoom_highlight, 0, .Quadratic_Out, time.Second)
 	} 
+	
+	power_mode_clear()
 }
 
 // line has selection
@@ -1331,6 +1336,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				x := task.box.bounds.l
 				y := task.box.bounds.t
 				caret_rect = box_layout_caret(task.box, scaled_size, TASK_SCALE, x, y,)
+				power_mode_check_spawn()
 			}
 
 			// check on change
@@ -1421,11 +1427,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if !drag_running && drag_circle {
 				render_push_clip(target, panel.clip)
 				circle_size := DRAG_CIRCLE * TASK_SCALE
-				render_circle_outline(target, drag_circle_pos.x, drag_circle_pos.y, circle_size, 2, theme.text_default, true)
+				x := f32(drag_circle_pos.x)
+				y := f32(drag_circle_pos.y)
+				render_circle_outline(target, x, y, circle_size, 2, theme.text_default, true)
 				diff_x := abs(drag_circle_pos.x - element.window.cursor_x)
 				diff_y := abs(drag_circle_pos.y - element.window.cursor_y)
 				diff := max(diff_x, diff_y)
-				render_circle(target, drag_circle_pos.x, drag_circle_pos.y, f32(diff), theme.text_bad, true)
+				render_circle(target, x, y, f32(diff), theme.text_bad, true)
 			}
 
 			// drag visualizer line
@@ -1496,6 +1504,12 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if image_display_has_content_now(custom_split.image_display) {
 				render_push_clip(target, panel.clip)
 				element_message(custom_split.image_display, .Paint_Recursive)
+			}
+
+			if power_mode_running() {
+				render_push_clip(target, panel.clip)
+				power_mode_update()
+				power_mode_render(target)
 			}
 
 			return 1

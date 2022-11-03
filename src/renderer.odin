@@ -393,7 +393,7 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: RectI) {
 // no
 render_circle :: proc(
 	target: ^Render_Target,
-	x_origin, y_origin: int,
+	x_origin, y_origin: f32,
 	radius: f32,
 	color: Color,
 	centered := false,
@@ -402,8 +402,8 @@ render_circle :: proc(
 	vertices := render_target_push_vertices(target, group, 6)
 	
 	radius := radius * 2
-	x := f32(x_origin) - (centered ? radius / 2 : 0)
-	y := f32(y_origin) - (centered ? radius / 2 : 0)
+	x := x_origin - (centered ? radius / 2 : 0)
+	y := y_origin - (centered ? radius / 2 : 0)
 	xx := x + radius
 	yy := y + radius
 	vertices[0].pos_xy = { x, y }
@@ -414,8 +414,8 @@ render_circle :: proc(
 	vertices[4].pos_xy = { x, yy }
 	vertices[5].pos_xy = { xx, yy }
 
-	center_x := f32(x_origin) + (centered ? 0 : radius / 2)
-	center_y := f32(y_origin) + (centered ? 0 : radius / 2)
+	center_x := x_origin + (centered ? 0 : radius / 2)
+	center_y := y_origin + (centered ? 0 : radius / 2)
 	
 	// TODO: SPEED UP
 	for i in 0..<6 {
@@ -428,7 +428,7 @@ render_circle :: proc(
 
 render_circle_outline :: proc(
 	target: ^Render_Target,
-	x_origin, y_origin: int,
+	x_origin, y_origin: f32,
 	radius: f32,
 	thickness: f32,
 	color: Color,
@@ -438,8 +438,8 @@ render_circle_outline :: proc(
 	vertices := render_target_push_vertices(target, group, 6)
 	
 	radius := radius * 2
-	x := f32(x_origin) - (centered ? radius / 2 : 0)
-	y := f32(y_origin) - (centered ? radius / 2 : 0)
+	x := x_origin - (centered ? radius / 2 : 0)
+	y := y_origin - (centered ? radius / 2 : 0)
 	xx := f32(x) + radius
 	yy := f32(y) + radius
 	vertices[0].pos_xy = { x, y }
@@ -450,8 +450,8 @@ render_circle_outline :: proc(
 	vertices[4].pos_xy = { x, yy }
 	vertices[5].pos_xy = { xx, yy }
 
-	center_x := f32(x_origin) + (centered ? 0 : radius / 2)
-	center_y := f32(y_origin) + (centered ? 0 : radius / 2)
+	center_x := x_origin + (centered ? 0 : radius / 2)
+	center_y := y_origin + (centered ? 0 : radius / 2)
 	
 	// TODO: SPEED UP
 	for i in 0..<6 {

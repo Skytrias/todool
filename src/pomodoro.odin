@@ -53,8 +53,8 @@ pomodoro_celebration_spawn :: proc(x, y: f32) {
 			x_goal := x + rand.float32() * WIDTH - WIDTH / 2 
 			anim_duration := time.Millisecond * time.Duration(rand.float32() * 4000 + 500)
 			anim_wait := rand.float64() * 2
-			gs_animate(&c.y, f32(mode_panel.bounds.b + 50), .Quadratic_In_Out, anim_duration, anim_wait)
-			gs_animate(&c.x, x_goal, .Quadratic_Out, anim_duration, anim_wait)
+			window_animate(window_main, &c.y, f32(mode_panel.bounds.b + 50), .Quadratic_In_Out, anim_duration, anim_wait)
+			window_animate(window_main, &c.x, x_goal, .Quadratic_Out, anim_duration, anim_wait)
 		}
 	}
 }

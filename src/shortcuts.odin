@@ -827,6 +827,10 @@ task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_
 		undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
 		task.state = goal
 		changelog_update_safe()
+
+		power_mode_spawn_along_task_text(task)
+		// text := strings.to_string(task.box.builder)
+		// power_mode_spawn_along_text(text, task.bounds.l, task.bounds.t)
 	}
 }
 

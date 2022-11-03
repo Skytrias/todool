@@ -147,6 +147,10 @@ main :: proc() {
 	window_main = window
 	window.element.message_user = window_main_message
 	window.update = main_update
+	window.update_check = proc(window: ^Window) -> (handled: bool) {
+		handled |= power_mode_running()
+		return
+	}
 
 	{
 		spall.scoped("load keymap")
@@ -231,7 +235,7 @@ main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: raw
 	task_head_tail_clamp()
 	if task_head != -1 && !task_has_selection() && len(tasks_visible) > 0 {
 		box := tasks_visible[task_head].box
-		
+
 		if element_message(box, msg, di, dp) == 1 {
 			cam := mode_panel_cam()
 			cam.freehand = false
@@ -249,10 +253,10 @@ main_update :: proc(window: ^Window) {
 	{
 		state := progressbar_show()
 		if state && progressbars_alpha == 0 {
-			gs_animate(&progressbars_alpha, 1, .Quadratic_In, time.Millisecond * 200)
+			window_animate(window, &progressbars_alpha, 1, .Quadratic_In, time.Millisecond * 200)
 		}
 		if !state && progressbars_alpha == 1 {
-			gs_animate(&progressbars_alpha, 0, .Quadratic_In, time.Millisecond * 100)
+			window_animate(window, &progressbars_alpha, 0, .Quadratic_In, time.Millisecond * 100)
 		}
 	}
 
@@ -358,14 +362,14 @@ main_update :: proc(window: ^Window) {
 		if 
 			task_head != task_tail &&
 			task_shadow_alpha == 0 {
-			gs_animate_forced(&task_shadow_alpha, TASK_SHADOW_ALPHA, .Quadratic_Out, time.Millisecond * 100)
+			window_animate_forced(window, &task_shadow_alpha, TASK_SHADOW_ALPHA, .Quadratic_Out, time.Millisecond * 100)
 		}
 
 		// animate down
 		if 
 			task_head == task_tail &&
 			task_shadow_alpha != 0 {
-			gs_animate_forced(&task_shadow_alpha, 0, .Exponential_Out, time.Millisecond * 50)
+			window_animate_forced(window, &task_shadow_alpha, 0, .Exponential_Out, time.Millisecond * 50)
 		}
 	}
 

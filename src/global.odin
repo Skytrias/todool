@@ -139,8 +139,12 @@ Window :: struct {
 
 	// rendering
 	update_next: bool,
+	update_check: proc(window: ^Window) -> bool, // for custom animation handling
 	target: ^Render_Target,
-	
+	flux: ease.Flux_Map(f32), // can force an update
+	flux_had_animations: bool,
+	flux_render_last_frame: bool,
+
 	// sdl data
 	w: ^sdl.Window,
 	w_id: u32,
@@ -224,7 +228,6 @@ Global_State :: struct {
 	audio_ok: bool, // true when sdl mix module loaded fine
 	sound_paths: [Sound_Index]string,
 	sounds: [Sound_Index]^mix.Chunk,
-	flux: ease.Flux_Map(f32),
 
 	// stores multiple png images
 	stored_images: [dynamic]Stored_Image,
@@ -482,6 +485,7 @@ window_init :: proc(
 	gs.windows = res
 	keymap_init(&res.keymap_box, 16, 32)
 	keymap_init(&res.keymap_custom, command_cap, combos_cap)
+	res.flux = ease.flux_init(f32, 32)
 
 	// set hovered panel
 	{
@@ -1032,6 +1036,7 @@ window_deallocate :: proc(window: ^Window) {
 	keymap_destroy(&window.keymap_box)
 	keymap_destroy(&window.keymap_custom)
 
+	ease.flux_destroy(window.flux)
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)
 
@@ -1427,8 +1432,6 @@ gs_init :: proc() {
 		}
 	}
 
-	flux = ease.flux_init(f32, 128)
-
 	window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
 		context = runtime.default_context()
 		context.logger = gs.logger
@@ -1500,8 +1503,6 @@ gs_destroy :: proc() {
 	}
 
 	mix.Quit()
-
-	ease.flux_destroy(flux)
 	fontstash.destroy(&fc)
 
 	// based on mode
@@ -1605,22 +1606,36 @@ gs_process_events :: proc() {
 
 gs_message_loop :: proc() {
 	context.logger = gs.logger
-	flux_render_last_frame: bool
+	// flux_render_last_frame: bool
 	
 	for gs.running {
-		flux_has_animations := len(gs.flux.values) != 0
+		// check prior for any window needing updates
+		gs_windows_iter_init()
+		for w in gs_windows_iter_step() {
+			w.flux_had_animations = len(w.flux.values) != 0 
+			w.update_next |= (w.flux_had_animations || w.flux_render_last_frame)
+			w.flux_render_last_frame = false
+		}
 
-		// when animating
-		if len(gs.animating) != 0 || flux_has_animations || flux_render_last_frame {
+		// forced animation, from exterior animation
+		gs_windows_iter_init()
+		for w in gs_windows_iter_step() {
+			if w.update_check != nil {
+				w.update_next |= w->update_check()
+			}
+		}
+
+		// check if any have updates now
+		any_update := len(gs.animating) != 0
+		gs_windows_iter_init()
+		for w in gs_windows_iter_step() {
+			any_update |= w.update_next
+		}
+
+		if any_update {
 			gs_process_animations()
-			
-			if flux_has_animations || flux_render_last_frame {
-				gs_update_all_windows()
-			}	
-
 			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_events()
-			flux_render_last_frame = false
 		} else {
 			// wait for event to arive
 			available := sdl.WaitEvent(nil)
@@ -1643,10 +1658,15 @@ gs_message_loop :: proc() {
 			gs.dt = f32(elapsed_ms)
 		}
 
-		ease.flux_update(&gs.flux, f64(gs.dt))
-		// render last frame
-		if len(gs.flux.values) == 0 && flux_has_animations {
-			flux_render_last_frame = true
+		gs_windows_iter_init()
+		for w in gs_windows_iter_step() {
+			// TODO maybe window dt?
+			ease.flux_update(&w.flux, f64(gs.dt))
+	
+			// render last frame
+			if len(w.flux.values) == 0 && w.flux_had_animations {
+				w.flux_render_last_frame = true
+			}
 		}
 	}
 
@@ -1674,24 +1694,26 @@ gs_process_animations :: proc() {
 	}
 }
  
-gs_animate_forced :: proc(
+window_animate_forced :: proc(
+	window: ^Window,
 	value: ^f32,
 	to: f32,
 	type: ease.Ease = .Quadratic_Out,
 	duration: time.Duration = time.Second,
 	delay: f64 = 0,
 ) {
-	flux_to_restricted(&gs.flux, value, to, type, duration, delay)
+	flux_to_restricted(&window.flux, value, to, type, duration, delay)
 }
 
-gs_animate :: proc(
+window_animate :: proc(
+	window: ^Window,
 	value: ^f32,
 	to: f32,
 	type: ease.Ease = .Quadratic_Out,
 	duration: time.Duration = time.Second,
 	delay: f64 = 0,
 ) {
-	ease.flux_to(&gs.flux, value, to, type, duration, delay)
+	ease.flux_to(&window.flux, value, to, type, duration, delay)
 }
 
 // version that stops ongoing animation on different goal
