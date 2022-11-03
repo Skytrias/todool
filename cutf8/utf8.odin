@@ -28,7 +28,6 @@ utf8d := [400]u8 {
 }
 
 // decode codepoints from a state
-// @(private)
 decode :: #force_inline proc(state: ^rune, codep: ^rune, b: byte) -> bool {
 	b := rune(b)
 	type := utf8d[b]
@@ -145,7 +144,7 @@ ds_byte_offset_till_codepoint_index :: proc(
 	return byte_offset
 }
 
-// fast conversion for string to runes
+// fast conversion alternative for string to runes
 ds_to_runes :: proc(
 	using ds: ^Decode_State, 
 	text: string, 

@@ -423,6 +423,8 @@ Task :: struct {
 	indentation_smooth: f32,
 	indentation_animating: bool,
 	state: Task_State,
+	state_unit: f32,
+	state_last: Task_State,
 	tags: u8,
 
 	// top animation
@@ -1686,6 +1688,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		case .Box_Text_Color: {
 			color := cast(^Color) dp
 			color^ = theme_task_text(task.state)
+
+			if task.state_unit > 0 {
+				a := theme_task_text(task.state_last)
+				b := theme_task_text(task.state)
+				color^ = color_blend_amount(a, b, task.state_unit)
+			}
+
 			return 1
 		}
 
@@ -2082,7 +2091,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				1,
 			)
 
-			if task.has_children {
+			// progress animation on parent
+			if task.has_children && progressbar_show() {
 				for count, i in task.state_count {
 					always := true
 					state := Task_State(i)

@@ -6,6 +6,7 @@ import "core:slice"
 import "core:strings"
 import "core:log"
 import "core:mem"
+import "core:time"
 import "../cutf8"
 import "../tfd"
 
@@ -827,10 +828,15 @@ task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_
 			cast(u8) task.state,
 		}
 		undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
+		task.state_last = task.state
 		task.state = goal
 		changelog_update_safe()
 
+		// power mode spawn
 		power_mode_spawn_along_task_text(task)
+
+		task.state_unit = 1
+		window_animate_forced(window_main, &task.state_unit, 0, .Quadratic_Out, time.Millisecond * 100)
 	}
 }
 

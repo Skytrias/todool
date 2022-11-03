@@ -101,33 +101,6 @@ PRESENTATION_MODE :: false
 // 	}
 // }
 
-// test_track: mem.Tracking_Allocator
-// some_map: map[int]int
-
-// main :: proc() {
-// 	fmt.eprintln("start")
-// 	defer fmt.eprintln("end")
-
-// 	mem.tracking_allocator_init(&test_track, context.allocator)
-// 	defer {
-// 		gs_check_leaks(&test_track)
-// 		mem.tracking_allocator_destroy(&test_track)
-// 	}
-	
-// 	context.allocator = mem.tracking_allocator(&test_track)
-
-// 	data := new(int)
-// 	defer free(data)
-// 	some_map = make(map[int]int, 10)
-// 	defer delete(some_map)
-
-// 	for i in 0..<100 {
-// 		some_map[i] = i
-// 	}
-
-// 	fmt.eprintln(some_map)
-// }
-
 main :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	

@@ -26,6 +26,11 @@ import "../spall"
 // leaves GPU vertex creation & texture management up to the user
 // texture atlas expands by default
 
+// other:
+// immediate mode is "optional" - store the state global yourself
+// wrapped text for wrapped text & caret layouting
+// utf8 traversal done with utf8 table instead of odin's
+
 STATE_MAX :: 20
 LUT_SIZE :: 256
 INIT_GLYPHS :: 256
