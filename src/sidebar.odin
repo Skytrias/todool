@@ -105,6 +105,21 @@ Sidebar_Options :: struct {
 	checkbox_progressbar_show: ^Checkbox,
 	checkbox_progressbar_percentage: ^Checkbox,
 	checkbox_progressbar_hover_only: ^Checkbox,
+
+	// powermode
+	pm: struct {
+		ps_show: ^Checkbox,
+
+		// particle
+		p_lifetime: ^Slider,
+		p_alpha_scale: ^Slider,
+		p_colored: ^Checkbox,
+
+		// screenshake
+		s_use: ^Checkbox,
+		s_amount: ^Slider,
+		s_lifetime: ^Slider,
+	},
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -427,6 +442,52 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			checkbox_progressbar_show = checkbox_init(panel, flags, "Show", true)
 			checkbox_progressbar_percentage = checkbox_init(panel, flags, "Use Percentage", false)
 			checkbox_progressbar_hover_only = checkbox_init(panel, flags, "Hover Only", false)
+		}
+
+		// power mode
+		{
+			temp2 := &sb.options.pm
+			using temp2
+
+			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
+			header := label_init(panel, { .HF, .Label_Center }, "Power Mode")
+			header.font_options = &font_options_header
+
+			ps_show = checkbox_init(panel, flags, "Show", false)
+
+			lifetime_default := math.remap(f32(0.5), P_LIFETIME_MIN, P_LIFETIME_MAX, 0, 1)
+			p_lifetime = slider_init(panel, flags, lifetime_default)
+			p_lifetime.formatting = proc(builder: ^strings.Builder, position: f32) {
+				value := pm_particle_lifetime()
+				fmt.sbprintf(builder, "Particle Lifetime: %.3f", value)
+			}
+			p_lifetime.hover_info = "Particle Lifetime Scaling - the higher the longer one stays alive"
+
+			p_alpha_scale = slider_init(panel, flags, 0.5)
+			p_alpha_scale.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "Particle Alpha: %.3f", position)
+			}
+			p_alpha_scale.hover_info = "Particle Alpha Scale - the higher the more visible"
+
+			p_colored = checkbox_init(panel, flags, "Use Colors", true)
+			p_colored.hover_info = "Wether to use slowly shifting color hues"
+
+			// screenshake
+			s_use = checkbox_init(panel, flags, "Use Screenshake", true)
+
+			shake_amount := math.remap(f32(3), S_AMOUNT_MIN, S_AMOUNT_MAX, 0, 1)
+			s_amount = slider_init(panel, flags, shake_amount)
+			s_amount.formatting = proc(builder: ^strings.Builder, position: f32) {
+				value := pm_screenshake_amount()
+				fmt.sbprintf(builder, "Screenshake Amount: %dpx", int(value))
+			}
+			s_amount.hover_info = "Screenshake Amount in px - the higher the more screenshake"
+
+			s_lifetime = slider_init(panel, flags, 1)
+			s_lifetime.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "Screenshake Multiplier: %.3f", position)
+			}
+			s_lifetime.hover_info = "Screenshake Multiplier - the lower the longer it screenshakes"
 		}
 	}
 
@@ -753,6 +814,30 @@ progressbar_percentage :: #force_inline proc() -> bool {
 }
 progressbar_hover_only :: #force_inline proc() -> bool {
 	return sb.options.checkbox_progressbar_hover_only.state
+}
+
+// power mode options
+
+pm_show :: #force_inline proc() -> bool {
+	return sb.options.pm.ps_show.state
+}
+pm_particle_lifetime :: #force_inline proc() -> f32 {
+	return math.remap(sb.options.pm.p_lifetime.position, 0, 1, P_LIFETIME_MIN, P_LIFETIME_MAX)
+}
+pm_particle_alpha_scale :: #force_inline proc() -> f32 {
+	return sb.options.pm.p_alpha_scale.position
+}
+pm_particle_colored :: #force_inline proc() -> bool {
+	return sb.options.pm.p_colored.state
+}
+pm_screenshake_use :: #force_inline proc() -> bool {
+	return sb.options.pm.s_use.state
+}
+pm_screenshake_amount :: #force_inline proc() -> f32 {
+	return math.remap(sb.options.pm.s_amount.position, 0, 1, S_AMOUNT_MIN, S_AMOUNT_MAX)
+}
+pm_screenshake_lifetime :: #force_inline proc() -> f32 {
+	return sb.options.pm.s_lifetime.position
 }
 
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

@@ -122,6 +122,7 @@ Window :: struct {
 	clicked_last: ^Element,
 	click_count: int,
 	clicked_start: time.Tick,
+	raise_next: bool,
 
 	// mouse behaviour
 	cursor_x, cursor_y: int,
@@ -594,6 +595,14 @@ window_mouse_rect :: proc(window: ^Window, w := 1, h := 1) -> RectI {
 
 window_mouse_inside :: proc(window: ^Window) -> bool {
 	return rect_contains(window.rect, window.cursor_x, window.cursor_y)
+}
+
+window_raise :: proc(window: ^Window) {
+	sdl.RaiseWindow(window.w)
+}
+
+window_show :: proc(window: ^Window) {
+	sdl.ShowWindow(window.w)
 }
 
 global_mouse_position :: proc() -> (int, int) {
@@ -1630,6 +1639,12 @@ gs_message_loop :: proc() {
 		gs_windows_iter_init()
 		for w in gs_windows_iter_step() {
 			any_update |= w.update_next
+
+			if w.raise_next {
+				window_raise(w)
+				// window_show(w)
+				w.raise_next = false
+			}
 		}
 
 		if any_update {

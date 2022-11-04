@@ -342,8 +342,11 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 	iter := ti_init()
 
 	task_state_progression = .Update_Animated
+	task_count: int
+
 	for task in ti_step(&iter) {
-		task_set_state_undoable(manager, task, state)
+		task_set_state_undoable(manager, task, state, task_count)
+		task_count += 1
 	}
 }
 
@@ -360,11 +363,13 @@ todool_change_task_state :: proc(du: u32) {
 
 	// modify all states
 	task_state_progression = .Update_Animated
+	task_count: int
 	for task in ti_step(&iter) {
 		index = int(task.state)
 		range_advance_index(&index, len(Task_State) - 1, shift)
 		// save old set
-		task_set_state_undoable(manager, task, Task_State(index))
+		task_set_state_undoable(manager, task, Task_State(index), task_count)
+		task_count += 1
 	}
 
 	element_repaint(mode_panel)
@@ -819,7 +824,12 @@ undo_u8_set :: proc(manager: ^Undo_Manager, item: rawptr) {
 	changelog_update_safe()
 }
 
-task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_State) {
+task_set_state_undoable :: proc(
+	manager: ^Undo_Manager, 
+	task: ^Task, 
+	goal: Task_State,
+	task_count: int,
+) {
 	if manager == nil {
 		task.state = goal
 	} else {
@@ -833,7 +843,7 @@ task_set_state_undoable :: proc(manager: ^Undo_Manager, task: ^Task, goal: Task_
 		changelog_update_safe()
 
 		// power mode spawn
-		power_mode_spawn_along_task_text(task)
+		power_mode_spawn_along_task_text(task, task_count)
 
 		task.state_unit = 1
 		window_animate_forced(window_main, &task.state_unit, 0, .Quadratic_Out, time.Millisecond * 100)
@@ -1054,6 +1064,7 @@ todool_save :: proc(du: u32) {
 		default_path := gs_string_to_cstring(gs.pref_path)
 		file_patterns := [?]cstring { "*.todool" }
 		output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
+		window_main.raise_next = true
 
 		if output != nil {
 			last_save_set(string(output))
@@ -1107,6 +1118,7 @@ todool_load :: proc(du: u32) {
 
 	file_patterns := [?]cstring { "*.todool" }
 	output := tfd.open_file_dialog("Open", default_path, file_patterns[:])
+	window_main.raise_next = true
 	
 	if output == nil {
 		return

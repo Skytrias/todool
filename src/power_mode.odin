@@ -11,6 +11,17 @@ import "../cutf8"
 
 // NOTE noise return -1 to 1 range
 
+// options
+// lifetime scale 0.5-4
+// alpha max 0.1-1
+// screenshake amount
+// screenshake lifetime (how quick it ends)
+
+S_AMOUNT_MIN :: 1
+S_AMOUNT_MAX :: 20
+P_LIFETIME_MIN :: 0.25
+P_LIFETIME_MAX :: 2
+
 PM_State :: struct {
 	particles: [dynamic]PM_Particle,
 	spawn_next: bool,
@@ -18,6 +29,9 @@ PM_State :: struct {
 	// coloring
 	color_seed: i64,
 	color_count: f64,
+
+	// caret color
+	caret_color: Color,
 }
 pm_state: PM_State
 
@@ -52,6 +66,10 @@ power_mode_clear :: proc() {
 power_mode_check_spawn :: proc() {
 	using pm_state
 
+	if !pm_show() {
+		return
+	}
+
 	if spawn_next {
 		power_mode_spawn_at_caret()
 		spawn_next = false
@@ -60,6 +78,10 @@ power_mode_check_spawn :: proc() {
 
 // simple line
 power_mode_spawn_along_text :: proc(text: string, x, y: f32, color: Color) {
+	if !pm_show() {
+		return
+	}
+
 	fcs_ahv(.Left, .Top)
 	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
 	fcs_font(font_regular)
@@ -73,7 +95,11 @@ power_mode_spawn_along_text :: proc(text: string, x, y: f32, color: Color) {
 }
 
 // NOTE using rendered glyphs only
-power_mode_spawn_along_task_text :: proc(task: ^Task) {
+power_mode_spawn_along_task_text :: proc(task: ^Task, task_count: int) {
+	if !pm_show() {
+		return
+	}
+
 	if len(task.box.rendered_glyphs) != 0 {
 		text := strings.to_string(task.box.builder)
 		color := theme_task_text(task.state)
@@ -84,17 +110,23 @@ power_mode_spawn_along_task_text :: proc(task: ^Task) {
 
 		for codepoint, i in cutf8.ds_iter(&ds, text) {
 			glyph := task.box.rendered_glyphs[i] 
-			power_mode_spawn_at(glyph.x, glyph.y, cam.offset_x, cam.offset_y, 2, color, f32(count) * 0.002)
+			delay := f32(count) * 0.002 + f32(task_count) * 0.02
+			power_mode_spawn_at(glyph.x, glyph.y, cam.offset_x, cam.offset_y, 2, color, delay)
 			count += 1
 		}
 	}
 }
 
 power_mode_spawn_at_caret :: proc() {
+	if !pm_show() {
+		return
+	}
+
 	cam := mode_panel_cam()
 	x := f32(caret_rect.l)
 	y := f32(caret_rect.t) + rect_heightf_halfed(caret_rect)
-	power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, 10, theme.text_default)
+	color: Color = pm_particle_colored() ? {} : pm_state.caret_color
+	power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, 10, color)
 }
 
 power_mode_spawn_at :: proc(
@@ -111,9 +143,10 @@ power_mode_spawn_at :: proc(
 	size := 2 * TASK_SCALE
 
 	// NOTE could resize upfront?
+	lifetime_opt := pm_particle_lifetime()
 
 	for i in 0..<count {
-		life := rand.float32() * 0.5 + 0.5 // min is 0.5
+		life := rand.float32() * lifetime_opt + 0.5 // min is 0.5
 
 		// custom delay
 		d := delay
@@ -125,7 +158,7 @@ power_mode_spawn_at :: proc(
 		c := color 
 		if c == {} {
 			// normalize to 0 -> 1
-			value := (noise.noise_2d(color_seed, { color_count / 16, 0 }) + 1) / 2
+			value := (noise.noise_2d(color_seed, { color_count * 0.01, 0 }) + 1) / 2
 			c = color_hsv_to_rgb(value, 1, 1)
 		}
 
@@ -151,6 +184,10 @@ power_mode_spawn_at :: proc(
 
 power_mode_update :: proc() {
 	using pm_state
+
+	if !pm_show() {
+		return
+	}
 	
 	for i := len(particles) - 1; i >= 0; i -= 1 {
 		p := &particles[i]
@@ -174,23 +211,35 @@ power_mode_update :: proc() {
 
 power_mode_render :: proc(target: ^Render_Target) {
 	using pm_state
+
+	if !pm_show() {
+		return
+	}
 	
 	cam := mode_panel_cam()
 	xoff, yoff: f32
+	alpha_opt := pm_particle_alpha_scale()
 
-	for p in &particles {
+	for i := len(particles) - 1; i >= 0; i -= 1 {
+		p := &particles[i]
+
 		if p.delay > 0 {
+			continue
+		}
+
+		alpha := clamp((p.lifetime_count / p.lifetime) * alpha_opt, 0, 1)
+
+		// when alpha has reached 0 we can shortcut here
+		if alpha == 0 {
+			unordered_remove(&particles, i)
 			continue
 		}
 
 		xoff = p.xoff + cam.offset_x
 		yoff = p.yoff + cam.offset_y
-
-		alpha := max(p.lifetime_count / p.lifetime, 0)
 		color := color_alpha(p.color, alpha)
-		// color := color_alpha(theme.text_default, alpha)
 		render_circle(target, p.x + xoff, p.y + yoff, p.radius, color, true)
-	}		
+	}
 }
 
 power_mode_running :: #force_inline proc() -> bool {
@@ -199,19 +248,23 @@ power_mode_running :: #force_inline proc() -> bool {
 
 power_mode_issue_spawn :: #force_inline proc() {
 	using pm_state
+
+	if !pm_show() {
+		return
+	}
+
 	spawn_next = true
 
 	cam := mode_panel_cam()
 	cam.screenshake_counter = 0
 }
 
-// // returns the max lifetime of all particles to do screenshake from
-// power_mode_max_lifetime :: proc() -> (value: f32) {
-// 	using pm_state
+power_mode_set_caret_color :: proc() {
+  using pm_state
 
-// 	for p in particles {
-// 		value = max(value, p.delay + p.lifetime)
-// 	}
-
-// 	return running_time + value
-// }
+  if task_head != -1 {
+  	task := tasks_visible[task_head]
+  	// TODO make this syntax based instead
+  	caret_color = theme_task_text(task.state)
+  }	
+}

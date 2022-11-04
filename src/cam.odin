@@ -33,12 +33,21 @@ Pan_Camera :: struct {
 
 // update lifetime
 cam_update_screenshake :: proc(using cam: ^Pan_Camera, update: bool) {
+	if !pm_screenshake_use() {
+		screenshake_x = 0
+		screenshake_y = 0
+		screenshake_counter = 0
+		return
+	} 
+
 	if update {
+		// unit range nums
 		x := (rand.float32() * 2 - 1)
 		y := (rand.float32() * 2 - 1)
-		shake := f32(3)
-		screenshake_x = x * max(shake - screenshake_counter * shake * 2, 0)
-		screenshake_y = y * max(shake - screenshake_counter * shake * 2, 0)
+		shake := pm_screenshake_amount() // skake amount in px
+		lifetime_opt := pm_screenshake_lifetime()
+		screenshake_x = x * max(shake - screenshake_counter * shake * 2 * lifetime_opt, 0)
+		screenshake_y = y * max(shake - screenshake_counter * shake * 2 * lifetime_opt, 0)
 		screenshake_counter += gs.dt
 	} else {
 		screenshake_x = 0

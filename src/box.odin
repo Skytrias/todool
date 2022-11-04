@@ -1501,7 +1501,18 @@ kbox_delete :: proc(du: u32) {
 		forced_selection = 1
 	}
 
+	old_length := len(kbox.box.builder.buf)
 	box_replace(kbox.um, kbox.element, kbox.box, "", forced_selection, true, kbox.by_task)
+
+	// no change in length
+	if old_length == len(kbox.box.builder.buf) {
+		kbox.failed = true
+		return
+	}
+
+	if kbox.by_task {
+		power_mode_issue_spawn()	
+	}
 }
 
 kbox_copy :: proc(du: u32) {

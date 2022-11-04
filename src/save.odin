@@ -528,6 +528,18 @@ Misc_Save_Load :: struct {
 		stopwatch_acuumulation: int, // time.Duration 
 	},
 
+	power_mode: struct {
+		show: bool,
+
+		particle_lifetime: f32,
+		particle_alpha_scale: f32,
+		particle_colored: bool,
+
+		screenshake_use: bool,
+		screenshake_amount: f32,
+		screenshake_lifetime: f32,
+	},
+
 	statistics: struct {
 		accumulated: int, // time.Duration
 		work_goal: int,
@@ -652,6 +664,16 @@ json_save_misc :: proc(path: string) -> bool {
 
 			pomodoro.stopwatch.running,
 			int(pomodoro_diff),
+		},
+
+		power_mode = {
+			pm_show(),
+			sb.options.pm.p_lifetime.position,
+			sb.options.pm.p_alpha_scale.position,
+			pm_particle_colored(),
+			pm_screenshake_use(),
+			sb.options.pm.s_amount.position,
+			sb.options.pm.s_lifetime.position,
 		},
 
 		statistics = {
@@ -798,6 +820,20 @@ json_load_misc :: proc(path: string) -> bool {
 	slider_set(sb.stats.slider_pomodoro_long_break, f32(clamp(misc.pomodoro.long_break, 0, 60)) / 60)
 	pomodoro.stopwatch.running = misc.pomodoro.stopwatch_running
 	pomodoro.stopwatch._accumulation = time.Duration(misc.pomodoro.stopwatch_acuumulation)
+
+	// power mode
+	{
+		temp := &sb.options.pm	
+		using temp
+		checkbox_set(ps_show, misc.power_mode.show)
+		slider_set(p_lifetime, misc.power_mode.particle_lifetime)
+		slider_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
+		checkbox_set(p_colored, misc.power_mode.particle_colored)
+		checkbox_set(s_use, misc.power_mode.screenshake_use)
+		slider_set(s_amount, misc.power_mode.screenshake_amount)
+		slider_set(s_lifetime, misc.power_mode.screenshake_lifetime)
+	}
+	// slider_set()
 	
 	// statistics
 	goal := clamp(misc.statistics.work_goal, 1, 24)

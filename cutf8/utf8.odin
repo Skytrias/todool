@@ -144,7 +144,7 @@ ds_byte_offset_till_codepoint_index :: proc(
 	return byte_offset
 }
 
-// fast conversion alternative for string to runes
+// fast conversion alternative for string_to_runes
 ds_to_runes :: proc(
 	using ds: ^Decode_State, 
 	text: string, 

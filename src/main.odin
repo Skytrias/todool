@@ -370,6 +370,7 @@ main_update :: proc(window: ^Window) {
 	image_load_process_texture_handles(window)
 
 	statusbar_update(&statusbar)
+	power_mode_set_caret_color()
 }
 
 window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
