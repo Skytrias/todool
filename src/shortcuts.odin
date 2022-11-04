@@ -351,6 +351,33 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 }
 
 todool_change_task_state :: proc(du: u32) {
+	if true {
+		b := strings.builder_make(0, 32, context.temp_allocator)
+
+		if task_head != -1 {
+			task := tasks_visible[task_head]
+			b := &task.box.builder.buf
+
+			if timing_timestamp_check(task_string(task)) != -1 {
+				stamp, ok := timing_timestamp_extract(b[:TIMESTAMP_LENGTH])
+
+				// if its already today, dont insert, otherwhise rewrite
+				if timing_timestamp_is_today(stamp) && ok {
+					return
+				} 
+			} else {
+				resize(b, len(b) + TIMESTAMP_LENGTH + 1)
+				copy(b[TIMESTAMP_LENGTH + 1:], b[:])
+			}
+
+			timing_bprint_timestamp(b[:TIMESTAMP_LENGTH + 1])
+			fmt.eprintln("tried")
+		}
+
+		window_repaint(window_main)
+		return
+	}
+
 	if task_head == -1 {
 		return
 	}
@@ -1119,7 +1146,7 @@ todool_load :: proc(du: u32) {
 	file_patterns := [?]cstring { "*.todool" }
 	output := tfd.open_file_dialog("Open", default_path, file_patterns[:])
 	window_main.raise_next = true
-	
+
 	if output == nil {
 		return
 	}
@@ -1719,7 +1746,6 @@ vim_insert_below :: proc(du: u32) {
 
 vim_insert_above :: proc(du: u32) {
 	VIM(true)
-	fmt.eprintln("run")
 	todool_insert_sibling(COMBO_SHIFT)
 }
 

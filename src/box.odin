@@ -1008,13 +1008,13 @@ element_box_mouse_selection :: proc(
 					}
 					
 					// check for starting codepoint being letter
-					if index_word_start == -1 && unicode.is_alpha(iter.codepoint) {
+					if index_word_start == -1 && !unicode.is_space(iter.codepoint) {
 						index_word_start = index
 						x_word_start = x
 					}
 
 					// check for space word completion
-					if index_whitespace_start != -1 && unicode.is_alpha(iter.codepoint) {
+					if index_whitespace_start != -1 && !unicode.is_space(iter.codepoint) {
 						old_x = x_whitespace_start
 						mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + index)
 						index_whitespace_start = -1
@@ -1039,7 +1039,7 @@ element_box_mouse_selection :: proc(
 				}
 
 				// finish end word
-				if index_word_start != -1 && unicode.is_alpha(codepoint_last) {
+				if index_word_start != -1 && !unicode.is_space(codepoint_last) {
 					old_x = x_word_start
 					mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + iter.codepoint_count)
 				}

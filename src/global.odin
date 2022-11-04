@@ -329,11 +329,8 @@ image_load_process_on_thread :: proc(t: ^thread.Thread) {
 		for img in &gs.stored_images {
 			// loading needs to be done
 			if !img.loaded {
-				fmt.eprintln("try image load")
 				img.backing = image_load_from_file(image_path(&img))
 				img.loaded = true
-				fmt.eprintln("image load done")
-
 				// fmt.eprintln("image load finished", key, img.backing == nil)
 			}
 		}
@@ -808,11 +805,14 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				}
 
 				combo := (cast(^string) dp)^
+
 				if window.focused != nil && combo == "escape" {
-					element_focus(window, nil)
-					handled = true
-					window.update_next = true
-					return
+					if window.dialog == nil {
+						element_focus(window, nil)
+						handled = true
+						window.update_next = true
+						return
+					}
 				}
 
 				if !handled && !window.ctrl && !window.alt {

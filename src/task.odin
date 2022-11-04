@@ -124,6 +124,9 @@ dirty_saved := 0
 bookmark_index := -1
 bookmarks: [dynamic]int
 
+// line numbering
+builder_line_number: strings.Builder
+
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
 	using element: Element,
@@ -215,6 +218,8 @@ task_data_init :: proc() {
 
 	pomodoro_init()
 	spell_check_init()
+
+	strings.builder_init(&builder_line_number, 0, 32)
 }
 
 last_save_set :: proc(next: string = "") {
@@ -249,6 +254,8 @@ task_data_destroy :: proc() {
 	undo_manager_destroy(&um_sidebar_tags)
 
 	spell_check_destroy()
+
+	delete(builder_line_number.buf)
 }
 
 // reset copy data
@@ -1491,6 +1498,43 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
+			if power_mode_running() {
+				render_push_clip(target, panel.clip)
+				power_mode_update()
+				power_mode_render(target)
+			}
+
+			// render number highlights
+			if true {
+				render_push_clip(target, panel.clip)
+				
+				b := &builder_line_number
+				fcs_ahv(.Right, .Middle)
+				fcs_font(font_regular)
+				fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
+				fcs_color(color_alpha(theme.text_default, 0.25))
+				gap := int(4 * TASK_SCALE)
+
+				for t, i in tasks_visible {
+					// NOTE necessary as the modes could have the tasks at different positions
+					if !rect_overlap(t.bounds, panel.clip) {
+						continue
+					}
+
+					strings.builder_reset(b)
+					strings.write_int(b, i + 1)
+					text := strings.to_string(builder_line_number)
+					width := string_width(text) + TEXT_MARGIN_HORIZONTAL
+					r := RectI {
+						t.bounds.l - width - gap,
+						t.bounds.l - gap,
+						t.bounds.t,
+						t.bounds.b,
+					}
+					render_string_rect(target, r, text)
+				}
+			}
+
 			// render zoom highlight text
 			if panel.zoom_highlight != 0 {
 				render_push_clip(target, panel.clip)
@@ -1512,12 +1556,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if image_display_has_content_now(custom_split.image_display) {
 				render_push_clip(target, panel.clip)
 				element_message(custom_split.image_display, .Paint_Recursive)
-			}
-
-			if power_mode_running() {
-				render_push_clip(target, panel.clip)
-				power_mode_update()
-				power_mode_render(target)
 			}
 
 			return 1
@@ -2572,13 +2610,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 			task_head_tail_push(manager)
 
 			task := cast(^Task) toggle.data
-			state := cast(^u8) &task.state
-			item := Undo_Item_U8_Set {
-				state,
-				state^,
-			}
-			undo_push(manager, undo_u8_set, &item, size_of(Undo_Item_U8_Set))
-			state^ = u8(toggle.value)
+			task_set_state_undoable(manager, task, Task_State(toggle.value), 0)
 		}
 	}
 
@@ -2997,59 +3029,6 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	}
 }
 
-timestamp_check :: proc(text: string) -> (index: int) {
-	index = -1
-	
-	if len(text) >= 8 && unicode.is_digit(rune(text[0])) {
-		// find 2 minus signs without break
-		// 2022-01-28 
-		minus_count := 0
-		index = 0
-
-		for index < 10 {
-			b := rune(text[index])
-		
-			if b == '-' {
-				minus_count += 1
-			}
-
-			if !(b == '-' || unicode.is_digit(b)) {
-				break
-			}
-
-			index += 1
-		}
-
-		if minus_count != 2 {
-			index = -1
-		}
-	} 
-
-	return
-}
-
-task_repaint_timestamps :: proc() {
-	if task_head == -1 {
-		return
-	}
-
-	for task in tasks_visible {
-		text := strings.to_string(task.box.builder)
-
-		if res := timestamp_check(text); res != -1 {
-			if len(task.box.rendered_glyphs) != 0 {
-				for i in 0..<res {
-					b := task.box.rendered_glyphs[i]
-
-					for v in &b.vertices {
-						v.color = theme.text_date
-					}
-				}
-			}
-		}
-	}
-}
-
 todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Bar) {
 	split = menu_split_init(parent)
 	menu = menu_bar_init(split)
@@ -3134,4 +3113,8 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 	// p2 := panel_init(split, { .Panel_Default_Background })
 	// p2.background_index = 1
 	return
+}
+
+task_string :: #force_inline proc(task: ^Task) -> string {
+	return strings.to_string(task.box.builder)
 }

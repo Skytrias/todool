@@ -96,13 +96,6 @@ time_stop_stopwatch :: proc(using stopwatch: ^time.Stopwatch) -> (diff: time.Dur
 	return
 }
 
-duration_clock :: proc(duration: time.Duration) -> (hours, minutes, seconds: int) {
-	hours = int(time.duration_hours(duration)) % 24
-	minutes = int(time.duration_minutes(duration)) % 60
-	seconds = int(time.duration_seconds(duration)) % 60
-	return
-}
-
 pomodoro_stopwatch_stop_add :: proc() {
 	diff := time_stop_stopwatch(&pomodoro.stopwatch)
 	pomodoro.accumulated += diff

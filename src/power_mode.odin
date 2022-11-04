@@ -24,6 +24,7 @@ P_LIFETIME_MAX :: 2
 
 PM_State :: struct {
 	particles: [dynamic]PM_Particle,
+
 	spawn_next: bool,
 
 	// coloring

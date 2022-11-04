@@ -231,6 +231,10 @@ rect_translate :: proc(a, b: RectI) -> RectI {
 	return a
 }
 
+rect_overlap :: proc(a, b: RectI) -> bool {
+	return b.r >= a.l && b.l <= a.r && b.b >= a.t && b.t <= a.b
+}
+
 // cuts out rect b from a and returns the left regions
 rect_cut_out_rect :: proc(a, b: RectI) -> (res: [4]RectI) {
 	// top
