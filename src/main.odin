@@ -102,6 +102,30 @@ PRESENTATION_MODE :: false
 // }
 
 main :: proc() {
+	gb := gb_init()
+
+	// for i in 0..<32 
+	gb_insert(&gb, 'a')
+	gb_insert(&gb, 'ä')
+	gb_insert(&gb, 'c')
+	gb_insert(&gb, 'c')
+	gb_insert(&gb, 'd')
+	gb_insert(&gb, 'd')
+	gb_insert(&gb, 'ö')
+	gb_move_left(&gb)
+	gb_move_right(&gb)
+	gb_move_left(&gb)
+	gb_backspace(&gb)
+	gb_delete(&gb)
+	// gb_move_left(&gb)
+	// gb_move_left(&gb)
+	// gb_backspace(&gb)
+	// gb_move_left(&gb)
+	// gb_move_right(&gb)
+	gb_print_all(&gb)
+}
+
+main6 :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
