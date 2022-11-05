@@ -102,38 +102,24 @@ PRESENTATION_MODE :: false
 // }
 
 main :: proc() {
-	gb := gb_init()
+	s1 := ss_init_string("abäbcd")
 
-	// for i in 0..<32 
-	gb_insert(&gb, 'a')
-	gb_insert(&gb, 'd')
-	gb_insert(&gb, 'c')
-	gb_insert(&gb, 'c')
-	// gb_insert(&gb, 'ö')
-	// gb_insert(&gb, 'ö')
-	// gb_insert(&gb, 'ö')
-	gb_insert(&gb, 'd')
-	gb_move_to(&gb, 4)
-	// gb_move_left(&gb)
-	// gb_move_left(&gb)
-	// gb_move_left(&gb)
-	gb_print_all(&gb)
 
-	// gb_move_to(&gb, 1)
 
-	byte_index: u8
-	fmt.eprintln("~~~")
-	for r, size in gb_iter(&gb, &byte_index) {
-		fmt.eprintln(r, size)
-	}
-	fmt.eprintln("~~~")
+	// ss_append(&s1, 'a')
+	// ss_append(&s1, 'b')
+	// ss_append(&s1, 'c')
+// fmt.eprintln(ss_size(&s1), ss_string(&s1))
+	// fmt.eprintln(ss_append(&s1, 'ö'))
+	// fmt.eprintln(ss_append(&s1, 'ö'))
+	// fmt.eprintln(ss_append(&s1, 'd'))
+	fmt.eprintln(ss_size(&s1), ss_string(&s1))
+	
+	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'x'))
+	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'y'))
 
-	// gb_move_left(&gb)
-	// gb_move_left(&gb)
-	// gb_backspace(&gb)
-	// gb_move_left(&gb)
-	// gb_move_right(&gb)
-	gb_print_all(&gb)
+	fmt.eprintln(ss_size(&s1), ss_string(&s1))
+
 }
 
 main6 :: proc() {
