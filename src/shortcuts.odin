@@ -67,7 +67,7 @@ todool_delete_on_empty :: proc(du: u32) {
 
 	task := tasks_visible[task_head]
 	
-	if len(task.box.builder.buf) == 0 {
+	if int(task.box.ss.length) == 0 {
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
 		task_state_progression = .Update_Animated
@@ -356,21 +356,21 @@ todool_change_task_state :: proc(du: u32) {
 
 		if task_head != -1 {
 			task := tasks_visible[task_head]
-			b := &task.box.builder.buf
+			// b := &task.box.builder.buf
 
-			if timing_timestamp_check(task_string(task)) != -1 {
-				stamp, ok := timing_timestamp_extract(b[:TIMESTAMP_LENGTH])
+			// if timing_timestamp_check(task_string(task)) != -1 {
+			// 	stamp, ok := timing_timestamp_extract(b[:TIMESTAMP_LENGTH])
 
-				// if its already today, dont insert, otherwhise rewrite
-				if timing_timestamp_is_today(stamp) && ok {
-					return
-				} 
-			} else {
-				resize(b, len(b) + TIMESTAMP_LENGTH + 1)
-				copy(b[TIMESTAMP_LENGTH + 1:], b[:])
-			}
+			// 	// if its already today, dont insert, otherwhise rewrite
+			// 	if timing_timestamp_is_today(stamp) && ok {
+			// 		return
+			// 	} 
+			// } else {
+			// 	resize(b, len(b) + TIMESTAMP_LENGTH + 1)
+			// 	copy(b[TIMESTAMP_LENGTH + 1:], b[:])
+			// }
 
-			timing_bprint_timestamp(b[:TIMESTAMP_LENGTH + 1])
+			// timing_bprint_timestamp(b[:TIMESTAMP_LENGTH + 1])
 			fmt.eprintln("tried")
 		}
 
@@ -577,13 +577,14 @@ todool_insert_child :: proc(du: u32) {
 	if task_head != -1 {
 		current_task := tasks_visible[task_head]
 		indentation = current_task.indentation + 1
-		builder := &current_task.box.builder
+		// TODO
+		// builder := &current_task.box.builder
 
-		// uppercase word
-		if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
-			item := Undo_Builder_Uppercased_Content { builder }
-			undo_box_uppercased_content(manager, &item)
-		}
+		// // uppercase word
+		// if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
+		// 	item := Undo_Builder_Uppercased_Content { builder }
+		// 	undo_box_uppercased_content(manager, &item)
+		// }
 
 		// unfold current task if its folded 
 		if current_task.folded {
@@ -979,7 +980,7 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	task_state_progression = .Update_Animated
 	for i in 0..<iter.range {
 		task := cast(^Task) mode_panel.children[iter.offset]
-		archive_push(strings.to_string(task.box.builder)) // only valid
+		archive_push(ss_string(&task.box.ss)) // only valid
 		task_remove_at_index(manager, iter.offset)
 	}
 
@@ -1215,7 +1216,7 @@ todool_goto :: proc(du: u32) {
 	goto_saved_task_tail = task_tail
 
 	// reset text
-	strings.builder_reset(&box.builder)
+	ss_clear(&box.ss)
 	box.head = 0
 	box.tail = 0
 }
@@ -1225,8 +1226,8 @@ todool_search :: proc(du: u32) {
 	element_hide(p, false)
 
 	// save info
-	ss.saved_task_head = task_head
-	ss.saved_task_tail = task_tail
+	search.saved_task_head = task_head
+	search.saved_task_tail = task_tail
 
 	box := element_find_first_text_box(p)
 	assert(box != nil)
@@ -1241,20 +1242,19 @@ todool_search :: proc(du: u32) {
 			ds: cutf8.Decode_State
 			low, high := box_low_and_high(task.box)
 			text, ok := cutf8.ds_string_selection(
-				&ds, 
-				strings.to_string(task.box.builder), 
+				&ds,
+				ss_string(&task.box.ss),
 				low, 
 				high,
 			)
 
-			strings.builder_reset(&box.builder)
-			strings.write_string(&box.builder, text)
-
-			ss_update(text)
+			ss_clear(&box.ss)
+			ss_set_string(&box.ss, text)
+			search_update(text)
 		}
 
-		ss.saved_box_head = task.box.head
-		ss.saved_box_tail = task.box.tail
+		search.saved_box_head = task.box.head
+		search.saved_box_tail = task.box.tail
 	}		
 
 	element_message(box, .Box_Set_Caret, BOX_SELECT_ALL)
@@ -1278,7 +1278,7 @@ todool_duplicate_line :: proc(du: u32) {
 	task_state_progression = .Update_Animated
 	task_current := tasks_visible[task_head]
 	index, indentation := task_head_safe_index_indentation()
-	task_push_undoable(manager, indentation, strings.to_string(task_current.box.builder), index)
+	task_push_undoable(manager, indentation, ss_string(&task_current.box.ss), index)
 	element_repaint(mode_panel)
 
 	task_head += 1
@@ -1407,12 +1407,13 @@ todool_tasks_to_uppercase :: proc(du: u32) {
 		iter := ti_init()
 
 		for task in ti_step(&iter) {
-			builder := &task.box.builder
+			// TODO uppercase
+			// builder := &task.box.builder
 	
-			if len(builder.buf) != 0 {
-				item := Undo_Builder_Uppercased_Content { builder }
-				undo_box_uppercased_content(manager, &item)
-			}
+			// if len(builder.buf) != 0 {
+			// 	item := Undo_Builder_Uppercased_Content { builder }
+			// 	undo_box_uppercased_content(manager, &item)
+			// }
 		}
 
 		element_repaint(mode_panel)
@@ -1426,12 +1427,13 @@ todool_tasks_to_lowercase :: proc(du: u32) {
 		iter := ti_init()
 
 		for task in ti_step(&iter) {
-			builder := &task.box.builder
+			// TODO lowercase
+			// builder := &task.box.builder
 	
-			if len(builder.buf) != 0 {
-				item := Undo_Builder_Lowercased_Content { builder }
-				undo_box_lowercased_content(manager, &item)
-			}
+			// if len(builder.buf) != 0 {
+			// 	item := Undo_Builder_Lowercased_Content { builder }
+			// 	undo_box_lowercased_content(manager, &item)
+			// }
 		}
 
 		element_repaint(mode_panel)

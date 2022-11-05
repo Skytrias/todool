@@ -142,7 +142,7 @@ task_write_text_indentation :: proc(b: ^strings.Builder, task: ^Task, indentatio
 		strings.write_byte(b, '\t')
 	}
 
-	strings.write_string(b, strings.to_string(task.box.builder))
+	strings.write_string(b, ss_string(&task.box.ss))
 	strings.write_byte(b, '\n')
 }
 
@@ -200,7 +200,7 @@ task_data_init :: proc() {
 	tasks_visible = make([dynamic]^Task, 0, 128)
 	task_move_stack = make([]^Task, 256)
 	bookmarks = make([dynamic]int, 0, 32)
-	ss_init()
+	search_state_init()
 
 	font_options_header = {
 		font = font_bold,
@@ -240,7 +240,7 @@ task_data_destroy :: proc() {
 
 	power_mode_destroy()
 	pomodoro_destroy()
-	ss_destroy()
+	search_state_destroy()
 	delete(tasks_visible)
 	delete(bookmarks)
 	delete(copy_text_data.buf)
@@ -281,7 +281,7 @@ copy_push_empty :: proc(text: string) {
 copy_push_task :: proc(task: ^Task) {
 	// NOTE works with utf8 :) copies task text
 	text_byte_start := len(copy_text_data.buf)
-	strings.write_string(&copy_text_data, strings.to_string(task.box.builder))
+	strings.write_string(&copy_text_data, ss_string(&task.box.ss))
 	text_byte_end := len(copy_text_data.buf)
 
 	// copy crucial info of task
@@ -930,7 +930,7 @@ task_box_format_to_lines :: proc(box: ^Task_Box, width: int) {
 
 	fontstash.wrap_format_to_lines(
 		&gs.fc,
-		strings.to_string(box.builder),
+		ss_string(&box.ss),
 		max(f32(width), 200),
 		&box.wrapped_lines,
 	)
@@ -1396,7 +1396,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			task_repaint_timestamps()
-			ss_draw_highlights(target, panel)
+			search_draw_highlights(target, panel)
 
 			// word error highlight
 			when !PRESENTATION_MODE {
@@ -2059,7 +2059,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 						switch tag_mode {
 							case TAG_SHOW_TEXT_AND_COLOR: {
-								text := strings.to_string(tag^)
+								text := ss_string(tag)
 								width := string_width(text)
 								// width := fontstash.string_width(font, scaled_size, text)
 								r := rect_cut_left(&rect, width + text_margin)
@@ -2272,7 +2272,7 @@ goto_init :: proc(window: ^Window) {
 
 		#partial switch msg {
 			case .Value_Changed: {
-				value := strconv.atoi(strings.to_string(box.builder)) - 1
+				value := strconv.atoi(ss_string(&box.ss)) - 1
 				task_head = value
 				task_tail = value
 				element_repaint(box)
@@ -3116,5 +3116,5 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 }
 
 task_string :: #force_inline proc(task: ^Task) -> string {
-	return strings.to_string(task.box.builder)
+	return ss_string(&task.box.ss)
 }

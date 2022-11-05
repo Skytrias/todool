@@ -172,10 +172,10 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 			u8(task.indentation),
 			u8(task.state),
 			u8(task.tags),
-			u16be(len(task.box.builder.buf)),
+			u16be(task.box.ss.length),
 		}
 		buffer_write_type(&buffer, t) or_return
-		bytes.buffer_write_string(&buffer, strings.to_string(task.box.builder)) or_return
+		bytes.buffer_write_string(&buffer, ss_string(&task.box.ss)) or_return
 	}
 
 	editor_save_tag_colors(&buffer) or_return
@@ -360,7 +360,7 @@ editor_save_tag_colors :: proc(b: ^bytes.Buffer) -> (err: io.Error) {
 
 	// write out small string content 
 	for i in 0..<8 {
-		buffer_write_string_u8(b, strings.to_string(sb.tags.names[i]^)) or_return
+		buffer_write_string_u8(b, ss_string(sb.tags.names[i])) or_return
 	}	
 
 	// write out colors
@@ -394,9 +394,8 @@ editor_read_tag_colors :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 					for i in 0..<8 {
 						text_length := reader_read_type(reader, u8) or_return
 						text_content := reader_read_bytes_out(reader, int(text_length)) or_return
-						b := sb.tags.names[i]
-						strings.builder_reset(b)
-						strings.write_string(b, transmute(string) text_content)
+						ss := sb.tags.names[i]
+						ss_set_string(ss, transmute(string) text_content)
 					}
 
 					for i in 0..<8 {

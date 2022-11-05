@@ -30,7 +30,7 @@ BOX_END :: 2
 BOX_SELECT_ALL :: 3
 
 Box :: struct {
-	builder: strings.Builder, // actual data
+	ss: Small_String, // actual data
 	wrapped_lines: [dynamic]string, // wrapped content
 	head, tail: int,
 	ds: cutf8.Decode_State,
@@ -53,14 +53,12 @@ Box :: struct {
 	rendered_glyphs: [dynamic]Rendered_Glyph,
 }
 
-box_init :: proc(box: ^Box, cap: int) {
-	box.builder = strings.builder_make(0, cap)
+box_init :: proc(box: ^Box) {
 	box.wrapped_lines = make([dynamic]string, 0, 4)
 }
 
 box_destroy :: proc(box: Box) {
 	delete(box.wrapped_lines)
-	delete(box.builder.buf)
 	delete(box.rendered_glyphs)
 }
 
@@ -88,7 +86,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 	#partial switch msg {
 		case .Layout: {
 			clear(&box.wrapped_lines)
-			append(&box.wrapped_lines, strings.to_string(box.builder))
+			append(&box.wrapped_lines, ss_string(&box.ss))
 		}
 
 		case .Get_Cursor: {
@@ -107,7 +105,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			focused := element.window.focused == element
 
 			target := element.window.target
-			text := strings.to_string(box.builder)
+			text := ss_string(&box.ss)
 			scaled_size := fcs_element(element)
 			color: Color
 			element_message(element, .Box_Text_Color, 0, &color)
@@ -265,8 +263,8 @@ text_box_init :: proc(
 	flags := flags
 	flags |= { .Tab_Stop }
 	res = element_init(Text_Box, parent, flags, text_box_message, allocator, index_at)
-	box_init(&res.box, 32)
-	strings.write_string(&res.builder, text)
+	box_init(&res.box)
+	ss_set_string(&res.box.ss, text)
 	box_move_end_simple(&res.box)
 	// log.info("box init", res.head, res.tail, len(res.builder.buf))
 	return	
@@ -326,7 +324,7 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 	fcs_color(color)
 
 	clear(&box.rendered_glyphs)
-	reserve(&box.rendered_glyphs, len(box.builder.buf))
+	reserve(&box.rendered_glyphs, int(box.ss.length))
 
 	// draw each wrapped line
 	y: int
@@ -404,8 +402,8 @@ task_box_init :: proc(
 	index_at := -1,
 ) -> (res: ^Task_Box) {
 	res = element_init(Task_Box, parent, flags, task_box_message, allocator, index_at)
-	box_init(&res.box, 64)
-	strings.write_string(&res.builder, text)
+	box_init(&res.box)
+	ss_set_string(&res.box.ss, text)
 	box_move_end_simple(&res.box)
 	return
 }
@@ -422,7 +420,7 @@ box_copy_selection :: proc(window: ^Window, box: ^Box) -> (found: bool) {
 
 	box.ds = {}
 	low, high := box_low_and_high(box)
-	selection, ok := cutf8.ds_string_selection(&box.ds, strings.to_string(box.builder), low, high)
+	selection, ok := cutf8.ds_string_selection(&box.ds, ss_string(&box.ss), low, high)
 	
 	if ok {
 		clipboard_set_with_builder(selection)
@@ -503,8 +501,8 @@ box_insert :: proc(
 		box_replace(manager, element, box, "", 0, true, msg_by_task)
 	}
 	
-	builder := &box.builder
-	count := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
+	// builder := &box.builder
+	count := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
 
 	box_check_changes(manager, box)
 
@@ -579,7 +577,8 @@ box_replace :: proc(
 	if len(text) != 0 {
 		box.ds = {}
 		for codepoint, i in cutf8.ds_iter(&box.ds, text) {
-			builder_insert_rune_at(&box.builder, codepoint, box.head + i)
+			ss_insert_at(&box.ss, box.head + i, codepoint)
+			// builder_insert_rune_at(&box.builder, codepoint, box.head + i)
 		}
 
 		old_head := box.head
@@ -597,7 +596,7 @@ box_replace :: proc(
 }
 
 box_clear :: proc(box: ^Box, send_changed_message: bool) {
-	strings.builder_reset(&box.builder)
+	ss_clear(&box.ss)
 	box.head = 0
 	box.tail = 0
 }
@@ -628,7 +627,7 @@ box_move_caret :: proc(box: ^Box, backward: bool, word: bool, shift: bool) {
 		return
 	}
 
-	runes := cutf8.ds_to_runes(&box.ds, strings.to_string(box.builder))
+	runes := cutf8.ds_to_runes(&box.ds, ss_string(&box.ss))
 	
 	for {
 		// box ahead of 0 and backward allowed
@@ -668,13 +667,13 @@ box_set_caret :: proc(box: ^Box, di: int, dp: rawptr) {
 		}
 
 		case BOX_END: {
-			length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
+			length := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
 			box.head = length
 			box.tail = box.head
 		}
 
 		case BOX_SELECT_ALL: {
-			length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
+			length := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
 			box.tail = 0
 			box.head = length
 		}
@@ -1105,7 +1104,7 @@ Undo_Item_Box_Rune_Pop :: struct {
 
 undo_box_rune_append :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Box_Rune_Append) item
-	strings.write_rune(&data.box.builder, data.codepoint)
+	ss_append(&data.box.ss, data.codepoint)
 	item := Undo_Item_Box_Rune_Pop { data.box, data.box.head, data.box.head }
 	data.box.head += 1
 	data.box.tail += 1
@@ -1114,7 +1113,8 @@ undo_box_rune_append :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 undo_box_rune_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Box_Rune_Pop) item
-	codepoint, codepoint_width := strings.pop_rune(&data.box.builder)
+	// codepoint, codepoint_width := strings.pop_rune(&data.box.builder)
+	codepoint, _ := ss_pop(&data.box.ss)
 	data.box.head = data.head
 	data.box.tail = data.tail
 	item := Undo_Item_Box_Rune_Append {
@@ -1138,23 +1138,25 @@ Undo_Item_Box_Rune_Remove_At :: struct {
 undo_box_rune_insert_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Box_Rune_Insert_At) item
 
-	// reset and convert to runes for ease
-	runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(data.box.builder))
-	b := &data.box.builder
-	strings.builder_reset(b)
-	
-	// step through runes 1 by 1 and insert wanted one
-	for i in 0..<len(runes) {
-		if i == data.index {
-			builder_append_rune(b, data.codepoint)
-		}
+	ss_insert_at(&data.box.ss, data.index, data.codepoint)
 
-		builder_append_rune(b, runes[i])
-	}
+	// // reset and convert to runes for ease
+	// runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(data.box.builder))
+	// b := &data.box.builder
+	// strings.builder_reset(b)
 	
-	if data.index >= len(runes) {
-		builder_append_rune(b, data.codepoint)
-	}
+	// // step through runes 1 by 1 and insert wanted one
+	// for i in 0..<len(runes) {
+	// 	if i == data.index {
+	// 		builder_append_rune(b, data.codepoint)
+	// 	}
+
+	// 	builder_append_rune(b, runes[i])
+	// }
+	
+	// if data.index >= len(runes) {
+	// 	builder_append_rune(b, data.codepoint)
+	// }
 
 	// increase head & tail always
 	data.box.head += 1
@@ -1171,20 +1173,22 @@ undo_box_rune_insert_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 undo_box_rune_remove_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Box_Rune_Remove_At) item
 
-	// reset and convert to runes for ease
-	runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(data.box.builder))
-	b := &data.box.builder
-	strings.builder_reset(b)
-	removed_codepoint: rune
+	removed_codepoint, _ := ss_remove_at(&data.box.ss, data.index)
 
-	// step through runes 1 by 1 and remove the wanted index
-	for i in 0..<len(runes) {
-		if i == data.index {
-			removed_codepoint = runes[i]
-		} else {
-			builder_append_rune(b, runes[i])
-		}
-	}
+	// // reset and convert to runes for ease
+	// runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(data.box.builder))
+	// b := &data.box.builder
+	// strings.builder_reset(b)
+	// removed_codepoint: rune
+
+	// // step through runes 1 by 1 and remove the wanted index
+	// for i in 0..<len(runes) {
+	// 	if i == data.index {
+	// 		removed_codepoint = runes[i]
+	// 	} else {
+	// 		builder_append_rune(b, runes[i])
+	// 	}
+	// }
 
 	// set the head and tail to the removed location
 	data.box.head = data.index
@@ -1209,49 +1213,50 @@ Undo_Item_Box_Remove_Selection :: struct {
 undo_box_remove_selection :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Box_Remove_Selection) item
 
-	b := &data.box.builder
-	runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(b^))
-	strings.builder_reset(b)
+	// TODO
+	// b := &data.box.builder
+	// runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(b^))
+	// strings.builder_reset(b)
 
-	low := min(data.head, data.tail)
-	high := max(data.head, data.tail)
-	removed_rune_amount := high - low
+	// low := min(data.head, data.tail)
+	// high := max(data.head, data.tail)
+	// removed_rune_amount := high - low
 
-	// create insert already	
-	item := Undo_Item_Box_Insert_Runes {
-		data.box,
-		data.head,
-		data.tail,
-		data.forced_selection,
-		removed_rune_amount,
-	}
+	// // create insert already	
+	// item := Undo_Item_Box_Insert_Runes {
+	// 	data.box,
+	// 	data.head,
+	// 	data.tail,
+	// 	data.forced_selection,
+	// 	removed_rune_amount,
+	// }
 
-	// push upfront to instantly write to the popped runes section
-	bytes := undo_push(
-		manager, 
-		undo_box_insert_runes, 
-		&item,
-		size_of(Undo_Item_Box_Insert_Runes) + removed_rune_amount * size_of(rune),
-	)
+	// // push upfront to instantly write to the popped runes section
+	// bytes := undo_push(
+	// 	manager, 
+	// 	undo_box_insert_runes, 
+	// 	&item,
+	// 	size_of(Undo_Item_Box_Insert_Runes) + removed_rune_amount * size_of(rune),
+	// )
 
-	// get runes byte location
-	runes_root := cast(^rune) &bytes[size_of(Undo_Item_Box_Insert_Runes)]
-	popped_runes := mem.slice_ptr(runes_root, removed_rune_amount)
-	pop_index: int
+	// // get runes byte location
+	// runes_root := cast(^rune) &bytes[size_of(Undo_Item_Box_Insert_Runes)]
+	// popped_runes := mem.slice_ptr(runes_root, removed_rune_amount)
+	// pop_index: int
 
-	// pop of runes that are not wanted
-	for i in 0..<len(runes) {
-		if low <= i && i < high {
-			popped_runes[pop_index] = runes[i]
-			pop_index += 1
-		} else {
-			builder_append_rune(b, runes[i])
-		}
-	}	
+	// // pop of runes that are not wanted
+	// for i in 0..<len(runes) {
+	// 	if low <= i && i < high {
+	// 		popped_runes[pop_index] = runes[i]
+	// 		pop_index += 1
+	// 	} else {
+	// 		builder_append_rune(b, runes[i])
+	// 	}
+	// }	
 
-	// set to new location
-	data.box.head = low
-	data.box.tail = low
+	// // set to new location
+	// data.box.head = low
+	// data.box.tail = low
 }
 
 Undo_Item_Box_Insert_Runes :: struct {
@@ -1269,52 +1274,53 @@ Undo_Item_Box_Insert_Runes :: struct {
 undo_box_insert_runes :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Box_Insert_Runes) item
 
-	b := &data.box.builder
-	runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(b^))
-	strings.builder_reset(b)
+	// TODO
+	// b := &data.box.builder
+	// runes := cutf8.ds_to_runes(&data.box.ds, strings.to_string(b^))
+	// strings.builder_reset(b)
 
-	low := min(data.head, data.tail)
-	high := max(data.head, data.tail)
+	// low := min(data.head, data.tail)
+	// high := max(data.head, data.tail)
 
-	// set based on forced selection 
-	if data.forced_selection != 0 {
-		set := data.forced_selection == 1 ? low : high
-		data.box.head = set
-		data.box.tail = set
-	} else {
-		data.box.head = data.head
-		data.box.tail = data.tail
-	}
+	// // set based on forced selection 
+	// if data.forced_selection != 0 {
+	// 	set := data.forced_selection == 1 ? low : high
+	// 	data.box.head = set
+	// 	data.box.tail = set
+	// } else {
+	// 	data.box.head = data.head
+	// 	data.box.tail = data.tail
+	// }
 
-	runes_root := cast(^rune) (uintptr(item) + size_of(Undo_Item_Box_Insert_Runes))
-	popped_runes := mem.slice_ptr(runes_root, data.rune_amount)
-	// log.info("popped rune", runes_root, popped_runes, data.rune_amount, data.head, data.tail)
+	// runes_root := cast(^rune) (uintptr(item) + size_of(Undo_Item_Box_Insert_Runes))
+	// popped_runes := mem.slice_ptr(runes_root, data.rune_amount)
+	// // log.info("popped rune", runes_root, popped_runes, data.rune_amount, data.head, data.tail)
 
-	for i in 0..<len(runes) {
-		// insert popped content back to head location
-		if i == low {
-			for j in 0..<data.rune_amount {
-				builder_append_rune(b, popped_runes[j])
-			}
-		}
+	// for i in 0..<len(runes) {
+	// 	// insert popped content back to head location
+	// 	if i == low {
+	// 		for j in 0..<data.rune_amount {
+	// 			builder_append_rune(b, popped_runes[j])
+	// 		}
+	// 	}
 
-		builder_append_rune(b, runes[i])
-	}
+	// 	builder_append_rune(b, runes[i])
+	// }
 
-	// append to end of string
-	if low >= len(runes) {
-		for j in 0..<data.rune_amount {
-			builder_append_rune(b, popped_runes[j])
-		}
-	}
+	// // append to end of string
+	// if low >= len(runes) {
+	// 	for j in 0..<data.rune_amount {
+	// 		builder_append_rune(b, popped_runes[j])
+	// 	}
+	// }
 
-	item := Undo_Item_Box_Remove_Selection { 
-		data.box,
-		data.head,
-		data.tail,
-		data.forced_selection,
-	}
-	undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
+	// item := Undo_Item_Box_Remove_Selection { 
+	// 	data.box,
+	// 	data.head,
+	// 	data.tail,
+	// 	data.forced_selection,
+	// }
+	// undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
 }
 
 Undo_Builder_Uppercased_Content :: struct {
@@ -1444,20 +1450,20 @@ kbox_move_home :: proc(du: u32) {
 }
 
 box_move_end_simple :: proc(box: ^Box) {
-	length := cutf8.ds_recount(&box.ds, strings.to_string(box.builder))
+	length := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
 	box.head = length
 	box_check_shift(box, false)
 }
 
 kbox_move_end :: proc(du: u32) {
 	shift := du_shift(du)
-	length := cutf8.ds_recount(&kbox.box.ds, strings.to_string(kbox.box.builder))
+	length := cutf8.ds_recount(&kbox.box.ds, ss_string(&kbox.box.ss))
 	kbox.box.head = length
 	box_check_shift(kbox.box, shift)
 }
 
 kbox_select_all :: proc(du: u32) {
-	length := cutf8.ds_recount(&kbox.box.ds, strings.to_string(kbox.box.builder))
+	length := cutf8.ds_recount(&kbox.box.ds, ss_string(&kbox.box.ss))
 	kbox.box.head = length
 	kbox.box.tail = 0
 }
@@ -1501,11 +1507,11 @@ kbox_delete :: proc(du: u32) {
 		forced_selection = 1
 	}
 
-	old_length := len(kbox.box.builder.buf)
+	old_length := int(kbox.box.ss.length)
 	box_replace(kbox.um, kbox.element, kbox.box, "", forced_selection, true, kbox.by_task)
 
 	// no change in length
-	if old_length == len(kbox.box.builder.buf) {
+	if old_length == int(kbox.box.ss.length) {
 		kbox.failed = true
 		return
 	}

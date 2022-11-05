@@ -4,7 +4,7 @@ import "core:unicode/utf8"
 import "../cutf8"
 import "core:fmt"
 
-SS_SIZE :: 32
+SS_SIZE :: 255
 
 // static sized string with no magic going on
 // insert & pop are fast and utf8 based
@@ -28,6 +28,11 @@ ss_has_space :: #force_inline proc(ss: ^Small_String) -> bool {
 // return the actual string 
 ss_string :: #force_inline proc(ss: ^Small_String) -> string {
 	return string(ss.buf[:ss.length])
+}
+
+// clear the small string
+ss_clear :: #force_inline proc(ss: ^Small_String) {
+	ss.length = 0
 }
 
 // append the rune to the buffer
@@ -142,11 +147,8 @@ ss_remove_at :: proc(ss: ^Small_String, index: int) -> (c: rune, ok: bool) {
 	info, found := _ss_find_byte_index_info(ss, index - 1)
 
 	if !found {
-		// fmt.eprintln("leave early")
 		return
 	}
-
-	// fmt.eprintln(info)
 
 	// no need to copy if at end
 	// if info.byte_index != ss.length {
@@ -186,9 +188,30 @@ ss_delete_at :: proc(ss: ^Small_String, index: int) -> (c: rune, ok: bool) {
 	return
 }
 
+// init with string
 ss_init_string :: proc(text: string) -> (ss: Small_String) {
-	length := min(len(text), SS_SIZE)
-	copy(ss.buf[:length], text[:length])
-	ss.length = u8(length)
+	if len(text) != 0 {
+		length := min(len(text), SS_SIZE)
+		copy(ss.buf[:length], text[:length])
+		ss.length = u8(length)
+	}
+
 	return
 }
+
+// set the small string to your wanted text
+ss_set_string :: proc(ss: ^Small_String, text: string) {
+	if len(text) == 0 {
+		ss.length = 0
+	} else {
+		length := min(len(text), SS_SIZE)
+		copy(ss.buf[:length], text[:length])
+		ss.length = u8(length)
+	}
+}
+
+// ss_recount :: proc(ss: ^Small_String) -> int {
+// 	// ds: xDecode_State
+// }
+
+// ss_length :: proc(ss: )

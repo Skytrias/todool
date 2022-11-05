@@ -135,7 +135,7 @@ tag_show_text := [TAG_SHOW_COUNT]string {
 
 Sidebar_Tags :: struct {
 	panel: ^Panel,
-	names: [8]^strings.Builder,
+	names: [8]^Small_String,
 	temp_index: int,
 	tag_show_mode: int,
 	toggle_selector_tag: ^Toggle_Selector,
@@ -503,7 +503,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		) {
 			b := text_box_init(panel, { .HF }, text)
 			b.um = &um_sidebar_tags
-			sb.tags.names[sb.tags.temp_index]	= &b.builder
+			sb.tags.names[sb.tags.temp_index]	= &b.ss
 			sb.tags.temp_index += 1
 		}
 

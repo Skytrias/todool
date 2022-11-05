@@ -41,39 +41,39 @@ Search_State :: struct {
 	current_index: int,
 	pattern_rune_count: int,
 }
-ss: Search_State
+search: Search_State
 panel_search: ^Panel
 
 // init to cap
-ss_init :: proc() {
-	ss.entries = make([dynamic]Search_Entry, 0, 128)
-	ss.results = make([dynamic]u16, 0, 1028)
-	ss_clear()
+search_state_init :: proc() {
+	search.entries = make([dynamic]Search_Entry, 0, 128)
+	search.results = make([dynamic]u16, 0, 1028)
+	search_clear()
 }
 
-ss_destroy :: proc() {
-	using ss
+search_state_destroy :: proc() {
+	using search
 	delete(entries)
 	delete(results)
 	result_count = nil
 }
 
 // clear count and reset write slice
-ss_clear :: proc() {
-	using ss
+search_clear :: proc() {
+	using search
 	clear(&entries)
 	clear(&results)
 	result_count = nil
 	current_index = -1
 }
 
-ss_has_results :: proc() -> bool {
-	return len(ss.entries) != 0
+search_has_results :: proc() -> bool {
+	return len(search.entries) != 0
 }
 
 // push a ptr and set current counter
-ss_push_task :: proc(task: ^Task) {
-	using ss
+search_push_task :: proc(task: ^Task) {
+	using search
 	append(&entries, Search_Entry {
 		task,
 		0,
@@ -83,21 +83,21 @@ ss_push_task :: proc(task: ^Task) {
 	result_count = &entry.length
 }
 
-ss_pop_task :: proc() {
-	pop(&ss.entries)
+search_pop_task :: proc() {
+	pop(&search.entries)
 }
 
 // push a search result
-ss_push_result :: proc(index: int) {
-	ss.result_count^ += 1
-	append(&ss.results, u16(index))
+search_push_result :: proc(index: int) {
+	search.result_count^ += 1
+	append(&search.results, u16(index))
 }
 
 // update serach state and find new results
-ss_update :: proc(pattern: string) {
+search_update :: proc(pattern: string) {
 	spall.fscoped("search update: %s", pattern)
-	ss.pattern_rune_count = cutf8.count(pattern)
-	ss_clear()
+	search.pattern_rune_count = cutf8.count(pattern)
+	search_clear()
 
 	if len(pattern) == 0 {
 		return
@@ -109,7 +109,7 @@ ss_update :: proc(pattern: string) {
 	// find results
 	for i in 0..<len(tasks_visible) {
 		task := tasks_visible[i]
-		text := strings.to_string(task.box.builder)
+		text := ss_string(&task.box.ss)
 		task_pushed: bool
 		index: int
 
@@ -119,21 +119,21 @@ ss_update :: proc(pattern: string) {
 				break
 			}
 			if !task_pushed {
-				ss_push_task(task)
+				search_push_task(task)
 				task_pushed = true
 			}
 
 			index += res
-			ss_push_result(index)
+			search_push_result(index)
 			index += len(pattern)
 		}
 	}
 
-	ss_find_next()
+	search_find_next()
 }
 
-ss_find :: proc(backwards: bool) {
-	using ss
+search_find :: proc(backwards: bool) {
+	using search
 
 	if len(results) == 0 {
 		return
@@ -158,23 +158,23 @@ ss_find :: proc(backwards: bool) {
 	task_head = task.visible_index
 	task_tail = task.visible_index
 	res := results[result_index]
-	task.box.head = int(res) + ss.pattern_rune_count
+	task.box.head = int(res) + search.pattern_rune_count
 	task.box.tail = int(res)
 
 	element_repaint(mode_panel)
 }
 
-ss_find_next :: proc() {
-	ss_find(false)
+search_find_next :: proc() {
+	search_find(false)
 }
 
-ss_find_prev :: proc() {
-	ss_find(true)
+search_find_prev :: proc() {
+	search_find(true)
 }
 
 // draw the search results outline
-ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
-	if (.Hide in panel_search.flags) || !ss_has_results() {
+search_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
+	if (.Hide in panel_search.flags) || !search_has_results() {
 		return
 	}
 
@@ -184,7 +184,7 @@ ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 	search_draw_index: int
 	GRAY :: Color { 100, 100, 100, 255 }
 
-	for entry in ss.entries {
+	for entry in search.entries {
 		task := entry.ptr
 		length := entry.length
 		top := task.box.bounds.t
@@ -192,8 +192,8 @@ ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 		scaled_size := f32(fcs_task(task))
 
 		for i in 0..<int(length) {
-			res := ss.results[entry.result_offset + i]
-			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines[:], int(res), int(res) + ss.pattern_rune_count)
+			res := search.results[entry.result_offset + i]
+			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines[:], int(res), int(res) + search.pattern_rune_count)
 			scaled_size := f32(state.isize / 10)
 
 			for fontstash.wrap_state_iter(&gs.fc, &state) {
@@ -205,7 +205,7 @@ ss_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 				}
 				
 				// color := theme.text_good
-				color := ss.current_index == search_draw_index ? GRAY : theme.caret
+				color := search.current_index == search_draw_index ? GRAY : theme.caret
 				render_rect_outline(target, rect, color, 0, 2)
 			}
 
@@ -231,8 +231,8 @@ search_init :: proc(parent: ^Element) {
 
 		#partial switch msg {
 			case .Value_Changed: {
-				query := strings.to_string(box.builder)
-				ss_update(query)
+				query := ss_string(&box.ss)
+				search_update(query)
 			}
 
 			case .Key_Combination: {
@@ -243,8 +243,8 @@ search_init :: proc(parent: ^Element) {
 					case "escape": {
 						element_hide(panel_search, true)
 						element_repaint(panel_search)
-						task_head = ss.saved_task_head
-						task_tail = ss.saved_task_tail
+						task_head = search.saved_task_head
+						task_tail = search.saved_task_tail
 					}
 
 					case "return": {
@@ -254,12 +254,12 @@ search_init :: proc(parent: ^Element) {
 
 					// next
 					case "f3", "ctrl n": {
-						ss_find_next()
+						search_find_next()
 					}
 
 					// prev 
 					case "shift f3", "ctrl shift n": {
-						ss_find_prev()
+						search_find_prev()
 					}
 
 					case: {
@@ -282,11 +282,11 @@ search_init :: proc(parent: ^Element) {
 
 	b1 := button_init(p, {}, "Find Next")
 	b1.invoke = proc(button: ^Button, data: rawptr) {
-		ss_find_next()
+		search_find_next()
 	}
 	b2 := button_init(p, {}, "Find Prev")
 	b2.invoke = proc(button: ^Button, data: rawptr) {
-		ss_find_prev()
+		search_find_prev()
 	}
 
 	panel_search = p

@@ -246,7 +246,7 @@ mode_panel_cam_bounds_check_x :: proc(
 				if len(t.box.wrapped_lines) == 1 {
 					fcs_element(t)
 					fcs_ahv(.Left, .Top)
-					text_width := string_width(strings.to_string(t.box.builder))
+					text_width := string_width(ss_string(&t.box.ss))
 
 					// if rect_width(mode_panel.bounds) - cam.margin_x * 2 
 

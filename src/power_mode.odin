@@ -102,7 +102,7 @@ power_mode_spawn_along_task_text :: proc(task: ^Task, task_count: int) {
 	}
 
 	if len(task.box.rendered_glyphs) != 0 {
-		text := strings.to_string(task.box.builder)
+		text := ss_string(&task.box.ss)
 		color := theme_task_text(task.state)
 		cam := mode_panel_cam()
 		cam.screenshake_counter = 0

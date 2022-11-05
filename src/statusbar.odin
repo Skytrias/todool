@@ -143,8 +143,8 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 				task := tasks_visible[task_head]
 
 				if .Hide not_in panel_search.flags {
-					index := ss.current_index
-					amt := len(ss.results)
+					index := search.current_index
+					amt := len(search.results)
 
 					if amt == 0 {
 						fmt.sbprintf(b, "No matches found")

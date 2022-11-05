@@ -184,7 +184,7 @@ changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 			case .Stars_All: strings.write_string(b, "* ")
 		}
 
-		strings.write_string(b, strings.to_string(task.box.builder))
+		strings.write_string(b, task_string(task))
 		strings.write_byte(b, '\n')
 	}
 
@@ -211,7 +211,7 @@ changelog_result_pop_tasks :: proc() {
 	for qtask in changelog.qlist {
 		task := cast(^Task) mode_panel.children[qtask.task_index - off]
 		if qtask.remove {
-			archive_push(strings.to_string(task.box.builder))
+			archive_push(ss_string(&task.box.ss))
 			task_remove_at_index(manager, qtask.task_index - off)
 			off += 1
 		}		

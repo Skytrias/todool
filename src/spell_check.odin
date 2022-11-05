@@ -87,7 +87,7 @@ words_extract_test :: proc() {
 
 spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 	spall.scoped("highlight missing")
-	text := strings.to_string(task.box.builder)
+	text := ss_string(&task.box.ss)
 	words := words_extract(&sc.word_results, text)
 
 	builder := strings.builder_make(0, 256, context.temp_allocator)

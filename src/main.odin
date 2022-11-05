@@ -101,28 +101,28 @@ PRESENTATION_MODE :: false
 // 	}
 // }
 
-main :: proc() {
-	s1 := ss_init_string("abäbcd")
+// main :: proc() {
+// 	s1 := ss_init_string("abäbcd")
 
 
 
-	// ss_append(&s1, 'a')
-	// ss_append(&s1, 'b')
-	// ss_append(&s1, 'c')
-// fmt.eprintln(ss_size(&s1), ss_string(&s1))
-	// fmt.eprintln(ss_append(&s1, 'ö'))
-	// fmt.eprintln(ss_append(&s1, 'ö'))
-	// fmt.eprintln(ss_append(&s1, 'd'))
-	fmt.eprintln(ss_size(&s1), ss_string(&s1))
+// 	// ss_append(&s1, 'a')
+// 	// ss_append(&s1, 'b')
+// 	// ss_append(&s1, 'c')
+// // fmt.eprintln(ss_size(&s1), ss_string(&s1))
+// 	// fmt.eprintln(ss_append(&s1, 'ö'))
+// 	// fmt.eprintln(ss_append(&s1, 'ö'))
+// 	// fmt.eprintln(ss_append(&s1, 'd'))
+// 	fmt.eprintln(ss_size(&s1), ss_string(&s1))
 	
-	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'x'))
-	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'y'))
+// 	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'x'))
+// 	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'y'))
 
-	fmt.eprintln(ss_size(&s1), ss_string(&s1))
+// 	fmt.eprintln(ss_size(&s1), ss_string(&s1))
 
-}
+// }
 
-main6 :: proc() {
+main :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
 	defer spall.destroy()
@@ -380,7 +380,7 @@ main_update :: proc(window: ^Window) {
 			box_force_changes(manager, task.box)
 
 			// add spell checking results to user dictionary
-			spell_check_mapping_words_add(strings.to_string(task.box.builder))
+			spell_check_mapping_words_add(ss_string(&task.box.ss))
 		}
 	}
 

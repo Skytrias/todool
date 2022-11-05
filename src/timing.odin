@@ -97,7 +97,7 @@ task_repaint_timestamps :: proc() {
 	}
 
 	for task in tasks_visible {
-		text := strings.to_string(task.box.builder)
+	text := task_string(task)
 
 		if res := timing_timestamp_check(text); res != -1 {
 			if len(task.box.rendered_glyphs) != 0 {
