@@ -6,7 +6,7 @@ import "core:fmt"
 
 GAP_BUFFER_SIZE :: 32
 
-// build only on UTF8
+// UTF8 only support! always looks at potential runes when analyzing byte steps
 // statically sized gap buffer for short lines of text
 Gap_Buffer :: struct {
 	buf: [GAP_BUFFER_SIZE]u8,
@@ -75,6 +75,7 @@ gb_move_left :: proc(gb: ^Gap_Buffer) -> bool {
 gb_move_right :: proc(gb: ^Gap_Buffer) -> bool {
 	if gb.right < GAP_BUFFER_SIZE {
 		r, size := utf8.decode_rune(gb.buf[gb.right:])
+		fmt.eprintln("yo", r, size)
 
 		// check for no error!
 		if r != utf8.RUNE_ERROR {
@@ -86,17 +87,89 @@ gb_move_right :: proc(gb: ^Gap_Buffer) -> bool {
 
 			return true
 		}
-	} 
+	} else {
+		fmt.eprintln("sup")
+	}
 
 	return false
 }
 
-// NOTE in rune steps
-gb_move_to :: proc(gb: ^Gap_Buffer, index: int) {
+gb_iter :: proc(gb: ^Gap_Buffer, byte_index: ^u8) -> (r: rune, size: int, ok: bool) {
+	if byte_index^ < gb.left {
+		r, size = utf8.decode_rune_in_bytes(gb.buf[byte_index^:])
+		
+		if r == utf8.RUNE_ERROR {
+			return
+		}
 
+		byte_index^ += u8(size)
+		ok = true
+		return
+	} 
+
+	// check end
+	if gb.right == GAP_BUFFER_SIZE {
+		return
+	}
+
+	// set to right
+	if byte_index^ < gb.right {
+		byte_index^ = gb.right
+		fmt.eprintln("----------------------")
+	}
+
+	// continue from right
+	r, size = utf8.decode_rune_in_bytes(gb.buf[byte_index^:])
+	
+	if r == utf8.RUNE_ERROR {
+		return
+	}
+
+	byte_index^ += u8(size)
+	ok = true
+	return
 }
 
-// backwards delete a rune
+// we have a problem of wanting to set the index correctly in UTF8 space
+// but ascii could be directly indexed, so we check by rune count first
+//
+// move to a rune index
+gb_move_to :: proc(gb: ^Gap_Buffer, index: int) {
+	// count used up space in utf8
+	count := cutf8.count(gb_string_left(gb)) + cutf8.count(gb_string_right(gb))
+	undex := u8(index)
+
+	// ASCII only
+	if u8(count) == gb_space_used(gb) {
+		if undex != gb.left {
+			if undex < gb.left {
+				for undex < gb.left {
+					gb_move_left(gb)
+				}
+			} else {
+				for undex > gb.left {
+					gb_move_right(gb)
+				}
+			}
+		}
+
+		fmt.eprintln("ASCII ONLY")
+	} else {
+		fmt.eprintln("CONTAINS UTF8")
+	}
+
+
+	// for codepoint in cutf8.ds_iter(&ds, gb_string_left(gb)) {
+	// 	indices
+	// }
+
+	// // check direction of movement
+	// if index < gb.left {
+
+	// } else if 
+}
+
+// backwards delete a rune 
 gb_backspace :: proc(gb: ^Gap_Buffer) -> bool {
 	if gb.left > 0 {
 		// need to lookup rune backwards!

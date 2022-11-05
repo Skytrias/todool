@@ -106,17 +106,28 @@ main :: proc() {
 
 	// for i in 0..<32 
 	gb_insert(&gb, 'a')
-	gb_insert(&gb, 'ä')
+	gb_insert(&gb, 'd')
 	gb_insert(&gb, 'c')
 	gb_insert(&gb, 'c')
+	// gb_insert(&gb, 'ö')
+	// gb_insert(&gb, 'ö')
+	// gb_insert(&gb, 'ö')
 	gb_insert(&gb, 'd')
-	gb_insert(&gb, 'd')
-	gb_insert(&gb, 'ö')
-	gb_move_left(&gb)
-	gb_move_right(&gb)
-	gb_move_left(&gb)
-	gb_backspace(&gb)
-	gb_delete(&gb)
+	gb_move_to(&gb, 4)
+	// gb_move_left(&gb)
+	// gb_move_left(&gb)
+	// gb_move_left(&gb)
+	gb_print_all(&gb)
+
+	// gb_move_to(&gb, 1)
+
+	byte_index: u8
+	fmt.eprintln("~~~")
+	for r, size in gb_iter(&gb, &byte_index) {
+		fmt.eprintln(r, size)
+	}
+	fmt.eprintln("~~~")
+
 	// gb_move_left(&gb)
 	// gb_move_left(&gb)
 	// gb_backspace(&gb)
