@@ -1248,7 +1248,6 @@ todool_search :: proc(du: u32) {
 				high,
 			)
 
-			ss_clear(&box.ss)
 			ss_set_string(&box.ss, text)
 			search_update(text)
 		}

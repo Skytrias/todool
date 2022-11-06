@@ -75,7 +75,8 @@ SS_Byte_Info :: struct {
 	size: u8,
 }
 
-// find byte index from wanted codepoint_index
+// find the byte index at codepoint index
+// codepoint codepoint result and its size
 _ss_find_byte_index_info :: proc(
 	ss: ^Small_String, 
 	index: int,
@@ -110,7 +111,6 @@ ss_insert_at :: proc(ss: ^Small_String, index: int, c: rune) -> bool {
 		if int(ss.length) + size < SS_SIZE {
 			undex := u8(index)
 			info, found := _ss_find_byte_index_info(ss, index)
-			fmt.eprintln(info)
 
 			// check for append situation still since its faster then copy
 			if ss.length == info.byte_index || !found {
@@ -140,11 +140,11 @@ ss_insert_at :: proc(ss: ^Small_String, index: int, c: rune) -> bool {
 // NOTE in utf8 indexing space!
 // removes a rune backwards at the wanted codepoint index
 ss_remove_at :: proc(ss: ^Small_String, index: int) -> (c: rune, ok: bool) {
-	if ss.length == 0 || index == 0 {
+	if ss.length == 0 {
 		return
 	} 
 
-	info, found := _ss_find_byte_index_info(ss, index - 1)
+	info, found := _ss_find_byte_index_info(ss, index)
 
 	if !found {
 		return
@@ -210,8 +210,68 @@ ss_set_string :: proc(ss: ^Small_String, text: string) {
 	}
 }
 
-// ss_recount :: proc(ss: ^Small_String) -> int {
-// 	// ds: xDecode_State
-// }
+// remove the selection into the temp buffer
+// false if diff is low
+ss_remove_selection :: proc(
+	ss: ^Small_String, 
+	low, high: int,
+	temp: []u8,
+) -> (
+	temp_size: int,
+	ok: bool,
+) {
+	diff := high - low
+	if diff == 0 {
+		return
+	}
 
-// ss_length :: proc(ss: )
+	// could be optimized to inline find both instantly
+	info1, found1 := _ss_find_byte_index_info(ss, low)
+	info2, found2 := _ss_find_byte_index_info(ss, high)
+
+	size := info2.byte_index - info1.byte_index
+	// copy into temp buffer
+	copy(temp[:], ss.buf[info1.byte_index:info2.byte_index])
+	// move upper to lower info
+	copy(ss.buf[info1.byte_index:ss.length], ss.buf[info2.byte_index:ss.length])
+	ss.length -= size
+	temp_size = int(size)
+	ok = true
+
+	return
+}
+
+// insert string at index if it has enough space
+ss_insert_string_at :: proc(
+	ss: ^Small_String,
+	index: int,
+	text: string,
+) -> bool {
+	if len(text) == 0 {
+		return false
+	}
+
+	info, found := _ss_find_byte_index_info(ss, index)
+
+	new_size := min(int(ss.length) + len(text), SS_SIZE)
+
+	if new_size - int(ss.length) != len(text) {
+		return false
+	}
+
+	diff_size := u8(len(text))
+	ss.length += diff_size
+
+	// copy forward
+	copy(
+		ss.buf[info.byte_index + diff_size:ss.length], 
+		ss.buf[info.byte_index:ss.length],
+	)
+	// copy from thingy
+	copy(
+		ss.buf[info.byte_index:info.byte_index + diff_size],
+		text[:diff_size],
+	)
+
+	return true
+}
