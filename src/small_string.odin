@@ -275,3 +275,42 @@ ss_insert_string_at :: proc(
 
 	return true
 }
+
+
+// write uppercased version of the string
+builder_write_uppercased_string :: proc(b: ^strings.Builder, s: string) {
+	prev: rune
+	ds: cutf8.Decode_State
+	strings.builder_reset(b)
+
+	for codepoint, i in cutf8.ds_iter(&ds, s) {
+		codepoint := codepoint
+
+		if i == 0 || (prev != 0 && prev == ' ') {
+			codepoint = unicode.to_upper(codepoint)
+		}
+
+		// builder_append_rune(b, codepoint)
+		prev = codepoint
+	}
+}
+
+// write uppercased version of the string
+ss_lowercased_string :: proc(ss: ^Small_String) {
+	// ds: cutf8.Decode_State
+	// strings.builder_reset(b)
+
+	// for codepoint, i in cutf8.ds_iter(&ds, s) {
+	// 	// builder_append_rune(b, unicode.to_lower(codepoint))
+	// }
+
+	text := ss_string(ss)
+	// ds: cutf8.Decode_State
+	// for codepoint, i in cutf8.ds_iter(&ds, text) {
+
+	// }
+
+	for i in 0..<ss.length {
+		b :
+	}
+}
