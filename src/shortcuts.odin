@@ -582,7 +582,7 @@ todool_insert_child :: proc(du: u32) {
 
 		// // uppercase word
 		// if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
-		// 	item := Undo_Builder_Uppercased_Content { builder }
+		// 	item := Undo_String_Uppercased_Content { builder }
 		// 	undo_box_uppercased_content(manager, &item)
 		// }
 
@@ -1406,13 +1406,12 @@ todool_tasks_to_uppercase :: proc(du: u32) {
 		iter := ti_init()
 
 		for task in ti_step(&iter) {
-			// TODO uppercase
-			// builder := &task.box.builder
+			ss := &task.box.ss
 	
-			// if len(builder.buf) != 0 {
-			// 	item := Undo_Builder_Uppercased_Content { builder }
-			// 	undo_box_uppercased_content(manager, &item)
-			// }
+			if ss_has_content(ss) {
+				item := Undo_String_Uppercased_Content { ss }
+				undo_box_uppercased_content(manager, &item)
+			}
 		}
 
 		element_repaint(mode_panel)
@@ -1426,13 +1425,12 @@ todool_tasks_to_lowercase :: proc(du: u32) {
 		iter := ti_init()
 
 		for task in ti_step(&iter) {
-			// TODO lowercase
-			// builder := &task.box.builder
+			ss := &task.box.ss
 	
-			// if len(builder.buf) != 0 {
-			// 	item := Undo_Builder_Lowercased_Content { builder }
-			// 	undo_box_lowercased_content(manager, &item)
-			// }
+			if ss_has_content(ss) {
+				item := Undo_String_Lowercased_Content { ss }
+				undo_box_lowercased_content(manager, &item)
+			}
 		}
 
 		element_repaint(mode_panel)

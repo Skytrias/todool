@@ -1,10 +1,13 @@
 package src
 
+import "core:unicode"
 import "core:unicode/utf8"
-import "../cutf8"
 import "core:fmt"
+import "../cutf8"
 
 SS_SIZE :: 255
+
+ss_temp: [SS_SIZE]u8
 
 // static sized string with no magic going on
 // insert & pop are fast and utf8 based
@@ -28,6 +31,16 @@ ss_has_space :: #force_inline proc(ss: ^Small_String) -> bool {
 // return the actual string 
 ss_string :: #force_inline proc(ss: ^Small_String) -> string {
 	return string(ss.buf[:ss.length])
+}
+
+// true if the string has a length
+ss_has_content :: #force_inline proc(ss: ^Small_String) -> bool {
+	return ss.length != 0
+}
+
+// true when empty length
+ss_empty :: #force_inline proc(ss: ^Small_String) -> bool {
+	return ss.length == 0
 }
 
 // clear the small string
@@ -278,39 +291,37 @@ ss_insert_string_at :: proc(
 
 
 // write uppercased version of the string
-builder_write_uppercased_string :: proc(b: ^strings.Builder, s: string) {
-	prev: rune
+ss_uppercased_string :: proc(ss: ^Small_String) {
+	// copy to temp and iterate through it
+	copy(ss_temp[:ss.length], ss.buf[:ss.length])
+	input := string(ss_temp[:ss.length])
 	ds: cutf8.Decode_State
-	strings.builder_reset(b)
+	prev: rune
 
-	for codepoint, i in cutf8.ds_iter(&ds, s) {
+	// append lower case version
+	ss_clear(ss)
+	for codepoint, i in cutf8.ds_iter(&ds, input) {	
 		codepoint := codepoint
 
 		if i == 0 || (prev != 0 && prev == ' ') {
 			codepoint = unicode.to_upper(codepoint)
 		}
 
-		// builder_append_rune(b, codepoint)
+		ss_append(ss, codepoint)
 		prev = codepoint
 	}
 }
 
 // write uppercased version of the string
 ss_lowercased_string :: proc(ss: ^Small_String) {
-	// ds: cutf8.Decode_State
-	// strings.builder_reset(b)
+	// copy to temp and iterate through it
+	copy(ss_temp[:ss.length], ss.buf[:ss.length])
+	input := string(ss_temp[:ss.length])
+	ds: cutf8.Decode_State
 
-	// for codepoint, i in cutf8.ds_iter(&ds, s) {
-	// 	// builder_append_rune(b, unicode.to_lower(codepoint))
-	// }
-
-	text := ss_string(ss)
-	// ds: cutf8.Decode_State
-	// for codepoint, i in cutf8.ds_iter(&ds, text) {
-
-	// }
-
-	for i in 0..<ss.length {
-		b :
+	// append lower case version
+	ss_clear(ss)
+	for codepoint, i in cutf8.ds_iter(&ds, input) {	
+		ss_append(ss, unicode.to_lower(codepoint))
 	}
 }
