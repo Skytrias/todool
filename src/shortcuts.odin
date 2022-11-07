@@ -7,6 +7,7 @@ import "core:strings"
 import "core:log"
 import "core:mem"
 import "core:time"
+import "core:math/bits"
 import "../cutf8"
 import "../tfd"
 
@@ -773,8 +774,18 @@ todool_toggle_tag :: proc(du: u32) {
 	task_head_tail_push(manager)
 	iter := ti_init()
 
+	cam := mode_panel_cam()
+	index := int(bits.log2(bit))
+
 	for task in ti_step(&iter) {
 		u8_xor_push(manager, &task.tags, bit)
+
+		if task.tags & bit == bit {
+			x, y := task.box.bounds.l, task.box.bounds.b
+			x += index * 100
+			power_mode_spawn_at(f32(x), f32(y), cam.offset_x, cam.offset_y, 10, theme.tags[index])
+			// fmt.eprintln()
+		}
 	}
 
 	element_repaint(mode_panel)
@@ -1596,11 +1607,16 @@ undo_task_sort :: proc(manager: ^Undo_Manager, item: rawptr) {
 		}
 	}
 
-	cmp :: proc(a, b: Task_Line) -> bool {
+	cmp1 :: proc(a, b: Task_Line) -> bool {
+		return a.children_from == -1
+	}
+
+	cmp2 :: proc(a, b: Task_Line) -> bool {
 		return a.task.state < b.task.state
 	}
 
-	slice.sort_by(sort_list[:], cmp)
+	slice.stable_sort_by(sort_list[:], cmp1)
+	slice.stable_sort_by(sort_list[:], cmp2)
 
 	// prepare reversal
 	out := Undo_Item_Task_Sort_Original {

@@ -1505,23 +1505,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			render_line_highlights(target, panel.clip)
-
-			// render zoom highlight text
-			if panel.zoom_highlight != 0 {
-				render_push_clip(target, panel.clip)
-				alpha := min(panel.zoom_highlight, 1)
-				color := color_alpha(theme.text_default, alpha)
-				rect := mode_panel.bounds
-				rect.l = rect.r - 100
-				rect.b = rect.t + 100
-				zoom := fmt.tprintf("%.2f", TASK_SCALE)
-				render_rect(target, rect_margin(rect, 20), color_alpha(theme_panel(.Front), alpha), ROUNDNESS)
-				fcs_ahv()
-				fcs_color(color)
-				fcs_font(font_regular)
-				fcs_size(DEFAULT_FONT_SIZE * SCALE)
-				render_string_rect(target, rect, zoom)
-			}
+			render_zoom_highlight(target, panel.clip)
 
 			// draw the fullscreen image on top
 			if image_display_has_content_now(custom_split.image_display) {
@@ -3147,4 +3131,29 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 		width := string_width(text) + TEXT_MARGIN_HORIZONTAL
 		render_string_rect(target, r, text)
 	}
+}
+
+render_zoom_highlight :: proc(target: ^Render_Target, clip: RectI) {
+	if mode_panel.zoom_highlight == 0 {
+		return
+	}
+
+	render_push_clip(target, clip)
+	alpha := min(mode_panel.zoom_highlight, 1)
+	color := color_alpha(theme.text_default, alpha)
+	rect := mode_panel.bounds
+	rect.l = rect.r - 100
+	rect.b = rect.t + 100
+	zoom := fmt.tprintf("%.2f", TASK_SCALE)
+	render_drop_shadow(
+		target, 
+		rect_margin(rect, 20), 
+		color_alpha(theme_panel(.Front), alpha), 
+		ROUNDNESS,
+	)
+	fcs_ahv()
+	fcs_color(color)
+	fcs_font(font_regular)
+	fcs_size(DEFAULT_FONT_SIZE * SCALE)
+	render_string_rect(target, rect, zoom)
 }

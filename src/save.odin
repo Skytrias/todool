@@ -46,14 +46,16 @@ task line: atleast "task_bytes_min" big
 body: 
 	read task line by line -> read opt data till end 
 
+tags: (optional)
+	8 strings (length u8 + []u8)
+	8 colors (u32be)
+
 // Rest of the bytes after body will be read as opt data!
 // holds *N* Task Line index + additional data
 opt data: 
 	line_index: u32be
 	
 	Save_Tag enum -> u8
-
-// theme:
 */
 
 save_tag_color_signature := [8]u8 { 'T', 'A', 'G', 'C', 'O', 'L', 'O', 'R' }

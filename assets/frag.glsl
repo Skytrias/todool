@@ -115,6 +115,7 @@ void main(void) {
 		color_goal = u_shadow_color;
 		color_goal.a = drop_alpha;
 		color_goal = mix(color_goal, v_color, rect_alpha);
+		color_goal.a *= v_color.a; // keep v_color alpha for transition
 	} else if (v_kind == RK_Circle) {
 		float distance = sdCircle(v_pos - v_uv, v_roundness / 2);
 		float alpha = 1.0 - smoothstep(-1.0, 0.0, distance);

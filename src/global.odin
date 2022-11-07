@@ -1460,6 +1460,7 @@ gs_init :: proc() {
 	strings.builder_init(&cstring_builder, 0, 128)
 
 	stored_images = make([dynamic]Stored_Image, 0, 8)
+	clipboard_content_length = -1
 }
 
 gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
@@ -2212,7 +2213,7 @@ clipboard_check_changes :: proc() -> bool {
 		old := gs.clipboard_content_length
 		gs.clipboard_content_length = len(text)
 
-		if old != gs.clipboard_content_length {
+		if old != -1 && old != gs.clipboard_content_length {
 			return true
 		}
 	}
