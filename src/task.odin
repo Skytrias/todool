@@ -432,7 +432,11 @@ Task :: struct {
 	state: Task_State,
 	state_unit: f32,
 	state_last: Task_State,
+	
+	// tags state
 	tags: u8,
+	tags_rect: [8]RectI,
+	tag_hovered: int,
 
 	// top animation
 	top_offset: f32, 
@@ -447,7 +451,6 @@ Task :: struct {
 
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
-	tags_rect: RectI,
 	progress_animation: [Task_State]f32,
 
 	// wether we want to be able to jump to this task
@@ -1814,6 +1817,63 @@ task_indentation_width :: proc(indentation: f32) -> f32 {
 	return indentation * visuals_tab() * TAB_WIDTH * TASK_SCALE
 }
 
+fcs_task_tags :: proc() -> int {
+	// text state
+	fcs_font(font_regular)
+	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
+	fcs_ahv()		
+	return int(10 * TASK_SCALE)
+}
+
+// layout tags position
+task_tags_layout :: proc(task: ^Task, rect: RectI) {
+	field := task.tags
+	rect := rect
+	tag_mode := options_tag_mode()
+
+	fcs_push()
+	defer fcs_pop()
+
+	text_margin := fcs_task_tags()
+	gap := int(5 * TASK_SCALE)
+	res: RectI
+	cam := mode_panel_cam()
+	halfed := int(DEFAULT_FONT_SIZE * TASK_SCALE * 0.5)
+
+	// layout tag structs and spawn particles when now ones exist
+	for i in 0..<u8(8) {
+		res = {}
+
+		if field & 1 == 1 {
+			text := ss_string(sb.tags.names[i])
+			
+			switch tag_mode {
+				case TAG_SHOW_TEXT_AND_COLOR: {
+					width := string_width(text)
+					res = rect_cut_left(&rect, width + text_margin)
+				}
+
+				case TAG_SHOW_COLOR: {
+					res = rect_cut_left(&rect, int(50 * TASK_SCALE))
+				}
+			}
+
+			rect.l += gap
+			
+			// spawn partciles in power mode when changed
+			if task.tags_rect[i] == {} {
+				x := res.l
+				y := res.t + halfed
+				power_mode_spawn_along_text(text, f32(x + text_margin / 2), f32(y), theme.tags[i])
+			}
+		} 
+
+		
+		task.tags_rect[i] = res
+		field >>= 1
+	}
+}
+
 // manual layout call so we can predict the proper positioning
 task_layout :: proc(
 	task: ^Task, 
@@ -1885,7 +1945,7 @@ task_layout :: proc(
 		cut.b -= int(5 * TASK_SCALE)  // gap
 
 		if move {
-			task.tags_rect = rect
+			task_tags_layout(task, rect)
 		}
 	}
 
@@ -1993,53 +2053,34 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			// draw tags at an offset
 			if draw_tags {
-				rect := task.tags_rect
-
-				font := font_regular
-				scaled_size := i16(DEFAULT_FONT_SIZE * TASK_SCALE)
-				text_margin := int(10 * TASK_SCALE)
-				gap := int(5 * TASK_SCALE)
-
-				fcs_font(font_regular)
-				fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
-				fcs_ahv()
+				fcs_task_tags()
+				field := task.tags
 
 				// go through each existing tag, draw each one
 				for i in 0..<u8(8) {
-					value := u8(1 << i)
-
-					if task.tags & value == value {
+					if field & 1 == 1 {
 						tag := sb.tags.names[i]
 						tag_color := theme.tags[i]
+						r := task.tags_rect[i]
 
 						switch tag_mode {
 							case TAG_SHOW_TEXT_AND_COLOR: {
-								text := ss_string(tag)
-								width := string_width(text)
-								// width := fontstash.string_width(font, scaled_size, text)
-								r := rect_cut_left(&rect, width + text_margin)
-
-								if rect_valid(r) {
-									render_rect(target, r, tag_color, ROUNDNESS)
-									fcs_color(color_to_bw(tag_color))
-									render_string_rect(target, r, text)
-								}
+								render_rect(target, r, tag_color, ROUNDNESS)
+								fcs_color(color_to_bw(tag_color))
+								render_string_rect(target, r, ss_string(tag))
 							}
 
 							case TAG_SHOW_COLOR: {
-								r := rect_cut_left(&rect, int(50 * TASK_SCALE))
-								if rect_valid(r) {
-									render_rect(target, r, tag_color, ROUNDNESS)
-								}
+								render_rect(target, r, tag_color, ROUNDNESS)
 							}
 
 							case: {
 								unimplemented("shouldnt get here")
 							}
 						}
-
-						rect.l += gap
 					}
+
+					field >>= 1
 				}
 			}
 		}
@@ -2050,6 +2091,24 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
+			task.tag_hovered = -1
+
+			// find tags first
+			field := task.tags
+			for i in 0..<8 {
+				if field & 1 == 1 {
+					r := task.tags_rect[i]
+					
+					if rect_contains(r, p.x, p.y) {
+						p.res = task
+						task.tag_hovered = i
+						return 1
+					}
+				}
+
+				field >>= 1
+			}
+
 			handled := element_find_by_point_custom(element, p)
 
 			if handled == 0 {
@@ -2062,10 +2121,17 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			return handled
 		}
 
+		case .Get_Cursor: {
+			return int(task.tag_hovered != -1 ? Cursor.Hand : Cursor.Arrow)
+		}
+
 		case .Left_Down: {
-			task_or_box_left_down(task, di, false)
-			// fmt.eprintln("task downw")
-			// return 1
+			if task.tag_hovered != -1 {
+				du := u32(COMBO_VALUE + (1 << u8(task.tag_hovered)))
+				todool_toggle_tag(du)
+			} else {
+				task_or_box_left_down(task, di, false)
+			}
 		}
 
 		case .Animate: {

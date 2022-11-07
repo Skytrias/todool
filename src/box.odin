@@ -1119,7 +1119,7 @@ undo_box_remove_selection :: proc(manager: ^Undo_Manager, item: rawptr) {
 	temp_size, _ := ss_remove_selection(ss, low, high, temp[:])
 
 	// create insert already	
-	item := Undo_Item_Box_Insert_Runes {
+	item := Undo_Item_Box_Insert_String {
 		data.box,
 		data.head,
 		data.tail,
@@ -1130,13 +1130,13 @@ undo_box_remove_selection :: proc(manager: ^Undo_Manager, item: rawptr) {
 	// push upfront to instantly write to the popped runes section
 	bytes := undo_push(
 		manager, 
-		undo_box_insert_runes, 
+		undo_box_insert_string, 
 		&item,
-		size_of(Undo_Item_Box_Insert_Runes) + temp_size,
+		size_of(Undo_Item_Box_Insert_String) + temp_size,
 	)
 
 	// copy into the byte space
-	temp_root := cast(^u8) &bytes[size_of(Undo_Item_Box_Insert_Runes)]
+	temp_root := cast(^u8) &bytes[size_of(Undo_Item_Box_Insert_String)]
 	mem.copy(temp_root, &temp[0], temp_size)
 
 	// set to new location
@@ -1144,7 +1144,7 @@ undo_box_remove_selection :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data.box.tail = low
 }
 
-Undo_Item_Box_Insert_Runes :: struct {
+Undo_Item_Box_Insert_String :: struct {
 	box: ^Box,
 	head: int,
 	tail: int,
@@ -1156,8 +1156,8 @@ Undo_Item_Box_Insert_Runes :: struct {
 	text_size: int, // upcoming text to read
 }
 
-undo_box_insert_runes :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Box_Insert_Runes) item
+undo_box_insert_string :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Box_Insert_String) item
 	ss := &data.box.ss
 
 	low := min(data.head, data.tail)
@@ -1173,7 +1173,7 @@ undo_box_insert_runes :: proc(manager: ^Undo_Manager, item: rawptr) {
 		data.box.tail = data.tail
 	}
 
-	text_root := cast(^u8) (uintptr(item) + size_of(Undo_Item_Box_Insert_Runes))
+	text_root := cast(^u8) (uintptr(item) + size_of(Undo_Item_Box_Insert_String))
 	popped_text := strings.string_from_ptr(text_root, data.text_size)
 	ss_insert_string_at(ss, low, popped_text)
 

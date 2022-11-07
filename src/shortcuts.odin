@@ -352,45 +352,7 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 }
 
 todool_change_task_state :: proc(du: u32) {
-	if false {
-		b := strings.builder_make(0, 32, context.temp_allocator)
-
-		if task_head != -1 {
-			task := tasks_visible[task_head]
-			ss := &task.box.ss
-
-			if timing_timestamp_check(task_string(task)) != -1 {
-				stamp, ok := timing_timestamp_extract(ss.buf[:TIMESTAMP_LENGTH])
-
-				// if its already today, dont insert, otherwhise rewrite
-				if timing_timestamp_is_today(stamp) && ok {
-					// REMOVE on existing day
-					copy(ss.buf[:], ss.buf[TIMESTAMP_LENGTH + 1:])
-					ss.length -= TIMESTAMP_LENGTH + 1
-					task.box.head = max(task.box.head - TIMESTAMP_LENGTH - 1, 0)
-					task.box.tail = max(task.box.tail - TIMESTAMP_LENGTH - 1, 0)
-					window_repaint(window_main)
-					return
-				} 
-			} else {
-				if int(ss.length) + TIMESTAMP_LENGTH + 1 < SS_SIZE {
-					copy(ss.buf[TIMESTAMP_LENGTH + 1:], ss.buf[:])
-					ss.length += TIMESTAMP_LENGTH + 1
-				} else {
-					// stop when out of bounds
-					return
-				}
-			}
-
-			task.box.head += TIMESTAMP_LENGTH + 1
-			task.box.tail += TIMESTAMP_LENGTH + 1
-			timing_bprint_timestamp(ss.buf[:TIMESTAMP_LENGTH + 1])
-			fmt.eprintln("tried")
-		}
-
-		window_repaint(window_main)
-		return
-	}
+	if false {}
 
 	if task_head == -1 {
 		return
@@ -772,20 +734,10 @@ todool_toggle_tag :: proc(du: u32) {
 	
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
+
 	iter := ti_init()
-
-	cam := mode_panel_cam()
-	index := int(bits.log2(bit))
-
 	for task in ti_step(&iter) {
 		u8_xor_push(manager, &task.tags, bit)
-
-		if task.tags & bit == bit {
-			x, y := task.box.bounds.l, task.box.bounds.b
-			x += index * 100
-			power_mode_spawn_at(f32(x), f32(y), cam.offset_x, cam.offset_y, 10, theme.tags[index])
-			// fmt.eprintln()
-		}
 	}
 
 	element_repaint(mode_panel)
@@ -995,6 +947,46 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 // 	undo_push(manager, undo_task_clear, item, size_of(Undo_Item_Task_Clear))
 // }
+
+Undo_Item_Task_Timestamp :: struct {
+	task: ^Task,
+}
+
+undo_task_timestamp :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Task_Timestamp) item
+	defer undo_push(manager, undo_task_timestamp, item, size_of(Undo_Item_Task_Timestamp))
+
+	task := data.task
+	ss := &data.task.box.ss
+
+	// check for existance
+	if timing_timestamp_check(task_string(task)) != -1 {
+		stamp, ok := timing_timestamp_extract(ss.buf[:TIMESTAMP_LENGTH])
+
+		// if its already today, dont insert, otherwhise rewrite
+		if timing_timestamp_is_today(stamp) && ok {
+			// REMOVE on existing day
+			copy(ss.buf[:], ss.buf[TIMESTAMP_LENGTH + 1:])
+			ss.length -= TIMESTAMP_LENGTH + 1
+			task.box.head = max(task.box.head - TIMESTAMP_LENGTH - 1, 0)
+			task.box.tail = max(task.box.tail - TIMESTAMP_LENGTH - 1, 0)
+			window_repaint(window_main)
+			return
+		} 
+	} else {
+		if int(ss.length) + TIMESTAMP_LENGTH + 1 < SS_SIZE {
+			copy(ss.buf[TIMESTAMP_LENGTH + 1:], ss.buf[:])
+			ss.length += TIMESTAMP_LENGTH + 1
+		} else {
+			// stop when out of bounds
+			return
+		}
+	}
+
+	task.box.head += TIMESTAMP_LENGTH + 1
+	task.box.tail += TIMESTAMP_LENGTH + 1
+	timing_bprint_timestamp(ss.buf[:TIMESTAMP_LENGTH + 1])
+}
 
 // removes selected region and pushes them to the undo stack
 task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
@@ -1943,4 +1935,26 @@ todool_toggle_progressbars :: proc(du: u32) {
 		checkbox_set(check, !check.state)
 		element_repaint(check)
 	}
+}
+
+// insert current timestamp of today
+todool_toggle_timestamp :: proc(du: u32) {
+	if task_head == -1 {
+		return
+	}
+
+	// NOTE could be optimized in undo/redo step to automatically do this without storing anything
+	timestamp: [16]u8
+	timing_bprint_timestamp(timestamp[:])
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	iter := ti_init()
+	for task in ti_step(&iter) {
+		item := Undo_Item_Task_Timestamp { task }
+		undo_task_timestamp(manager, &item)
+	}
+
+	window_repaint(window_main)
 }

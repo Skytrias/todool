@@ -330,6 +330,8 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	CP1("select_children", todool_select_children)
 	// v022
 	CP1("sort_locals", todool_sort_locals)
+	// v030
+	CP1("toggle_timestamp", todool_toggle_timestamp)
 }
 
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {
@@ -536,6 +538,9 @@ CP2_CROSS :: proc() {
 	CP2("alt 1", "pomodoro_toggle", COMBO_VALUE + 0x00)
 	CP2("alt 2", "pomodoro_toggle", COMBO_VALUE + 0x01)
 	CP2("alt 3", "pomodoro_toggle", COMBO_VALUE + 0x02)
+
+	// v030
+	CP2("ctrl r", "toggle_timestamp")
 }
 
 keymap_push_vim_insert_commands :: proc(keymap: ^Keymap) {
@@ -642,4 +647,7 @@ keymap_init_comments :: proc() {
 	CP3(vim_normal_mode_set, "enter normal mode")
 	CP3(vim_visual_move_left, "move to the closest task to the left visually")
 	CP3(vim_visual_move_right, "move to the closest task to the right visually")
+	
+	// v030
+	CP3(todool_toggle_timestamp, "toggle the timestamp of today on a task")
 }

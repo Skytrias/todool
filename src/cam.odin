@@ -89,7 +89,7 @@ cam_inc_x :: proc(cam: ^Pan_Camera, off: f32) {
 }
 
 // return the cam per mode
-mode_panel_cam :: proc() -> ^Pan_Camera {
+mode_panel_cam :: #force_inline proc() -> ^Pan_Camera #no_bounds_check {
 	return &mode_panel.cam[mode_panel.mode]
 }
 

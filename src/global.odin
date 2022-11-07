@@ -2497,6 +2497,14 @@ font_get :: #force_inline proc(font_index: int, loc := #caller_location) -> ^Fon
 	return fontstash.font_get(&gs.fc, font_index, loc)
 }
 
+fcs_push :: #force_inline proc() {
+	fontstash.state_push(&gs.fc)
+}
+
+fcs_pop :: #force_inline proc() {
+	fontstash.state_pop(&gs.fc)
+}
+
 // counts first beginning tabs
 tabs_count :: proc(text: string) -> (count: int) {
 	for i in 0..<len(text) {
