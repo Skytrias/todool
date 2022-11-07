@@ -200,18 +200,14 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		case .Unicode_Insertion: {
 			codepoint := (cast(^rune) dp)^
 
-			if box.codepoint_numbers_only {
-				if unicode.is_number(codepoint) {
-					assert(box.um != nil)
-					box_insert(box.um, element, box, codepoint, false)
-					element_repaint(element)
-				}
-			} else {
-				assert(box.um != nil)
-				box_insert(box.um, element, box, codepoint, false)
-				element_repaint(element)
-			}
+			// skip non numbers or -
+			if box.codepoint_numbers_only && !(codepoint == '-' || unicode.is_number(codepoint)) {
+				return 1
+			} 
 
+			assert(box.um != nil)
+			box_insert(box.um, element, box, codepoint, false)
+			element_repaint(element)
 			return 1
 		}
 
@@ -625,7 +621,7 @@ box_move_caret :: proc(box: ^Box, backward: bool, word: bool, shift: bool) {
 	}
 
 	// optimize to move by codepoint size backwards or forwards
-	runes := cutf8.ds_to_runes(&box.ds, ss_string(&box.ss))
+	runes := ss_to_runes_temp(&box.ss)
 	
 	for {
 		// box ahead of 0 and backward allowed
@@ -1178,7 +1174,7 @@ undo_box_insert_runes :: proc(manager: ^Undo_Manager, item: rawptr) {
 	}
 
 	text_root := cast(^u8) (uintptr(item) + size_of(Undo_Item_Box_Insert_Runes))
-	popped_text :=  strings.string_from_ptr(text_root, data.text_size)
+	popped_text := strings.string_from_ptr(text_root, data.text_size)
 	ss_insert_string_at(ss, low, popped_text)
 
 	item := Undo_Item_Box_Remove_Selection { 

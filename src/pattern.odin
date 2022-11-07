@@ -286,7 +286,7 @@ pattern_load_content_simple :: proc(
 	temp_length := len(temp)
 	pattern := "// TODO"
 	pattern_length := len(pattern)
-	pattern_hash := hash.fnv32(transmute([]byte) pattern)
+	pattern_hash := hash.fnv32a(transmute([]byte) pattern)
 	b: u8
 
 	// for line in strings.split_lines_iterator(&temp) {
@@ -297,7 +297,7 @@ pattern_load_content_simple :: proc(
 			// TODO safety
 			if temp[i + 1] == '/' {
 				if i + pattern_length < temp_length {
-					h := hash.fnv32(temp[i:i + pattern_length])
+					h := hash.fnv32a(temp[i:i + pattern_length])
 
 					if h == pattern_hash {
 					// if temp[i:i + pattern_length] == pattern {

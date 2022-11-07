@@ -1504,36 +1504,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				power_mode_render(target)
 			}
 
-			// render number highlights
-			if true {
-				render_push_clip(target, panel.clip)
-				
-				b := &builder_line_number
-				fcs_ahv(.Right, .Middle)
-				fcs_font(font_regular)
-				fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
-				fcs_color(color_alpha(theme.text_default, 0.25))
-				gap := int(4 * TASK_SCALE)
-
-				for t, i in tasks_visible {
-					// NOTE necessary as the modes could have the tasks at different positions
-					if !rect_overlap(t.bounds, panel.clip) {
-						continue
-					}
-
-					strings.builder_reset(b)
-					strings.write_int(b, i + 1)
-					text := strings.to_string(builder_line_number)
-					width := string_width(text) + TEXT_MARGIN_HORIZONTAL
-					r := RectI {
-						t.bounds.l - width - gap,
-						t.bounds.l - gap,
-						t.bounds.t,
-						t.bounds.b,
-					}
-					render_string_rect(target, r, text)
-				}
-			}
+			render_line_highlights(target, panel.clip)
 
 			// render zoom highlight text
 			if panel.zoom_highlight != 0 {
@@ -2272,10 +2243,25 @@ goto_init :: proc(window: ^Window) {
 
 		#partial switch msg {
 			case .Value_Changed: {
-				value := strconv.atoi(ss_string(&box.ss)) - 1
-				task_head = value
-				task_tail = value
-				element_repaint(box)
+				value := strconv.atoi(ss_string(&box.ss))
+				old_head := task_head
+				old_tail := task_tail
+
+				// NOTE kinda bad because it changes on reparse
+				// if options_vim_use() {
+				// 	temp := task_head
+				// 	task_head = temp + value
+				// 	task_tail = temp + value
+				// 	fmt.eprintln(task_head, task_tail)
+				// } else {
+					value -= 1
+					task_head = value
+					task_tail = value
+				// }
+
+				if old_head != task_head && old_tail != task_tail {
+					element_repaint(box)
+				}
 			}
 
 			case .Update: {
@@ -2399,7 +2385,7 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 tasks_load_file :: proc() {
 	spall.scoped("load tasks")
 	err: io.Error = .Empty
-
+	
 	if last_save_location != "" {
 		err = editor_load(last_save_location)
 	} 
@@ -2416,6 +2402,8 @@ tasks_load_file :: proc() {
 }
 
 tasks_load_reset :: proc() {
+	mode_panel.mode = .List
+
 	// NOTE TEMP
 	// TODO need to cleanup node data
 	tasks_eliminate_wanted_clear_tasks(mode_panel)
@@ -2429,16 +2417,6 @@ tasks_load_reset :: proc() {
 	dirty = 0
 	dirty_saved = 0
 }
-
-// tasks_load_default :: proc() {
-// 	// task_push(0, "one")
-// 	// task_push(1, "two")
-// 	// task_push(2, "three some longer line of text")
-// 	// task_push(2, "just some long line of textjust some long line of textjust some long line of textjust some long line of textjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of texttextjust some long line of text")
-// 	// task_head = 2
-// 	// task_tail = 2
-// 	tasks_load_tutorial()
-// }
 
 tasks_load_tutorial :: proc() {
 	@static load_indent := 0
@@ -3117,4 +3095,56 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 
 task_string :: #force_inline proc(task: ^Task) -> string {
 	return ss_string(&task.box.ss)
+}
+
+// render number highlights
+render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
+	render := visuals_line_highlight_use()
+	alpha := visuals_line_highlight_alpha()
+
+	// force in goto
+	if panel_goto != nil && (.Hide not_in panel_goto.flags) && !goto_transition_hide {
+		render = true
+	}
+	
+	// skip non rendering and forced on non alpha
+	if !render || alpha == 0 {
+		return
+	}
+
+	render_push_clip(target, clip)
+	
+	b := &builder_line_number
+	fcs_ahv(.Right, .Middle)
+	fcs_font(font_regular)
+	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
+	fcs_color(color_alpha(theme.text_default, alpha))
+	gap := int(4 * TASK_SCALE)
+
+	// line_offset := options_vim_use() ? -task_head : 1
+	line_offset := 1
+
+	for t, i in tasks_visible {
+		// NOTE necessary as the modes could have the tasks at different positions
+		if !rect_overlap(t.bounds, clip) {
+			continue
+		}
+
+		r := RectI {
+			t.bounds.l - 50 - gap,
+			t.bounds.l - gap,
+			t.bounds.t,
+			t.bounds.b,
+		}
+
+		if !rect_overlap(r, clip) {
+			continue
+		}
+
+		strings.builder_reset(b)
+		strings.write_int(b, i + line_offset)
+		text := strings.to_string(builder_line_number)
+		width := string_width(text) + TEXT_MARGIN_HORIZONTAL
+		render_string_rect(target, r, text)
+	}
 }

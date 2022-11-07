@@ -514,6 +514,9 @@ Misc_Save_Load :: struct {
 		progressbar_show: bool,
 		progressbar_percentage: bool,
 		progressbar_hover_only: bool,
+
+		line_highlight_use: bool,
+		line_highlight_alpha: f32,
 	},
 
 	pomodoro: struct {
@@ -652,6 +655,10 @@ json_save_misc :: proc(path: string) -> bool {
 			progressbar_show(),
 			progressbar_percentage(),
 			progressbar_hover_only(),
+
+			// line highlights
+			sb.options.checkbox_line_highlight_use.state,
+			sb.options.slider_line_highlight_alpha.position,
 		},
 
 		pomodoro = {
@@ -773,15 +780,6 @@ json_load_misc :: proc(path: string) -> bool {
 		slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
 	}
 
-	// // tag data
-	// sb.tags.tag_show_mode = misc.tags.tag_mode
-	// toggle_selector_set(sb.tags.toggle_selector_tag, misc.tags.tag_mode)
-	// for i in 0..<8 {
-	// 	tag := sb.tags.names[i]
-	// 	strings.builder_reset(tag)
-	// 	strings.write_string(tag, misc.tags.names[i])
-	// }	
-
 	// options
 	slider_set(sb.options.slider_tab, misc.options.tab)
 	checkbox_set(sb.options.checkbox_autosave, misc.options.autosave)
@@ -797,6 +795,7 @@ json_load_misc :: proc(path: string) -> bool {
 	slider_set(sb.options.slider_task_margin, misc.options.task_margin)
 	checkbox_set(sb.options.checkbox_vim, misc.options.vim)
 	checkbox_set(sb.options.checkbox_spell_checking, misc.options.spell_checking)
+	
 	// progressbar 
 	checkbox_set(sb.options.checkbox_progressbar_show, misc.options.progressbar_show)
 	checkbox_set(sb.options.checkbox_progressbar_percentage, misc.options.progressbar_percentage)
@@ -820,19 +819,25 @@ json_load_misc :: proc(path: string) -> bool {
 	pomodoro.stopwatch.running = misc.pomodoro.stopwatch_running
 	pomodoro.stopwatch._accumulation = time.Duration(misc.pomodoro.stopwatch_acuumulation)
 
+	// line highlights
+	checkbox_set(sb.options.checkbox_line_highlight_use, misc.options.line_highlight_use)
+	slider_set(sb.options.slider_line_highlight_alpha, misc.options.line_highlight_alpha)
+
 	// power mode
 	{
 		temp := &sb.options.pm	
 		using temp
-		checkbox_set(ps_show, misc.power_mode.show)
-		slider_set(p_lifetime, misc.power_mode.particle_lifetime)
-		slider_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
-		checkbox_set(p_colored, misc.power_mode.particle_colored)
-		checkbox_set(s_use, misc.power_mode.screenshake_use)
-		slider_set(s_amount, misc.power_mode.screenshake_amount)
-		slider_set(s_lifetime, misc.power_mode.screenshake_lifetime)
+
+		if sb.options.pm != {} {
+			checkbox_set(ps_show, misc.power_mode.show)
+			slider_set(p_lifetime, misc.power_mode.particle_lifetime)
+			slider_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
+			checkbox_set(p_colored, misc.power_mode.particle_colored)
+			checkbox_set(s_use, misc.power_mode.screenshake_use)
+			slider_set(s_amount, misc.power_mode.screenshake_amount)
+			slider_set(s_lifetime, misc.power_mode.screenshake_lifetime)
+		}
 	}
-	// slider_set()
 	
 	// statistics
 	goal := clamp(misc.statistics.work_goal, 1, 24)

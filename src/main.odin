@@ -72,56 +72,6 @@ PRESENTATION_MODE :: false
 // 	// fmt.eprintln("match?", pos, offset, err)
 // }
 
-// import il "core:container/intrusive/list"
-
-// main :: proc() {
-// 	fmt.eprintln("~~~START~~~")
-// 	defer fmt.eprintln("~~~ END ~~~")
-
-// 	NodeA :: struct {
-// 		x: int,
-// 		node: il.Node,
-// 	}
-
-// 	list: il.List
-// 	fmt.eprintln(il.is_empty(&list))
-
-// 	for i in 0..<10 {
-// 		n := new(NodeA)
-// 		n.x = i
-// 		il.push_back(&list, &n.node)
-// 	}
-
-// 	fmt.eprintln(il.is_empty(&list))
-// 	fmt.eprintln(list)
-
-// 	iter := il.iterator_head(list, NodeA, "node")
-// 	for ptr in il.iterate_next(&iter) {
-// 		fmt.eprintln(ptr)
-// 	}
-// }
-
-// main :: proc() {
-// 	s1 := ss_init_string("abäbcd")
-
-
-
-// 	// ss_append(&s1, 'a')
-// 	// ss_append(&s1, 'b')
-// 	// ss_append(&s1, 'c')
-// // fmt.eprintln(ss_size(&s1), ss_string(&s1))
-// 	// fmt.eprintln(ss_append(&s1, 'ö'))
-// 	// fmt.eprintln(ss_append(&s1, 'ö'))
-// 	// fmt.eprintln(ss_append(&s1, 'd'))
-// 	fmt.eprintln(ss_size(&s1), ss_string(&s1))
-	
-// 	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'x'))
-// 	fmt.eprintln("~~~", ss_insert_at(&s1, 2, 'y'))
-
-// 	fmt.eprintln(ss_size(&s1), ss_string(&s1))
-
-// }
-
 main :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	

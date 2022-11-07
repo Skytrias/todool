@@ -144,26 +144,26 @@ ds_byte_offset_till_codepoint_index :: proc(
 	return byte_offset
 }
 
-// fast conversion alternative for string_to_runes
-ds_to_runes :: proc(
-	using ds: ^Decode_State, 
-	text: string, 
-	allocator := context.temp_allocator,
-) -> (res: []rune) {
-	ds^ = {}
-	temp := make([dynamic]rune, 0, 32, context.temp_allocator)
-	codepoint: rune
+// // fast conversion alternative for string_to_runes
+// ds_to_runes :: proc(
+// 	using ds: ^Decode_State, 
+// 	text: string, 
+// 	allocator := context.temp_allocator,
+// ) -> (res: []rune) {
+// 	ds^ = {}
+// 	temp := make([dynamic]rune, 0, 32, context.temp_allocator)
+// 	codepoint: rune
 
-	for byte_offset < len(text) {
-		if decode(&state, &codepoint, text[byte_offset]) {
-			append(&temp, codepoint)
-		}
+// 	for byte_offset < len(text) {
+// 		if decode(&state, &codepoint, text[byte_offset]) {
+// 			append(&temp, codepoint)
+// 		}
 
-		byte_offset += 1
-	}
+// 		byte_offset += 1
+// 	}
 
-	return slice.clone(temp[:], allocator)
-}
+// 	return slice.clone(temp[:], allocator)
+// }
 
 // decode until the word ended using state
 ds_string_selection :: proc(

@@ -7,7 +7,8 @@ import "../cutf8"
 
 SS_SIZE :: 255
 
-ss_temp: [SS_SIZE]u8
+ss_temp_chars: [SS_SIZE]u8
+ss_temp_runes: [SS_SIZE]rune
 
 // static sized string with no magic going on
 // insert & pop are fast and utf8 based
@@ -109,6 +110,7 @@ _ss_find_byte_index_info :: proc(
 		}
 	}
 
+	info.byte_index = u8(ds.byte_offset)
 	return 
 }
 
@@ -190,7 +192,7 @@ ss_delete_at :: proc(ss: ^Small_String, index: int) -> (c: rune, ok: bool) {
 
 	// skip empty anyway
 	if ss.length == u8(info.size) {
-		fmt.eprintln("skip")
+		// fmt.eprintln("skip")
 	} else {
 		copy(ss.buf[info.byte_index:ss.length], ss.buf[info.byte_index + info.size:ss.length])
 	}
@@ -293,8 +295,8 @@ ss_insert_string_at :: proc(
 // write uppercased version of the string
 ss_uppercased_string :: proc(ss: ^Small_String) {
 	// copy to temp and iterate through it
-	copy(ss_temp[:ss.length], ss.buf[:ss.length])
-	input := string(ss_temp[:ss.length])
+	copy(ss_temp_chars[:ss.length], ss.buf[:ss.length])
+	input := string(ss_temp_chars[:ss.length])
 	ds: cutf8.Decode_State
 	prev: rune
 
@@ -315,8 +317,8 @@ ss_uppercased_string :: proc(ss: ^Small_String) {
 // write uppercased version of the string
 ss_lowercased_string :: proc(ss: ^Small_String) {
 	// copy to temp and iterate through it
-	copy(ss_temp[:ss.length], ss.buf[:ss.length])
-	input := string(ss_temp[:ss.length])
+	copy(ss_temp_chars[:ss.length], ss.buf[:ss.length])
+	input := string(ss_temp_chars[:ss.length])
 	ds: cutf8.Decode_State
 
 	// append lower case version
@@ -324,4 +326,19 @@ ss_lowercased_string :: proc(ss: ^Small_String) {
 	for codepoint, i in cutf8.ds_iter(&ds, input) {	
 		ss_append(ss, unicode.to_lower(codepoint))
 	}
+}
+
+// to temp runes
+ss_to_runes_temp :: proc(ss: ^Small_String) -> []rune {
+	state, codepoint: rune
+	codepoint_index: int
+
+	for i in 0..<ss.length {
+		if cutf8.decode(&state, &codepoint, ss.buf[i]) {
+			ss_temp_runes[codepoint_index] = codepoint
+			codepoint_index += 1
+		}
+	}
+
+	return ss_temp_runes[:codepoint_index]
 }

@@ -351,26 +351,39 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 }
 
 todool_change_task_state :: proc(du: u32) {
-	if true {
+	if false {
 		b := strings.builder_make(0, 32, context.temp_allocator)
 
 		if task_head != -1 {
 			task := tasks_visible[task_head]
-			// b := &task.box.builder.buf
+			ss := &task.box.ss
 
-			// if timing_timestamp_check(task_string(task)) != -1 {
-			// 	stamp, ok := timing_timestamp_extract(b[:TIMESTAMP_LENGTH])
+			if timing_timestamp_check(task_string(task)) != -1 {
+				stamp, ok := timing_timestamp_extract(ss.buf[:TIMESTAMP_LENGTH])
 
-			// 	// if its already today, dont insert, otherwhise rewrite
-			// 	if timing_timestamp_is_today(stamp) && ok {
-			// 		return
-			// 	} 
-			// } else {
-			// 	resize(b, len(b) + TIMESTAMP_LENGTH + 1)
-			// 	copy(b[TIMESTAMP_LENGTH + 1:], b[:])
-			// }
+				// if its already today, dont insert, otherwhise rewrite
+				if timing_timestamp_is_today(stamp) && ok {
+					// REMOVE on existing day
+					copy(ss.buf[:], ss.buf[TIMESTAMP_LENGTH + 1:])
+					ss.length -= TIMESTAMP_LENGTH + 1
+					task.box.head = max(task.box.head - TIMESTAMP_LENGTH - 1, 0)
+					task.box.tail = max(task.box.tail - TIMESTAMP_LENGTH - 1, 0)
+					window_repaint(window_main)
+					return
+				} 
+			} else {
+				if int(ss.length) + TIMESTAMP_LENGTH + 1 < SS_SIZE {
+					copy(ss.buf[TIMESTAMP_LENGTH + 1:], ss.buf[:])
+					ss.length += TIMESTAMP_LENGTH + 1
+				} else {
+					// stop when out of bounds
+					return
+				}
+			}
 
-			// timing_bprint_timestamp(b[:TIMESTAMP_LENGTH + 1])
+			task.box.head += TIMESTAMP_LENGTH + 1
+			task.box.tail += TIMESTAMP_LENGTH + 1
+			timing_bprint_timestamp(ss.buf[:TIMESTAMP_LENGTH + 1])
 			fmt.eprintln("tried")
 		}
 
@@ -577,14 +590,13 @@ todool_insert_child :: proc(du: u32) {
 	if task_head != -1 {
 		current_task := tasks_visible[task_head]
 		indentation = current_task.indentation + 1
-		// TODO
-		// builder := &current_task.box.builder
+		ss := &current_task.box.ss
 
-		// // uppercase word
-		// if !current_task.has_children && options_uppercase_word() && len(builder.buf) != 0 {
-		// 	item := Undo_String_Uppercased_Content { builder }
-		// 	undo_box_uppercased_content(manager, &item)
-		// }
+		// uppercase word
+		if !current_task.has_children && options_uppercase_word() && ss_has_content(ss) {
+			item := Undo_String_Uppercased_Content { ss }
+			undo_box_uppercased_content(manager, &item)
+		}
 
 		// unfold current task if its folded 
 		if current_task.folded {

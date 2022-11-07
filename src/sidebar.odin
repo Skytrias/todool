@@ -106,6 +106,10 @@ Sidebar_Options :: struct {
 	checkbox_progressbar_percentage: ^Checkbox,
 	checkbox_progressbar_hover_only: ^Checkbox,
 
+	// line highleight,
+	checkbox_line_highlight_use: ^Checkbox,
+	slider_line_highlight_alpha: ^Slider,
+
 	// powermode
 	pm: struct {
 		ps_show: ^Checkbox,
@@ -442,6 +446,20 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			checkbox_progressbar_show = checkbox_init(panel, flags, "Show", true)
 			checkbox_progressbar_percentage = checkbox_init(panel, flags, "Use Percentage", false)
 			checkbox_progressbar_hover_only = checkbox_init(panel, flags, "Hover Only", false)
+		}
+
+		// line highlight
+		{
+			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
+			header := label_init(panel, { .HF, .Label_Center }, "Line Heightlight")
+			header.font_options = &font_options_header
+
+			checkbox_line_highlight_use = checkbox_init(panel, flags, "Show", false)
+			slider_line_highlight_alpha = slider_init(panel, flags, 0.5)
+			slider_line_highlight_alpha.formatting = proc(builder: ^strings.Builder, position: f32) {
+				fmt.sbprintf(builder, "Alpha: %.3f", position)
+			}
+			slider_line_highlight_alpha.hover_info = "Alpha for line highlight text"
 		}
 
 		// power mode
@@ -804,6 +822,14 @@ visuals_task_margin :: #force_inline proc() -> f32 {
 visuals_animation_speed :: #force_inline proc() -> f32 {
 	value := math.remap(sb.options.slider_animation_speed.position, 0, 1, ANIMATION_SPEED_MIN, ANIMATION_SPEED_MAX)
 	return value
+}
+
+visuals_line_highlight_use :: #force_inline proc() -> bool {
+	return sb.options.checkbox_line_highlight_use.state
+}
+
+visuals_line_highlight_alpha :: #force_inline proc() -> f32 {
+	return sb.options.slider_line_highlight_alpha.position
 }
 
 progressbar_show :: #force_inline proc() -> bool {
