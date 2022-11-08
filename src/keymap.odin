@@ -647,7 +647,7 @@ keymap_init_comments :: proc() {
 	CP3(vim_normal_mode_set, "enter normal mode")
 	CP3(vim_visual_move_left, "move to the closest task to the left visually")
 	CP3(vim_visual_move_right, "move to the closest task to the right visually")
-	
+
 	// v030
-	CP3(todool_toggle_timestamp, "toggle the timestamp of today on a task")
+	CP3(todool_toggle_timestamp, "temp")
 }

@@ -13,6 +13,7 @@ duration_clock :: proc(duration: time.Duration) -> (hours, minutes, seconds: int
 	return
 }
 
+DAY :: time.Hour * 24
 TIMESTAMP_LENGTH :: 10
 
 // build today timestamp
@@ -88,139 +89,104 @@ timing_timestamp_is_today :: proc(stamp: Timestamp) -> bool {
 		day == stamp.day
 }
 
-// paint timestamps in different color
-task_repaint_timestamps :: proc() {
-	if task_head == -1 {
-		return
-	}
-
-	clear(&timestamp_regions)
-
-	for task in tasks_visible {
-		text := task_string(task)
-
-		if res := timing_timestamp_check(text); res != -1 {
-			if len(task.box.rendered_glyphs) != 0 {
-				// push the wanted timestamp tasks to an array
-				append(&timestamp_regions, Timestamp_Task {
-					task,
-					{
-						int(task.box.rendered_glyphs[0].x),
-						int(task.box.rendered_glyphs[TIMESTAMP_LENGTH].x),
-						task.box.bounds.t,
-						task.box.bounds.b,
-					},
-				})
-
-				// actually repaint the glpyhs
-				for i in 0..<res {
-					b := task.box.rendered_glyphs[i]
-
-					for v in &b.vertices {
-						v.color = theme.text_date
-					}
-				}
-			}
-		}
-	}
+Time_Date_Format :: enum {
+	US,
+	EUROPE,
 }
 
-// do hover info on timestamp
-task_timestamp_check_hover :: proc() {
-	if len(timestamp_regions) == 0 {
-		return
-	}
+// TODO put this into options
+time_date_format: Time_Date_Format = .US
 
-	// nope out on these
-	if window_main.menu != nil || (.Hide not_in window_main.hovered_panel.flags) {
-		return
-	}
+Time_Date :: struct {
+	using element: Element,
 
-	x := window_main.cursor_x
-	y := window_main.cursor_y
-	found: bool
-	top: int
-	task: ^Task
+	stamp: time.Time,
+	saved: time.Time,
+	down: bool,
 
-	// TODO does this get obstructed by the mode_panel?
-	for tt in timestamp_regions {
-		if rect_contains(tt.rect, x, y) {
-			top = tt.rect.t
-			task = tt.task
-			found = true
-			break
-		}
-	}
+	builder: strings.Builder,
+}
 
-	if found {
-		if timestamp_hover == nil {
-			timestamp_hover = panel_floaty_init(&window_main.element, {})
-			incl(&timestamp_hover.flags, Element_Flag.Disabled)
-			label_init(timestamp_hover.panel, {}, "")
-		}
+time_date_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+) -> (res: ^Time_Date) {
+	res = element_init(Time_Date, parent, flags, time_date_message, context.allocator)
+	res.stamp = time.now()
+	strings.builder_init(&res.builder, 0, 16)
+	return
+}
 
-		timestamp_hover.x = x
-		timestamp_hover.y = top - int(DEFAULT_FONT_SIZE * SCALE) * 2
-		timestamp_hover.width = 100
-		timestamp_hover.height = int((DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL) * SCALE)
+time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	td := cast(^Time_Date) element
 
-		e1 := timestamp_hover.panel.children[0]
-		assert(e1.message_class == label_message)
-		l := cast(^Label) e1
-		strings.builder_reset(&l.builder)
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			b := &td.builder
+			strings.builder_reset(b)
+			year, month, day := time.date(td.stamp)
 
-		ss := &task.box.ss
-		stamp, ok := timing_timestamp_extract(ss.buf[:TIMESTAMP_LENGTH])
-
-		if ok {
-			year, month, day := time.date(time.now())
-			ydiff := year - stamp.year
-			mdiff := int(month) - stamp.month
-			ddiff := day - stamp.day
-			count: int
-			b := &l.builder
-
-			if ydiff != 0 {
-				strings.write_int(b, ydiff)
-				strings.write_byte(b, ' ')
-				strings.write_string(b, ydiff == 1 ? "year" : "years")
-				count += 1
+			switch time_date_format {
+				case .US: fmt.sbprintf(b, "%4d-%2d-%2d", year, int(month), day)
+				case .EUROPE: fmt.sbprintf(b, "%2d.%2d.%4d", day, int(month), year)
 			}
 
-			if mdiff != 0 {
-				if count != 0 {
-					strings.write_byte(b, ' ')
+			fcs_ahv()
+			task := cast(^Task) element.parent
+			task_color := theme_panel(task.has_children ? .Parent : .Front)
+			fcs_color(task_color)
+			fcs_font(font_regular)
+			fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
+
+			render_rect(target, element.bounds, theme.text_date, ROUNDNESS)
+			
+			if td.down {
+				r := element.bounds
+				diff := window_mouse_position(element.window) - element.window.down_left
+				r.r = r.l + diff.x
+				render_rect(target, r, RED, ROUNDNESS)
+			}
+
+			render_string_rect(target, element.bounds, strings.to_string(td.builder))
+		}
+
+		case .Destroy: {
+			strings.builder_destroy(&td.builder)
+		}
+
+		case .Left_Down: {
+			td.saved = td.stamp
+		}
+
+		case .Mouse_Drag: {
+			if element.window.pressed_button == MOUSE_LEFT {
+				diff := window_mouse_position(element.window) - element.window.down_left
+
+				old := td.stamp
+				td.stamp = time.time_add(td.saved, DAY * time.Duration(diff.x / 20))
+
+				if old != td.stamp {
+					element_repaint(element)
 				}
 
-				strings.write_int(b, mdiff)
-				strings.write_byte(b, ' ')
-				strings.write_string(b, mdiff == 1 ? "month" : "months")
-				count += 1
-			}
-
-			if ddiff != 0 {
-				if count != 0 {
-					strings.write_byte(b, ' ')
-				}
-
-				strings.write_int(b, ddiff)
-				strings.write_byte(b, ' ')
-				strings.write_string(b, ddiff == 1 ? "day" : "days")
-				count += 1
-			}
+				td.down = true
+			} 
 		}
 
-		// ignore if empty
-		if len(l.builder.buf) == 0 {
-			found = false
-		} else {
-			strings.write_string(&l.builder, " ago")
+		case .Left_Up: {
+			td.down = false
 		}
-	} 
 
-	
-	if timestamp_hover != nil && element_hide(timestamp_hover, !found) {
-		// fmt.eprintln("found", found)
-		window_repaint(window_main)
+		case .Right_Down: {
+			time_date_format = Time_Date_Format((int(time_date_format) + 1) % len(Time_Date_Format))
+			window_repaint(window_main)
+		}
 	}
+
+	return 0
+}
+
+time_date_update :: proc(td: ^Time_Date) {
+	td.stamp = time.now()
 }

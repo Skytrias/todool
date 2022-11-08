@@ -127,14 +127,6 @@ bookmarks: [dynamic]int
 // line numbering
 builder_line_number: strings.Builder
 
-// store timestamp rects and their task ptr, since this wont come up often
-Timestamp_Task :: struct {
-	task: ^Task,
-	rect: RectI,
-}
-timestamp_regions: [dynamic]Timestamp_Task
-timestamp_hover: ^Panel_Floaty
-
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
 	using element: Element,
@@ -228,7 +220,6 @@ task_data_init :: proc() {
 	spell_check_init()
 
 	strings.builder_init(&builder_line_number, 0, 32)
-	timestamp_regions = make([dynamic]Timestamp_Task, 0, 64)
 }
 
 last_save_set :: proc(next: string = "") {
@@ -265,7 +256,6 @@ task_data_destroy :: proc() {
 	spell_check_destroy()
 
 	delete(builder_line_number.buf)
-	delete(timestamp_regions)
 }
 
 // reset copy data
@@ -434,6 +424,7 @@ Task :: struct {
 	button_link: ^Button,
 	image_display: ^Image_Display,
 	seperator: ^Task_Seperator,
+	time_date: ^Time_Date,
 
 	// state
 	indentation: int,
@@ -802,6 +793,18 @@ task_set_link :: proc(task: ^Task, link: string) {
 // valid link 
 task_link_is_valid :: proc(task: ^Task) -> bool {
 	return task.button_link != nil && (.Hide not_in task.button_link.flags) && len(task.button_link.builder.buf) > 0
+}
+
+task_set_time_date :: proc(task: ^Task) {
+	if task.time_date == nil {
+		task.time_date = time_date_init(task, {})
+	} else {
+		time_date_update(task.time_date)
+	}
+}
+
+task_time_date_is_valid :: proc(task: ^Task) -> bool {
+	return task.time_date != nil && (.Hide not_in task.time_date.flags)
 }
 
 // TODO speedup or cache?
@@ -1408,7 +1411,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_element_clipped(target, child)
 			}
 
-			task_repaint_timestamps()
 			search_draw_highlights(target, panel)
 
 			// word error highlight
@@ -1914,6 +1916,7 @@ task_layout :: proc(
 	element_hide(task.button_bookmark, !task.bookmarked)
 	if task.bookmarked {
 		rect := rect_cut_left(&cut, int(15 * TASK_SCALE))
+
 		if move {
 			element_move(task.button_bookmark, rect)
 		}
@@ -1922,12 +1925,28 @@ task_layout :: proc(
 	// margin after bookmark
 	cut = rect_margin(cut, margin_scaled)
 
+	// image
 	if image_display_has_content_soon(task.image_display) {
 		top := rect_cut_top(&cut, int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE))
-		top.b -= 5
+		top.b -= int(5 * TASK_SCALE)
 
 		if move {
 			element_move(task.image_display, top)
+		}
+	}
+
+	// time date
+	if task_time_date_is_valid(task) {
+		// width := element_message(task.time_date)
+		rect := rect_cut_left(&cut, int(100 * TASK_SCALE))
+		cut.l += int(5 * TASK_SCALE)
+
+		if move {
+			element_move(task.time_date, rect)
+		}		
+	} else {
+		if task.time_date != nil {
+			task.time_date.bounds = {}
 		}
 	}
 
@@ -2009,12 +2028,6 @@ task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 			}
 		}
 	}
-
-	// if only_box {
-	// 	fmt.eprintln("box down")
-	// } else {
-	// 	fmt.eprintln("task down")
-	// }
 }
 
 task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

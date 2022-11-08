@@ -590,6 +590,10 @@ window_mouse_rect :: proc(window: ^Window, w := 1, h := 1) -> RectI {
 	return rect_wh(window.cursor_x, window.cursor_y, w, h)
 }
 
+window_mouse_position :: proc(window: ^Window) -> Mouse_Coordinates {
+	return { window.cursor_x, window.cursor_y }
+}
+
 window_mouse_inside :: proc(window: ^Window) -> bool {
 	return rect_contains(window.rect, window.cursor_x, window.cursor_y)
 }

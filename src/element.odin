@@ -151,8 +151,8 @@ Element_Flags :: bit_set[Element_Flag]
 
 Element :: struct {
 	flags: Element_Flags,
-	parent: ^Element,
-	children: [dynamic]^Element,
+	parent: ^Element,children: [dynamic]^Element,
+	
 	window: ^Window, // root hierarchy
 
 	bounds, clip: RectI,
