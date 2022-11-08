@@ -342,6 +342,7 @@ main_update :: proc(window: ^Window) {
 
 	statusbar_update(&statusbar)
 	power_mode_set_caret_color()
+	task_timestamp_check_hover()
 }
 
 window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

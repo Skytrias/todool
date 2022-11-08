@@ -127,6 +127,14 @@ bookmarks: [dynamic]int
 // line numbering
 builder_line_number: strings.Builder
 
+// store timestamp rects and their task ptr, since this wont come up often
+Timestamp_Task :: struct {
+	task: ^Task,
+	rect: RectI,
+}
+timestamp_regions: [dynamic]Timestamp_Task
+timestamp_hover: ^Panel_Floaty
+
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
 	using element: Element,
@@ -220,6 +228,7 @@ task_data_init :: proc() {
 	spell_check_init()
 
 	strings.builder_init(&builder_line_number, 0, 32)
+	timestamp_regions = make([dynamic]Timestamp_Task, 0, 64)
 }
 
 last_save_set :: proc(next: string = "") {
@@ -256,6 +265,7 @@ task_data_destroy :: proc() {
 	spell_check_destroy()
 
 	delete(builder_line_number.buf)
+	delete(timestamp_regions)
 }
 
 // reset copy data
@@ -1867,7 +1877,6 @@ task_tags_layout :: proc(task: ^Task, rect: RectI) {
 				power_mode_spawn_along_text(text, f32(x + text_margin / 2), f32(y), theme.tags[i])
 			}
 		} 
-
 		
 		task.tags_rect[i] = res
 		field >>= 1
@@ -2127,8 +2136,10 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Left_Down: {
 			if task.tag_hovered != -1 {
-				du := u32(COMBO_VALUE + (1 << u8(task.tag_hovered)))
-				todool_toggle_tag(du)
+				bit := u8(1 << u8(task.tag_hovered))
+				manager := mode_panel_manager_scoped()
+				task_head_tail_push(manager)
+				u8_xor_push(manager, &task.tags, bit)
 			} else {
 				task_or_box_left_down(task, di, false)
 			}
@@ -3199,6 +3210,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	}
 }
 
+// render top right zoom highlight 
 render_zoom_highlight :: proc(target: ^Render_Target, clip: RectI) {
 	if mode_panel.zoom_highlight == 0 {
 		return

@@ -92,7 +92,7 @@ SS_Byte_Info :: struct {
 // find the byte index at codepoint index
 // codepoint codepoint result and its size
 _ss_find_byte_index_info :: proc(
-	ss: ^Small_String, 
+	ss: ^Small_String,
 	index: int,
 ) -> (
 	info: SS_Byte_Info,

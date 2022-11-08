@@ -64,9 +64,6 @@ rect_wh :: #force_inline proc(x, y, w, h: int) -> RectI {
 rect_center :: #force_inline proc(a: RectI) -> (x, y: f32) {
 	return f32(a.l) + f32(a.r - a.l) / 2, f32(a.t) + f32(a.b - a.t) / 2
 }
-// rect_center :: #force_inline proc(a: RectI) -> (x, y: int) {
-// 	return a.l + (a.r - a.l) / 2, a.t + (a.b - a.t) / 2
-// }
 
 // width
 rect_width :: #force_inline proc(a: RectI) -> int {
@@ -136,32 +133,6 @@ rect_bounding :: proc(a, b: RectI) -> RectI {
 rect_contains :: proc(a: RectI, x, y: int) -> bool {
 	return a.l <= x && a.r > x && a.t <= y && a.b > y
 }		
-
-// rect cutting with MIN
-
-// rect_cut_left :: proc(rect: ^RectI, a: int) -> RectI {
-// 	min_x := rect.l
-// 	rect.l = min(rect.r, rect.l + a)
-// 	return { min_x, rect.l, rect.t, rect.b }
-// }
-
-// rect_cut_right :: proc(rect: ^RectI, a: int) -> RectI {
-// 	max_x := rect.r
-// 	rect.r = max(rect.l, rect.r - a)
-// 	return { rect.r, max_x, rect.t, rect.b }
-// }
-
-// rect_cut_top :: proc(rect: ^RectI, a: int) -> RectI {
-// 	min_y := rect.t
-// 	rect.t = min(rect.b, rect.t + a)
-// 	return { rect.l, rect.r, min_y, rect.t }
-// }
-
-// rect_cut_bottom :: proc(rect: ^RectI, a: int) -> RectI {
-// 	max_y := rect.b
-// 	rect.b = max(rect.t, rect.b - a)
-// 	return { rect.l, rect.r, rect.b, max_y }
-// }
 
 // rect cutting with HARD CUT, will result in invalid rectangles when out of size
 

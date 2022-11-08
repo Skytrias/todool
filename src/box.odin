@@ -1151,7 +1151,7 @@ Undo_Item_Box_Insert_String :: struct {
 	// determines how head & tail are set
 	// 0 = not forced
 	// 1 = forced from right
-	// 0 = forced from left
+	// -1 = forced from left
 	forced_selection: int,
 	text_size: int, // upcoming text to read
 }
@@ -1184,6 +1184,47 @@ undo_box_insert_string :: proc(manager: ^Undo_Manager, item: rawptr) {
 		data.forced_selection,
 	}
 	undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
+}
+
+Undo_Item_Box_Replace_String :: struct {
+	// box: ^Box,
+	ss: ^Small_String,
+	head: int,
+	tail: int,
+	text_length: int,
+}
+
+undo_box_replace_string :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Box_Replace_String) item
+
+	fmt.eprintln("data", data)
+	before_size, ok := ss_remove_selection(data.ss, data.head, data.tail, ss_temp_chars[:])
+	assert(ok)
+
+	out := Undo_Item_Box_Replace_String { 
+		data.ss,
+		data.head,
+		data.tail,
+		before_size,
+	}
+	
+	fmt.eprintln("1", string(ss_temp_chars[:before_size]), before_size)
+	output := undo_push(
+		manager, 
+		undo_box_replace_string, 
+		&out, 
+		size_of(Undo_Item_Box_Replace_String) + before_size,
+	)
+	text_root := cast(^u8) &output[size_of(Undo_Item_Box_Replace_String)]
+	// text_root := cast(^u8) (uintptr(&output) + size_of(Undo_Item_Box_Replace_String))
+	mem.copy(text_root, &ss_temp_chars[0], before_size)
+	fmt.eprintln("~~~")
+
+	item := item
+	text_root = cast(^u8) (uintptr(item) + size_of(Undo_Item_Box_Replace_String))
+	popped_text := strings.string_from_ptr(text_root, data.text_length)
+	ss_insert_string_at(data.ss, data.head, popped_text)
+	fmt.eprintln("2", popped_text)
 }
 
 Undo_String_Uppercased_Content :: struct {
@@ -1276,6 +1317,32 @@ undo_box_lowercased_content :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 	// write lowercased
 	ss_lowercased_string(data.ss)
+}
+
+Undo_Item_Box_Head_Tail :: struct {
+	box: ^Box,
+	head: int,
+	tail: int,
+}
+
+undo_box_head_tail :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Box_Head_Tail) item
+	old_head := data.box.head
+	old_tail := data.box.tail
+	data.box.head = data.head
+	data.box.tail = data.tail
+	data.head = old_head
+	data.tail = old_tail
+	undo_push(manager, undo_box_head_tail, item, size_of(Undo_Item_Box_Head_Tail))
+}
+
+box_head_tail_push :: proc(manager: ^Undo_Manager, task: ^Task) {
+	item := Undo_Item_Box_Head_Tail {
+		task.box,
+		task.box.head,
+		task.box.tail,
+	}
+	undo_push(manager, undo_box_head_tail, &item, size_of(Undo_Item_Box_Head_Tail))
 }
 
 // state to pass

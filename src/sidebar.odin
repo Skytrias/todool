@@ -451,7 +451,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		// line highlight
 		{
 			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
-			header := label_init(panel, { .HF, .Label_Center }, "Line Heightlight")
+			header := label_init(panel, { .HF, .Label_Center }, "Line Highlight")
 			header.font_options = &font_options_header
 
 			checkbox_line_highlight_use = checkbox_init(panel, flags, "Show", false)
