@@ -31,9 +31,7 @@ BOX_SELECT_ALL :: 3
 
 Box :: struct {
 	ss: Small_String, // actual data
-	wrapped_lines: [dynamic]string, // wrapped content
 	head, tail: int,
-	ds: cutf8.Decode_State,
 	
 	// word selection state
 	word_selection_started: bool,
@@ -50,15 +48,17 @@ Box :: struct {
 	change_start: time.Tick,
 
 	// rendered glyph start & end
-	rstart, rend: int,
+	rendered_glyphs: []Rendered_Glyph,
+	// wrappped lines start / end
+	wrapped_lines: []string,
 }
 
 box_init :: proc(box: ^Box) {
-	box.wrapped_lines = make([dynamic]string, 0, 4)
+
 }
 
 box_destroy :: proc(box: Box) {
-	delete(box.wrapped_lines)
+
 }
 
 Text_Box :: struct {
@@ -84,8 +84,9 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 	#partial switch msg {
 		case .Layout: {
-			clear(&box.wrapped_lines)
-			append(&box.wrapped_lines, ss_string(&box.ss))
+			// box.wend = 0
+			// clear(&box.wrapped_lines)
+			// append(&box.wrapped_lines, ss_string(&box.ss))
 		}
 
 		case .Get_Cursor: {
@@ -116,6 +117,8 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			text_bounds.r -= int(5 * SCALE)
 			text_width := string_width(text)
 
+			wrapped_lines := [1]string { ss_string(&box.ss) }
+
 			// handle scrolling
 			{
 				// clamp scroll(?)
@@ -128,7 +131,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				}
 
 				// TODO probably will fail?
-				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
+				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, wrapped_lines[:], box.head)
 				caret_x -= int(box.scroll)
 
 				// check caret x
@@ -138,7 +141,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					box.scroll = f32(caret_x - rect_width(text_bounds)) + box.scroll + 1
 				}
 
-				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
+				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, wrapped_lines[:], box.head)
 			}
 
 			// selection & caret
@@ -289,13 +292,11 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 
 	// draw each wrapped line
 	y_offset: int
-	box.rstart = rendered_glyph_poll()
+	rendered_glyph_start()
 	for wrap_line, i in box.wrapped_lines {
 		iter := fontstash.text_iter_init(&gs.fc, wrap_line, f32(box.bounds.l), f32(box.bounds.t + y_offset))
 
 		for fontstash.text_iter_step(&gs.fc, &iter, &q) {
-			// append(&box.rendered_glyphs, Rendered_Glyph { x = iter.x, y = iter.y, codepoint = iter.codepoint })
-			// rglyph := &box.rendered_glyphs[len(box.rendered_glyphs) - 1]
 			rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 			state.color = low <= codepoint_index && codepoint_index < high ? back_color : color
 			render_glyph_quad_store(target, group, state, &q, rglyph)
@@ -304,7 +305,7 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 
 		y_offset += scaled_size
 	}
-	box.rend = rendered_glyph_poll()
+	rendered_glyph_gather(&box.rendered_glyphs)
 
 	fcs_color(color)
 }
@@ -320,12 +321,10 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 	fcs_ahv(.Left, .Top)
 	fcs_color(color)
 
-	box.rend = 0
-
 	// draw each wrapped line
 	y: int
 	for wrap_line, i in box.wrapped_lines {
-		render_string_store(target, box.bounds.l, box.bounds.t + y, wrap_line, &box.rstart, &box.rend)
+		render_string_store(target, box.bounds.l, box.bounds.t + y, wrap_line, &box.rendered_glyphs)
 		y += scaled_size
 	}
 }
@@ -414,9 +413,9 @@ box_copy_selection :: proc(window: ^Window, box: ^Box) -> (found: bool) {
 		return
 	}
 
-	box.ds = {}
+	ds: cutf8.Decode_State
 	low, high := box_low_and_high(box)
-	selection, ok := cutf8.ds_string_selection(&box.ds, ss_string(&box.ss), low, high)
+	selection, ok := cutf8.ds_string_selection(&ds, ss_string(&box.ss), low, high)
 	
 	if ok {
 		clipboard_set_with_builder(selection)
@@ -497,8 +496,7 @@ box_insert :: proc(
 		box_replace(manager, element, box, "", 0, true, msg_by_task)
 	}
 	
-	count := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
-
+	count := cutf8.count(ss_string(&box.ss))
 	box_check_changes(manager, box)
 
 	if msg_by_task {
@@ -569,19 +567,19 @@ box_replace :: proc(
 	} 
 
 	if len(text) != 0 {
-		box.ds = {}
-		for codepoint, i in cutf8.ds_iter(&box.ds, text) {
+		ds: cutf8.Decode_State
+		for codepoint, i in cutf8.ds_iter(&ds, text) {
 			ss_insert_at(&box.ss, box.head + i, codepoint)
 		}
 
 		old_head := box.head
-		box.head += box.ds.codepoint_count
+		box.head += ds.codepoint_count
 		box.tail = box.head
 
 		item := Undo_Item_Box_Remove_Selection { 
 			box,
 			old_head,
-			old_head + box.ds.codepoint_count,
+			old_head + ds.codepoint_count,
 			0,
 		}
 		undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
@@ -661,13 +659,13 @@ box_set_caret :: proc(box: ^Box, di: int, dp: rawptr) {
 		}
 
 		case BOX_END: {
-			length := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
+			length := cutf8.count(ss_string(&box.ss))
 			box.head = length
 			box.tail = box.head
 		}
 
 		case BOX_SELECT_ALL: {
-			length := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
+			length := cutf8.count(ss_string(&box.ss))
 			box.tail = 0
 			box.head = length
 		}
@@ -695,7 +693,7 @@ box_layout_caret :: proc(
 	scaling: f32,
 	x, y: int,
 ) -> RectI {
-	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
+	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines, box.head)
 	width := int(2 * scaling)
 	return rect_wh(
 		x + caret_x,
@@ -715,7 +713,7 @@ box_render_selection :: proc(
 		return
 	}
 
-	state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines[:], box.head, box.tail)
+	state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines, box.head, box.tail)
 	scaled_size := f32(state.isize / 10)
 
 	for fontstash.wrap_state_iter(&gs.fc, &state) {
@@ -850,9 +848,10 @@ element_box_mouse_selection :: proc(
 		b.word_selection_started = false
 		b.line_selection_started = false
 	}
-
+	
 	// NOTE single line clicks
 	if clicks == 0 {
+
 		// loop through lines
 		search_line: for text in b.wrapped_lines {
 			// set state
@@ -1376,20 +1375,20 @@ kbox_move_home :: proc(du: u32) {
 }
 
 box_move_end_simple :: proc(box: ^Box) {
-	length := cutf8.ds_recount(&box.ds, ss_string(&box.ss))
+	length := cutf8.count(ss_string(&box.ss))
 	box.head = length
 	box_check_shift(box, false)
 }
 
 kbox_move_end :: proc(du: u32) {
 	shift := du_shift(du)
-	length := cutf8.ds_recount(&kbox.box.ds, ss_string(&kbox.box.ss))
+	length := cutf8.count(ss_string(&kbox.box.ss))
 	kbox.box.head = length
 	box_check_shift(kbox.box, shift)
 }
 
 kbox_select_all :: proc(du: u32) {
-	length := cutf8.ds_recount(&kbox.box.ds, ss_string(&kbox.box.ss))
+	length := cutf8.count(ss_string(&kbox.box.ss))
 	kbox.box.head = length
 	kbox.box.tail = 0
 }

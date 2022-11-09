@@ -127,8 +127,10 @@ bookmarks: [dynamic]int
 // line numbering
 builder_line_number: strings.Builder
 
-// global storage
+// global storage instead of per task/box
 rendered_glyphs: [dynamic]Rendered_Glyph
+rendered_glyphs_start: int
+wrapped_lines: [dynamic]string
 
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
@@ -225,6 +227,7 @@ task_data_init :: proc() {
 	strings.builder_init(&builder_line_number, 0, 32)
 
 	rendered_glyphs = make([dynamic]Rendered_Glyph, 0, 1028 * 2)
+	wrapped_lines = make([dynamic]string, 0, 1028)
 }
 
 last_save_set :: proc(next: string = "") {
@@ -262,6 +265,7 @@ task_data_destroy :: proc() {
 
 	delete(builder_line_number.buf)
 	delete(rendered_glyphs)
+	delete(wrapped_lines)
 }
 
 // reset copy data
@@ -956,13 +960,7 @@ task_push_undoable :: proc(
 task_box_format_to_lines :: proc(box: ^Task_Box, width: int) {
 	fcs_task(box)
 	fcs_ahv(.Left, .Top)
-
-	fontstash.wrap_format_to_lines(
-		&gs.fc,
-		ss_string(&box.ss),
-		max(f32(width), 200),
-		&box.wrapped_lines,
-	)
+	wrapped_lines_push(ss_string(&box.ss), max(f32(width), 200), &box.wrapped_lines)
 }
 
 // iter through visible children
@@ -1986,7 +1984,7 @@ task_layout :: proc(
 			element_move(task.button_fold, rect)
 		}
 	}
-	
+
 	// time date
 	if task_time_date_is_valid(task) {
 		// width := element_message(task.time_date)
@@ -2004,7 +2002,7 @@ task_layout :: proc(
 	
 	task.box.font_options = task.font_options
 	if move {
-		task.box.rend = 0
+		task.box.rendered_glyphs = nil
 		element_move(task.box, cut)
 	}
 
@@ -3269,8 +3267,12 @@ rendered_glyphs_clear :: proc() {
 	clear(&rendered_glyphs)	
 }
 
-rendered_glyph_poll :: #force_inline proc() -> int {
-	return len(rendered_glyphs)
+rendered_glyph_start :: #force_inline proc() {
+	rendered_glyphs_start = len(rendered_glyphs)
+}
+
+rendered_glyph_gather :: #force_inline proc(output: ^[]Rendered_Glyph) {
+	output^ = rendered_glyphs[rendered_glyphs_start:len(rendered_glyphs)]
 }
 
 rendered_glyph_push :: proc(x, y: f32, codepoint: rune) -> ^Rendered_Glyph {
@@ -3291,4 +3293,25 @@ rendered_glyphs_slice :: proc(start, end: int) -> (res: []Rendered_Glyph, ok: bo
 	}
 
 	return
+}
+
+wrapped_lines_clear :: proc() {
+	clear(&wrapped_lines)	
+}
+
+// wrapped lines equivalent
+
+wrapped_lines_push :: proc(
+	text: string, 
+	width: f32,
+	output: ^[]string,
+) {
+	start := len(wrapped_lines)
+	fontstash.wrap_format_to_lines(
+		&gs.fc,
+		text,
+		width,
+		&wrapped_lines,
+	)
+	output^ = wrapped_lines[start:len(wrapped_lines)]
 }

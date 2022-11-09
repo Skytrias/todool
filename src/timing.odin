@@ -146,7 +146,7 @@ Time_Date :: struct {
 	drag: Time_Date_Drag,
 
 	builder: strings.Builder,
-	rstart, rend: int,
+	rendered_glyphs: []Rendered_Glyph,
 	spawn_particles: bool,
 }
 
@@ -164,10 +164,10 @@ time_date_init :: proc(
 
 time_date_drag_find :: proc(td: ^Time_Date) -> Time_Date_Drag {
 	// find dragged property
-	if glyphs, ok := rendered_glyphs_slice(td.rstart, td.rend); ok {
+	if td.rendered_glyphs != nil {
 		count: int
 		
-		for g in glyphs {
+		for g in td.rendered_glyphs {
 			if td.window.cursor_x < int(g.x) {
 				break
 			}
@@ -208,11 +208,11 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			
 			render_rect(target, element.bounds, theme.text_date, ROUNDNESS)
 
-			render_string_rect_store(target, element.bounds, strings.to_string(td.builder), &td.rstart, &td.rend)
+			render_string_rect_store(target, element.bounds, strings.to_string(td.builder), &td.rendered_glyphs)
 		}
 
 		case .Layout: {
-			td.rend = 0
+			td.rendered_glyphs = nil
 
 			b := &td.builder
 			strings.builder_reset(b)
@@ -293,7 +293,8 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 						table := TIME_DATE_FORMAT_TABLE
 						pair := table[td.drag][time_date_format]
 						
-						if glyphs, ok := rendered_glyphs_slice(td.rstart, td.rend); ok {
+						if td.rendered_glyphs != nil {
+							glyphs := td.rendered_glyphs
 							cam := mode_panel_cam()
 							x1 := glyphs[pair.x].x
 							x2 := glyphs[pair.y - 1].x
@@ -351,9 +352,10 @@ time_date_render_highlight_on_pressed :: proc(
 		}
 
 		// render glyphs differently based on drag property
-		if glyphs, ok := rendered_glyphs_slice(td.rstart, td.rend); ok {
+		if td.rendered_glyphs != nil {
 			table := TIME_DATE_FORMAT_TABLE
 			pair := table[drag][time_date_format]
+			glyphs := td.rendered_glyphs
 
 			for i in pair.x..<pair.y {
 				glyph := glyphs[i]

@@ -101,7 +101,7 @@ power_mode_spawn_along_task_text :: proc(task: ^Task, task_count: int) {
 		return
 	}
 
-	if glyphs, ok := rendered_glyphs_slice(task.box.rstart, task.box.rend); ok {
+	if task.box.rendered_glyphs != nil {
 		text := ss_string(&task.box.ss)
 		color := theme_task_text(task.state)
 		cam := mode_panel_cam()
@@ -110,7 +110,7 @@ power_mode_spawn_along_task_text :: proc(task: ^Task, task_count: int) {
 		count: int
 
 		for codepoint, i in cutf8.ds_iter(&ds, text) {
-			glyph := glyphs[i] 
+			glyph := task.box.rendered_glyphs[i] 
 			delay := f32(count) * 0.002 + f32(task_count) * 0.02
 			power_mode_spawn_at(glyph.x, glyph.y, cam.offset_x, cam.offset_y, 2, color, delay)
 			count += 1

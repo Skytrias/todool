@@ -109,7 +109,7 @@ spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 			fcs_task(task)
 			state := fontstash.wrap_state_init(
 				&gs.fc, 
-				task.box.wrapped_lines[:], 
+				task.box.wrapped_lines, 
 				word.index_codepoint_start, 
 				word.index_codepoint_end,
 			)

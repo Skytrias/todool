@@ -1064,19 +1064,19 @@ render_string_store :: proc(
 	target: ^Render_Target,
 	x, y: int,
 	text: string,
-	rstart, rend: ^int,
+	glyphs: ^[]Rendered_Glyph,
 ) -> f32 {
 	group := &target.groups[len(target.groups) - 1]
 	state := fontstash.state_get(&gs.fc)
 	iter := fontstash.text_iter_init(&gs.fc, text, f32(x), f32(y))
 	q: fontstash.Quad
 
-	rstart^ = rendered_glyph_poll()
+	rendered_glyph_start()
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
 		rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 		render_glyph_quad_store(target, group, state, &q, rglyph)
 	}
-	rend^ = rendered_glyph_poll()
+	rendered_glyph_gather(glyphs)
 
 	return iter.nextx
 }
@@ -1086,7 +1086,7 @@ render_string_rect_store :: proc(
 	target: ^Render_Target,
 	rect: RectI,
 	text: string,
-	rstart, rend: ^int,
+	glyphs: ^[]Rendered_Glyph,
 ) -> f32 {
 	ctx := &gs.fc
 	group := &target.groups[len(target.groups) - 1]
@@ -1113,12 +1113,12 @@ render_string_rect_store :: proc(
 	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
 	q: fontstash.Quad
 
-	rstart^ = rendered_glyph_poll()
+	rendered_glyph_start()
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
 		rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 		render_glyph_quad_store(target, group, state, &q, rglyph)
 	}
-	rend^ = rendered_glyph_poll()
+	rendered_glyph_gather(glyphs)
 
   return iter.nextx
 }

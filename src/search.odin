@@ -193,7 +193,7 @@ search_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 
 		for i in 0..<int(length) {
 			res := search.results[entry.result_offset + i]
-			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines[:], int(res), int(res) + search.pattern_rune_count)
+			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines, int(res), int(res) + search.pattern_rune_count)
 			scaled_size := f32(state.isize / 10)
 
 			for fontstash.wrap_state_iter(&gs.fc, &state) {

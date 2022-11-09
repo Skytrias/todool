@@ -832,7 +832,7 @@ wrap_format_to_lines :: proc(
 	width_limit: f32,
 	lines: ^[dynamic]string,
 ) {
-	clear(lines)
+	// clear(lines)
 	iter := text_iter_init(ctx, text, 0, 0)
 	q: Quad
 	last_byte_offset: int
