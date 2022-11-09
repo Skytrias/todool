@@ -302,7 +302,7 @@ copy_push_task :: proc(task: ^Task) {
 		task.state,
 		task.tags,
 		task.folded,
-		task.bookmarked,
+		task.button_bookmark != nil,
 		task.image_display == nil ? nil : task.image_display.img,
 	})
 }
@@ -333,7 +333,7 @@ copy_paste_at :: proc(
 		task := task_push_undoable(manager, relative_indentation, text, index_at + i)
 		task.folded = t.folded
 		task.state = t.state
-		task.bookmarked = t.bookmarked
+		task_set_bookmark(task, t.bookmarked)
 		task.tags = t.tags
 
 		if t.stored_image != nil {
@@ -463,9 +463,6 @@ Task :: struct {
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
 	progress_animation: [Task_State]f32,
-
-	// wether we want to be able to jump to this task
-	bookmarked: bool, // TODO use bookmark.hide property instead?
 }
 
 Mode :: enum {
@@ -599,8 +596,7 @@ task_head_tail_check_end :: #force_inline proc(shift: bool) {
 bookmark_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	#partial switch msg {
 		case .Paint_Recursive: {
-			target := element.window.target
-			render_rect(target, element.bounds, theme.text_default, ROUNDNESS)
+			render_rect(element.window.target, element.bounds, theme.text_default, ROUNDNESS)
 		}
 
 		case .Get_Cursor: {
@@ -608,9 +604,7 @@ bookmark_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Clicked: {
-			task := cast(^Task) element.data
-			task.bookmarked = false
-			element_repaint(mode_panel)
+			element_hide_toggle(element)
 		}
 	}
 
@@ -824,6 +818,24 @@ task_time_date_is_valid :: proc(task: ^Task) -> bool {
 	return task.time_date != nil && (.Hide not_in task.time_date.flags)
 }
 
+// init bookmark if not yet
+task_bookmark_init_check :: proc(task: ^Task) {
+	if task.button_bookmark == nil {
+		task.button_bookmark = element_init(Element, task, {}, bookmark_message, context.allocator)
+	} 
+}
+
+// init the bookmark and set hide flag
+task_set_bookmark :: proc(task: ^Task, show: bool) {
+	task_bookmark_init_check(task)
+	element_hide(task.button_bookmark, !show)
+}
+
+// check validity
+task_bookmark_is_valid :: proc(task: ^Task) -> bool {
+	return task.button_bookmark != nil && (.Hide not_in task.button_bookmark.flags)
+}
+
 // TODO speedup or cache?
 task_total_bounds :: proc() -> (bounds: RectI) {
 	bounds = RECT_INF
@@ -900,14 +912,9 @@ task_init :: proc(
 	res.indentation = indentation
 	res.indentation_smooth = f32(indentation)
 	
-	// TODO init bookmark element only when necessary?
-	res.button_bookmark = element_init(Element, res, {}, bookmark_message, allocator)
-	res.button_bookmark.data = res
-
-	res.button_fold = icon_button_init(res, {}, .Simple_Down, nil, allocator)
 	// TODO find better way to change scaling for elements in general?
 	// this is pretty much duplicate of normal icon rendering
-	res.button_fold.message_user = task_button_fold_message
+	res.button_fold = icon_button_init(res, {}, .Simple_Down, task_button_fold_message, allocator)
 
 	res.box = task_box_init(res, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
@@ -1912,6 +1919,7 @@ task_layout :: proc(
 	bounds.t += int(task.top_offset)
 	bounds.b += int(task.top_offset)
 
+	// seperator
 	cut := bounds
 	if task_seperator_is_valid(task) {
 		rect := rect_cut_top(&cut, int(20 * TASK_SCALE))
@@ -1924,13 +1932,22 @@ task_layout :: proc(
 	task.clip = rect_intersection(task.parent.clip, cut)
 	task.bounds = cut
 
-	// layout bookmark
-	element_hide(task.button_bookmark, !task.bookmarked)
-	if task.bookmarked {
+	// bookmark
+	if task_bookmark_is_valid(task) {
 		rect := rect_cut_left(&cut, int(15 * TASK_SCALE))
 
 		if move {
+			if task.button_bookmark.bounds == {} {
+				x, y := rect_center(rect)
+				cam := mode_panel_cam()
+				power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, P_SPAWN_HIGH, theme.text_default)
+			}
+
 			element_move(task.button_bookmark, rect)
+		}
+	} else {
+		if task.button_bookmark != nil {
+			task.button_bookmark.bounds = {}
 		}
 	}
 
@@ -1943,7 +1960,16 @@ task_layout :: proc(
 		top.b -= int(5 * TASK_SCALE)
 
 		if move {
+			if task.image_display.bounds == {} {
+				x, y := rect_center(top)
+				power_mode_spawn_rect(top, 10, theme.text_default)
+			}
+
 			element_move(task.image_display, top)
+		}
+	} else {
+		if task.image_display != nil {
+			task.image_display.bounds = {}
 		}
 	}
 
@@ -3295,11 +3321,11 @@ rendered_glyphs_slice :: proc(start, end: int) -> (res: []Rendered_Glyph, ok: bo
 	return
 }
 
+// wrapped lines equivalent
+
 wrapped_lines_clear :: proc() {
 	clear(&wrapped_lines)	
 }
-
-// wrapped lines equivalent
 
 wrapped_lines_push :: proc(
 	text: string, 

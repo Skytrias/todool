@@ -25,6 +25,9 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 
+// draw wires between bookmarks
+// add timestamp to copy / paste
+
 // KEYMAP REWORK
 // add super key
 // keymap load newer combos per version by default
@@ -263,7 +266,7 @@ main_update :: proc(window: ^Window) {
 	{
 		clear(&bookmarks)
 		for task, i in tasks_visible {
-			if task.bookmarked {
+			if task_bookmark_is_valid(task) {
 				append(&bookmarks, i)
 			}
 		}

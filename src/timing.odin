@@ -308,9 +308,9 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		}
 
 		case .Right_Down: {
-			// element_hide(td, true)
-			time_date_format = Time_Date_Format((int(time_date_format) + 1) % len(Time_Date_Format))
-			window_repaint(window_main)
+			element_hide(td, true)
+			// time_date_format = Time_Date_Format((int(time_date_format) + 1) % len(Time_Date_Format))
+			// window_repaint(window_main)
 		}
 	}
 

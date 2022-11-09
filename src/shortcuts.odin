@@ -1189,16 +1189,18 @@ todool_toggle_bookmark :: proc(du: u32) {
 	}
 
 	low, high := task_low_and_high()
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
 
 	for i in low..<high + 1 {
 		task := tasks_visible[i]
-		item := Undo_Item_Bool_Toggle { &task.bookmarked }
-		undo_bool_toggle(manager, &item)
+
+		if task.button_bookmark == nil {
+			task_bookmark_init_check(task)
+		} else {
+			element_hide_toggle(task.button_bookmark)
+		}
 	}
 
-	element_repaint(mode_panel)
+	window_repaint(window_main)
 }
 
 // use this for simple panels instead of manually indexing for the text box
@@ -1952,76 +1954,3 @@ todool_toggle_timestamp :: proc(du: u32) {
 
 	window_repaint(window_main)
 }
-
-// // insert current timestamp of today
-// todool_toggle_timestamp :: proc(du: u32) {
-// 	if task_head == -1 {
-// 		return
-// 	}
-
-// 	// NOTE could be optimized in undo/redo step to automatically do this without storing anything
-// 	timestamp: [16]u8
-// 	timing_bprint_timestamp(timestamp[:])
-
-// 	manager := mode_panel_manager_scoped()
-// 	task_head_tail_push(manager)
-
-// 	iter := ti_init()
-// 	for task in ti_step(&iter) {
-// 		ss := &task.box.ss
-// 		has_timestamp := false
-
-// 		// check for existance
-// 		if timing_timestamp_check(task_string(task)) != -1 {
-// 			stamp, ok := timing_timestamp_extract(ss.buf[:TIMESTAMP_LENGTH])
-// 			has_timestamp = true
-
-// 			// if its already today, dont insert, otherwhise rewrite
-// 			if timing_timestamp_is_today(stamp) && ok {
-// 				item := Undo_Item_Box_Remove_Selection { task.box, 0, TIMESTAMP_LENGTH + 1, -1 }
-// 				undo_box_remove_selection(manager, &item)
-				
-// 				// item := Undo_Item_Box_Remove_Selection { task.box, task.box.head, task.box.tail, false }
-// 				// undo_push(manager, item)
-			
-// 				// REMOVE on existing day
-// 				// copy(ss.buf[:], ss.buf[TIMESTAMP_LENGTH + 1:])
-// 				// ss.length -= TIMESTAMP_LENGTH + 1
-// 				// task.box.head = max(task.box.head - TIMESTAMP_LENGTH - 1, 0)
-// 				// task.box.tail = max(task.box.tail - TIMESTAMP_LENGTH - 1, 0)
-// 				// window_repaint(window_main)
-// 				continue
-// 			}
-// 		} 
-
-// 		if has_timestamp {
-// 			data := mem.alloc(size_of(Undo_Item_Box_Replace_String) + TIMESTAMP_LENGTH)
-// 			item := cast(^Undo_Item_Box_Replace_String) data
-// 			item^ = {
-// 				&task.box.ss,
-// 				0,
-// 				TIMESTAMP_LENGTH,
-// 				TIMESTAMP_LENGTH,
-// 			}
-// 			text_root := cast(^u8) (uintptr(data) + size_of(Undo_Item_Box_Replace_String))
-// 			mem.copy(text_root, &timestamp[0], TIMESTAMP_LENGTH)
-// 			fmt.eprintln("replace", item)
-// 			undo_box_replace_string(manager, item)
-// 			// undo_push(manager, )
-// 		} else {
-// 			box_head_tail_push(manager, task)
-// 			task.box.head += TIMESTAMP_LENGTH + 1
-// 			task.box.tail += TIMESTAMP_LENGTH + 1
-
-// 			ss_insert_string_at(ss, 0, string(timestamp[:TIMESTAMP_LENGTH + 1]))
-// 			item := Undo_Item_Box_Remove_Selection { task.box, 0, TIMESTAMP_LENGTH + 1, -1 }
-// 			undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
-// 		}
-
-
-// 		// item := Undo_Item_Task_Timestamp { task }
-// 		// undo_task_timestamp(manager, &item)
-// 	}
-
-// 	window_repaint(window_main)
-// }

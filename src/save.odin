@@ -204,7 +204,7 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 		line_written: bool
 
 		// look for opt data
-		if task.bookmarked {
+		if task_bookmark_is_valid(task) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Bookmark) or_return
 		}
@@ -322,7 +322,9 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 
 			switch tag {
 				case .None, .Finished: {}
-				case .Bookmark: task.bookmarked = true
+				case .Bookmark: {
+					task_set_bookmark(task, true)
+				}
 				case .Folded: task.folded = true
 				case .Image_Path: {
 					length := reader_read_type(reader, u16be) or_return

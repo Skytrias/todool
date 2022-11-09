@@ -53,13 +53,13 @@ Box :: struct {
 	wrapped_lines: []string,
 }
 
-box_init :: proc(box: ^Box) {
+// box_init :: proc(box: ^Box) {
 
-}
+// }
 
-box_destroy :: proc(box: Box) {
+// box_destroy :: proc(box: Box) {
 
-}
+// }
 
 Text_Box :: struct {
 	using element: Element,
@@ -188,7 +188,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Destroy: {
-			box_destroy(box.box)
+			// box_destroy(box.box)
 		}
 
 		case .Update: {
@@ -261,7 +261,7 @@ text_box_init :: proc(
 	flags := flags
 	flags |= { .Tab_Stop }
 	res = element_init(Text_Box, parent, flags, text_box_message, allocator, index_at)
-	box_init(&res.box)
+	// box_init(&res.box)
 	ss_set_string(&res.box.ss, text)
 	box_move_end_simple(&res.box)
 	// log.info("box init", res.head, res.tail, len(res.builder.buf))
@@ -366,7 +366,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Destroy: {
-			box_destroy(task_box.box)
+			// box_destroy(task_box.box)
 		}
 
 		case .Update: {
@@ -397,7 +397,7 @@ task_box_init :: proc(
 	index_at := -1,
 ) -> (res: ^Task_Box) {
 	res = element_init(Task_Box, parent, flags, task_box_message, allocator, index_at)
-	box_init(&res.box)
+	// box_init(&res.box)
 	ss_set_string(&res.box.ss, text)
 	box_move_end_simple(&res.box)
 	return

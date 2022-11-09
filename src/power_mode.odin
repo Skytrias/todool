@@ -21,6 +21,8 @@ S_AMOUNT_MIN :: 1
 S_AMOUNT_MAX :: 20
 P_LIFETIME_MIN :: 0.25
 P_LIFETIME_MAX :: 2
+P_SPAWN_HIGH :: 10
+P_SPAWN_LOW :: 4
 
 PM_State :: struct {
 	particles: [dynamic]PM_Particle,
@@ -77,7 +79,7 @@ power_mode_check_spawn :: proc() {
 	}
 }
 
-// simple line
+// simple line spawn per glyph
 power_mode_spawn_along_text :: proc(text: string, x, y: f32, color: Color) {
 	if !pm_show() {
 		return
@@ -91,7 +93,7 @@ power_mode_spawn_along_text :: proc(text: string, x, y: f32, color: Color) {
 
 	cam := mode_panel_cam()
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
-		power_mode_spawn_at(iter.x, iter.y, cam.offset_x, cam.offset_y, 4, color)
+		power_mode_spawn_at(iter.x, iter.y, cam.offset_x, cam.offset_y, P_SPAWN_LOW, color)
 	}
 }
 
@@ -112,12 +114,13 @@ power_mode_spawn_along_task_text :: proc(task: ^Task, task_count: int) {
 		for codepoint, i in cutf8.ds_iter(&ds, text) {
 			glyph := task.box.rendered_glyphs[i] 
 			delay := f32(count) * 0.002 + f32(task_count) * 0.02
-			power_mode_spawn_at(glyph.x, glyph.y, cam.offset_x, cam.offset_y, 2, color, delay)
+			power_mode_spawn_at(glyph.x, glyph.y, cam.offset_x, cam.offset_y, P_SPAWN_LOW / 2, color, delay)
 			count += 1
 		}
 	}
 }
 
+// spawn at the global caret
 power_mode_spawn_at_caret :: proc() {
 	if !pm_show() {
 		return
@@ -127,9 +130,26 @@ power_mode_spawn_at_caret :: proc() {
 	x := f32(caret_rect.l)
 	y := f32(caret_rect.t) + rect_heightf_halfed(caret_rect)
 	color: Color = pm_particle_colored() ? {} : pm_state.caret_color
-	power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, 10, color)
+	power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, P_SPAWN_HIGH, color)
 }
 
+// spawn particles through random points of a rectangle
+power_mode_spawn_rect :: proc(
+	rect: RectI,
+	count: int,
+	color: Color = {},
+) {
+	cam := mode_panel_cam()
+
+	for i in 0..<count {
+		x := rand.float32() * rect_widthf(rect) + f32(rect.l)
+		y := rand.float32() * rect_heightf(rect) + f32(rect.t)
+		delay := f32(i) * 0.001
+		power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, P_SPAWN_LOW, color, delay)
+	}
+}
+
+// spawn the wanted count of particles with the properties
 power_mode_spawn_at :: proc(
 	x, y: f32, 
 	xoff, yoff: f32, 
@@ -141,7 +161,7 @@ power_mode_spawn_at :: proc(
 
 	width := 20 * TASK_SCALE
 	height := DEFAULT_FONT_SIZE * TASK_SCALE * 2
-	size := 2 * TASK_SCALE
+	size := 3 * TASK_SCALE
 
 	// NOTE could resize upfront?
 	lifetime_opt := pm_particle_lifetime()
@@ -239,7 +259,8 @@ power_mode_render :: proc(target: ^Render_Target) {
 		xoff = p.xoff + cam.offset_x
 		yoff = p.yoff + cam.offset_y
 		color := color_alpha(p.color, alpha)
-		render_circle(target, p.x + xoff, p.y + yoff, p.radius, color, true)
+		radius := max(1, p.radius * ease.cubic_out(alpha))
+		render_circle(target, p.x + xoff, p.y + yoff, radius, color, true)
 	}
 }
 
