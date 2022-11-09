@@ -63,6 +63,29 @@ float sdCircleWave(vec2 p, float tb, float ra) {
 	return min(d1, d2); 
 }
 
+float dot2( in vec2 v ) { return dot(v,v); }
+float cro( in vec2 a, in vec2 b ) { return a.x*b.y - a.y*b.x; }
+
+float sdBezier(vec2 p, vec2 v0, vec2 v1, vec2 v2) {
+	vec2 i = v0 - v2;
+	vec2 j = v2 - v1;
+	vec2 k = v1 - v0;
+	vec2 w = j-k;
+
+	v0-= p; v1-= p; v2-= p;
+	  
+	float x = cro(v0, v2);
+	float y = cro(v1, v0);
+	float z = cro(v2, v1);
+
+	vec2 s = 2.0*(y*j+z*k)-x*i;
+
+	float r =  (y*z-x*x*0.25)/dot2(s);
+	float t = clamp( (0.5*x+y+r*dot(s,w))/(x+y+z),0.0,1.0);
+	  
+	return length( v0+t*(k+k+t*w) );
+}
+
 #define RK_Invalid uint(0)
 #define RK_Rect uint(1)
 #define RK_Glyph uint(2)
@@ -70,13 +93,14 @@ float sdCircleWave(vec2 p, float tb, float ra) {
 #define RK_Circle uint(4)
 #define RK_Circle_Outline uint(5)
 #define RK_Sine uint(6)
+#define RK_QBezier uint(7)
 
-#define RK_SV uint(7)
-#define RK_HUE uint(8)
-#define RK_Kanban uint(9)
-#define RK_List uint(10)
-#define RK_Drag uint(11)
-#define RK_TEXTURE uint(12)
+#define RK_SV uint(8)
+#define RK_HUE uint(9)
+#define RK_Kanban uint(10)
+#define RK_List uint(11)
+#define RK_Drag uint(12)
+#define RK_TEXTURE uint(13)
 
 void main(void) {
 	vec4 color_goal = v_color;
@@ -133,6 +157,11 @@ void main(void) {
 		// float alpha = distance;
 		float alpha = 1 - distance;
 		color_goal.a *= alpha;
+	} else if (v_kind == RK_QBezier) {
+		// float alpha = 1 - distance;
+		// color_goal.a *= alpha;
+		color_goal = vec4(1, 0, 0, 1);
+		// color_goal ;
 	} else if (v_kind == RK_SV) {
 		vec4 texture_color = texture(u_sampler_sv, v_uv);
 		color_goal = mix(color_goal, texture_color, texture_color.a);
@@ -153,29 +182,6 @@ void main(void) {
 		vec4 texture_color = texture(u_sampler_drag, v_uv);
 		color_goal *= texture_color;
 	}
-
-	// } else if (v_kind == RK_ARC) {
-	// 	float tb = v_additional.x;
-	// 	vec2 sc = vec2(sin(tb), cos(tb));
-	// 	vec2 center = v_uv;
-	// 	float thickness = v_thickness;
-	// 	float size = v_adjusted_half_dimensions.x - thickness - 5;
-		
-	// 	float rot = tb;
-	// 	mat4 mat = mat4(
-	// 		cos(rot), -sin(rot), 0, 0,
-	// 		sin(rot), cos(rot), 0, 0,
-	// 		0, 0, 1, 0,
-	// 		0, 0, 0, 1
-	// 	);
-	// 		vec2 p = v_pos - round(center);
-	// 	vec4 res = (mat * vec4(p, 0, 0));
-	// 	p = res.xy;
-
-	// 	float distance = sdArc(p, sc, size, thickness);
-
-	// 	color_goal = mix(vec4(1, 1, 1, 0), color_goal, 1 - smoothstep(-1, 0, distance));
-	// }
 
 	o_color = color_goal;
 }

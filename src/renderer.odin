@@ -118,6 +118,7 @@ Render_Kind :: enum u32 {
 	Circle,
 	Circle_Outline,
 	Sine,
+	Quadratic_Bezier,
 
 	SV,
 	HUE,
@@ -802,8 +803,6 @@ render_string_rect :: proc(
 		case .Bottom: { y = f32(rect.b) }
 	}
 
-	// render_rect_outline(target, rect, RED)
-
 	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
 	q: fontstash.Quad
 
@@ -1080,3 +1079,75 @@ render_string_store :: proc(
 
 	return iter.nextx
 }
+
+// render a string at arbitrary xy
+render_string_rect_store :: proc(
+	target: ^Render_Target,
+	rect: RectI,
+	text: string,
+	rendered_glyphs: ^[dynamic]Rendered_Glyph,
+) -> f32 {
+	ctx := &gs.fc
+	group := &target.groups[len(target.groups) - 1]
+	state := fontstash.state_get(&gs.fc)
+
+	x: f32
+	y: f32
+	switch state.ah {
+		case .Left: { x = f32(rect.l) }
+		case .Middle: { 
+			x = f32(rect.l) + rect_widthf_halfed(rect)
+		}
+		case .Right: { x = f32(rect.r) }
+	}
+	switch state.av {
+		case .Top: { y = f32(rect.t) }
+		case .Middle: { 
+			y = f32(rect.t) + rect_heightf_halfed(rect) 
+		}
+		case .Baseline: { y = f32(rect.t) }
+		case .Bottom: { y = f32(rect.b) }
+	}
+
+	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
+	q: fontstash.Quad
+
+	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+		append(rendered_glyphs, Rendered_Glyph { x = iter.x, y = iter.y, codepoint = iter.codepoint })
+		rglyph := &rendered_glyphs[len(rendered_glyphs) - 1]
+		render_glyph_quad_store(target, group, state, &q, rglyph)
+	}
+
+  return iter.nextx
+}
+
+// render_quadratic_bezier :: proc(
+// 	target: ^Render_Target,
+// 	p1: [2]f32,
+// 	p2: [2]f32,
+// 	p3: [2]f32,
+// 	clip: RectI,
+// 	color: Color,
+// ) {
+// 	group := &target.groups[len(target.groups) - 1]
+// 	vertices := render_target_push_vertices(target, group, 6)
+	
+// 	vertices[0].pos_xy = { f32(clip.l), f32(clip.t) }
+// 	vertices[1].pos_xy = { f32(clip.r), f32(clip.t) }
+// 	vertices[2].pos_xy = { f32(clip.l), f32(clip.b) }
+// 	vertices[5].pos_xy = { f32(clip.r), f32(clip.b) }
+
+// 	vertices[3] = vertices[1]
+// 	vertices[4] = vertices[2]
+
+// 	center_x, center_y := rect_center(clip)
+	
+// 	// TODO: SPEED UP
+// 	for i in 0..<6 {
+// 		vertices[i].uv_xy = { center_x, center_y }
+// 		vertices[i].color = color
+// 		// vertices[i].roundness = real_roundness
+// 		// vertices[i].thickness = real_thickness
+// 		vertices[i].kind = .Quadratic_Bezier
+// 	}
+// }

@@ -799,7 +799,11 @@ task_set_time_date :: proc(task: ^Task) {
 	if task.time_date == nil {
 		task.time_date = time_date_init(task, {})
 	} else {
-		time_date_update(task.time_date)
+		if .Hide in task.time_date.flags {
+			excl(&task.time_date.flags, Element_Flag.Hide)
+		} else {
+			time_date_update(task.time_date)
+		}
 	}
 }
 
@@ -1521,6 +1525,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			render_line_highlights(target, panel.clip)
 			render_zoom_highlight(target, panel.clip)
+			// time_date_render_highlight_on_pressed(target, panel.clip, element.window.pressed)
 
 			// draw the fullscreen image on top
 			if image_display_has_content_now(custom_split.image_display) {

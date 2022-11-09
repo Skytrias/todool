@@ -102,9 +102,11 @@ Time_Date :: struct {
 
 	stamp: time.Time,
 	saved: time.Time,
-	down: bool,
+	drag_from: int,
+	drag_to: int,
 
 	builder: strings.Builder,
+	rendered_glyphs: [dynamic]Rendered_Glyph,
 }
 
 time_date_init :: proc(
@@ -140,19 +142,13 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
 
 			render_rect(target, element.bounds, theme.text_date, ROUNDNESS)
-			
-			if td.down {
-				r := element.bounds
-				diff := window_mouse_position(element.window) - element.window.down_left
-				r.r = r.l + diff.x
-				render_rect(target, r, RED, ROUNDNESS)
-			}
-
-			render_string_rect(target, element.bounds, strings.to_string(td.builder))
+			clear(&td.rendered_glyphs)
+			render_string_rect_store(target, element.bounds, strings.to_string(td.builder), &td.rendered_glyphs)
 		}
 
 		case .Destroy: {
 			strings.builder_destroy(&td.builder)
+			delete(td.rendered_glyphs)
 		}
 
 		case .Left_Down: {
@@ -163,24 +159,24 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			if element.window.pressed_button == MOUSE_LEFT {
 				diff := window_mouse_position(element.window) - element.window.down_left
 
+				// switch time_date_format {
+				// 	case .US: {
+				// 		drag_from
+				// 	}
+				// }
+				// for i in 0..<
+
 				old := td.stamp
 				td.stamp = time.time_add(td.saved, DAY * time.Duration(diff.x / 20))
 
-				if old != td.stamp {
-					element_repaint(element)
-				}
-
-				td.down = true
+				element_repaint(element)
 			} 
 		}
 
-		case .Left_Up: {
-			td.down = false
-		}
-
 		case .Right_Down: {
-			time_date_format = Time_Date_Format((int(time_date_format) + 1) % len(Time_Date_Format))
-			window_repaint(window_main)
+			element_hide(td, true)
+			// time_date_format = Time_Date_Format((int(time_date_format) + 1) % len(Time_Date_Format))
+			// window_repaint(window_main)
 		}
 	}
 
@@ -190,3 +186,25 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 time_date_update :: proc(td: ^Time_Date) {
 	td.stamp = time.now()
 }
+
+// time_date_render_highlight_on_pressed :: proc(
+// 	target: ^Render_Target, 
+// 	clip: RectI,
+// 	pressed: ^Element,
+// ) {
+// 	if pressed == nil {
+// 		return
+// 	}
+
+// 	// if pressed.message_class == time_date_message {
+// 	// 	render_push_clip(target, clip)
+
+// 	// 	td := cast(^Time_Date) pressed
+// 	// 	r := td.bounds
+// 	// 	r.t -= rect_height(r)
+// 	// 	r.b = td.bounds.t
+// 	// 	diff := window_mouse_position(td.window) - td.window.down_left
+// 	// 	r.r = r.l + int(diff.x / 20) * 20
+// 	// 	render_rect(target, r, RED, ROUNDNESS)
+// 	// }
+// }
