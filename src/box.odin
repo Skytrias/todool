@@ -49,8 +49,8 @@ Box :: struct {
 	// when the latest change happened
 	change_start: time.Tick,
 
-	// index into where the string rendering started
-	rendered_glyphs: [dynamic]Rendered_Glyph,
+	// rendered glyph start & end
+	rstart, rend: int,
 }
 
 box_init :: proc(box: ^Box) {
@@ -59,7 +59,6 @@ box_init :: proc(box: ^Box) {
 
 box_destroy :: proc(box: Box) {
 	delete(box.wrapped_lines)
-	delete(box.rendered_glyphs)
 }
 
 Text_Box :: struct {
@@ -290,13 +289,14 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 
 	// draw each wrapped line
 	y_offset: int
+	box.rstart = rendered_glyph_poll()
 	for wrap_line, i in box.wrapped_lines {
 		iter := fontstash.text_iter_init(&gs.fc, wrap_line, f32(box.bounds.l), f32(box.bounds.t + y_offset))
 
 		for fontstash.text_iter_step(&gs.fc, &iter, &q) {
-			append(&box.rendered_glyphs, Rendered_Glyph { x = iter.x, y = iter.y, codepoint = iter.codepoint })
-			rglyph := &box.rendered_glyphs[len(box.rendered_glyphs) - 1]
-
+			// append(&box.rendered_glyphs, Rendered_Glyph { x = iter.x, y = iter.y, codepoint = iter.codepoint })
+			// rglyph := &box.rendered_glyphs[len(box.rendered_glyphs) - 1]
+			rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 			state.color = low <= codepoint_index && codepoint_index < high ? back_color : color
 			render_glyph_quad_store(target, group, state, &q, rglyph)
 			codepoint_index += 1 
@@ -304,6 +304,7 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 
 		y_offset += scaled_size
 	}
+	box.rend = rendered_glyph_poll()
 
 	fcs_color(color)
 }
@@ -319,13 +320,12 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 	fcs_ahv(.Left, .Top)
 	fcs_color(color)
 
-	clear(&box.rendered_glyphs)
-	reserve(&box.rendered_glyphs, int(box.ss.length))
+	box.rend = 0
 
 	// draw each wrapped line
 	y: int
 	for wrap_line, i in box.wrapped_lines {
-		render_string_store(target, box.bounds.l, box.bounds.t + y, wrap_line, &box.rendered_glyphs)
+		render_string_store(target, box.bounds.l, box.bounds.t + y, wrap_line, &box.rstart, &box.rend)
 		y += scaled_size
 	}
 }

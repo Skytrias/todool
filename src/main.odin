@@ -194,6 +194,8 @@ main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: raw
 }
 
 main_update :: proc(window: ^Window) {
+	rendered_glyphs_clear()
+
 	// animate progressbars 
 	{
 		state := progressbar_show()

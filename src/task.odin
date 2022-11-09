@@ -127,6 +127,9 @@ bookmarks: [dynamic]int
 // line numbering
 builder_line_number: strings.Builder
 
+// global storage
+rendered_glyphs: [dynamic]Rendered_Glyph
+
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
 	using element: Element,
@@ -220,6 +223,8 @@ task_data_init :: proc() {
 	spell_check_init()
 
 	strings.builder_init(&builder_line_number, 0, 32)
+
+	rendered_glyphs = make([dynamic]Rendered_Glyph, 0, 1028 * 2)
 }
 
 last_save_set :: proc(next: string = "") {
@@ -256,6 +261,7 @@ task_data_destroy :: proc() {
 	spell_check_destroy()
 
 	delete(builder_line_number.buf)
+	delete(rendered_glyphs)
 }
 
 // reset copy data
@@ -797,12 +803,15 @@ task_link_is_valid :: proc(task: ^Task) -> bool {
 
 task_set_time_date :: proc(task: ^Task) {
 	if task.time_date == nil {
-		task.time_date = time_date_init(task, {})
+		task.time_date = time_date_init(task, {}, true)
 	} else {
 		if .Hide in task.time_date.flags {
+			task.time_date.spawn_particles = true
 			excl(&task.time_date.flags, Element_Flag.Hide)
 		} else {
-			time_date_update(task.time_date)
+			if !time_date_update(task.time_date) {
+				task.time_date.spawn_particles = true
+			}
 		}
 	}
 }
@@ -1525,7 +1534,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			render_line_highlights(target, panel.clip)
 			render_zoom_highlight(target, panel.clip)
-			// time_date_render_highlight_on_pressed(target, panel.clip, element.window.pressed)
+			time_date_render_highlight_on_pressed(target, panel.clip)
 
 			// draw the fullscreen image on top
 			if image_display_has_content_now(custom_split.image_display) {
@@ -1940,21 +1949,6 @@ task_layout :: proc(
 		}
 	}
 
-	// time date
-	if task_time_date_is_valid(task) {
-		// width := element_message(task.time_date)
-		rect := rect_cut_left(&cut, int(100 * TASK_SCALE))
-		cut.l += int(5 * TASK_SCALE)
-
-		if move {
-			element_move(task.time_date, rect)
-		}		
-	} else {
-		if task.time_date != nil {
-			task.time_date.bounds = {}
-		}
-	}
-
 	// link button
 	if task_link_is_valid(task) {
 		height := element_message(task.button_link, .Get_Height)
@@ -1993,9 +1987,24 @@ task_layout :: proc(
 		}
 	}
 	
+	// time date
+	if task_time_date_is_valid(task) {
+		// width := element_message(task.time_date)
+		rect := rect_cut_left(&cut, int(100 * TASK_SCALE))
+		cut.l += int(5 * TASK_SCALE)
+
+		if move {
+			element_move(task.time_date, rect)
+		}		
+	} else {
+		if task.time_date != nil {
+			task.time_date.bounds = {}
+		}
+	}
+	
 	task.box.font_options = task.font_options
 	if move {
-		clear(&task.box.rendered_glyphs)
+		task.box.rend = 0
 		element_move(task.box, cut)
 	}
 
@@ -3252,4 +3261,34 @@ render_zoom_highlight :: proc(target: ^Render_Target, clip: RectI) {
 	fcs_font(font_regular)
 	fcs_size(DEFAULT_FONT_SIZE * SCALE)
 	render_string_rect(target, rect, zoom)
+}
+
+// rendered glyphs system to store previously rendered glyphs 
+
+rendered_glyphs_clear :: proc() {
+	clear(&rendered_glyphs)	
+}
+
+rendered_glyph_poll :: #force_inline proc() -> int {
+	return len(rendered_glyphs)
+}
+
+rendered_glyph_push :: proc(x, y: f32, codepoint: rune) -> ^Rendered_Glyph {
+	append(&rendered_glyphs, Rendered_Glyph { 
+		x = x, 
+		y = y, 
+		codepoint = codepoint,
+	})
+	return &rendered_glyphs[len(rendered_glyphs) - 1]
+}
+
+rendered_glyphs_slice :: proc(start, end: int) -> (res: []Rendered_Glyph, ok: bool) {
+	if start == end || end == 0 {
+		return 
+	} else {
+		res = rendered_glyphs[start:end]
+		ok = true
+	}
+
+	return
 }
