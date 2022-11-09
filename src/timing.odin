@@ -317,6 +317,7 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 	return 0
 }
 
+// set to the newest time & date
 time_date_update :: proc(td: ^Time_Date) -> bool {
 	y1, m1, d1 := time.date(td.stamp)
 	next := time.now()

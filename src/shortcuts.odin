@@ -1944,9 +1944,6 @@ todool_toggle_timestamp :: proc(du: u32) {
 		return
 	}
 
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
-
 	iter := ti_init()
 	for task in ti_step(&iter) {
 		task_set_time_date(task)

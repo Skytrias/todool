@@ -15,6 +15,8 @@ import "core:encoding/json"
 import "core:math/bits"
 import "../cutf8"
 
+// TODO lower the task text size to u8
+
 /* 
 TODOOL SAVE FILE FORMAT - currently *uncompressed*
 
@@ -80,6 +82,8 @@ Save_Tag :: enum u8 {
 	Image_Path, // u16be string len + [N]u8 byte data
 	Link_Path, // u16be string len + [N]u8 byte data
 	Seperator, // NO data included
+
+	Timestamp, // i64be included = time.Time
 }
 
 bytes_file_signature := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', 'F', 'F' }
@@ -218,7 +222,7 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Image_Path) or_return
 			buffer_write_string_u16(&buffer, image_path(task.image_display.img)) or_return
-			fmt.eprintln("SAVE WRITE IMAGE PATH", image_path(task.image_display.img))
+			// fmt.eprintln("SAVE WRITE IMAGE PATH", image_path(task.image_display.img))
 		}
 
 		if task_link_is_valid(task) {
@@ -230,6 +234,13 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 		if task_seperator_is_valid(task) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Seperator) or_return
+		}
+
+		if task_time_date_is_valid(task) {
+			opt_write_line(&buffer, &line_written, i) or_return
+			opt_write_tag(&buffer, .Timestamp) or_return
+			out := i64be(task.time_date.stamp._nsec)
+			buffer_write_type(&buffer, out) or_return
 		}
 
 		// write finish flag
@@ -344,6 +355,11 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 				}
 				case .Seperator: {
 					task_set_seperator(task, true)
+				}
+				case .Timestamp: {
+					input := reader_read_type(reader, i64be) or_return
+					task_set_time_date(task)
+					task.time_date.stamp = time.Time { i64(input) }
 				}
 			}
 		}

@@ -302,7 +302,8 @@ copy_push_task :: proc(task: ^Task) {
 		task.state,
 		task.tags,
 		task.folded,
-		task.button_bookmark != nil,
+		task_bookmark_is_valid(task),
+		task_time_date_is_valid(task) ? task.time_date.stamp : {},
 		task.image_display == nil ? nil : task.image_display.img,
 	})
 }
@@ -335,6 +336,11 @@ copy_paste_at :: proc(
 		task.state = t.state
 		task_set_bookmark(task, t.bookmarked)
 		task.tags = t.tags
+
+		if t.timestamp != {} {
+			task_set_time_date(task)
+			task.time_date.stamp = t.timestamp
+		}
 
 		if t.stored_image != nil {
 			task_set_img(task, t.stored_image)
@@ -413,6 +419,7 @@ Copy_Task :: struct #packed {
 	tags: u8,
 	folded: bool,
 	bookmarked: bool,
+	timestamp: time.Time,
 	stored_image: ^Stored_Image,
 }
 
@@ -809,6 +816,8 @@ task_set_time_date :: proc(task: ^Task) {
 		} else {
 			if !time_date_update(task.time_date) {
 				task.time_date.spawn_particles = true
+			} else {
+				incl(&task.time_date.flags, Element_Flag.Hide)
 			}
 		}
 	}
