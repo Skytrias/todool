@@ -75,6 +75,24 @@ PRESENTATION_MODE :: false
 // 	// fmt.eprintln("match?", pos, offset, err)
 // }
 
+Wire_State :: struct {
+	pixels: []byte,
+}
+ws: Wire_State
+
+wire_state_init :: proc(w, h: int) {
+	ws.pixels = make([]byte, w * h * 4)
+}
+
+wire_state_destroy :: proc() {
+	delete(ws.pixels)
+}
+
+wire_state_render :: proc() {
+
+}
+
+
 main :: proc() {
 	spall.init("test.spall", mem.Megabyte)
 	spall.begin("init all", 0)	
