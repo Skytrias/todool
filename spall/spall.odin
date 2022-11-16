@@ -5,7 +5,7 @@ import "core:time"
 import "core:os"
 
 MAGIC :: u64(0x0BADF00D)
-MEASURE :: true
+MEASURE :: false
 
 Header :: struct #packed {
 	magic:          u64,
@@ -46,7 +46,7 @@ End_Event :: struct #packed {
 time_start: time.Time
 file_handle: os.Handle
 
-init :: proc(path: string, cap: int) {
+init :: proc(path: string) {
 	when MEASURE {
 		time_start = time.now()
 		

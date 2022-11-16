@@ -75,26 +75,73 @@ PRESENTATION_MODE :: false
 // 	// fmt.eprintln("match?", pos, offset, err)
 // }
 
-Wire_State :: struct {
-	pixels: []byte,
-}
-ws: Wire_State
+// Wire_State :: struct {
+// 	pixels: []byte,
+// }
+// ws: Wire_State
 
-wire_state_init :: proc(w, h: int) {
-	ws.pixels = make([]byte, w * h * 4)
-}
+// wire_state_init :: proc(w, h: int) {
+// 	ws.pixels = make([]byte, w * h * 4)
+// }
 
-wire_state_destroy :: proc() {
-	delete(ws.pixels)
-}
+// wire_state_destroy :: proc() {
+// 	delete(ws.pixels)
+// }
 
-wire_state_render :: proc() {
+// wire_state_render :: proc() {
 
-}
+// }
 
+// dist_between :: proc(distance, from, to: f32) -> bool {
+// 	return false
+		
+// }
+
+// dist_within :: proc(distance, from, to: f32) -> bool {
+		
+// 	return false
+// }
+
+// dist_remap :: proc(distance, x0, x1, y0, y1: f32) -> f32 {
+// 	return 0
+// }
+
+// dist_to_t :: proc(lut: []f32, distance: f32) -> f32 {
+// 	arc_length := lut[len(lut) - 1]
+// 	n := len(lut)
+
+// 	if dist_between(distance, 0, arc_length) {
+// 		for i in 0..<n - 1 {
+// 			if dist_within(distance, lut[i], lut[i + 1]) {
+// 				return dist_remap(
+// 					distance,
+// 					lut[i],
+// 					lut[i + 1],
+// 					f32(i) / f32(n - 1),
+// 					f32(i + 1) / f32(n - 1),
+// 				)
+// 			}
+// 		}
+// 	}
+
+// 	return distance / arc_length
+// }
+
+// bezier2 :: proc(t: f32, w: [3]f32) -> f32 {
+// 	t2 := t * t
+// 	mt := 1 - t
+// 	mt2 := mt * mt
+// 	return w[0] * mt2 + w[1] * 2 * mt * t + w[2] * t2
+// }
+
+// main :: proc() {
+// 	fmt.eprintln("start")
+// 	points := [3]f32 { 0, 5, 1 }
+// 	fmt.eprintln(bezier2(0.2, points))
+// }
 
 main :: proc() {
-	spall.init("test.spall", mem.Megabyte)
+	spall.init("test.spall")
 	spall.begin("init all", 0)	
 	defer spall.destroy()
 

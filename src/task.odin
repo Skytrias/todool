@@ -1169,10 +1169,14 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 			if task.state_count[.Normal] == 0 {
 				goal: Task_State = task.state_count[.Done] >= task.state_count[.Canceled] ? .Done : .Canceled
 				
+				// set parent
 				if task.state != goal {
 					task_set_state_undoable(manager, task, goal, task_count)
 					changed_any = true
 					task_count += 1
+
+					color: Color = pm_particle_colored() ? {} : theme_task_text(task.state)
+					power_mode_spawn_rect(task.bounds, 50, color)
 				}
 			} else if task.state != .Normal {
 				task_set_state_undoable(manager, task, .Normal, task_count)
