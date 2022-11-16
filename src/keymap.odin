@@ -363,6 +363,9 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	CP1("sort_locals", todool_sort_locals)
 	// v030
 	CP1("toggle_timestamp", todool_toggle_timestamp)
+	
+	CP1("move_up_stack", todool_move_up_stack)
+	CP1("move_down_stack", todool_move_down_stack)
 }
 
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {

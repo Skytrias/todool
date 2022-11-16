@@ -2604,8 +2604,8 @@ tasks_load_tutorial :: proc() {
 	}
 
 	{
-		push_scoped_task("Thank You For Alpha Testing!")
-		t("if you have any issues, please post them on the discord")
+		push_scoped_task("Thank You For Trying Todool!")
+		t("if you have any issues, please post them on the discord or the itch comments")
 		t("tutorial shortcut explanations are based on default key bindings")
 	}
 
@@ -2613,11 +2613,12 @@ tasks_load_tutorial :: proc() {
 		push_scoped_task("Task Keyboard Movement")
 
 		t("up / down -> move to upper / lower task")
+		t("shift + movement -> shift select till the new destination")
 		t("ctrl+up / ctrl+down -> move to same upper/ lower task with the same indentation")
 		t("ctrl+m -> moves to the last task in scope, then shuffles between the start of the scope")
 		t("ctrl+, / ctrl+. -> moves to the previous / next task at indentation 0")
-		t("shift + movement -> shift select till the new destination")
 		t("alt+up / alt+down -> shift the selected tasks up / down")
+		t("ctrl+home / ctrl+end -> move up/down a stack")
 	}
 
 	{
@@ -3223,6 +3224,7 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		mbs(p)
 		mbl(p, "Folding", "toggle_folding")
 		mbl(p, "Bookmark", "toggle_bookmark")
+		mbl(p, "Timestamp", "toggle_timestamp")
 		mbs(p)
 		mbl(p, "Tag 1", "toggle_tag", COMBO_VALUE + 0x01)
 		mbl(p, "Tag 2", "toggle_tag", COMBO_VALUE + 0x02)
