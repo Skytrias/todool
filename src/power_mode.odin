@@ -92,6 +92,8 @@ power_mode_spawn_along_text :: proc(text: string, x, y: f32, color: Color) {
 	q: fontstash.Quad
 
 	cam := mode_panel_cam()
+	cam_screenshake_reset(cam)
+
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
 		power_mode_spawn_at(iter.x, iter.y, cam.offset_x, cam.offset_y, P_SPAWN_LOW, color)
 	}
@@ -107,7 +109,7 @@ power_mode_spawn_along_task_text :: proc(task: ^Task, task_count: int) {
 		text := ss_string(&task.box.ss)
 		color := theme_task_text(task.state)
 		cam := mode_panel_cam()
-		cam.screenshake_counter = 0
+		cam_screenshake_reset(cam)
 		ds: cutf8.Decode_State
 		count: int
 
@@ -140,7 +142,8 @@ power_mode_spawn_rect :: proc(
 	color: Color = {},
 ) {
 	cam := mode_panel_cam()
-
+	cam_screenshake_reset(cam)
+	
 	for i in 0..<count {
 		x := rand.float32() * rect_widthf(rect) + f32(rect.l)
 		y := rand.float32() * rect_heightf(rect) + f32(rect.t)
@@ -278,6 +281,10 @@ power_mode_issue_spawn :: #force_inline proc() {
 	spawn_next = true
 
 	cam := mode_panel_cam()
+	cam_screenshake_reset(cam)
+}
+
+cam_screenshake_reset :: #force_inline proc(cam: ^Pan_Camera) {
 	cam.screenshake_counter = 0
 }
 

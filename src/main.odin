@@ -21,8 +21,8 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
-TRACK_MEMORY :: true
-TODOOL_RELEASE :: false
+TRACK_MEMORY :: false
+TODOOL_RELEASE :: true
 PRESENTATION_MODE :: false
 
 // draw wires between bookmarks
@@ -76,69 +76,67 @@ PRESENTATION_MODE :: false
 // }
 
 // Wire_State :: struct {
-// 	pixels: []byte,
-// }
-// ws: Wire_State
-
-// wire_state_init :: proc(w, h: int) {
-// 	ws.pixels = make([]byte, w * h * 4)
+// 	bitmap: []byte,
+// 	width: int,
+// 	height: int,
+// 	handle: u32,
 // }
 
-// wire_state_destroy :: proc() {
-// 	delete(ws.pixels)
+// wire_state_init :: proc(w, h: int) -> (res: Wire_State) {
+// 	res.bitmap = make([]byte, w * h * 4)
+// 	res.width = w
+// 	res.height = h
+// 	return
 // }
 
-// wire_state_render :: proc() {
-
+// wire_state_destroy :: proc(ws: Wire_State) {
+// 	delete(ws.bitmap)
 // }
 
-// dist_between :: proc(distance, from, to: f32) -> bool {
-// 	return false
-		
+// wire_state_clear :: proc(ws: ^Wire_State) {
+// 	mem.zero_slice(ws.bitmap)
 // }
 
-// dist_within :: proc(distance, from, to: f32) -> bool {
-		
-// 	return false
+// wire_state_set_pixel :: proc(ws: ^Wire_State, x, y: int, color: u32) {
+// 	if rect_contains(RectI { 0, ws.width, 0, ws.height }, x, y) {
+// 		offset := x * 4 + y * ws.width * 4
+// 		c := cast(^u32) &ws.bitmap[offset]
+// 		c^ = color
+// 		// fmt.eprintln("pppppxxxxx", x, y, color)
+// 	}
 // }
 
-// dist_remap :: proc(distance, x0, x1, y0, y1: f32) -> f32 {
-// 	return 0
-// }
+// wire_state_push :: proc(ws: ^Wire_State, p0, p1: [2]int, color: u32) {	
+// 	p0 := p0
 
-// dist_to_t :: proc(lut: []f32, distance: f32) -> f32 {
-// 	arc_length := lut[len(lut) - 1]
-// 	n := len(lut)
+// 	dx := abs(p1.x-p0.x)
+// 	sx := p0.x<p1.x ? 1 : -1
+// 	dy := -abs(p1.y-p0.y)
+// 	sy := p0.y<p1.y ? 1 : -1
+// 	err := dx+dy
+// 	e2: int
 
-// 	if dist_between(distance, 0, arc_length) {
-// 		for i in 0..<n - 1 {
-// 			if dist_within(distance, lut[i], lut[i + 1]) {
-// 				return dist_remap(
-// 					distance,
-// 					lut[i],
-// 					lut[i + 1],
-// 					f32(i) / f32(n - 1),
-// 					f32(i + 1) / f32(n - 1),
-// 				)
-// 			}
+// 	for {
+// 		wire_state_set_pixel(ws, p0.x, p0.y, color)
+
+// 		if p0.x==p1.x && p0.y==p1.y {
+// 			break
+// 		}
+
+// 		e2 := 2 * err
+
+// 		if (e2 >= dy) { 
+// 			err += dy
+// 			p0.x += sx
+// 		} 
+
+// 		if (e2 <= dx) { 
+// 			err += dx
+// 			p0.y += sy
 // 		}
 // 	}
-
-// 	return distance / arc_length
 // }
-
-// bezier2 :: proc(t: f32, w: [3]f32) -> f32 {
-// 	t2 := t * t
-// 	mt := 1 - t
-// 	mt2 := mt * mt
-// 	return w[0] * mt2 + w[1] * 2 * mt * t + w[2] * t2
-// }
-
-// main :: proc() {
-// 	fmt.eprintln("start")
-// 	points := [3]f32 { 0, 5, 1 }
-// 	fmt.eprintln(bezier2(0.2, points))
-// }
+// wire_state_test: Wire_State
 
 main :: proc() {
 	spall.init("test.spall")
@@ -148,6 +146,9 @@ main :: proc() {
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()	
+
+	// wire_state_test = wire_state_init(500, 500)
+	// defer wire_state_destroy(wire_state_test)
 
 	task_data_init()
 
@@ -163,6 +164,8 @@ main :: proc() {
 		handled |= power_mode_running()
 		return
 	}
+
+	// wire_state_test.handle = shallow_texture_init_data(raw_data(wire_state_test.bitmap), wire_state_test.width, wire_state_test.height)
 
 	{
 		spall.scoped("load keymap")

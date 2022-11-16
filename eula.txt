@@ -1,0 +1,32 @@
+End User License Agreement (EULA)
+
+The Software ("Todool", "todool.exe") is Copyright 2022 by Michael Kutowski,
+("Licensor"), all rights are reserved. Anyone who has purchased a copy of
+the Software, ("Licensee"), is granted a personal, non-assignable,
+non-transferable, license to use the Software for personal or commercial
+uses.
+
+By installing, copying, or otherwise using the Software, Licensee agrees to be
+bound by the terms and conditions set forth in this EULA. If Licensee does not
+agree to the terms and conditions set forth in this EULA, then Licensee may not
+use the Software.
+
+The User may not redistribute, sub-license, or resell the Software. The User is
+permitted to make an unlimited number of copies of the Software which are
+subject to the aforementioned restrictions.
+
+Warranty Disclaimer. Licensor hereby expressly disclaim any warranty for the
+Software. The Software is provided "as is" without warranty of any kind, either
+express or implied, including: without limitation, the implied warranties of
+merchantability, fitness for a particular purpose, or non-infringement. Licensee
+accepts any and all risk arising out of use or performance of the Software.
+
+Limitation of Liability. Licensor shall not be liable to Licensee, or any other
+person or entity claiming through Licensee any loss of profits, income, savings,
+or any other consequential, incidental, special, punitive, direct or
+indirect damage, whether arising in contract, tort, warranty, or
+otherwise. These limitations shall apply regardless of the essential
+purpose of any limited remedy. Under no circumstances shall Licensor's
+aggregate liability to Licensee, or any other person or entity claiming
+through Licensee, exceed the financial amount actually paid by Licensee
+to Licensor for the Software.

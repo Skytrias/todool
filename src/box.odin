@@ -53,14 +53,6 @@ Box :: struct {
 	wrapped_lines: []string,
 }
 
-// box_init :: proc(box: ^Box) {
-
-// }
-
-// box_destroy :: proc(box: Box) {
-
-// }
-
 Text_Box :: struct {
 	using element: Element,
 	using box: Box,
@@ -84,9 +76,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 	#partial switch msg {
 		case .Layout: {
-			// box.wend = 0
-			// clear(&box.wrapped_lines)
-			// append(&box.wrapped_lines, ss_string(&box.ss))
+			wrapped_lines_push_forced(ss_string(&box.ss), &box.wrapped_lines)
 		}
 
 		case .Get_Cursor: {
@@ -117,8 +107,6 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			text_bounds.r -= int(5 * SCALE)
 			text_width := string_width(text)
 
-			wrapped_lines := [1]string { ss_string(&box.ss) }
-
 			// handle scrolling
 			{
 				// clamp scroll(?)
@@ -131,7 +119,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				}
 
 				// TODO probably will fail?
-				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, wrapped_lines[:], box.head)
+				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 				caret_x -= int(box.scroll)
 
 				// check caret x
@@ -141,7 +129,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					box.scroll = f32(caret_x - rect_width(text_bounds)) + box.scroll + 1
 				}
 
-				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, wrapped_lines[:], box.head)
+				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 			}
 
 			// selection & caret

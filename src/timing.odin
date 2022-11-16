@@ -300,6 +300,7 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 							x2 := glyphs[pair.y - 1].x
 							x := f32(x1 + (x2 - x1))
 							y := f32(glyphs[pair.x].y)
+							cam_screenshake_reset(cam)
 							power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, 4, theme.text_date)
 						}
 					}

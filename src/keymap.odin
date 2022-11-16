@@ -155,7 +155,7 @@ keymap_destroy :: proc(keymap: ^Keymap) {
 	delete(keymap.combos)
 }
 
-// push a combo to the SLL
+// force push a combo 
 keymap_push_combo :: proc(
 	keymap: ^Keymap, 
 	combo: string,
@@ -176,25 +176,56 @@ keymap_push_combo :: proc(
 	node.du = du
 }
 
+// optionally push combo if it doesnt exist yet
+keymap_push_combo_opt :: proc(
+	keymap: ^Keymap, 
+	combo: string,
+	command: string,
+	du: u32,
+) {
+	res := keymap_command_find_combo(keymap, command, du)
+	
+	if res != nil {
+		return
+	}
+
+	append(&keymap.combos, Combo_Node {})
+	node := &keymap.combos[len(keymap.combos) - 1]
+	
+	combo_index := min(len(node.combo), len(combo))
+	mem.copy(&node.combo[0], raw_data(combo), combo_index)
+	node.combo_index = u8(combo_index)
+
+	command_index := min(len(node.command), len(command))
+	mem.copy(&node.command[0], raw_data(command), command_index)
+	node.command_index = u8(command_index)
+
+	node.du = du
+}
+
 // free all nodes
 keymap_clear_combos :: proc(keymap: ^Keymap) {
 	clear(&keymap.combos)
 }
 
 commands_push: ^map[string]Command
-CP1 :: proc(command: string, call: Command) {
+CP1 :: #force_inline proc(command: string, call: Command) {
 	commands_push[command] = call
 }
 
 keymap_push: ^Keymap
-CP2 :: proc(combo: string, command: string, du: u32 = 0x00) {
+CP2 :: #force_inline proc(combo: string, command: string, du: u32 = 0x00) {
 	keymap_push_combo(keymap_push, combo, command, du)
 }
 
 // push comment helper
 keymap_comments: map[Command]string
-CP3 :: proc(call: Command, comment: string) {
+CP3 :: #force_inline proc(call: Command, comment: string) {
 	keymap_comments[call] = comment
+}
+
+CP4 :: #force_inline proc(combo: string, command: string, du: u32 = 0x00) {
+	keymap_push_combo_opt(keymap_push, combo, command, du)
 }
 
 keymap_push_box_commands :: proc(keymap: ^Keymap) {
@@ -566,6 +597,12 @@ keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
 keymap_destroy_comments :: proc() {
 	delete(keymap_comments)
 }
+
+// keymap_force_push_latest :: proc() {
+// 	keymap_push = &window_main.keymap_custom
+// 	CP4("alt a", "sort_locals")
+// 	CP2("ctrl r", "toggle_timestamp")
+// }
 
 keymap_init_comments :: proc() {
 	keymap_comments = make(map[Command]string, 128)

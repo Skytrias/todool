@@ -645,6 +645,28 @@ texture_update :: proc(using texture: ^Render_Texture) {
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
+// NOTE ASSUMING RGBA
+texture_update_handle :: proc(
+	handle: u32,
+	data: ^byte,
+	width: int,
+	height: int,
+) {
+	gl.BindTexture(gl.TEXTURE_2D, handle)
+	gl.TexImage2D(
+		gl.TEXTURE_2D, 
+		0, 
+		gl.RGBA8, 
+		i32(width), 
+		i32(height), 
+		0, 
+		gl.RGBA, 
+		gl.UNSIGNED_BYTE, 
+		data,
+	)
+	gl.BindTexture(gl.TEXTURE_2D, 0)		
+}
+
 // NOTE assumess the correct GL context to be set
 texture_update_subimage :: proc(
 	texture: ^Render_Texture,
@@ -722,6 +744,38 @@ shallow_texture_init :: proc(img: ^image.Image) -> (handle: u32) {
 		format,
 		gl.UNSIGNED_BYTE, 
 		raw_data(img.pixels.buf),
+	)
+
+	mode := i32(gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, mode)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, mode)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+	return
+}
+
+shallow_texture_init_data :: proc(
+	data: ^byte, 
+	width: int,
+	height: int,
+	channels: int = 4,
+) -> (handle: u32) {
+	gl.GenTextures(1, &handle)
+	gl.BindTexture(gl.TEXTURE_2D, handle)
+	defer gl.BindTexture(gl.TEXTURE_2D, 0)
+
+	format := u32(channels == 4 ? gl.RGBA : gl.RGB)
+
+	gl.TexImage2D(
+		gl.TEXTURE_2D,
+		0,
+		gl.RGBA8,
+		i32(width), 
+		i32(height), 
+		0, 
+		format,
+		gl.UNSIGNED_BYTE, 
+		data,
 	)
 
 	mode := i32(gl.CLAMP_TO_EDGE)

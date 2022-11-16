@@ -1550,6 +1550,43 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				power_mode_render(target)
 			}
 
+			// if true {
+			// 	ws := &wire_state_test
+			// 	render_push_clip(target, panel.clip)
+			// 	p_last: [2]int
+			// 	wire_state_clear(ws)
+			// 	fmt.eprintln("~~~~~~~~~~~~~~")
+
+			// 	for task in tasks_visible {
+			// 		if task_bookmark_is_valid(task) {
+			// 			x, y := rect_center(task.button_bookmark.bounds)
+			// 			p := [2]int { 
+			// 				cast(int) math.remap(x, f32(panel.clip.l), f32(panel.clip.r), 0, f32(ws.width)),
+			// 				cast(int) math.remap(y, f32(panel.clip.t), f32(panel.clip.b), 0, f32(ws.height)),
+			// 			}
+			// 				// int(y) - panel.clip.t }
+			// 			// p := [2]int { int(x) - panel.clip.l, int(y) - panel.clip.t }
+
+			// 			if p_last != {} {
+			// 				fmt.eprintln(p_last, p)
+			// 				wire_state_push(ws, p_last, p, 0xff000000)
+			// 			}
+
+			// 			p_last = p
+			// 		}
+			// 	}
+
+			// 	texture_update_handle(ws.handle, raw_data(ws.bitmap), ws.width, ws.height)
+			// 	// rect := RectI {
+			// 	// 	panel.clip.l,
+			// 	// 	panel.clip.l + ws.width,
+			// 	// 	panel.clip.t,
+			// 	// 	panel.clip.t + ws.height,
+			// 	// }
+			// 	rect := panel.clip
+			// 	render_texture_from_handle(target, ws.handle, rect, WHITE)
+			// }
+
 			render_line_highlights(target, panel.clip)
 			render_zoom_highlight(target, panel.clip)
 			time_date_render_highlight_on_pressed(target, panel.clip)
@@ -1883,6 +1920,7 @@ task_tags_layout :: proc(task: ^Task, rect: RectI) {
 	res: RectI
 	cam := mode_panel_cam()
 	halfed := int(DEFAULT_FONT_SIZE * TASK_SCALE * 0.5)
+	// task.tags_rect = {}
 
 	// layout tag structs and spawn particles when now ones exist
 	for i in 0..<u8(8) {
@@ -1953,6 +1991,7 @@ task_layout :: proc(
 			if task.button_bookmark.bounds == {} {
 				x, y := rect_center(rect)
 				cam := mode_panel_cam()
+				cam_screenshake_reset(cam)
 				power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, P_SPAWN_HIGH, theme.text_default)
 			}
 
@@ -3352,5 +3391,11 @@ wrapped_lines_push :: proc(
 		width,
 		&wrapped_lines,
 	)
+	output^ = wrapped_lines[start:len(wrapped_lines)]
+}
+
+wrapped_lines_push_forced :: proc(text: string, output: ^[]string) {
+	start := len(wrapped_lines)
+	append(&wrapped_lines, text)		
 	output^ = wrapped_lines[start:len(wrapped_lines)]
 }

@@ -33,7 +33,7 @@ Pan_Camera :: struct {
 
 // update lifetime
 cam_update_screenshake :: proc(using cam: ^Pan_Camera, update: bool) {
-	if !pm_screenshake_use() {
+	if !pm_screenshake_use() || !pm_show() {
 		screenshake_x = 0
 		screenshake_y = 0
 		screenshake_counter = 0
