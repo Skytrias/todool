@@ -14,6 +14,8 @@ import "../btrie"
 
 DISABLE_USER :: false
 
+spell_check_bin := #load("../assets/comp_trie.bin")
+
 // TODO changes for strings interning
 // clear interned content?
 // custom cap for init call? instead of 16
@@ -179,7 +181,7 @@ compressed_trie_build :: proc() {
 }
 
 spell_check_init :: proc() {
-	btrie.comp_read_from_file("../assets/comp_trie.bin")
+	btrie.comp_read_from_data(spell_check_bin)
 	sc.word_results = make([dynamic]Word_Result, 0, 32)
 	
 	// backing string data for the dict

@@ -402,3 +402,8 @@ comp_read_from_file :: proc(path: string) {
 		comp_index = len(content)
 	}
 }
+
+comp_read_from_data :: proc(data: []byte) {
+	comp = data
+	comp_index = len(data)
+}
