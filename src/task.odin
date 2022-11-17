@@ -1559,7 +1559,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				power_mode_render(target)
 			}
 
-			// bookmarks_render_connections(target, panel.clip)
+			bookmarks_render_connections(target, panel.clip)
 			render_line_highlights(target, panel.clip)
 			render_zoom_highlight(target, panel.clip)
 			time_date_render_highlight_on_pressed(target, panel.clip)

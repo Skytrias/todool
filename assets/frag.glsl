@@ -87,18 +87,21 @@ float sdBezier(vec2 p, vec2 v0, vec2 v1, vec2 v2) {
 	return length( v0+t*(k+k+t*w) );
 }
 
-// float sdSegment(vec2 P, vec2 A, vec2 B, float r) {
-// 	vec2 g = B - A;
-// 	vec2 h = P - A;
-// 	float d = length(h - g * clamp(dot(g, h) / dot(g,g), 0.0, 1.0));
-// 	return smoothstep(r, 0.5*r, d);
+// float sdSegment(in vec2 p, in vec2 a, in vec2 b) {
+// 	vec2 ba = b - a;
+// 	vec2 pa = p - a;
+// 	float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
+// 	return length(pa - h * ba);
 // }
 
-float sdSegment(in vec2 p, in vec2 a, in vec2 b) {
-	vec2 ba = b - a;
-	vec2 pa = p - a;
-	float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
-	return length(pa - h * ba);
+vec3 sdgSegment(vec2 p, vec2 a, vec2 b) {
+    vec2 ba = b-a;
+    vec2 pa = p-a;
+    float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+    vec2  q = pa-h*ba;
+    float d = length(q);
+    
+    return vec3(d,q/d);
 }
 
 #define RK_Invalid uint(0)
@@ -175,11 +178,15 @@ void main(void) {
 	} else if (v_kind == RK_Segment) {
 		vec2 p0 = vec2(v_add.x, v_add.y);
 		vec2 p1 = vec2(v_add.z, v_add.w);
-		float distance = sdSegment(v_pos, p0, p1) - v_thickness;
+		vec3 res = sdgSegment(v_pos, p0, p1) - v_thickness;
 
-		float alpha = 1.0 - smoothstep(-1.0, 0.5, distance);
-		// float alpha = distance;
+		float alpha = 1.0 - smoothstep(-0.5, 0.5, res.x);
 		color_goal.a *= alpha;
+
+		// float alpha = color_goal.a;
+		// color_goal = mix(vec4(1, 0, 0, 1), color_goal, res.x);
+		// color_goal.xyz *= vec3(res.yz, 1);
+		// color_goal *= alpha;
 
 		// color_goal = vec4(1, 0, 0, 1);
 	} else if (v_kind == RK_SV) {

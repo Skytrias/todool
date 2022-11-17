@@ -199,7 +199,6 @@ spell_check_clear_user :: proc() {
 }
 
 spell_check_destroy :: proc() {
-	btrie.comp_destroy()
 	delete(sc.word_results)
 	delete(sc.user_backing)
 	strings.intern_destroy(&sc.user_intern)

@@ -21,8 +21,8 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
-TRACK_MEMORY :: false
-TODOOL_RELEASE :: true
+TRACK_MEMORY :: true
+TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 
 // draw wires between bookmarks
