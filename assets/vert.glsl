@@ -4,6 +4,7 @@
 in vec2 i_pos;
 in vec2 i_uv;
 in uint i_color;
+in vec4 i_add;
 in uint i_roundness_and_thickness;
 in vec2 i_additional;
 in uint i_kind;
@@ -16,6 +17,7 @@ out vec2 v_pos;
 out vec2 v_uv;
 out vec4 v_color;
 out vec2 v_adjusted_half_dimensions;
+out vec4 v_add;
 out float v_roundness;
 out float v_thickness;
 out vec2 v_additional;
@@ -51,4 +53,5 @@ void main(void) {
 	v_adjusted_half_dimensions = half_dimensions - v_roundness + vec2(0.5, 0.5);
 
 	v_kind = i_kind;
+	v_add = i_add;
 }

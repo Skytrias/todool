@@ -71,6 +71,7 @@ Render_Target :: struct {
 	attribute_uv: u32,
 	attribute_color: u32,
 	attribute_roundness_and_thickness: u32,
+	attribute_add: u32,
 	attribute_kind: u32,
 
 	// texture atlas
@@ -88,6 +89,8 @@ Render_Group :: struct {
 	vertex_start, vertex_end: int,
 	bind_handle: u32,
 	bind_slot: int,
+	blend_sfactor: i32,
+	blend_dfactor: i32,
 }
 
 Texture_Kind :: enum {
@@ -118,7 +121,7 @@ Render_Kind :: enum u32 {
 	Circle,
 	Circle_Outline,
 	Sine,
-	Quadratic_Bezier,
+	Segment,
 
 	SV,
 	HUE,
@@ -133,6 +136,7 @@ Render_Vertex :: struct #packed {
 	// split for u32
 	roundness: u16,
 	thickness: u16,
+	add: [4]f32,
 
 	// render kind
 	kind: Render_Kind,
@@ -165,6 +169,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 	attribute_position = u32(gl.GetAttribLocation(shader_program, "i_pos"))
 	attribute_uv = u32(gl.GetAttribLocation(shader_program, "i_uv"))
 	attribute_color = u32(gl.GetAttribLocation(shader_program, "i_color"))
+	attribute_add = u32(gl.GetAttribLocation(shader_program, "i_add"))
 	attribute_roundness_and_thickness = u32(gl.GetAttribLocation(shader_program, "i_roundness_and_thickness"))
 	attribute_kind = u32(gl.GetAttribLocation(shader_program, "i_kind"))
 
@@ -260,7 +265,6 @@ render_target_end :: proc(
 	gl.Enable(gl.MULTISAMPLE)
 	gl.Disable(gl.CULL_FACE)
 	gl.Disable(gl.DEPTH_TEST)
-	gl.BlendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO)
 	
 	gl.Viewport(0, 0, i32(width), i32(height))
 	gl.Scissor(0, 0, i32(width), i32(height))
@@ -271,18 +275,23 @@ render_target_end :: proc(
 	gl.EnableVertexAttribArray(attribute_position)
 	gl.EnableVertexAttribArray(attribute_uv)
 	gl.EnableVertexAttribArray(attribute_color)
+	gl.EnableVertexAttribArray(attribute_add)
 	gl.EnableVertexAttribArray(attribute_roundness_and_thickness)
 	gl.EnableVertexAttribArray(attribute_kind)
 	size := i32(size_of(Render_Vertex))
 	gl.VertexAttribPointer(attribute_position, 2, gl.FLOAT, true, size, 0)
 	gl.VertexAttribPointer(attribute_uv, 2, gl.FLOAT, true, size, offset_of(Render_Vertex, uv_xy))
 	gl.VertexAttribIPointer(attribute_color, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, color))
+	gl.VertexAttribPointer(attribute_add, 4, gl.FLOAT, true, size, offset_of(Render_Vertex, add))
 	gl.VertexAttribIPointer(attribute_roundness_and_thickness, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, roundness))
 	gl.VertexAttribIPointer(attribute_kind, 1, gl.UNSIGNED_INT, size, offset_of(Render_Vertex, kind))
 
 	for kind in Texture_Kind {
 		texture_bind(target, kind)
 	}
+
+	last_sfactor: i32 = -1
+	last_dfactor: i32 = -1
 
 	for group, group_index in &groups {
 		rect_scissor(i32(height), group.clip)
@@ -298,6 +307,10 @@ render_target_end :: proc(
 
 		// skip empty group
 		if vertice_count != 0 {
+			if last_sfactor != group.blend_sfactor || last_dfactor != group.blend_dfactor {
+				gl.BlendFunc(u32(group.blend_sfactor), u32(group.blend_dfactor))
+			}
+
 			// TODO use raw_data again on new master
 			base := &target.vertices[0]
 			root := mem.ptr_offset(base, group.vertex_start)
@@ -350,6 +363,8 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: RectI) {
 		vertex_start = vertex_index,	
 		vertex_end = vertex_index,
 		bind_slot = -1,
+		blend_sfactor = gl.SRC_ALPHA,
+		blend_dfactor = gl.ONE_MINUS_SRC_ALPHA,
 	})
 }
 
@@ -381,7 +396,6 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: RectI) {
 // 	// real_roundness := u16(roundness)
 // 	real_thickness := u16(thickness)
 	
-// 	// TODO: SPEED UP
 // 	for i in 0..<6 {
 // 		vertices[i].uv_xy = { center_x, center_y }
 // 		vertices[i].color = color
@@ -418,7 +432,6 @@ render_circle :: proc(
 	center_x := x_origin + (centered ? 0 : radius / 2)
 	center_y := y_origin + (centered ? 0 : radius / 2)
 	
-	// TODO: SPEED UP
 	for i in 0..<6 {
 		vertices[i].uv_xy = { center_x, center_y }
 		vertices[i].color = color
@@ -454,7 +467,6 @@ render_circle_outline :: proc(
 	center_x := x_origin + (centered ? 0 : radius / 2)
 	center_y := y_origin + (centered ? 0 : radius / 2)
 	
-	// TODO: SPEED UP
 	for i in 0..<6 {
 		vertices[i].uv_xy = { center_x, center_y }
 		vertices[i].color = color
@@ -496,7 +508,6 @@ render_rect_outline :: proc(
 	real_roundness := u16(roundness)
 	real_thickness := u16(thickness)
 	
-	// TODO: SPEED UP
 	for i in 0..<6 {
 		vertices[i].uv_xy = { center_x, center_y }
 		vertices[i].color = color
@@ -539,7 +550,6 @@ render_drop_shadow :: proc(
 	center_x, center_y := rect_center(r)
 	real_roundness := u16(roundness)
 	
-	// TODO: SPEED UP
 	for i in 0..<6 {
 		vertices[i].uv_xy = { center_x, center_y }
 		vertices[i].color = color
@@ -1177,33 +1187,52 @@ render_string_rect_store :: proc(
   return iter.nextx
 }
 
-// render_quadratic_bezier :: proc(
-// 	target: ^Render_Target,
-// 	p1: [2]f32,
-// 	p2: [2]f32,
-// 	p3: [2]f32,
-// 	clip: RectI,
-// 	color: Color,
-// ) {
+render_line :: proc(
+	target: ^Render_Target,
+	p0: [2]f32,
+	p1: [2]f32,
+	color: Color,
+	line_width: int = LINE_WIDTH,
+) {
+	group := &target.groups[len(target.groups) - 1]
+	vertices := render_target_push_vertices(target, group, 6)
+	
+	clip := RectI {
+		int(min(p0.x, p1.x)) - line_width,
+		int(max(p0.x, p1.x)) + line_width,
+		int(min(p0.y, p1.y)) - line_width,
+		int(max(p0.y, p1.y)) + line_width,
+	}
+	// fmt.eprintln(clip)
+
+	vertices[0].pos_xy = { f32(clip.l), f32(clip.t) }
+	vertices[1].pos_xy = { f32(clip.r), f32(clip.t) }
+	vertices[2].pos_xy = { f32(clip.l), f32(clip.b) }
+	vertices[5].pos_xy = { f32(clip.r), f32(clip.b) }
+
+	vertices[3] = vertices[1]
+	vertices[4] = vertices[2]
+
+	for i in 0..<6 {
+		vertices[i].color = color
+		vertices[i].add = { p0.x, p0.y, p1.x, p1.y }
+		vertices[i].thickness = u16(line_width)
+		vertices[i].kind = .Segment
+	}
+}
+
+// render_group_blend_reset :: proc(target: ^Render_Target) {
 // 	group := &target.groups[len(target.groups) - 1]
-// 	vertices := render_target_push_vertices(target, group, 6)
-	
-// 	vertices[0].pos_xy = { f32(clip.l), f32(clip.t) }
-// 	vertices[1].pos_xy = { f32(clip.r), f32(clip.t) }
-// 	vertices[2].pos_xy = { f32(clip.l), f32(clip.b) }
-// 	vertices[5].pos_xy = { f32(clip.r), f32(clip.b) }
-
-// 	vertices[3] = vertices[1]
-// 	vertices[4] = vertices[2]
-
-// 	center_x, center_y := rect_center(clip)
-	
-// 	// TODO: SPEED UP
-// 	for i in 0..<6 {
-// 		vertices[i].uv_xy = { center_x, center_y }
-// 		vertices[i].color = color
-// 		// vertices[i].roundness = real_roundness
-// 		// vertices[i].thickness = real_thickness
-// 		vertices[i].kind = .Quadratic_Bezier
-// 	}
+// 	group.blend_sfactor = gl.SRC_ALPHA
+// 	group.blend_dfactor = gl.ONE_MINUS_SRC_ALPHA
 // }
+
+render_group_blend_test :: proc(
+	target: ^Render_Target,
+	// sfactor: i32,
+	// dfactor: i32,
+) {
+	group := &target.groups[len(target.groups) - 1]
+	group.blend_sfactor = gl.ONE_MINUS_DST_ALPHA
+	group.blend_dfactor = gl.DST_ALPHA
+}

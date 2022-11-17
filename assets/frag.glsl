@@ -4,6 +4,7 @@
 in vec2 v_pos;
 in vec2 v_uv;
 in vec4 v_color;
+in vec4 v_add;
 in vec2 v_adjusted_half_dimensions;
 in float v_roundness;
 in float v_thickness;
@@ -86,6 +87,20 @@ float sdBezier(vec2 p, vec2 v0, vec2 v1, vec2 v2) {
 	return length( v0+t*(k+k+t*w) );
 }
 
+// float sdSegment(vec2 P, vec2 A, vec2 B, float r) {
+// 	vec2 g = B - A;
+// 	vec2 h = P - A;
+// 	float d = length(h - g * clamp(dot(g, h) / dot(g,g), 0.0, 1.0));
+// 	return smoothstep(r, 0.5*r, d);
+// }
+
+float sdSegment(in vec2 p, in vec2 a, in vec2 b) {
+	vec2 ba = b - a;
+	vec2 pa = p - a;
+	float h = clamp(dot(pa, ba) / dot(ba, ba), 0., 1.);
+	return length(pa - h * ba);
+}
+
 #define RK_Invalid uint(0)
 #define RK_Rect uint(1)
 #define RK_Glyph uint(2)
@@ -93,7 +108,7 @@ float sdBezier(vec2 p, vec2 v0, vec2 v1, vec2 v2) {
 #define RK_Circle uint(4)
 #define RK_Circle_Outline uint(5)
 #define RK_Sine uint(6)
-#define RK_QBezier uint(7)
+#define RK_Segment uint(7)
 
 #define RK_SV uint(8)
 #define RK_HUE uint(9)
@@ -157,11 +172,16 @@ void main(void) {
 		// float alpha = distance;
 		float alpha = 1 - distance;
 		color_goal.a *= alpha;
-	} else if (v_kind == RK_QBezier) {
-		// float alpha = 1 - distance;
-		// color_goal.a *= alpha;
-		color_goal = vec4(1, 0, 0, 1);
-		// color_goal ;
+	} else if (v_kind == RK_Segment) {
+		vec2 p0 = vec2(v_add.x, v_add.y);
+		vec2 p1 = vec2(v_add.z, v_add.w);
+		float distance = sdSegment(v_pos, p0, p1) - v_thickness;
+
+		float alpha = 1.0 - smoothstep(-1.0, 0.5, distance);
+		// float alpha = distance;
+		color_goal.a *= alpha;
+
+		// color_goal = vec4(1, 0, 0, 1);
 	} else if (v_kind == RK_SV) {
 		vec4 texture_color = texture(u_sampler_sv, v_uv);
 		color_goal = mix(color_goal, texture_color, texture_color.a);

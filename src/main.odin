@@ -75,69 +75,6 @@ PRESENTATION_MODE :: false
 // 	// fmt.eprintln("match?", pos, offset, err)
 // }
 
-// Wire_State :: struct {
-// 	bitmap: []byte,
-// 	width: int,
-// 	height: int,
-// 	handle: u32,
-// }
-
-// wire_state_init :: proc(w, h: int) -> (res: Wire_State) {
-// 	res.bitmap = make([]byte, w * h * 4)
-// 	res.width = w
-// 	res.height = h
-// 	return
-// }
-
-// wire_state_destroy :: proc(ws: Wire_State) {
-// 	delete(ws.bitmap)
-// }
-
-// wire_state_clear :: proc(ws: ^Wire_State) {
-// 	mem.zero_slice(ws.bitmap)
-// }
-
-// wire_state_set_pixel :: proc(ws: ^Wire_State, x, y: int, color: u32) {
-// 	if rect_contains(RectI { 0, ws.width, 0, ws.height }, x, y) {
-// 		offset := x * 4 + y * ws.width * 4
-// 		c := cast(^u32) &ws.bitmap[offset]
-// 		c^ = color
-// 		// fmt.eprintln("pppppxxxxx", x, y, color)
-// 	}
-// }
-
-// wire_state_push :: proc(ws: ^Wire_State, p0, p1: [2]int, color: u32) {	
-// 	p0 := p0
-
-// 	dx := abs(p1.x-p0.x)
-// 	sx := p0.x<p1.x ? 1 : -1
-// 	dy := -abs(p1.y-p0.y)
-// 	sy := p0.y<p1.y ? 1 : -1
-// 	err := dx+dy
-// 	e2: int
-
-// 	for {
-// 		wire_state_set_pixel(ws, p0.x, p0.y, color)
-
-// 		if p0.x==p1.x && p0.y==p1.y {
-// 			break
-// 		}
-
-// 		e2 := 2 * err
-
-// 		if (e2 >= dy) { 
-// 			err += dy
-// 			p0.x += sx
-// 		} 
-
-// 		if (e2 <= dx) { 
-// 			err += dx
-// 			p0.y += sy
-// 		}
-// 	}
-// }
-// wire_state_test: Wire_State
-
 main :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)	
