@@ -228,12 +228,12 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		spacer_init(panel_info, { .VF, }, 0, 20, .Thin)
 		i1 := icon_button_init(panel_info, { .HF }, .Tomato)
 		i1.hover_info = "Start / Stop Pomodoro Time"
-		i1.invoke = proc(data: rawptr) {
+		i1.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_toggle()
 		}
 		i2 := icon_button_init(panel_info, { .HF }, .Reply)
-		i2.invoke = proc(data: rawptr) {
+		i2.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_reset()
 			pomodoro_label_format()

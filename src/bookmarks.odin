@@ -96,7 +96,7 @@ bookmarks_render_connections :: proc(target: ^Render_Target, clip: RectI) {
 	}
 
 	for task in bs.rows {
-		alpha := (count == goal ? 0.5 : 0.0) * bs.alpha
+		alpha := (count == goal ? 0.5 : 0.25) * bs.alpha
 		color := color_alpha(theme.text_default, alpha)
 		
 		x, y := rect_center(task.button_bookmark.bounds)

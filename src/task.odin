@@ -2658,6 +2658,7 @@ tasks_load_tutorial :: proc() {
 
 task_context_menu_spawn :: proc(task: ^Task) {
 	menu := menu_init(mode_panel.window, { .Panel_Expand })
+	defer menu_show(menu)
 
 	task_multi_context := task_head != task_tail
 	
@@ -2709,13 +2710,13 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		panel := panel_init(p, { .Panel_Horizontal })
 		panel.outline = true
 
-		b1 := button_init(panel, { .HF }, "<-")
-		b1.invoke = proc(button: ^Button, data: rawptr) {
+		b1 := icon_button_init(panel, { .HF }, .Simple_Left)
+		b1.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			todool_indentation_shift(COMBO_NEGATIVE)
 		}
 		label := label_init(panel, {  .HF, .Label_Center }, "indent")
-		b2 := button_init(panel, { .HF }, "->")
-		b2.invoke = proc(button: ^Button, data: rawptr) {
+		b2 := icon_button_init(panel, { .HF }, .Simple_Right)
+		b2.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			todool_indentation_shift(COMBO_POSITIVE)
 		}
 	}
@@ -2812,8 +2813,6 @@ task_context_menu_spawn :: proc(task: ^Task) {
 			menu_close(button.window)
 		}
 	}
-
-	menu_show(menu)
 }
 
 // Check if point is inside circle
@@ -2970,6 +2969,7 @@ task_dragging_end :: proc() -> bool {
 
 mode_panel_context_menu_spawn :: proc() {
 	menu := menu_init(mode_panel.window, { .Panel_Expand })
+	defer menu_show(menu)
 
 	p := menu.panel
 	p.gap = 5
@@ -3012,8 +3012,6 @@ mode_panel_context_menu_spawn :: proc() {
 
 	// 	menu_close(button.window)
 	// }
-
-	menu_show(menu)
 }
 
 task_highlight_render :: proc(target: ^Render_Target, after: bool) {

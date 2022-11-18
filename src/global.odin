@@ -2294,10 +2294,10 @@ menu_close :: proc(window: ^Window) -> bool {
 	return true
 }
 
-// // true when the menu is shown
-// menu_open :: proc(window: ^Window) -> bool {
-// 	return window.menu == nil || (.Hide in window.menu.flags)
-// }
+// true when the menu is shown
+menu_visible :: proc(window: ^Window) -> bool {
+	return window.menu != nil && (.Hide not_in window.menu.flags)
+}
 
 menu_init_or_replace_new :: proc(
 	window: ^Window, 

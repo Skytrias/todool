@@ -778,7 +778,7 @@ color_button_init :: proc(
 Icon_Button :: struct {
 	using element: Element,
 	icon: Icon,
-	invoke: proc(data: rawptr),
+	invoke: proc(button: ^Icon_Button, data: rawptr),
 }
 
 icon_button_render_default :: proc(button: ^Icon_Button) {
@@ -819,7 +819,7 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 
 		case .Clicked: {
 			if button.invoke != nil {
-				button.invoke(button.data)
+				button->invoke(button.data)
 			}
 		}
 
@@ -1090,43 +1090,20 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 			render_push_clip(target, element.bounds)
 			render_rect_outline(target, element.bounds, text_color)
+		}
 
-			// text_color := hovered || pressed ? theme.text_default : theme.text_blank
-			// render_rect_outline(target, element.bounds, text_color)
+		case .Mouse_Scroll_Y: {
+			if element.window.ctrl {
+				old := slider.position
+				slider.position = clamp(slider.position + f32(di) * 0.05, 0, 1) 
 
-			// bounds := element.bounds
-			// bot := rect_cut_bottom(&bounds, int(SLIDER_ADD * SCALE))
+				if old != slider.position	{
+					element_message(element, .Value_Changed)
+					element_repaint(element)
+				}
 
-			// {
-			// 	slide := bot
-			// 	slide_color := text_color
-			// 	// slide.t += SLIDER_ADD / 2 - int(slider.interact * SLIDER_ADD / 2)
-			// 	slide.l += 1
-			// 	slide.b -= 1
-
-			// 	{
-			// 		temp := slide
-			// 		temp.b = temp.t + LINE_WIDTH
-			// 		render_rect(target, temp, slide_color)
-			// 	}
-
-			// 	slide.r = slide.l + int(slider.position	* f32(rect_width(slide) - 1))
-			// 	// slide_color := color_alpha(text_color, slider.interact * 0.5 + 0.5)
-			// 	render_rect(target, slide, slide_color, 0)
-			// }
-
-			// scaled_size := fcs_element(slider)
-			// fcs_ahv()
-			// fcs_color(text_color)
-			// strings.builder_reset(&slider.builder)
-			// slider.formatting(&slider.builder, slider.position)
-			// text := strings.to_string(slider.builder)
-
-			// if hovered {
-			// 	render_hovered_highlight(target, element.bounds)
-			// }
-
-			// render_string_rect(target, bounds, text)
+				return 1
+			}
 		}
 
 		case .Get_Cursor: {
@@ -1143,7 +1120,6 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 		case .Get_Height: {
 			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE + SLIDER_ADD * SCALE)
-			// return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
 		}
 
 		case .Destroy: {
@@ -1160,7 +1136,6 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			unit = math.round(unit * 10) / 10
 		}
 
-		element_animation_start(slider)
 		slider.position = 
 			clamp(
 				unit,

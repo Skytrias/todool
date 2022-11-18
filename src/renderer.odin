@@ -33,6 +33,7 @@ Icon :: enum {
 	None = 0x00,
 
 	Simple_Down = 0xeab2,
+	Simple_Left = 0xeab5,
 	Simple_Right = 0xeab8,
 
 	Tomato = 0xeb9a,
