@@ -97,7 +97,7 @@ todool_move_up :: proc(du: u32) {
 		task_head -= 1
 	}
 	task_head_tail_check_end(shift)
-	bookmark_index = -1
+	bs.current_index = -1
 	task := tasks_visible[max(task_head, 0)]
 	element_repaint(mode_panel)
 	element_message(task.box, .Box_Set_Caret, BOX_END)
@@ -115,7 +115,7 @@ todool_move_down :: proc(du: u32) {
 		task_head += 1
 	}
 	task_head_tail_check_end(shift)
-	bookmark_index = -1
+	bs.current_index = -1
 
 	task := tasks_visible[min(task_head, len(tasks_visible) - 1)]
 	element_message(task.box, .Box_Set_Caret, BOX_END)
@@ -281,14 +281,16 @@ todool_indent_jump_same_next :: proc(du: u32) {
 todool_bookmark_jump :: proc(du: u32) {
 	shift := du_shift(du)
 	
-	if len(bookmarks) != 0 && len(tasks_visible) != 0 {
+	if len(bs.rows) != 0 && len(tasks_visible) != 0 {
 		bookmark_advance(shift)
-		index := bookmarks[bookmark_index]
-		task := tasks_visible[index]
+		task := bs.rows[bs.current_index]
 		task_head = task.visible_index
 		task_tail = task.visible_index
 		element_repaint(mode_panel)
 		vim.rep_task = nil
+
+		bs.alpha = 1
+		window_animate(window_main, &bs.alpha, 0, .Quadratic_Out, time.Second * 2)
 	}
 }
 
@@ -1079,7 +1081,7 @@ todool_undo :: proc(du: u32) {
 	manager := &um_task
 	if !undo_is_empty(manager, false) {
 		// reset bookmark index
-		bookmark_index = -1
+		bs.current_index = -1
 
 		undo_invoke(manager, false)
 		task_state_progression = .Update_Instant
@@ -1091,7 +1093,7 @@ todool_redo :: proc(du: u32) {
 	manager := &um_task
 	if !undo_is_empty(manager, true) {
 		// reset bookmark index
-		bookmark_index = -1
+		bs.current_index = -1
 
 		undo_invoke(manager, true)
 		task_state_progression = .Update_Instant

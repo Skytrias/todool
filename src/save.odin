@@ -228,7 +228,7 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 		if task_link_is_valid(task) {
 			opt_write_line(&buffer, &line_written, i) or_return
 			opt_write_tag(&buffer, .Link_Path) or_return
-			buffer_write_string_u8(&buffer, strings.to_string(task.button_link.builder)) or_return
+			buffer_write_string_u16(&buffer, strings.to_string(task.button_link.builder)) or_return
 		}
 
 		if task_seperator_is_valid(task) {

@@ -32,6 +32,7 @@ Theme_Editor :: struct {
 	slider_value_high: ^Slider,
 
 	color_copy: Color,
+	theme_previous: Theme,
 }
 theme_editor: Theme_Editor
 
@@ -184,6 +185,8 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	} else {
 		return
 	}
+
+	theme_editor.theme_previous = theme
 
 	window := window_init(nil, {}, "Todool Theme Editor", i32(700 * SCALE), i32(700 * SCALE), 8, 8)
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -498,6 +501,18 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			gs_update_all_windows()
 		}	
 
+		r3 := button_init(button_panel, {}, "Reset Previous")
+		r3.invoke = proc(button: ^Button, data: rawptr) {
+			theme = theme_editor.theme_previous
+
+			for i in 0..<theme_editor.panel_list_index {
+				p := theme_editor.panel_list[i]
+				theme_reformat_panel_sliders(p)
+			}
+
+			gs_update_all_windows()
+		}
+
 		r1 := button_init(button_panel, {}, "Reset / Light")
 		r1.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_light
@@ -520,10 +535,13 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 			gs_update_all_windows()
 		}
-		// temp print theme
-		button_init(button_panel, {}, "Print").invoke = proc(button: ^Button, data: rawptr) {
-			fmt.eprintln(theme)
-		}
+
+		when !TODOOL_RELEASE {
+			// temp print theme
+			button_init(button_panel, {}, "Print").invoke = proc(button: ^Button, data: rawptr) {
+				fmt.eprintln(theme)
+			}
+		} 
 
 		LABEL_WIDTH :: 100
 

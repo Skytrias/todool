@@ -191,6 +191,7 @@ task_data_init :: proc() {
 	keymap_init(&keymap_vim_insert, 32, 32)
 
 	power_mode_init()
+	bookmark_state_init()
 
 	undo_manager_init(&um_task)
 	undo_manager_init(&um_search)
@@ -200,7 +201,6 @@ task_data_init :: proc() {
 	task_clear_checking = make(map[^Task]u8, 128)
 	tasks_visible = make([dynamic]^Task, 0, 128)
 	task_move_stack = make([]^Task, 256)
-	bookmarks = make([dynamic]int, 0, 32)
 	search_state_init()
 
 	font_options_header = {
@@ -245,12 +245,11 @@ task_data_destroy :: proc() {
 	power_mode_destroy()
 	pomodoro_destroy()
 	search_state_destroy()
+	bookmark_state_destroy()
 	delete(tasks_visible)
-	delete(bookmarks)
-	delete(copy_text_data.buf)
-	delete(copy_task_data)
 	delete(drag_list)
 	delete(last_save_location)
+	copy_destroy()
 
 	undo_manager_destroy(&um_task)
 	undo_manager_destroy(&um_search)
@@ -264,9 +263,25 @@ task_data_destroy :: proc() {
 	delete(wrapped_lines)
 }
 
+// destroy copy data and delete link data
+copy_destroy :: proc() {
+	for cp in copy_task_data {
+		if cp.link != "" {
+			delete(cp.link)
+		}
+	}	
+	delete(copy_text_data.buf)
+	delete(copy_task_data)
+}
+
 // reset copy data
 copy_reset :: proc() {
 	strings.builder_reset(&copy_text_data)
+	for cp in copy_task_data {
+		if cp.link != "" {
+			delete(cp.link)
+		}
+	}
 	clear(&copy_task_data)
 }
 
@@ -290,6 +305,11 @@ copy_push_task :: proc(task: ^Task) {
 	strings.write_string(&copy_text_data, ss_string(&task.box.ss))
 	text_byte_end := len(copy_text_data.buf)
 
+	link: string
+	if task_link_is_valid(task) {
+		link = strings.clone(strings.to_string(task.button_link.builder))
+	}
+
 	// copy crucial info of task
 	append(&copy_task_data, Copy_Task {
 		u32(text_byte_start),
@@ -301,6 +321,7 @@ copy_push_task :: proc(task: ^Task) {
 		task_bookmark_is_valid(task),
 		task_time_date_is_valid(task) ? task.time_date.stamp : {},
 		task.image_display == nil ? nil : task.image_display.img,
+		link,
 	})
 }
 
@@ -341,6 +362,10 @@ copy_paste_at :: proc(
 		if t.stored_image != nil {
 			task_set_img(task, t.stored_image)
 		}
+
+		if t.link != "" {
+			task_set_link(task, t.link)
+		}
 	}
 }
 
@@ -378,6 +403,7 @@ Copy_Task :: struct #packed {
 	bookmarked: bool,
 	timestamp: time.Time,
 	stored_image: ^Stored_Image,
+	link: string,
 }
 
 Task :: struct {
@@ -1536,10 +1562,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				cam_set_x(cam, cam.start_x + diff_x)
 				cam_set_y(cam, cam.start_y + diff_y)
 				cam.freehand = true
-
-				bookmarks_figure(
-					math.sign(f32(element.window.cursor_x - element.window.cursor_x_old)),
-				)
 
 				window_set_cursor(element.window, .Crosshair)
 				element_repaint(element)

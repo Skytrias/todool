@@ -263,15 +263,7 @@ main_update :: proc(window: ^Window) {
 		window_set_cursor(window, .Hand_Drag)
 	}
 
-	// set bookmarks
-	{
-		clear(&bookmarks)
-		for task, i in tasks_visible {
-			if task_bookmark_is_valid(task) {
-				append(&bookmarks, i)
-			}
-		}
-	}
+	bookmarks_clear_and_set()
 
 	// title building
 	{
@@ -349,7 +341,6 @@ main_update :: proc(window: ^Window) {
 
 	statusbar_update(&statusbar)
 	power_mode_set_caret_color()
-	bookmarks_update(false)
 	// task_timestamp_check_hover()
 }
 
