@@ -58,7 +58,7 @@ du_ctrl_shift :: proc(du: u32) -> (bool, bool) {
 	return du & COMBO_CTRL == COMBO_CTRL, du & COMBO_SHIFT == COMBO_SHIFT
 }
 du_value :: proc(du: u32) -> (value: u32, ok: bool) {
-	ok = du & COMBO_VALUE == COMBO_VALUE
+	ok = (du - COMBO_VALUE) >= 0
 	value = du - COMBO_VALUE
 	return
 }

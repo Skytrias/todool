@@ -342,7 +342,7 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 					byte_content := reader_read_bytes_out(reader, int(length)) or_return
 
 					path := string(byte_content[:])
-					fmt.eprintln("LOAD IMAGE PATH", path)
+					// fmt.eprintln("LOAD IMAGE PATH", path)
 					handle := image_load_push(path)
 					task_set_img(task, handle)
 				}

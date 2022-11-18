@@ -126,6 +126,7 @@ Window :: struct {
 
 	// mouse behaviour
 	cursor_x, cursor_y: int,
+	cursor_x_old, cursor_y_old: int,
 	down_middle: Mouse_Coordinates,
 	down_left: Mouse_Coordinates,
 	down_right: Mouse_Coordinates,
@@ -1225,6 +1226,8 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				return
 			}
 
+			window.cursor_x_old = window.cursor_x
+			window.cursor_y_old = window.cursor_y
 			window.cursor_x = int(e.motion.x)
 			window.cursor_y = int(e.motion.y)
 			window_input_event(window, .Mouse_Move)

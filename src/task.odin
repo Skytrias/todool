@@ -120,10 +120,6 @@ DRAG_CIRCLE :: 30
 dirty := 0
 dirty_saved := 0
 
-// bookmark data
-bookmark_index := -1
-bookmarks: [dynamic]int
-
 // line numbering
 builder_line_number: strings.Builder
 
@@ -346,54 +342,6 @@ copy_paste_at :: proc(
 			task_set_img(task, t.stored_image)
 		}
 	}
-}
-
-bookmark_nearest_index :: proc(backward: bool) -> int {
-	// on reset set to closest from current
-	if task_head != -1 {
-		// look for anything higher than the current index
-		visible_index := tasks_visible[task_head].visible_index
-		found: bool
-
-		if backward {
-			// backward
-			for i := len(bookmarks) - 1; i >= 0; i -= 1 {
-				index := bookmarks[i]
-
-				if index < visible_index {
-					return i
-				}
-			}
-		} else {
-			// forward
-			for index, i in bookmarks {
-				if index > visible_index {
-					return i
-				}
-			}
-		}
-	}	
-
-	return -1
-}
-
-// advance bookmark or jump to closest on reset
-bookmark_advance :: proc(backward: bool) {
-	if task_head == -1 {
-		return
-	}
-
-	if bookmark_index == -1 {
-		nearest := bookmark_nearest_index(backward)
-		
-		if nearest != -1 {
-			bookmark_index = nearest
-			return
-		}
-	}
-
-	// just normally set
-	range_advance_index(&bookmark_index, len(bookmarks) - 1, backward)
 }
 
 // advance index in a looping fashion, backwards can be easily used
@@ -1588,6 +1536,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				cam_set_x(cam, cam.start_x + diff_x)
 				cam_set_y(cam, cam.start_y + diff_y)
 				cam.freehand = true
+
+				bookmarks_figure(
+					math.sign(f32(element.window.cursor_x - element.window.cursor_x_old)),
+				)
 
 				window_set_cursor(element.window, .Crosshair)
 				element_repaint(element)
@@ -3373,36 +3325,4 @@ wrapped_lines_push_forced :: proc(text: string, output: ^[]string) {
 	start := len(wrapped_lines)
 	append(&wrapped_lines, text)		
 	output^ = wrapped_lines[start:len(wrapped_lines)]
-}
-
-
-bookmarks_render_connections :: proc(target: ^Render_Target, clip: RectI) {
-	if task_head == -1 {
-		return
-	}
-
-	render_push_clip(target, clip)
-	// render_group_blend_test(target)
-	p_last: [2]f32
-	count := -1
-	goal := bookmark_index
-
-	if bookmark_index == -1 {
-		goal = bookmark_nearest_index(true)
-	}
-
-	for task in tasks_visible {
-		if task_bookmark_is_valid(task) {
-			color := color_alpha(theme.text_default, count == goal ? 0.5 : 0.25)
-			x, y := rect_center(task.button_bookmark.bounds)
-			p := [2]f32 { x, y }
-
-			if p_last != {} {
-				render_line(target, p_last, p, color)
-			}
-
-			p_last = p
-			count += 1
-		}
-	}
 }

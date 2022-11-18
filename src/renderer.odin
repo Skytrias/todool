@@ -89,8 +89,11 @@ Render_Group :: struct {
 	vertex_start, vertex_end: int,
 	bind_handle: u32,
 	bind_slot: int,
+	
+	// state properties
 	blend_sfactor: i32,
 	blend_dfactor: i32,
+	blend_func: i32,
 }
 
 Texture_Kind :: enum {
@@ -292,6 +295,9 @@ render_target_end :: proc(
 
 	last_sfactor: i32 = -1
 	last_dfactor: i32 = -1
+	last_func: i32 = -1
+
+	// fmt.eprintln("render")
 
 	for group, group_index in &groups {
 		rect_scissor(i32(height), group.clip)
@@ -307,8 +313,19 @@ render_target_end :: proc(
 
 		// skip empty group
 		if vertice_count != 0 {
+			defer {
+				last_sfactor = group.blend_sfactor
+				last_dfactor = group.blend_dfactor
+				last_func = group.blend_func
+			}
+
 			if last_sfactor != group.blend_sfactor || last_dfactor != group.blend_dfactor {
 				gl.BlendFunc(u32(group.blend_sfactor), u32(group.blend_dfactor))
+			}
+
+			if last_func != group.blend_func {
+				gl.BlendEquation(u32(group.blend_func))
+				// fmt.eprintln("DIFF", gl.FUNC_SUBTRACT == group.blend_func)
 			}
 
 			// TODO use raw_data again on new master
@@ -365,6 +382,7 @@ render_push_clip :: proc(using target: ^Render_Target, clip_goal: RectI) {
 		bind_slot = -1,
 		blend_sfactor = gl.SRC_ALPHA,
 		blend_dfactor = gl.ONE_MINUS_SRC_ALPHA,
+		blend_func = gl.FUNC_ADD,
 	})
 }
 
@@ -1227,12 +1245,14 @@ render_line :: proc(
 // 	group.blend_dfactor = gl.ONE_MINUS_SRC_ALPHA
 // }
 
-render_group_blend_test :: proc(
-	target: ^Render_Target,
-	// sfactor: i32,
-	// dfactor: i32,
-) {
-	group := &target.groups[len(target.groups) - 1]
-	group.blend_sfactor = gl.ONE_MINUS_DST_ALPHA
-	group.blend_dfactor = gl.DST_ALPHA
-}
+// render_group_blend_test :: proc(
+// 	target: ^Render_Target,
+// 	// sfactor: i32,
+// 	// dfactor: i32,
+// ) {
+// 	group := &target.groups[len(target.groups) - 1]
+// 	group.blend_sfactor = gl.SRC_COLOR
+// 	group.blend_dfactor = gl.ONE_MINUS_SRC_COLOR
+// 	// group.blend_func = gl.FUNC_REVERSE_SUBTRACT
+// 	group.blend_func = gl.FUNC_ADD
+// }

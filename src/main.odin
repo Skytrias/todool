@@ -84,9 +84,6 @@ main :: proc() {
 	context.logger = gs.logger
 	context.allocator = gs_allocator()	
 
-	// wire_state_test = wire_state_init(500, 500)
-	// defer wire_state_destroy(wire_state_test)
-
 	task_data_init()
 
 	window := window_init(nil, {}, "Todool", 900, 900, 256, 256)
@@ -99,10 +96,9 @@ main :: proc() {
 	window.update = main_update
 	window.update_check = proc(window: ^Window) -> (handled: bool) {
 		handled |= power_mode_running()
+		handled = true
 		return
 	}
-
-	// wire_state_test.handle = shallow_texture_init_data(raw_data(wire_state_test.bitmap), wire_state_test.width, wire_state_test.height)
 
 	{
 		spall.scoped("load keymap")
@@ -353,6 +349,7 @@ main_update :: proc(window: ^Window) {
 
 	statusbar_update(&statusbar)
 	power_mode_set_caret_color()
+	bookmarks_update(false)
 	// task_timestamp_check_hover()
 }
 
