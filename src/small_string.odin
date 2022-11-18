@@ -44,6 +44,11 @@ ss_empty :: #force_inline proc(ss: ^Small_String) -> bool {
 	return ss.length == 0
 }
 
+// true when empty length
+ss_full :: #force_inline proc(ss: ^Small_String) -> bool {
+	return ss.length == 255
+}
+
 // clear the small string
 ss_clear :: #force_inline proc(ss: ^Small_String) {
 	ss.length = 0
@@ -54,7 +59,7 @@ ss_clear :: #force_inline proc(ss: ^Small_String) {
 ss_append :: proc(ss: ^Small_String, c: rune) -> bool {
 	data, size := utf8.encode_rune(c)
 
-	if int(ss.length) + size < SS_SIZE {
+	if int(ss.length) + size <= SS_SIZE {
 		for i in 0..<size {
 			ss.buf[ss.length] = data[i]
 			ss.length += 1
@@ -123,7 +128,7 @@ ss_insert_at :: proc(ss: ^Small_String, index: int, c: rune) -> bool {
 		data, size := utf8.encode_rune(c)
 
 		// check if we even have enough space
-		if int(ss.length) + size < SS_SIZE {
+		if int(ss.length) + size <= SS_SIZE {
 			undex := u8(index)
 			info, found := _ss_find_byte_index_info(ss, index)
 

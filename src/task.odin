@@ -2314,16 +2314,16 @@ goto_init :: proc(window: ^Window) {
 				handled := true
 
 				switch combo {
-					case "escape": {
-						goto_transition_unit = 0
-						goto_transition_hide = true
-						goto_transition_animating = true
-						element_animation_start(floaty)
+					// case "escape": {
+					// 	goto_transition_unit = 0
+					// 	goto_transition_hide = true
+					// 	goto_transition_animating = true
+					// 	element_animation_start(floaty)
 
-						// reset to origin 
-						task_head = goto_saved_task_head
-						task_tail = goto_saved_task_tail
-					}
+					// 	// reset to origin 
+					// 	task_head = goto_saved_task_head
+					// 	task_tail = goto_saved_task_tail
+					// }
 
 					case "return": {
 						goto_transition_unit = 0

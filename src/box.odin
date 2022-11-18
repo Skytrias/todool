@@ -118,7 +118,6 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					box.scroll = 0
 				}
 
-				// TODO probably will fail?
 				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 				caret_x -= int(box.scroll)
 
@@ -134,6 +133,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			// selection & caret
 			if focused {
+				fmt.eprintln(box.scroll)
 				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
 				x := text_bounds.l - int(box.scroll)
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
@@ -141,12 +141,13 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			}
 
 			render_rect_outline(target, element.bounds, color)
+			text_bounds.l -= int(box.scroll)
 
 			// draw each wrapped line
 			render_string_rect(target, text_bounds, text)
 
 			if focused {
-				x := text_bounds.l - int(box.scroll)
+				x := text_bounds.l
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
 				caret := rect_wh(
 					x + caret_x,
@@ -175,10 +176,6 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			return int(handled)
 		}
 
-		case .Destroy: {
-			// box_destroy(box.box)
-		}
-
 		case .Update: {
 			if di == UPDATE_FOCUS_GAINED {
 				box_move_end_simple(box)
@@ -196,9 +193,12 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			} 
 
 			assert(box.um != nil)
-			box_insert(box.um, element, box, codepoint, false)
-			element_repaint(element)
-			return 1
+			if box_insert(box.um, element, box, codepoint, false) {
+				element_repaint(element)
+				return 1
+			}
+
+			return 0
 		}
 
 		case .Box_Set_Caret: {
@@ -332,11 +332,6 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			color^ = theme_task_text(.Normal)
 		}
 
-		// case .Paint_Recursive: {
-		// 	scaled_size := fcs_element(task_box)
-		// 	task_box_paint_default(task_box, scaled_size)
-		// }
-
 		case .Key_Combination: {
 			combo := (cast(^string) dp)^
 			handled := false
@@ -353,20 +348,20 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			return int(handled)
 		}
 
-		case .Destroy: {
-			// box_destroy(task_box.box)
-		}
-
 		case .Update: {
 			element_repaint(element)	
 		}
 
 		case .Unicode_Insertion: {
 			codepoint := (cast(^rune) dp)^
-			power_mode_issue_spawn()
-			box_insert(&um_task, element, task_box, codepoint, true)
-			element_repaint(element)
-			return 1
+
+			if box_insert(&um_task, element, task_box, codepoint, true) {
+				power_mode_issue_spawn()
+				element_repaint(element)
+				return 1
+			}
+
+			return 0
 		}
 
 		case .Box_Set_Caret: {
@@ -479,9 +474,13 @@ box_insert :: proc(
 	box: ^Box, 
 	codepoint: rune,
 	msg_by_task: bool,
-) {
+) -> bool {
 	if box.head != box.tail {
 		box_replace(manager, element, box, "", 0, true, msg_by_task)
+	}
+	
+	if ss_full(&box.ss) {
+		return false
 	}
 	
 	count := cutf8.count(ss_string(&box.ss))
@@ -508,6 +507,7 @@ box_insert :: proc(
 	}
 
 	element_message(element, .Value_Changed)
+	return true
 }
 
 // utf8 based removal of selection & replacing selection with text
@@ -554,20 +554,26 @@ box_replace :: proc(
 		}
 	} 
 
-	if len(text) != 0 {
+	if len(text) != 0 && !ss_full(&box.ss) {
 		ds: cutf8.Decode_State
+		insert_count: int
+
 		for codepoint, i in cutf8.ds_iter(&ds, text) {
-			ss_insert_at(&box.ss, box.head + i, codepoint)
+			if ss_insert_at(&box.ss, box.head + i, codepoint) {
+				insert_count += 1
+			} else {
+				break
+			}
 		}
 
 		old_head := box.head
-		box.head += ds.codepoint_count
+		box.head += insert_count
 		box.tail = box.head
 
 		item := Undo_Item_Box_Remove_Selection { 
 			box,
 			old_head,
-			old_head + ds.codepoint_count,
+			old_head + insert_count,
 			0,
 		}
 		undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
@@ -1153,8 +1159,8 @@ undo_box_insert_string :: proc(manager: ^Undo_Manager, item: rawptr) {
 	// set based on forced selection 
 	if data.forced_selection != 0 {
 		set := data.forced_selection == 1 ? low : high
-		data.box.head = set
-		data.box.tail = set
+		data.box.head = clamp(set, 0, 255)
+		data.box.tail = clamp(set, 0, 255)
 	} else {
 		data.box.head = data.head
 		data.box.tail = data.tail
@@ -1173,46 +1179,46 @@ undo_box_insert_string :: proc(manager: ^Undo_Manager, item: rawptr) {
 	undo_push(manager, undo_box_remove_selection, &item, size_of(Undo_Item_Box_Remove_Selection))
 }
 
-Undo_Item_Box_Replace_String :: struct {
-	// box: ^Box,
-	ss: ^Small_String,
-	head: int,
-	tail: int,
-	text_length: int,
-}
+// Undo_Item_Box_Replace_String :: struct {
+// 	// box: ^Box,
+// 	ss: ^Small_String,
+// 	head: int,
+// 	tail: int,
+// 	text_length: int,
+// }
 
-undo_box_replace_string :: proc(manager: ^Undo_Manager, item: rawptr) {
-	data := cast(^Undo_Item_Box_Replace_String) item
+// undo_box_replace_string :: proc(manager: ^Undo_Manager, item: rawptr) {
+// 	data := cast(^Undo_Item_Box_Replace_String) item
 
-	fmt.eprintln("data", data)
-	before_size, ok := ss_remove_selection(data.ss, data.head, data.tail, ss_temp_chars[:])
-	assert(ok)
+// 	fmt.eprintln("data", data)
+// 	before_size, ok := ss_remove_selection(data.ss, data.head, data.tail, ss_temp_chars[:])
+// 	assert(ok)
 
-	out := Undo_Item_Box_Replace_String { 
-		data.ss,
-		data.head,
-		data.tail,
-		before_size,
-	}
+// 	out := Undo_Item_Box_Replace_String { 
+// 		data.ss,
+// 		data.head,
+// 		data.tail,
+// 		before_size,
+// 	}
 	
-	fmt.eprintln("1", string(ss_temp_chars[:before_size]), before_size)
-	output := undo_push(
-		manager, 
-		undo_box_replace_string, 
-		&out, 
-		size_of(Undo_Item_Box_Replace_String) + before_size,
-	)
-	text_root := cast(^u8) &output[size_of(Undo_Item_Box_Replace_String)]
-	// text_root := cast(^u8) (uintptr(&output) + size_of(Undo_Item_Box_Replace_String))
-	mem.copy(text_root, &ss_temp_chars[0], before_size)
-	fmt.eprintln("~~~")
+// 	fmt.eprintln("1", string(ss_temp_chars[:before_size]), before_size)
+// 	output := undo_push(
+// 		manager, 
+// 		undo_box_replace_string, 
+// 		&out, 
+// 		size_of(Undo_Item_Box_Replace_String) + before_size,
+// 	)
+// 	text_root := cast(^u8) &output[size_of(Undo_Item_Box_Replace_String)]
+// 	// text_root := cast(^u8) (uintptr(&output) + size_of(Undo_Item_Box_Replace_String))
+// 	mem.copy(text_root, &ss_temp_chars[0], before_size)
+// 	fmt.eprintln("~~~")
 
-	item := item
-	text_root = cast(^u8) (uintptr(item) + size_of(Undo_Item_Box_Replace_String))
-	popped_text := strings.string_from_ptr(text_root, data.text_length)
-	ss_insert_string_at(data.ss, data.head, popped_text)
-	fmt.eprintln("2", popped_text)
-}
+// 	item := item
+// 	text_root = cast(^u8) (uintptr(item) + size_of(Undo_Item_Box_Replace_String))
+// 	popped_text := strings.string_from_ptr(text_root, data.text_length)
+// 	ss_insert_string_at(data.ss, data.head, popped_text)
+// 	fmt.eprintln("2", popped_text)
+// }
 
 Undo_String_Uppercased_Content :: struct {
 	ss: ^Small_String,

@@ -395,6 +395,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			if task_head != -1 {
 				task_focused := tasks_visible[task_head]
 				res := element_message(task_focused.box, msg, di, dp)
+
 				if res == 1 {
 					cam := mode_panel_cam()
 					cam.freehand = false
