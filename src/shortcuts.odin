@@ -1104,7 +1104,7 @@ todool_redo :: proc(du: u32) {
 todool_save :: proc(du: u32) {
 	force_dialog := du_bool(du)
 	
-	if force_dialog || last_save_location == "" {
+	if force_dialog || len(last_save_location.buf) == 0 {
 		// output: cstring
 		default_path := gs_string_to_cstring(gs.pref_path)
 		file_patterns := [?]cstring { "*.todool" }
@@ -1118,7 +1118,7 @@ todool_save :: proc(du: u32) {
 		}
 	}
 
-	err := editor_save(last_save_location)
+	err := editor_save(strings.to_string(last_save_location))
 	if err != .None {
 		log.info("SAVE: save.todool failed saving =", err)
 	}
@@ -1143,11 +1143,11 @@ todool_save :: proc(du: u32) {
 todool_load :: proc(du: u32) {
 	default_path: cstring
 
-	if last_save_location == "" {
+	if len(last_save_location.buf) == 0 {
 		default_path = gs_string_to_cstring(gs.base_path)
 		// log.info("----")
 	} else {
-		trimmed_path := last_save_location
+		trimmed_path := strings.to_string(last_save_location)
 
 		for i := len(trimmed_path) - 1; i >= 0; i -= 1 {
 			b := trimmed_path[i]
@@ -1157,7 +1157,7 @@ todool_load :: proc(du: u32) {
 			}
 		}
 
-		default_path = gs_string_to_cstring(last_save_location)
+		default_path = gs_string_to_cstring(strings.to_string(last_save_location))
 		// log.info("++++", last_save_location, trimmed_path)
 	}
 
@@ -1176,7 +1176,7 @@ todool_load :: proc(du: u32) {
 	}
 
 	last_save_set(string(output))
-	err := editor_load(last_save_location)
+	err := editor_load(strings.to_string(last_save_location))
 
 	if err != .None {
 		log.info("LOAD: FAILED =", err)

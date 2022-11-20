@@ -25,9 +25,6 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 
-// draw wires between bookmarks
-// add timestamp to copy / paste
-
 // KEYMAP REWORK
 // add super key
 // keymap load newer combos per version by default
@@ -75,7 +72,15 @@ PRESENTATION_MODE :: false
 // 	// fmt.eprintln("match?", pos, offset, err)
 // }
 
+import "core:unicode/utf8"
 main :: proc() {
+	text := "😀de"
+	fmt.eprintln(utf8.rune_at_pos(text, 0))
+	fmt.eprintln(utf8.rune_at_pos(text, 1))
+	fmt.eprintln(utf8.rune_at_pos(text, 2))
+}
+
+main1 :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)	
 	defer spall.destroy()
@@ -270,7 +275,7 @@ main_update :: proc(window: ^Window) {
 		b := &window.title_builder
 		strings.builder_reset(b)
 		strings.write_string(b, "Todool: ")
-		strings.write_string(b, last_save_location)
+		strings.write_string(b, strings.to_string(last_save_location))
 		strings.write_string(b, dirty != dirty_saved ? " * " : " ")
 		window_title_push_builder(window, b)
 	}

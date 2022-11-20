@@ -652,7 +652,7 @@ json_save_misc :: proc(path: string) -> bool {
 			window_opacity = window_opacity_get(window_main),
 			animation_speed = sb.options.slider_animation_speed.position,
 
-			last_save_location = last_save_location,
+			last_save_location = strings.to_string(last_save_location),
 		},
 
 		options = {
@@ -1058,8 +1058,7 @@ keymap_load :: proc(path: string) -> bool {
 	section_read(&keymap_vim_normal, &content, "[VIM-NORMAL]") or_return
 	section_read(&keymap_vim_insert, &content, "[VIM-INSERT]") or_return
 
-	// keymap_force_push_latest()
+	keymap_force_push_latest()
 
-	// mapping_push_newest_version(window_main)
 	return true
 }

@@ -53,7 +53,7 @@ Vim_State :: struct {
 vim: Vim_State
 
 // last save
-last_save_location: string
+last_save_location: strings.Builder
 
 TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
@@ -186,6 +186,8 @@ task_head_tail_call :: proc(
 }
 
 task_data_init :: proc() {
+	strings.builder_init(&last_save_location, 0, 128)
+
 	keymap_init_comments()
 	keymap_init(&keymap_vim_normal, 64, 256)
 	keymap_init(&keymap_vim_insert, 32, 32)
@@ -227,11 +229,8 @@ task_data_init :: proc() {
 }
 
 last_save_set :: proc(next: string = "") {
-	if last_save_location != "" {
-		delete(last_save_location)
-	}
-	
-	last_save_location = strings.clone(next)
+	strings.builder_reset(&last_save_location)
+	strings.write_string(&last_save_location, next)
 }
 
 task_data_destroy :: proc() {
@@ -248,7 +247,6 @@ task_data_destroy :: proc() {
 	bookmark_state_destroy()
 	delete(tasks_visible)
 	delete(drag_list)
-	delete(last_save_location)
 	copy_destroy()
 
 	undo_manager_destroy(&um_task)
@@ -261,6 +259,8 @@ task_data_destroy :: proc() {
 	delete(builder_line_number.buf)
 	delete(rendered_glyphs)
 	delete(wrapped_lines)
+
+	delete(last_save_location.buf)
 }
 
 // destroy copy data and delete link data
@@ -2497,8 +2497,8 @@ tasks_load_file :: proc() {
 	spall.scoped("load tasks")
 	err: io.Error = .Empty
 	
-	if last_save_location != "" {
-		err = editor_load(last_save_location)
+	if len(last_save_location.buf) != 0 {
+		err = editor_load(strings.to_string(last_save_location))
 	} 
 	
 	// on error reset and load default

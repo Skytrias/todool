@@ -426,6 +426,9 @@ keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 	CP2("ctrl end", "move_down_stack")
 	CP2("ctrl shift end", "move_down_stack", COMBO_SHIFT)
 
+	// v030
+	CP2("ctrl r", "toggle_timestamp")
+
 	// v022
 	CP2_CROSS()
 }
@@ -572,9 +575,6 @@ CP2_CROSS :: proc() {
 	CP2("alt 1", "pomodoro_toggle", COMBO_VALUE + 0x00)
 	CP2("alt 2", "pomodoro_toggle", COMBO_VALUE + 0x01)
 	CP2("alt 3", "pomodoro_toggle", COMBO_VALUE + 0x02)
-
-	// v030
-	CP2("ctrl r", "toggle_timestamp")
 }
 
 keymap_push_vim_insert_commands :: proc(keymap: ^Keymap) {
@@ -601,11 +601,11 @@ keymap_destroy_comments :: proc() {
 	delete(keymap_comments)
 }
 
-// keymap_force_push_latest :: proc() {
-// 	keymap_push = &window_main.keymap_custom
-// 	CP4("alt a", "sort_locals")
-// 	CP2("ctrl r", "toggle_timestamp")
-// }
+keymap_force_push_latest :: proc() {
+	keymap_push = &window_main.keymap_custom
+	CP4("alt a", "sort_locals")
+	CP4("ctrl r", "toggle_timestamp")
+}
 
 keymap_init_comments :: proc() {
 	keymap_comments = make(map[Command]string, 128)
