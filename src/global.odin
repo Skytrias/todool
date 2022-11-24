@@ -166,6 +166,7 @@ Window :: struct {
 	dialog: ^Element,
 	dialog_finished: bool,
 	dialog_builder: strings.Builder,
+	dialog_width: f32,
 
 	// menu
 	menu: ^Panel_Floaty,
@@ -1844,14 +1845,14 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			assert(len(element.children) != 0)
 			
 			panel := cast(^Panel) element.children[0]
-			width := element_message(panel, .Get_Width, 0)
+			width := int(w.dialog_width * SCALE)
 			height := element_message(panel, .Get_Height, 0)
 			cx := (element.bounds.l + element.bounds.r) / 2
 			cy := (element.bounds.t + element.bounds.b) / 2
 			bounds := RectI {
 				cx - (width + 1) / 2,
 				cx + width / 2, 
-				cy - (height + 1),
+				cy - (height + 1) / 2,
 				cy + height / 2,
 			}
 			element_move(panel, bounds)
@@ -1943,6 +1944,7 @@ dialog_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 
 dialog_spawn :: proc(
 	window: ^Window,
+	width: f32,
 	format: string,
 	args: ..string,
 ) -> string {
@@ -1950,6 +1952,7 @@ dialog_spawn :: proc(
 		return ""
 	}
 
+	window.dialog_width = max(200, width)
 	menu_close(window)
 
 	window.dialog = element_init(Element, &window.element, {}, dialog_message, context.allocator)
@@ -1989,7 +1992,7 @@ dialog_spawn :: proc(
 				case 'b', 'B', 'C': {
 					text := args[arg_index]
 					arg_index += 1
-					b := button_init(row, {}, text)
+					b := button_init(row, { .HF }, text)
 					b.message_user = dialog_button_message
 
 					// default
@@ -2011,7 +2014,7 @@ dialog_spawn :: proc(
 				}
 
 				case 'f': {
-					spacer_init(row, { .HF }, 0, LINE_WIDTH, .Empty)
+					spacer_init(row, { .HF }, 0, int(10 * SCALE), .Empty)
 				}
 
 				case 'l': {
@@ -2021,7 +2024,7 @@ dialog_spawn :: proc(
 				case 's': {
 					text := args[arg_index]
 					arg_index += 1
-					label_init(row, {}, text)
+					label_init(row, { .HF }, text)
 				}
 			}
 		} else {
@@ -2040,7 +2043,8 @@ dialog_spawn :: proc(
 			}
 
 			text := format[byte_start:byte_end - (end_early ? 1 : 0)]
-			label_init(row, { .Label_Center, .HF }, text)
+			label := label_init(row, { .Label_Center, .HF }, text)
+			label.font_options = &font_options_bold
 
 			if end_early {
 				row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)

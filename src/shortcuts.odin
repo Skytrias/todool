@@ -1102,41 +1102,58 @@ todool_redo :: proc(du: u32) {
 }
 
 todool_save :: proc(du: u32) {
-	force_dialog := du_bool(du)
-	
-	if force_dialog || len(last_save_location.buf) == 0 {
-		// output: cstring
-		default_path := gs_string_to_cstring(gs.pref_path)
-		file_patterns := [?]cstring { "*.todool" }
-		output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
-		window_main.raise_next = true
-
-		if output != nil {
-			last_save_set(string(output))
-		} else {
-			return
+	when DEMO_MODE {
+		res := dialog_spawn(
+			window_main, 
+			350,
+			"Saving is disabled in Demo Mode\n%l\n%f\n%C%B",
+			"Okay",
+			"Buy Now",
+		)
+		
+		switch res {
+			case "Okay": {}
+			case "Buy Now": {
+				open_link("https://skytrias.itch.io/todool")
+			}
 		}
-	}
+	} else {
+		force_dialog := du_bool(du)
+		
+		if force_dialog || len(last_save_location.buf) == 0 {
+			// output: cstring
+			default_path := gs_string_to_cstring(gs.pref_path)
+			file_patterns := [?]cstring { "*.todool" }
+			output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
+			window_main.raise_next = true
 
-	err := editor_save(strings.to_string(last_save_location))
-	if err != .None {
-		log.info("SAVE: save.todool failed saving =", err)
-	}
+			if output != nil {
+				last_save_set(string(output))
+			} else {
+				return
+			}
+		}
 
-	// when anything was pushed - set to false
-	if dirty != dirty_saved {
-		dirty_saved = dirty
-	}
+		err := editor_save(strings.to_string(last_save_location))
+		if err != .None {
+			log.info("SAVE: save.todool failed saving =", err)
+		}
 
-	if !json_save_misc("save.sjson") {
-		log.info("SAVE: save.sjson failed saving")
-	}
+		// when anything was pushed - set to false
+		if dirty != dirty_saved {
+			dirty_saved = dirty
+		}
 
-	if !keymap_save("save.keymap") {
-		log.info("SAVE: save.keymap failed saving")
-	}
+		if !json_save_misc("save.sjson") {
+			log.info("SAVE: save.sjson failed saving")
+		}
 
-	element_repaint(mode_panel)
+		if !keymap_save("save.keymap") {
+			log.info("SAVE: save.keymap failed saving")
+		}
+
+		element_repaint(mode_panel)
+	}
 }
 
 // load
@@ -1469,12 +1486,17 @@ todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
 		return
 	}
 
+	when DEMO_MODE {
+		return
+	}
+
 	if options_autosave() {
 		todool_save(COMBO_FALSE)
 	} else if dirty != dirty_saved {
 		res := dialog_spawn(
 			window, 
-			"Save progress?\n%l\n%f%B%b%C",
+			300,
+			"Save progress?\n%l\n%B%b%C",
 			"Yes",
 			"No",
 			"Cancel",

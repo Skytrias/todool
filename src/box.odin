@@ -133,7 +133,6 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			// selection & caret
 			if focused {
-				fmt.eprintln(box.scroll)
 				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
 				x := text_bounds.l - int(box.scroll)
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2

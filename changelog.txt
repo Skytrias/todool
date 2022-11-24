@@ -1,0 +1,102 @@
+Version 0.3.2
+	Demo Mode
+		Latest version builds are now added which can't save
+		Dialog spawns when trying to save
+	changelog.txt added which will contain all changes
+	theme editor ~ button to reset to previous theme prior to entering the editor
+	Bookmark Jump Highlights
+		highlights the nearest bookmark jump
+		render lines between bookmarks to show stepping
+	Date / Time Management
+		double click to open calendar popup on timestamp elements
+		can be used for any timestamp
+	UI
+		change slider value by ctrl+scrolling up/down
+	Fixes
+		tag set 6 fixed -> ctrl + 6 or 0x20 was ignored
+		link saving/loading fixed (wrong size read)
+		link are now copy/pasted across as expected
+		clamp movement for small_string insertions out of bounds
+		undo/redo for text insertion out of bounds when out of bounds
+		UI text boxes now properly scroll again
+
+---------------------------------------------------------------------------------------------------
+Version 0.3.1 HOTFIX
+	embed the spell checker binary properly - causes crashes on startup and on clicks
+
+---------------------------------------------------------------------------------------------------
+Version 0.3.0
+	global memory allocation for wrapped lines and rendered glyphs
+	Keymap Window
+		button to remove selected
+		button to record next input
+		vim add visual left/right movement for kanban, list would be normal
+	Date / Time Management
+		completion date on the left
+		theme new colors for dates & links
+		option to insert timestamp task
+	UI
+		toggle selector more space left/right
+		implement menu bar & fields & menus
+		revamped slider style
+		dont let dialogs be escapable from focus anymore
+		tags ui should be clickable
+	window x/y clamped to current display total width/height
+	sort children based on task state count and other orderings command
+	seperators that can be moved through indexes that will stay static
+	task drag onto a task that has children will indent + 1
+	cut of link text with dots...
+	progressbars on tasks
+	double click adds a task under selection based on diff of mouse y
+	check if clipboard content length has changed to change to text pasting mode
+	short zoom level indicator in the top right
+	goto to relative jumps in vim mode
+	Power Mode
+		subtle screenshake
+		particles at cursor
+		particles at state change
+		several options for power mode
+		use color from the text you're currently at with the cursor
+		try left over of particles similar to games which stick around a task or the camera
+	Spell Checking
+		english dictionary based on an ebook
+		compressed trie embedded in to executable
+		User Based Dictionary
+			all unkown words from .todool file are automatically assumed right
+			resets on loading different .todool file
+			adds unknown words once you leave the task
+	Line Number Highlights
+		adjustable alpha via options
+		automatically render on goto
+	Task String Optimization
+		limit string size to 255
+		optimized operations (insert, remove, delete, selection)
+	Changelog Generator
+		task indentation fixed when upper parent isnt done
+		start & numbering option
+	Progressbars + Options
+		toggle on/off -> shortcut "toggle_progressbars"
+		percentage based
+		only render currently hovered task option
+	Save File
+		text based save format
+		autosave should save or in general changing things on the sidebar should be automatic or separate?
+		8 tag strings & colors now saved in .todool file
+		delete combo if it doesnt have a command associate
+	Link As A Button Element
+		link string stored in .todool save file as an optional tag
+	Bugs Fixed
+		Image Loading
+			still saves the image path when closing the application instantly
+			will save image at the wanted task (mouse position)
+		dialog escaped focus now blocks key combinations
+		task state saved when automatically set somewhere on shift up/down
+		hover info blocking element interaction
+		using start.exe on windows now for opening links
+		select all + indent OOB error fixed
+		link button clickable when removed
+		full display image clips away sidebar
+		changelog scrollable height fixed
+		mouse word selection now based on non whitespace characters
+		theme editor sliders reformat on reset light/black
+		mouse behaves weird on different scales with selection

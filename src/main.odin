@@ -21,9 +21,10 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
-TRACK_MEMORY :: true
-TODOOL_RELEASE :: false
+TRACK_MEMORY :: false
+TODOOL_RELEASE :: true
 PRESENTATION_MODE :: false
+DEMO_MODE :: false // wether or not save&load are enabled
 
 // KEYMAP REWORK
 // add super key
@@ -72,15 +73,7 @@ PRESENTATION_MODE :: false
 // 	// fmt.eprintln("match?", pos, offset, err)
 // }
 
-import "core:unicode/utf8"
 main :: proc() {
-	text := "😀de"
-	fmt.eprintln(utf8.rune_at_pos(text, 0))
-	fmt.eprintln(utf8.rune_at_pos(text, 1))
-	fmt.eprintln(utf8.rune_at_pos(text, 2))
-}
-
-main1 :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)	
 	defer spall.destroy()

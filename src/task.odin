@@ -697,22 +697,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 	#partial switch msg {
 		case .Left_Up: {
-			text := strings.to_string(button.builder)
-
-			b := &gs.cstring_builder
-			strings.builder_reset(b)
-
-			when ODIN_OS == .Linux {
-				strings.write_string(b, "xdg-open")
-			} else when ODIN_OS == .Windows {
-				strings.write_string(b, "start")
-			}
-
-			strings.write_byte(b, ' ')
-			strings.write_string(b, text)
-			strings.write_byte(b, '\x00')
-			libc.system(cstring(raw_data(b.buf)))
-			
+			open_link(strings.to_string(button.builder))
 			element_repaint(element)
 		}
 
@@ -3345,4 +3330,20 @@ wrapped_lines_push_forced :: proc(text: string, output: ^[]string) {
 	start := len(wrapped_lines)
 	append(&wrapped_lines, text)		
 	output^ = wrapped_lines[start:len(wrapped_lines)]
+}
+
+open_link :: proc(url: string) {
+	b := &gs.cstring_builder
+	strings.builder_reset(b)
+
+	when ODIN_OS == .Linux {
+		strings.write_string(b, "xdg-open")
+	} else when ODIN_OS == .Windows {
+		strings.write_string(b, "start")
+	}
+
+	strings.write_byte(b, ' ')
+	strings.write_string(b, url)
+	strings.write_byte(b, '\x00')
+	libc.system(cstring(raw_data(b.buf)))
 }
