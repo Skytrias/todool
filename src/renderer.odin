@@ -44,6 +44,11 @@ Icon :: enum {
 	Archive = 0xeea5,
 
 	Chart = 0xe979,
+
+	Save = 0xee00,
+	File_Load = 0xec57,
+	File_Empty = 0xeb12,
+	Folder_Open = 0xef35,
 }
 
 Render_Target :: struct {

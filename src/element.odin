@@ -3682,6 +3682,21 @@ mbs :: proc(parent: ^Element) {
 	spacer_init(parent, {}, 10, 10, .Thin)
 }
 
+// custom menu bar line
+mbc :: proc(
+	parent: ^Element,
+	text: string,
+	command_custom: proc(),
+	icon: Icon = .None,
+) -> (res: ^Menu_Bar_Line) {
+	res = element_init(Menu_Bar_Line, parent, {}, menu_bar_line_message, context.allocator)
+	res.builder = strings.builder_make(0, len(text))
+	strings.write_string(&res.builder, text)
+	res.command_custom = command_custom
+	res.icon = icon
+	return
+}
+
 mbl :: menu_bar_line_init
 menu_bar_line_init :: proc(
 	parent: ^Element,
@@ -3775,8 +3790,12 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 		}
 
 		case .Clicked: {
-			if cmd, ok := window_main.keymap_custom.commands[line.command]; ok {
-				cmd(line.command_du)
+			if line.command_custom != nil {
+				line.command_custom()
+			} else {
+				if cmd, ok := window_main.keymap_custom.commands[line.command]; ok {
+					cmd(line.command_du)
+				}
 			}
 
 			menu_close(window_main)

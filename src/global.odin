@@ -1112,6 +1112,16 @@ window_build_combo :: proc(window: ^Window, key: sdl.KeyboardEvent) -> (res: str
 	return
 }
 
+window_try_quit :: proc(window: ^Window) {
+	gs.ignore_quit = true
+		
+	if element_message(&window.element, .Window_Close) == 0 {
+		log.warn("~~~WINDOW CLOSE EVENT~~~")
+		window_destroy(window)
+		gs.ignore_quit = false
+	}
+}
+
 window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 	#partial switch e.type {
 		case .WINDOWEVENT: {
@@ -1123,13 +1133,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 
 			#partial switch e.window.event {
 				case .CLOSE: {
-					gs.ignore_quit = true
-						
-					if element_message(&window.element, .Window_Close) == 0 {
-						log.warn("~~~WINDOW CLOSE EVENT~~~")
-						window_destroy(window)
-						gs.ignore_quit = false
-					}
+					window_try_quit(window)
 				}
 
 				case .RESIZED: {

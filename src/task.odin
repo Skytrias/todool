@@ -3115,14 +3115,22 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 	split = menu_split_init(parent)
 	menu = menu_bar_init(split)
 	
+	quit :: proc() {
+		window_try_quit(window_main)
+	}
+
+	locals :: proc() {
+		open_folder(gs.pref_path)
+	}
+
 	menu_bar_field_init(menu, "File", 1).invoke = proc(p: ^Panel) {
-		mbl(p, "New File", "new_file")
-		mbl(p, "Open File", "load")
-		mbl(p, "Save", "save")
-		mbl(p, "Save As...", "save", COMBO_TRUE)
-		mbl(p, "Open Local Folder", "locals")
-		// mbs(p)
-		// mbl(p,)
+		mbl(p, "New File", "new_file", COMBO_EMPTY, .File_Empty)
+		mbl(p, "Open File", "load", COMBO_EMPTY, .File_Load)
+		mbl(p, "Save", "save", COMBO_EMPTY, .Save)
+		mbl(p, "Save As...", "save", COMBO_TRUE, .Save)
+		mbc(p, "Locals", locals, .Folder_Open)
+		mbs(p)
+		mbc(p, "Quit", quit)
 	}
 	menu_bar_field_init(menu, "View", 2).invoke = proc(p: ^Panel) {
 		mbl(p, "Mode List", "mode_list")
@@ -3342,6 +3350,7 @@ wrapped_lines_push_forced :: proc(text: string, output: ^[]string) {
 	output^ = wrapped_lines[start:len(wrapped_lines)]
 }
 
+// opens a link via libc.system
 open_link :: proc(url: string) {
 	b := &gs.cstring_builder
 	strings.builder_reset(b)
@@ -3356,4 +3365,20 @@ open_link :: proc(url: string) {
 	strings.write_string(b, url)
 	strings.write_byte(b, '\x00')
 	libc.system(cstring(raw_data(b.buf)))
+}
+
+open_folder :: proc(path: string) {
+	b := &gs.cstring_builder
+	strings.builder_reset(b)
+
+	when ODIN_OS == .Linux {
+		strings.write_string(b, "xdg-open")
+	} else when ODIN_OS == .Windows {
+		strings.write_string(b, "explorer.exe")
+	}
+
+	strings.write_byte(b, ' ')
+	strings.write_string(b, path)
+	strings.write_byte(b, '\x00')
+	libc.system(cstring(raw_data(b.buf)))		
 }
