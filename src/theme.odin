@@ -336,7 +336,10 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		label_init(slider_panel, { .HF }, name)
 
 		checkbox_init(slider_panel, {}, "Lock", false)
-		color_button_init(slider_panel, { .VF }, color_mod)
+		cb := color_button_init(slider_panel, { .VF }, color_mod)
+		cb.invoke = proc(button: ^Color_Button, data: rawptr) {
+			element_message(button.parent, .Left_Down)
+		}
 
 		for i in 0..<4 {
 			value := &color_mod[i]

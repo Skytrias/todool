@@ -1175,12 +1175,15 @@ todool_load :: proc(du: u32) {
 		}
 
 		default_path = gs_string_to_cstring(strings.to_string(last_save_location))
-		// log.info("++++", last_save_location, trimmed_path)
 	}
 
 	file_patterns := [?]cstring { "*.todool" }
 	output := tfd.open_file_dialog("Open", default_path, file_patterns[:])
-	window_main.raise_next = true
+	
+	if window_main.fullscreened {
+		window_hide(window_main)
+		window_main.raise_next = true
+	}
 
 	if output == nil {
 		return

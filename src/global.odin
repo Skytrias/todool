@@ -601,11 +601,16 @@ window_mouse_inside :: proc(window: ^Window) -> bool {
 }
 
 window_raise :: proc(window: ^Window) {
+	sdl.SetWindowInputFocus(window.w)
 	sdl.RaiseWindow(window.w)
 }
 
 window_show :: proc(window: ^Window) {
 	sdl.ShowWindow(window.w)
+}
+
+window_hide :: proc(window: ^Window) {
+	sdl.HideWindow(window.w)
 }
 
 global_mouse_position :: proc() -> (int, int) {
@@ -1647,13 +1652,14 @@ gs_message_loop :: proc() {
 		any_update := len(gs.animating) != 0
 		gs_windows_iter_init()
 		for w in gs_windows_iter_step() {
-			any_update |= w.update_next
 
 			if w.raise_next {
-				window_raise(w)
-				// window_show(w)
 				w.raise_next = false
+				w.update_next = true
+				window_show(w)
 			}
+
+			any_update |= w.update_next
 		}
 
 		if any_update {

@@ -326,7 +326,6 @@ main_update :: proc(window: ^Window) {
 			cam.freehand = false
 
 			task := tasks_visible[old_task_head]
-			fmt.eprintln("try force")
 			box_force_changes(&um_task, task.box)
 
 			// add spell checking results to user dictionary

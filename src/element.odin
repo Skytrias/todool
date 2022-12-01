@@ -707,7 +707,7 @@ button_init :: proc(
 
 Color_Button :: struct {
 	using element: Element,
-	invoke: proc(data: rawptr),
+	invoke: proc(button: ^Color_Button, data: rawptr),
 	color: ^Color,
 }
 
@@ -735,7 +735,7 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Clicked: {
 			if button.invoke != nil {
-				button.invoke(button.data)
+				button->invoke(button.data)
 			}
 		}
 
