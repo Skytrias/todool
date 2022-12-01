@@ -183,6 +183,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		theme_editor = {}
 		theme_editor.open = true
 	} else {
+		window_raise(theme_editor.window)
 		return
 	}
 

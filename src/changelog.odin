@@ -241,6 +241,7 @@ changelog_update_invoke :: proc(data: rawptr) {
 
 changelog_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	if changelog.window != nil {
+		window_raise(changelog.window)
 		return
 	}
 

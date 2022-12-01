@@ -111,6 +111,7 @@ keymap_editor_accept_display :: proc() -> bool {
 
 keymap_editor_spawn :: proc() {
 	if ke.window != nil {
+		window_raise(ke.window)
 		return
 	}
 

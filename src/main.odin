@@ -24,7 +24,10 @@ import "../btrie"
 TRACK_MEMORY :: false
 TODOOL_RELEASE :: true
 PRESENTATION_MODE :: false
-DEMO_MODE :: true // wether or not save&load are enabled
+DEMO_MODE :: false // wether or not save&load are enabled
+
+// TODO change string color
+// TODO rendering line break selections
 
 // KEYMAP REWORK
 // add super key
@@ -323,8 +326,8 @@ main_update :: proc(window: ^Window) {
 			cam.freehand = false
 
 			task := tasks_visible[old_task_head]
-			manager := mode_panel_manager_begin()
-			box_force_changes(manager, task.box)
+			fmt.eprintln("try force")
+			box_force_changes(&um_task, task.box)
 
 			// add spell checking results to user dictionary
 			spell_check_mapping_words_add(ss_string(&task.box.ss))

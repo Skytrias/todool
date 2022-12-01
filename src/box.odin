@@ -24,6 +24,8 @@ import "../fontstash"
 // NOTE: undo / redo storage of box items could be optimized in memory storage
 // e.g. store only one item box header, store commands that happen internally in the byte array
 
+// TODO use continuation bytes info to advance/backwards through string?
+
 BOX_CHANGE_TIMEOUT :: time.Millisecond * 300
 BOX_START :: 1
 BOX_END :: 2
@@ -46,6 +48,7 @@ Box :: struct {
 
 	// when the latest change happened
 	change_start: time.Tick,
+	last_was_space: bool,
 
 	// rendered glyph start & end
 	rendered_glyphs: []Rendered_Glyph,
@@ -446,11 +449,14 @@ box_paste :: proc(
 }
 
 // commit and reset changes if any
-box_force_changes :: proc(manager: ^Undo_Manager, box: ^Box) {
+box_force_changes :: proc(manager: ^Undo_Manager, box: ^Box) -> bool {
 	if box.change_start != {} {
 		box.change_start = {}
 		undo_group_end(manager)
+		return true
 	}
+
+	return false
 }
 
 // check if changes are above timeout limit and commit 
@@ -481,9 +487,24 @@ box_insert :: proc(
 	if ss_full(&box.ss) {
 		return false
 	}
-	
+
 	count := cutf8.count(ss_string(&box.ss))
-	box_check_changes(manager, box)
+	skip_check: bool
+	was_space := codepoint == ' '
+
+	// set undo state to break at first whitespace
+	if was_space || box.last_was_space {
+		diff := codepoint != ' '
+
+		if !box.last_was_space || diff {
+			skip_check = box_force_changes(manager, box)
+		}
+	}
+	box.last_was_space = was_space
+
+	if !skip_check {
+		box_check_changes(manager, box)
+	}
 
 	if msg_by_task {
 		task_head_tail_push(manager)
@@ -591,17 +612,35 @@ box_check_shift :: proc(box: ^Box, shift: bool) {
 	}
 }
 
-box_move_caret :: proc(box: ^Box, backward: bool, word: bool, shift: bool) {
-	// TODO unicode handling
+Caret_Translation :: enum {
+	Start,	
+	End,	
+	Character_Left,	
+	Character_Right,	
+	Word_Left,	
+	Word_Right,	
+}
+
+box_translate_caret :: proc(box: ^Box, translation: Caret_Translation, shift: bool) {
+	translation_backwards :: proc(translation: Caret_Translation) -> bool {
+		#partial switch translation {
+			case .Start, .Character_Left, .Word_Left: return true
+			case: return false
+		}
+	}
+	
+	backwards := translation_backwards(translation)
+
+	// on non shift & selection, stop selection
 	if !shift && box.head != box.tail {
 		if box.head < box.tail {
-			if backward {
+			if backwards {
 				box.tail = box.head
 			} else {
 				box.head = box.tail
 			}
 		} else {
-			if backward {
+			if backwards {
 				box.head = box.tail
 			} else {
 				box.tail = box.head
@@ -611,31 +650,48 @@ box_move_caret :: proc(box: ^Box, backward: bool, word: bool, shift: bool) {
 		return
 	}
 
-	// optimize to move by codepoint size backwards or forwards
 	runes := ss_to_runes_temp(&box.ss)
-	
-	for {
-		// box ahead of 0 and backward allowed
-		if box.head > 0 && backward {
-			box.head -= 1
-		} else if box.head < len(runes) && !backward {
-			// box not in the end and forward 
-			box.head += 1
-		} else {
-			return
+	pos := box.head
+
+	switch translation {
+		case .Start: {
+			pos = 0
 		}
 
-		if !word {
-			return
-		} else if box.head != len(runes) && box.head != 0 {
-			c1 := runes[box.head - 1]
-			c2 := runes[box.head]
-			
-			if unicode.is_alpha(c1) != unicode.is_alpha(c2) {
-				return
+		case .End: {
+			pos = len(runes)
+		}
+
+		case .Character_Left: {
+			pos -= 1
+		}
+
+		case .Character_Right: {
+			pos += 1
+		}
+
+		case .Word_Left: {
+			for pos > 0 && runes[pos - 1] == ' ' {
+				pos -= 1
+			}
+
+			for pos > 0 && runes[pos - 1] != ' ' {
+				pos -= 1
+			}
+		}
+
+		case .Word_Right: {
+			for pos < len(runes) && runes[pos] == ' ' {
+				pos += 1
+			}
+
+			for pos < len(runes) && runes[pos] != ' ' {
+				pos += 1
 			}
 		}
 	}
+
+	box.head = clamp(pos, 0, len(runes))
 }
 
 box_set_caret :: proc(box: ^Box, di: int, dp: rawptr) {
@@ -1351,13 +1407,15 @@ kbox: KBox
 
 kbox_move_left :: proc(du: u32) {
 	ctrl, shift := du_ctrl_shift(du)
-	box_move_caret(kbox.box, true, ctrl, shift)
+	move: Caret_Translation = ctrl ? .Word_Left : .Character_Left
+	box_translate_caret(kbox.box, move, shift)
 	box_check_shift(kbox.box, shift)
 }
 
 kbox_move_right :: proc(du: u32) {
 	ctrl, shift := du_ctrl_shift(du)
-	box_move_caret(kbox.box, false, ctrl, shift)
+	move: Caret_Translation = ctrl ? .Word_Right : .Character_Right
+	box_translate_caret(kbox.box, move, shift)
 	box_check_shift(kbox.box, shift)		
 }
 
@@ -1399,7 +1457,8 @@ kbox_backspace :: proc(du: u32) {
 
 	forced_selection: int
 	if kbox.box.head == kbox.box.tail {
-		box_move_caret(kbox.box, true, ctrl, shift)
+		move: Caret_Translation = ctrl ? .Word_Left : .Character_Left
+		box_translate_caret(kbox.box, move, shift)
 		forced_selection = -1
 	}
 
@@ -1421,7 +1480,8 @@ kbox_delete :: proc(du: u32) {
 
 	forced_selection: int
 	if kbox.box.head == kbox.box.tail {
-		box_move_caret(kbox.box, false, ctrl, shift)
+		move: Caret_Translation = ctrl ? .Word_Right : .Character_Right
+		box_translate_caret(kbox.box, move, shift)
 		forced_selection = 1
 	}
 

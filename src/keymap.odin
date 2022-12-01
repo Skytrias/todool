@@ -279,6 +279,7 @@ keymap_push_box_combos :: proc(keymap: ^Keymap) {
 
 	CP2("ctrl z", "box_undo")
 	CP2("ctrl y", "box_redo")
+	CP2("ctrl shift z", "box_redo")
 }
 
 keymap_push_todool_commands :: proc(keymap: ^Keymap) {

@@ -1090,6 +1090,7 @@ task_set_visible_tasks :: proc() {
 			undo_group_continue(manager)
 			undo_u8_set(manager, &item)
 			undo_group_end(manager)
+			fmt.eprintln("GROUP END in task set visible")
 		}
 
 		// recurse up 
@@ -1122,10 +1123,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 	}
 
 	changed_any: bool
-
-	if manager != nil {
-		undo_group_continue(manager)
-	}
+	undo_pushed: bool
 
 	// count up states
 	task_count: int
@@ -1139,6 +1137,11 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 				
 				// set parent
 				if task.state != goal {
+					if !undo_pushed {
+						undo_group_continue(manager)
+					}
+
+					undo_pushed = true
 					task_set_state_undoable(manager, task, goal, task_count)
 					changed_any = true
 					task_count += 1
@@ -1147,6 +1150,11 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 					power_mode_spawn_rect(task.bounds, 50, color)
 				}
 			} else if task.state != .Normal {
+				if !undo_pushed {
+					undo_group_continue(manager)
+				}
+
+				undo_pushed = true
 				task_set_state_undoable(manager, task, .Normal, task_count)
 				task_count += 1
 				changed_any = true
@@ -1160,8 +1168,9 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 		}
 	}	
 
-	if manager != nil {
+	if undo_pushed {
 		undo_group_end(manager)
+		fmt.eprintln("group end in task cehck parent states")
 	}
 }
 
@@ -3111,8 +3120,9 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		mbl(p, "Open File", "load")
 		mbl(p, "Save", "save")
 		mbl(p, "Save As...", "save", COMBO_TRUE)
+		mbl(p, "Open Local Folder", "locals")
 		// mbs(p)
-		// mbl(p, "Quit").command_custom
+		// mbl(p,)
 	}
 	menu_bar_field_init(menu, "View", 2).invoke = proc(p: ^Panel) {
 		mbl(p, "Mode List", "mode_list")

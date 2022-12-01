@@ -1,5 +1,6 @@
 package src
 
+import "core:runtime"
 import "core:fmt"
 import "core:log"
 import "core:mem"
@@ -88,6 +89,10 @@ undo_group_end :: proc(manager: ^Undo_Manager) -> bool {
 
 // set group_end to false
 undo_group_continue :: proc(manager: ^Undo_Manager) -> bool {
+	if manager == nil {
+		return false
+	}
+
 	assert(manager.state == .Normal)
 	stack := &manager.undo
 	
@@ -114,6 +119,7 @@ undo_invoke :: proc(manager: ^Undo_Manager, redo: bool) {
 	assert(len(stack) != 0)
 
 	first := true
+	count: int
 	for len(stack) != 0 {
 		old_length := len(stack)
 		footer := cast(^Undo_Item_Footer) &stack[old_length - size_of(Undo_Item_Footer)]
@@ -126,7 +132,10 @@ undo_invoke :: proc(manager: ^Undo_Manager, redo: bool) {
 		item_root := &stack[old_length - footer.byte_count - size_of(Undo_Item_Footer)]
 		footer.callback(manager, item_root)
 		resize(stack, old_length - footer.byte_count - size_of(Undo_Item_Footer))
+		count += 1
 	}
+
+	fmt.eprintf("UNDO: did %d items\n", count)
 
 	// set oposite stack latest footer to group_end = true
 	{
@@ -147,20 +156,20 @@ undo_is_in_normal :: #force_inline proc(manager: ^Undo_Manager) -> bool {
 	return manager.state == .Normal
 }
 
-// peek the latest undo step in the queue
-undo_peek :: proc(manager: ^Undo_Manager) -> (
-	callback: Undo_Callback,
-	item: rawptr,
-	ok: bool,
-) {
-	stack := manager.state == .Undoing ? &manager.redo : &manager.undo
-	if len(stack) == 0 {
-		return
-	}
+// // peek the latest undo step in the queue
+// undo_peek :: proc(manager: ^Undo_Manager) -> (
+// 	callback: Undo_Callback,
+// 	item: rawptr,
+// 	ok: bool,
+// ) {
+// 	stack := manager.state == .Undoing ? &manager.redo : &manager.undo
+// 	if len(stack) == 0 {
+// 		return
+// 	}
 
-	footer := cast(^Undo_Item_Footer) &stack[len(stack) - size_of(Undo_Item_Footer)]
-	callback = footer.callback
-	item = &stack[len(stack) - size_of(Undo_Item_Footer) - footer.byte_count]
-	ok = true
-	return
-}
+// 	footer := cast(^Undo_Item_Footer) &stack[len(stack) - size_of(Undo_Item_Footer)]
+// 	callback = footer.callback
+// 	item = &stack[len(stack) - size_of(Undo_Item_Footer) - footer.byte_count]
+// 	ok = true
+// 	return
+// }
