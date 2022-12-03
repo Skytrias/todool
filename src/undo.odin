@@ -135,8 +135,6 @@ undo_invoke :: proc(manager: ^Undo_Manager, redo: bool) {
 		count += 1
 	}
 
-	fmt.eprintf("UNDO: did %d items\n", count)
-
 	// set oposite stack latest footer to group_end = true
 	{
 		stack := redo ? &manager.undo : &manager.redo

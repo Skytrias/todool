@@ -151,7 +151,6 @@ Window :: struct {
 	w: ^sdl.Window,
 	w_id: u32,
 	cursor: Cursor,
-	// bordered: bool,
 
 	// key state
 	combo_builder: strings.Builder,
@@ -167,6 +166,8 @@ Window :: struct {
 	dialog_finished: bool,
 	dialog_builder: strings.Builder,
 	dialog_width: f32,
+	dialog_um: Undo_Manager,
+	dialog_text_box_result: strings.Builder,
 
 	// menu
 	menu: ^Panel_Floaty,
@@ -467,7 +468,13 @@ window_init :: proc(
 	res.hovered = &res.element
 	res.combo_builder = strings.builder_make(0, 32)
 	res.title_builder = strings.builder_make(0, 64)
+	
+	// dialgo
 	res.dialog_builder = strings.builder_make(0, 64)
+	res.dialog_text_box_result = strings.builder_make(0, 128)
+	strings.write_string(&res.dialog_text_box_result, "// TODO(.+)")
+	undo_manager_init(&res.dialog_um, mem.Kilobyte * 2)
+	
 	res.target = render_target_init(window)
 	res.update_next = true
 	res.cursor_x = -100
@@ -832,8 +839,16 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 
 					// NOTE allows arrow based movement on dialog
 					if window.dialog != nil {
-						match |= combo == "up" || combo == "down" || combo == "left" || combo == "right"
-						backwards |= combo == "up" || combo == "left" 
+						is_text_box: bool
+
+						if window.focused != nil {
+							is_text_box = window.focused.message_class == text_box_message
+						}
+
+						if !is_text_box {
+							match |= combo == "up" || combo == "down" || combo == "left" || combo == "right"
+							backwards |= combo == "up" || combo == "left" 
+						}
 					}
 
 					if match {
@@ -1055,6 +1070,7 @@ window_deallocate :: proc(window: ^Window) {
 	log.info("WINDOW: Deallocate START")
 	keymap_destroy(&window.keymap_box)
 	keymap_destroy(&window.keymap_custom)
+	undo_manager_destroy(&window.dialog_um)
 
 	ease.flux_destroy(window.flux)
 	delete(window.drop_indices)
@@ -1064,6 +1080,7 @@ window_deallocate :: proc(window: ^Window) {
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
 	delete(window.dialog_builder.buf)
+	delete(window.dialog_text_box_result.buf)
 	sdl.DestroyWindow(window.w)
 	log.info("WINDOW: Deallocate END")
 }
@@ -1120,6 +1137,19 @@ window_try_quit :: proc(window: ^Window) {
 		window_destroy(window)
 		gs.ignore_quit = false
 	}
+}
+
+window_dropped_iter :: proc(window: ^Window, index: ^int, old_indice: ^int) -> (path: string, ok: bool) {
+	if index^ >= len(window.drop_indices) {
+		return
+	}
+
+	next := window.drop_indices[index^]
+	ok = true
+	path = string(window.drop_file_name_builder.buf[old_indice^:next])
+	old_indice^ = next
+	index^ += 1
+	return
 }
 
 window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
@@ -1275,7 +1305,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 		}
 
 		// write indices & text content linearly, not send over message!
-		case .DROPBEGIN, .DROPCOMPLETE, .DROPFILE, .DROPTEXT: {
+		case .DROPBEGIN, .DROPCOMPLETE, .DROPFILE: {
 			if e.drop.windowID != window.w_id {
 				return
 			}
@@ -1952,6 +1982,18 @@ dialog_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 	return 0
 }
 
+dialog_tb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	box := cast(^Text_Box) element
+
+	if msg == .Value_Changed {
+		b := &element.window.dialog_text_box_result
+		strings.builder_reset(b)
+		strings.write_string(b, ss_string(&box.ss))
+	}
+
+	return 0
+}
+
 dialog_spawn :: proc(
 	window: ^Window,
 	width: f32,
@@ -1964,6 +2006,7 @@ dialog_spawn :: proc(
 
 	window.dialog_width = max(200, width)
 	menu_close(window)
+	undo_manager_reset(&window.dialog_um)
 
 	window.dialog = element_init(Element, &window.element, {}, dialog_message, context.allocator)
 	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
@@ -2029,6 +2072,19 @@ dialog_spawn :: proc(
 
 				case 'l': {
 					spacer_init(row, { .HF }, 0, LINE_WIDTH, .Thin)
+				}
+
+				case 't': {
+					text := args[arg_index]
+					arg_index += 1					
+					box := text_box_init(row, { .HF }, text)
+					box.um = &window.dialog_um
+					box.message_user = dialog_tb_message
+					element_message(box, .Value_Changed)
+
+					if focus_next == nil {
+						focus_next = box
+					}
 				}
 
 				case 's': {

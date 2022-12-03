@@ -24,12 +24,17 @@ Search_Entry :: struct #packed {
 	result_offset: int,
 }
 
+Search_Result :: struct {
+	start, end: u16,
+}
+
 Search_State :: struct {
-	results: [dynamic]u16,
+	results: [dynamic]Search_Result,
 	entries: [dynamic]Search_Entry,
 
 	// pointers from backing data
 	result_count: ^u16, // current entry
+	pattern_length: int,
 
 	// task and box position saved
 	saved_task_head: int,
@@ -39,7 +44,14 @@ Search_State :: struct {
 
 	// current index for searching
 	current_index: int,
-	pattern_rune_count: int,
+
+	// ui related
+	text_box: ^Text_Box,
+	
+	// persistent state
+	persistent: struct {
+		case_insensitive: bool,
+	},
 }
 search: Search_State
 panel_search: ^Panel
@@ -47,7 +59,7 @@ panel_search: ^Panel
 // init to cap
 search_state_init :: proc() {
 	search.entries = make([dynamic]Search_Entry, 0, 128)
-	search.results = make([dynamic]u16, 0, 1028)
+	search.results = make([dynamic]Search_Result, 0, 1028)
 	search_clear()
 }
 
@@ -88,44 +100,79 @@ search_pop_task :: proc() {
 }
 
 // push a search result
-search_push_result :: proc(index: int) {
+search_push_result :: proc(start, end: int) {
 	search.result_count^ += 1
-	append(&search.results, u16(index))
+	append(&search.results, Search_Result { u16(start), u16(end) })
 }
 
 // update serach state and find new results
 search_update :: proc(pattern: string) {
 	spall.fscoped("search update: %s", pattern)
-	search.pattern_rune_count = cutf8.count(pattern)
 	search_clear()
+	search.pattern_length = cutf8.count(pattern)
 
 	if len(pattern) == 0 {
 		return
 	}
 
+	// lua.pattern_case_insensitive
 	sf := string_finder_init(pattern)
 	defer string_finder_destroy(sf)
 
-	// find results
-	for i in 0..<len(tasks_visible) {
-		task := tasks_visible[i]
-		text := ss_string(&task.box.ss)
-		task_pushed: bool
-		index: int
+	if search.persistent.case_insensitive {
+		builder := strings.builder_make(0, 256, context.temp_allocator)
 
-		for {
-			res := string_finder_next(&sf, text[index:])
-			if res == -1 {
-				break
-			}
-			if !task_pushed {
-				search_push_task(task)
-				task_pushed = true
-			}
+		// find results
+		for i in 0..<len(tasks_visible) {
+			task := tasks_visible[i]
+			text := ss_string(&task.box.ss)
+			task_pushed: bool
+			index: int
+			strings.builder_reset(&builder)
+			text_lowered := cutf8.to_lower(&builder, text)
 
-			index += res
-			search_push_result(index)
-			index += len(pattern)
+			for {
+
+				res := string_finder_next(&sf, text_lowered[index:])
+				if res == -1 {
+					break
+				}
+
+				if !task_pushed {
+					search_push_task(task)
+					task_pushed = true
+				}
+
+				index += res
+				count := cutf8.count(text_lowered[:index])
+				search_push_result(count, count + search.pattern_length)
+				index += len(pattern)
+			}
+		}
+	} else {
+		// find results
+		for i in 0..<len(tasks_visible) {
+			task := tasks_visible[i]
+			text := ss_string(&task.box.ss)
+			task_pushed: bool
+			index: int
+
+			for {
+				res := string_finder_next(&sf, text[index:])
+				if res == -1 {
+					break
+				}
+
+				if !task_pushed {
+					search_push_task(task)
+					task_pushed = true
+				}
+
+				index += res
+				count := cutf8.count(text[:index])
+				search_push_result(count, count + search.pattern_length)
+				index += len(pattern)
+			}
 		}
 	}
 
@@ -157,9 +204,11 @@ search_find :: proc(backwards: bool) {
 
 	task_head = task.visible_index
 	task_tail = task.visible_index
-	res := results[result_index]
-	task.box.head = int(res) + search.pattern_rune_count
-	task.box.tail = int(res)
+
+	result := results[result_index]
+	text := task_string(task)
+	task.box.head = int(result.end)
+	task.box.tail = int(result.start)
 
 	element_repaint(mode_panel)
 }
@@ -192,8 +241,8 @@ search_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 		scaled_size := f32(fcs_task(task))
 
 		for i in 0..<int(length) {
-			res := search.results[entry.result_offset + i]
-			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines, int(res), int(res) + search.pattern_rune_count)
+			result := search.results[entry.result_offset + i]
+			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines, int(result.start), int(result.end))
 			scaled_size := f32(state.isize / 10)
 
 			for fontstash.wrap_state_iter(&gs.fc, &state) {
@@ -214,6 +263,43 @@ search_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 	}
 }
 
+button_state_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button) element
+
+	#partial switch msg{
+		case .Paint_Recursive: {
+			assert(button.data != nil)
+			enabled := cast(^bool) button.data
+
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if enabled^ {
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			fcs_element(button)
+			fcs_ahv()
+			fcs_color(text_color)
+			text := strings.to_string(button.builder)
+			render_string_rect(target, element.bounds, text)
+			return 1
+		}
+
+		case .Clicked: {
+			assert(button.data != nil)
+			enabled := cast(^bool) button.data
+			enabled^ = !enabled^
+			element_message(search.text_box, .Value_Changed)
+			return 1
+		}
+	}
+
+	return 0		
+}
+
 search_init :: proc(parent: ^Element) {
 	margin_scaled := int(5 * SCALE)
 	height := int(DEFAULT_FONT_SIZE * SCALE) + margin_scaled * 2
@@ -222,9 +308,14 @@ search_init :: proc(parent: ^Element) {
 	// p.shadow = true
 	p.z_index = 2
 
-	label_init(p, {}, "Search")
+	{
+		button := button_init(p, {}, "aA", button_state_message)
+		button.hover_info = "Case Insensitive Search"
+		button.data = &search.persistent.case_insensitive
+	}
 
 	box := text_box_init(p, { .HF })
+	search.text_box = box
 	box.um = &um_search
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
@@ -293,147 +384,69 @@ search_init :: proc(parent: ^Element) {
 	element_hide(panel_search, true)
 }
 
-// String_Finder :: struct {
-// 	pattern: string,
-// 	pattern_hash: u32,
-// 	pattern_pow: u32,
-// }
-
-// string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
-// 	res.pattern = pattern
-
-// 	hash_str_rabin_karp :: proc(s: string) -> (hash: u32 = 0, pow: u32 = 1) {
-// 		for i := 0; i < len(s); i += 1 {
-// 			hash = hash*PRIME_RABIN_KARP + u32(s[i])
-// 		}
-// 		sq := u32(PRIME_RABIN_KARP)
-// 		for i := len(s); i > 0; i >>= 1 {
-// 			if (i & 1) != 0 {
-// 				pow *= sq
-// 			}
-// 			sq *= sq
-// 		}
-// 		return
-// 	}
-
-// 	res.pattern_hash, res.pattern_pow = hash_str_rabin_karp(pattern)
-// 	return
-// }
-
-// string_finder_destroy :: proc(sf: String_Finder) {
-
-// }
-
-// @private PRIME_RABIN_KARP :: 16777619
-
-// string_finder_next :: proc(sf: ^String_Finder, text: string) -> int {
-// 	n := len(sf.pattern)
-// 	switch {
-// 	case n == 0:
-// 		return 0
-// 	case n == 1:
-// 		return strings.index_byte(text, sf.pattern[0])
-// 	case n == len(text):
-// 		if text == sf.pattern {
-// 			return 0
-// 		}
-// 		return -1
-// 	case n > len(text):
-// 		return -1
-// 	}
-
-// 	hash, pow := sf.pattern_hash, sf.pattern_pow
-// 	h: u32
-// 	for i := 0; i < n; i += 1 {
-// 		h = h*PRIME_RABIN_KARP + u32(text[i])
-// 	}
-// 	if h == hash && text[:n] == sf.pattern {
-// 		return 0
-// 	}
-// 	for i := n; i < len(text); /**/ {
-// 		h *= PRIME_RABIN_KARP
-// 		h += u32(text[i])
-// 		h -= pow * u32(text[i-n])
-// 		i += 1
-// 		if h == hash && text[i-n:i] == sf.pattern {
-// 			return i - n
-// 		}
-// 	}
-// 	return -1
-// }
-
-// taken from <https://go.dev/src/strings/search.go>
 String_Finder :: struct {
 	pattern: string,
-	bad_char_skip: [256]int,
-	good_suffix_skip: []int,
-}
-
-string_finder_destroy :: proc(sf: String_Finder) {
-	delete(sf.good_suffix_skip)
+	pattern_hash: u32,
+	pattern_pow: u32,
 }
 
 string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
 	res.pattern = pattern
-	res.good_suffix_skip = make([]int, len(pattern))
 
-	for i in 0..<len(res.bad_char_skip) {
-		res.bad_char_skip[i] = len(pattern)
-	}
-
-	last := len(pattern) - 1
-	for i in 0..<last {
-		res.bad_char_skip[pattern[i]] = last - i
-	}
-
-	last_prefix := last
-	for i := last; i >= 0; i -= 1 {
-		if strings.has_prefix(pattern, pattern[i + 1:]) {
-			last_prefix = i + 1
+	hash_str_rabin_karp :: proc(s: string) -> (hash: u32 = 0, pow: u32 = 1) {
+		for i := 0; i < len(s); i += 1 {
+			hash = hash*PRIME_RABIN_KARP + u32(s[i])
 		}
-
-		res.good_suffix_skip[i] = last_prefix + last - i
-	}
-
-	for i in 0..<last {
-		len_suffix := string_finder_longest_common_suffix(pattern, pattern[1:i + 1])
-
-		if pattern[i - len_suffix] != pattern[last-len_suffix] {
-			res.good_suffix_skip[last - len_suffix] = len_suffix + last - i
+		sq := u32(PRIME_RABIN_KARP)
+		for i := len(s); i > 0; i >>= 1 {
+			if (i & 1) != 0 {
+				pow *= sq
+			}
+			sq *= sq
 		}
+		return
 	}
 
+	res.pattern_hash, res.pattern_pow = hash_str_rabin_karp(pattern)
 	return
 }
 
-string_finder_longest_common_suffix :: proc(a, b: string) -> (i: int) {
-	for ; i < len(a) && i < len(b); i += 1 {
-		if a[len(a) - 1 - i] != b[len(b) - 1 - i] {
-			break
-		}
-	}
+string_finder_destroy :: proc(sf: String_Finder) {}
 
-	return
-}
+@private PRIME_RABIN_KARP :: 16777619
 
 string_finder_next :: proc(sf: ^String_Finder, text: string) -> int {
-	i := len(sf.pattern) - 1
-
-	for i < len(text) {
-		j := len(sf.pattern) - 1
-
-		for j >= 0 && text[i] == sf.pattern[j] {
-			i -= 1
-			j -= 1
+	n := len(sf.pattern)
+	switch {
+	case n == 0:
+		return 0
+	case n == 1:
+		return strings.index_byte(text, sf.pattern[0])
+	case n == len(text):
+		if text == sf.pattern {
+			return 0
 		}
-
-		if j < 0 {
-			return i + 1
-		}
-
-		i += max(sf.bad_char_skip[text[i]], sf.good_suffix_skip[j])
+		return -1
+	case n > len(text):
+		return -1
 	}
 
+	hash, pow := sf.pattern_hash, sf.pattern_pow
+	h: u32
+	for i := 0; i < n; i += 1 {
+		h = h*PRIME_RABIN_KARP + u32(text[i])
+	}
+	if h == hash && text[:n] == sf.pattern {
+		return 0
+	}
+	for i := n; i < len(text); /**/ {
+		h *= PRIME_RABIN_KARP
+		h += u32(text[i])
+		h -= pow * u32(text[i-n])
+		i += 1
+		if h == hash && text[i-n:i] == sf.pattern {
+			return i - n
+		}
+	}
 	return -1
 }
-

@@ -251,7 +251,6 @@ text_box_init :: proc(
 	flags := flags
 	flags |= { .Tab_Stop }
 	res = element_init(Text_Box, parent, flags, text_box_message, allocator, index_at)
-	// box_init(&res.box)
 	ss_set_string(&res.box.ss, text)
 	box_move_end_simple(&res.box)
 	// log.info("box init", res.head, res.tail, len(res.builder.buf))

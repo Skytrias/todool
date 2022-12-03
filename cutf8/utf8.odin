@@ -1,7 +1,9 @@
 // simple package to iterate utf8 codepoints quickly
 package cutf8
 
+import "core:unicode"
 import "core:slice"
+import "core:strings"
 
 @(private)
 UTF8_ACCEPT :: 0
@@ -202,4 +204,53 @@ ds_string_selection :: proc(
 	}
 
 	return
+}
+
+byte_indices_to_character_indices :: proc(
+	text: string,
+	byte_start: int,
+	byte_end: int,
+	head: ^int,
+	tail: ^int,
+) #no_bounds_check {
+	codepoint: rune
+	state: rune
+	codepoint_offset: int
+	byte_offset: int
+
+	for byte_offset < len(text) {
+		if decode(&state, &codepoint, text[byte_offset]) {
+			if byte_offset == byte_start {
+				tail^ = codepoint_offset
+			}
+
+			if byte_offset == byte_end {
+				head^ = codepoint_offset
+			}
+
+			codepoint_offset += 1
+		}
+
+		byte_offset += 1
+	}
+
+	if byte_offset == byte_start {
+		tail^ = codepoint_offset
+	}
+
+	if byte_offset == byte_end {
+		head^ = codepoint_offset
+	}
+}
+
+to_lower :: proc(builder: ^strings.Builder, text: string) -> string {
+	state, codepoint: rune
+
+	for byte_offset in 0..<len(text) {
+		if decode(&state, &codepoint, text[byte_offset]) {
+			strings.write_rune(builder, unicode.to_lower(codepoint))
+		}
+	}
+
+	return strings.to_string(builder^)
 }

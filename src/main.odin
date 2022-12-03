@@ -422,7 +422,6 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Dropped_Files: {
-			old_indice: int
 			manager := mode_panel_manager_begin()
 			had_imports := false
 
@@ -434,10 +433,13 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			task_insert_offset := task.index + 1
 			task_indentation := task.indentation
 
-			spall.scoped("Load Dropped Files")
-			for indice in window.drop_indices {
-				file_path := string(window.drop_file_name_builder.buf[old_indice:indice])
+			pattern_dialog: bool
+			pattern_load_canceled: bool
 
+			spall.scoped("Load Dropped Files")
+			index: int
+			old_indice: int
+			for file_path in window_dropped_iter(window, &index, &old_indice) {
 				// image dropping
 				if strings.has_suffix(file_path, ".png") {
 					if task_head != -1 {
@@ -462,17 +464,45 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 						}
 					}
 				} else {
-					// import from code
-					content, ok := os.read_entire_file(file_path)
-					defer delete(content)
+					if !pattern_dialog {
+						res := dialog_spawn(
+							window,
+							300,
+							"Code Import: Lua Pattern\n%l\n%f\n%t\n%f\n%C%B",
+							strings.to_string(window.dialog_text_box_result),
+							"Cancel",
+							"Import",
+						)
 
-					if ok {
-						spall.fscoped("%s", file_path)
-						had_imports |= pattern_load_content_simple(manager, content, task_indentation, &task_insert_offset)
+						switch res {
+							case "Cancel": {
+								pattern_load_canceled = true
+							}
+
+							case "Import": {}
+						}
+
+						pattern_dialog = true
+					}
+
+					// only if non canceled
+					if !pattern_load_canceled {
+						// get text box result
+						pattern := strings.to_string(window.dialog_text_box_result)
+						if len(pattern) == 0 {
+							continue
+						}
+
+						// import from code
+						content, ok := os.read_entire_file(file_path)
+						defer delete(content)
+
+						if ok {
+							spall.fscoped("%s", file_path)
+							had_imports |= pattern_load_content_simple(manager, string(content), pattern, task_indentation, &task_insert_offset)
+						}
 					}
 				}
-
-				old_indice = indice
 			}
 
 			if had_imports {
