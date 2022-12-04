@@ -450,6 +450,9 @@ Task :: struct {
 	children_count: u16, // exclusive count
 	state_count: [Task_State]int,
 
+	// TODO: remove UNUSED
+	shift_marked: bool,
+
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
 	progress_animation: [Task_State]f32,
@@ -459,7 +462,7 @@ Mode :: enum {
 	List,
 	Kanban,
 	// Agenda,
-}
+}	
 
 // element to custom layout based on internal mode
 Mode_Panel :: struct {
@@ -1090,7 +1093,6 @@ task_set_visible_tasks :: proc() {
 			undo_group_continue(manager)
 			undo_u8_set(manager, &item)
 			undo_group_end(manager)
-			fmt.eprintln("GROUP END in task set visible")
 		}
 
 		// recurse up 
@@ -1170,7 +1172,6 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 
 	if undo_pushed {
 		undo_group_end(manager)
-		fmt.eprintln("group end in task cehck parent states")
 	}
 }
 
@@ -3236,7 +3237,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	gap := int(4 * TASK_SCALE)
 
 	// line_offset := options_vim_use() ? -task_head : 1
-	line_offset := 1
+	line_offset := TODOOL_RELEASE ? 1 : 0
 
 	for t, i in tasks_visible {
 		// NOTE necessary as the modes could have the tasks at different positions

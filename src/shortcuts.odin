@@ -228,6 +228,23 @@ todool_indent_jump_low_next :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
+// -1 means nothing found
+find_same_indentation_backwards :: proc(visible_index: int) -> (res: int) {
+	res = -1
+	task_current := tasks_visible[visible_index]
+
+	for i := visible_index - 1; i >= 0; i -= 1 {
+		task := tasks_visible[i]
+		
+		if task.indentation == task_current.indentation {
+			res = i
+			return
+		}
+	}
+
+	return
+}
+
 todool_indent_jump_same_prev :: proc(du: u32) {
 	if task_head == -1 {
 		return
@@ -235,20 +252,16 @@ todool_indent_jump_same_prev :: proc(du: u32) {
 
 	task_current := tasks_visible[task_head]
 	shift := du_shift(du)
+	goal := find_same_indentation_backwards(task_head)
 	
-	for i := task_head - 1; i >= 0; i -= 1 {
-		task := tasks_visible[i]
-		
-		if task.indentation == task_current.indentation {
-			if task_head_tail_check_begin(shift) {
-				task_head = i
-			}
-			task_head_tail_check_end(shift)
-			element_repaint(mode_panel)
-			element_message(task.box, .Box_Set_Caret, BOX_END)
-			break
+	if goal != -1 {
+		if task_head_tail_check_begin(shift) {
+			task_head = goal
 		}
-	} 
+		task_head_tail_check_end(shift)
+		element_repaint(mode_panel)
+		element_message(tasks_visible[task_head].box, .Box_Set_Caret, BOX_END)		
+	}
 
 	vim.rep_task = nil
 }
@@ -602,40 +615,100 @@ todool_shift_down :: proc(du: u32) {
 		return
 	}
 
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
+	fmt.eprintln("UNIMPLEMENTED")
 
-	task_state_progression = .Update_Animated
-	for i := high + 1; i > low; i -= 1 {
-		x, y := task_xy_to_real(i, i - 1)
-		task_swap(manager, x, y)
-	}
+	// manager := mode_panel_manager_scoped()
+	// task_head_tail_push(manager)
 
-	task_head += 1
-	task_tail += 1
-	element_repaint(mode_panel)
+	// task_state_progression = .Update_Animated
+	// for i := high + 1; i > low; i -= 1 {
+	// 	x, y := task_xy_to_real(i, i - 1)
+	// 	task_swap(manager, x, y)
+	// }
+
+	// task_head += 1
+	// task_tail += 1
+	// element_repaint(mode_panel)
 }
 
 todool_shift_up :: proc(du: u32) {
-	low, high := task_low_and_high()
-
-	if low - 1 < 0 {
+	if len(tasks_visible) < 2 {
 		return
 	}
 
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
-	low -= 1
+	low, high := task_low_and_high()
 
-	task_state_progression = .Update_Animated
-	for i in low..<high {
-		x, y := task_xy_to_real(i, i + 1)
-		task_swap(manager, x, y)
+	// save highest index before pops
+	highest_count := 1
+	{
+		highest := tasks_visible[high]
+		if highest.has_children {
+			count := task_children_count(highest)
+			highest_count += count
+		}
 	}
 
-	task_head -= 1
-	task_tail -= 1
-	element_repaint(mode_panel)
+	goal_visible_index := find_same_indentation_backwards(low)
+	if goal_visible_index == -1 {
+		return
+	}
+
+	// gather lowest nodes
+	goal := tasks_visible[goal_visible_index]
+	goal_count := 1
+	if goal.has_children {
+		goal_count += task_children_count(goal)
+	}
+	
+	// TODO better memory allocation technique? scratch buffer
+	temp := make([]^Element, goal_count)
+	defer delete(temp)
+
+	// copy all to the slice
+	fmt.eprintln("LOW", goal.index, goal.index + goal_count)
+	copy(temp, mode_panel.children[goal.index:goal.index + goal_count])
+
+	// find selection count
+	selection_count: int
+	{
+		a := tasks_visible[low].index
+		b := tasks_visible[high].index
+		selection_count = b - a + highest_count
+	}
+	fmt.eprintln(selection_count)
+
+	// copy selection to goal index
+	{
+		lowest_index := tasks_visible[low].index
+		copy(
+			mode_panel.children[goal.index:], 
+			mode_panel.children[lowest_index:lowest_index + selection_count],
+		)
+	}
+
+	// copy temp to proper region
+	{
+		copy(
+			mode_panel.children[goal.index + selection_count:], 
+			temp,
+		)
+	}
+
+	// manager := mode_panel_manager_scoped()
+	// task_head_tail_push(manager)
+
+	for i in 0..<len(mode_panel.children) {
+		task := cast(^Task) mode_panel.children[i]
+
+		if task.index != i {
+			task_swap_animation(task)
+		}
+	}
+
+	fmt.eprintln("DONE")
+
+	task_head -= goal.folded ? 1 : goal_count
+	task_tail -= goal.folded ? 1 : goal_count
 }
 
 todool_select_all :: proc(du: u32) {
@@ -764,15 +837,11 @@ task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: i
 
 undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Task_Swap) item
-	a_indentation := data.a^.indentation
-	b_indentation := data.b^.indentation
 	a_folded := data.a^.folded
 	b_folded := data.b^.folded
 	data.a^, data.b^ = data.b^, data.a^
-
-	task_indentation_set_animate(manager, data.a^, a_indentation, a_folded)
-	task_indentation_set_animate(manager, data.b^, b_indentation, b_folded)
-
+	data.a^.folded = a_folded
+	data.b^.folded = a_folded
 	undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
 }
 

@@ -1363,6 +1363,12 @@ gs_display_total_bounds :: proc() -> (width, height: int) {
 	return
 }
 
+gs_display_dpi :: proc(index: int) -> (ddpi, hdpi, vdpi: f32, ok: bool) {
+	res := sdl.GetDisplayDPI(i32(index), &ddpi, &hdpi, &vdpi)
+	ok = res == 0
+	return
+}
+
 gs_init :: proc() {
 	gs = new(Global_State)
 	using gs
