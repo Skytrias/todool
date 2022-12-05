@@ -2048,7 +2048,7 @@ task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 
 	if only_box {
 		if task_head != task_tail {
-			box_set_caret(task.box, BOX_END, nil)
+			box_set_caret_dp(task.box, BOX_END, nil)
 		} else {
 			old_tail := task.box.tail
 			scaled_size := fcs_task(task)
@@ -2180,14 +2180,14 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		}
 
 		case .Left_Down: {
-			if task.tag_hovered != -1 {
-				bit := u8(1 << u8(task.tag_hovered))
-				manager := mode_panel_manager_scoped()
-				task_head_tail_push(manager)
-				u8_xor_push(manager, &task.tags, bit)
-			} else {
+			// if task.tag_hovered != -1 {
+			// 	bit := u8(1 << u8(task.tag_hovered))
+			// 	manager := mode_panel_manager_scoped()
+			// 	task_head_tail_push(manager)
+			// 	u8_xor_push(manager, &task.tags, bit)
+			// } else {
 				task_or_box_left_down(task, di, false)
-			}
+			// }
 		}
 
 		case .Animate: {

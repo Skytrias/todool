@@ -204,7 +204,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Box_Set_Caret: {
-			box_set_caret(box, di, dp)
+			box_set_caret_dp(box, di, dp)
 		}
 
 		case .Left_Down: {
@@ -366,7 +366,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Box_Set_Caret: {
-			box_set_caret(task_box, di, dp)
+			box_set_caret_dp(task_box, di, dp)
 		}
 	}
 
@@ -693,7 +693,7 @@ box_translate_caret :: proc(box: ^Box, translation: Caret_Translation, shift: bo
 	box.head = clamp(pos, 0, len(runes))
 }
 
-box_set_caret :: proc(box: ^Box, di: int, dp: rawptr) {
+box_set_caret_dp :: proc(box: ^Box, di: int, dp: rawptr) {
 	switch di {
 		case 0: {
 			goal := cast(^int) dp
@@ -809,12 +809,10 @@ element_box_mouse_selection :: proc(
 			goal := ((x - old_x) / 2 + old_x)
 			comp := relative_x > goal
 			off := int(comp)
-			// off = 0
-			// log.info("CHECK", off, comp, goal, old_x, x)
 
 			if !dragging {
-				codepoint_index := codepoint_index + off
-				box_set_caret(b, 0, &codepoint_index)
+				b.head = codepoint_index + off
+				b.tail = codepoint_index + off
 			} else {
 				b.head = codepoint_index + off
 			}
@@ -899,7 +897,6 @@ element_box_mouse_selection :: proc(
 	
 	// NOTE single line clicks
 	if clicks == 0 {
-
 		// loop through lines
 		search_line: for text in b.wrapped_lines {
 			// set state
@@ -924,6 +921,7 @@ element_box_mouse_selection :: proc(
 
 				// check mouse collision
 				if mcs_check_single(&mcs, b, index + codepoint_offset, dragging) {
+					codepoint_offset += iter.codepoint_count
 					break search_line
 				}
 
@@ -932,16 +930,12 @@ element_box_mouse_selection :: proc(
 
 			x += scaled_size
 			mcs_check_single(&mcs, b, iter.codepoint_count + codepoint_offset, dragging)
-			
-			// NOTE safety clamp in case we extended too far
 			codepoint_offset += iter.codepoint_count
-			b.head = min(b.head, codepoint_offset)
-			b.tail = min(b.tail, codepoint_offset)
 
 			// do line end?
 			if relative_x > x && !dragging {
-				index := codepoint_offset
-				box_set_caret(b, 0, &index)
+				b.head = codepoint_offset
+				b.tail = codepoint_offset
 				break search_line
 			}
 
@@ -949,6 +943,12 @@ element_box_mouse_selection :: proc(
 		}
 
 		mcs_check_line_last(&mcs, b)
+
+		// NOTE safety clamp in case we extended too far
+		b.head = min(b.head, codepoint_offset)
+		if !dragging {
+			b.tail = min(b.tail, codepoint_offset)
+		}
 	} else {
 		if clicks == 1 {
 			// TODO misses the first character if its not proper alpha

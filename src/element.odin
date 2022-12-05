@@ -130,6 +130,7 @@ Element_Flag :: enum {
 
 	// element specific flags
 	Label_Center,
+	Label_Right,
 	Box_Can_Focus,
 
 	Panel_Expand,
@@ -386,8 +387,7 @@ element_find_by_point :: proc(element: ^Element, x, y: int) -> ^Element {
 		return p.res != nil ? p.res : element
 	}
 
-	temp, sorted := element_children_sorted_or_unsorted(element)
-	defer if sorted do delete(temp)
+	temp := element_children_sorted_or_unsorted(element)
 
 	for i := len(temp) - 1; i >= 0; i -= 1 {
 		child := temp[i]
@@ -560,13 +560,11 @@ element_focus :: proc(window: ^Window, element: ^Element) -> bool {
 }
 
 // retrieve wanted children, may be sorted and need to be deallocated manually
-element_children_sorted_or_unsorted :: proc(element: ^Element) -> (res: []^Element, sorted: bool) {
+element_children_sorted_or_unsorted :: proc(element: ^Element) -> (res: []^Element) {
 	res = element.children[:]
-	// clone and sort elements for z ordering
-	sorted = .Sort_By_Z_Index in element.flags
 
-	if sorted {
-		res = slice.clone(res)
+	if .Sort_By_Z_Index in element.flags {
+		res = slice.clone(res, context.temp_allocator)
 		
 		sort.quick_sort_proc(res, proc(a, b: ^Element) -> int {
 			if a.z_index < b.z_index {
@@ -744,7 +742,7 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Get_Width: {
-			return int(DEFAULT_FONT_SIZE * SCALE)
+			return int(DEFAULT_FONT_SIZE * SCALE * 2)
 		}
 
 		case .Get_Height: {
@@ -970,6 +968,9 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			av: Align_Vertical
 			if .Label_Center in element.flags {
 				ah = .Middle
+				av = .Middle
+			} else if .Label_Right in element.flags {
+				ah = .Right
 				av = .Middle
 			}
 

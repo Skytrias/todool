@@ -1,5 +1,6 @@
 package src
 
+import "core:slice"
 import "core:mem"
 import "core:math"
 import "core:math/rand"
@@ -10,27 +11,10 @@ import "core:fmt"
 
 Theme_Editor :: struct {
 	open: bool,
-	// scrollbar: ^Scrollbar,
 	panel: ^Panel,
-	panel_list: [32]^Panel,
-	panel_list_index: int,
-	panel_selected_index: int, // theme
-	picker: ^Color_Picker,
+	grid: ^Static_Grid,
+	// picker: ^Color_Picker,
 	window: ^Window,
-
-	// randomization
-	checkbox_hue: ^Checkbox,
-	checkbox_sat: ^Checkbox,
-	checkbox_value: ^Checkbox,
-	slider_hue_static: ^Slider,
-	slider_hue_low: ^Slider,
-	slider_hue_high: ^Slider,
-	slider_sat_static: ^Slider,
-	slider_sat_low: ^Slider,
-	slider_sat_high: ^Slider,
-	slider_value_static: ^Slider,
-	slider_value_low: ^Slider,
-	slider_value_high: ^Slider,
 
 	color_copy: Color,
 	theme_previous: Theme,
@@ -159,19 +143,160 @@ theme_task_text :: #force_inline proc(state: Task_State) -> Color {
 	return {}
 }
 
-theme_selected_panel :: proc() -> ^Panel {
-	return theme_editor.panel_list[theme_editor.panel_selected_index]
+// theme_reformat_panel_sliders :: proc(panel: ^Panel) {
+// 	// reformat sliders		
+// 	for child in panel.children {
+// 		if child.message_class == slider_message {
+// 			slider := cast(^Slider) child
+// 			value := cast(^u8) slider.data
+// 			slider.position = f32(value^) / 255
+// 		}
+// 	}
+// }
+
+// layouts children in a grid, where 
+Static_Grid :: struct {
+	using element: Element,
+	cell_sizes: []int,
+	cell_names: string, // seperated by \n
+	cell_height: int,
+	cell_margin: int,
+	top: RectI,
 }
 
-theme_reformat_panel_sliders :: proc(panel: ^Panel) {
-	// reformat sliders		
-	for child in panel.children {
-		if child.message_class == slider_message {
-			slider := cast(^Slider) child
-			value := cast(^u8) slider.data
-			slider.position = f32(value^) / 255
+static_grid_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	cell_sizes: []int,
+	cell_names: string,
+	cell_height: int,
+	cell_margin: int,
+) -> (res: ^Static_Grid) {
+	res = element_init(Static_Grid, parent, flags, static_grid_message, context.allocator)
+	assert(len(cell_sizes) > 1)
+	res.cell_sizes = slice.clone(cell_sizes)
+	res.cell_names = cell_names
+	res.cell_height = cell_height
+	res.cell_margin = cell_margin
+	return
+}
+
+static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	sg := cast(^Static_Grid) element
+
+	#partial switch msg {
+		case .Layout: {
+			total := element.bounds
+			height := int(f32(sg.cell_height) * SCALE)
+			temp := rect_cut_top(&total, height)
+			sg.top = temp
+			wrapped: int
+			margin := int(f32(sg.cell_margin) * SCALE)
+
+			// layout elements
+			for child, i in element.children {
+				if wrapped >= len(sg.cell_sizes) {
+					wrapped = 0
+				}
+
+				if wrapped == 0 {
+					temp = rect_cut_top(&total, height)
+				} 
+
+				rect := rect_cut_left(&temp, int(f32(sg.cell_sizes[wrapped]) * SCALE))
+				rect = rect_margin(rect, margin)
+				element_move(child, rect)
+				wrapped += 1
+			}
+		}
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			render_rect_outline(target, element.bounds, theme.background[2], ROUNDNESS)
+			// render_rect_outline(target, element.bounds, RED, ROUNDNESS)
+
+			fcs_ahv()
+			fcs_font(font_regular)
+			fcs_size(DEFAULT_FONT_SIZE * SCALE)
+			fcs_color(theme.text_default)
+			bounds := sg.top
+			temp := sg.cell_names
+			index: int
+
+			for name in strings.split_lines_iterator(&temp) {
+				width := int(f32(sg.cell_sizes[index]) * SCALE)
+				rect := rect_cut_left(&bounds, width)
+				render_string_rect(target, rect, name)
+				index += 1
+			}
+		}
+
+		case .Get_Width: {
+			sum: int
+
+			for i in 0..<len(sg.cell_sizes) {
+				sum += int(f32(sg.cell_sizes[i]) * SCALE)
+			}
+
+			return sum
+		}
+
+		case .Get_Height: {
+			count := int(f32(len(sg.children)) / f32(len(sg.cell_sizes))) + 1
+			return int(SCALE * f32(sg.cell_height * count))
+		}
+
+		case .Destroy: {
+			delete(sg.cell_sizes)
 		}
 	}
+
+	return 0
+}
+
+Toggle_Simple :: struct {
+	using element: Element,
+	state: bool,
+}
+
+toggle_simple_init :: proc(parent: ^Element, state: bool) -> (res: ^Toggle_Simple) {
+	res = element_init(Toggle_Simple, parent, {}, toggle_simple_message, context.allocator)
+	return
+}
+
+toggle_simple_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	toggle := cast(^Toggle_Simple) element 
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+
+			icon: Icon = toggle.state ? .Check : .Close
+			fcs_icon(SCALE)
+			fcs_ahv()
+			color := toggle.state ? theme.text_good : theme.text_bad
+			fcs_color(color)
+
+			if hovered {
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			render_icon_rect(target, element.bounds, icon)
+		}
+
+		case .Clicked: {
+			toggle.state = !toggle.state
+			element_repaint(element)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+	}
+
+	return 0
 }
 
 theme_panel_locked :: proc(panel: ^Panel) -> bool {
@@ -202,66 +327,41 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 						json_save_misc("save.sjson")
 					}
 
-					case "ctrl c": {
-						p := theme_selected_panel()
-						color_mod := cast(^Color) p.data
-						theme_editor.color_copy = color_mod^
-					}
+					// case "ctrl c": {
+					// 	p := theme_selected_panel()
+					// 	color_mod := cast(^Color) p.data
+					// 	theme_editor.color_copy = color_mod^
+					// }
 
-					case "ctrl v": {
-						found: bool
+					// case "ctrl v": {
+					// 	found: bool
 
-						if clipboard_has_content() {
-							// NOTE could be big clip
-							text := clipboard_get_string(context.temp_allocator)
-							color, ok := color_parse_string(text)
-							// log.info("clipboard", text, ok, color)
+					// 	if clipboard_has_content() {
+					// 		// NOTE could be big clip
+					// 		text := clipboard_get_string(context.temp_allocator)
+					// 		color, ok := color_parse_string(text)
+					// 		// log.info("clipboard", text, ok, color)
 
-							if ok {
-								p := theme_selected_panel()
+					// 		if ok {
+					// 			p := theme_selected_panel()
 
-								color_mod := cast(^Color) p.data
-								color_mod^ = color
+					// 			color_mod := cast(^Color) p.data
+					// 			color_mod^ = color
 
-								theme_reformat_panel_sliders(p)
-								gs_update_all_windows()
-								found = true
-							}
-						} 
+					// 			theme_reformat_panel_sliders(p)
+					// 			gs_update_all_windows()
+					// 			found = true
+					// 		}
+					// 	} 
 
-						if !found && theme_editor.color_copy != {} {
-							p := theme_selected_panel()
-							color_mod := cast(^Color) p.data
-							color_mod^ = theme_editor.color_copy
-							theme_reformat_panel_sliders(p)
-							gs_update_all_windows()
-						}
-					}
-
-					case "up": {
-						using theme_editor
-
-						if panel_selected_index > 0 {
-							panel_selected_index -= 1
-							window.update_next = true
-						}
-					}
-
-					case "down": {
-						using theme_editor
-						color_amount := size_of(Theme) / size_of(Color)
-						
-						if panel_selected_index < color_amount - 1 {
-							panel_selected_index += 1
-							window.update_next = true
-						}
-					}
-
-					case "space": {
-						p := theme_selected_panel()
-						element_message(p.children[1], .Clicked)
-						element_repaint(p)
-					}
+					// 	if !found && theme_editor.color_copy != {} {
+					// 		p := theme_selected_panel()
+					// 		color_mod := cast(^Color) p.data
+					// 		color_mod^ = theme_editor.color_copy
+					// 		theme_reformat_panel_sliders(p)
+					// 		gs_update_all_windows()
+					// 	}
+					// }
 
 					case: {
 						handled = false
@@ -282,167 +382,39 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background, .Panel_Scroll_Vertical }, 0, 5)
 	theme_editor.panel.margin = 10
-	
-	// label := label_init(theme_editor.panel, {}, "Theme Editor")
-	// label.font_options = &font_options_header
-	
+
 	Color_Pair :: struct {
 		color: ^Color,
 		index: int,
 	}
 
-	color_slider :: proc(parent: ^Element, color_mod: ^Color, name: string) {
-		slider_panel := panel_init(parent, { .Panel_Horizontal, .HF }, 5, 5)
-		slider_panel.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			panel := cast(^Panel) element
+	color_slider :: proc(
+		parent: ^Element, 
+		color_mod: ^Color, 
+		name: string,
+	) {
+		label_init(parent, { .Label_Right }, name)
 
-			#partial switch msg {
-				case .Paint_Recursive: {
-					target := element.window.target
-					hovered := element.window.hovered == element
-
-					panel_selected := theme_selected_panel()
-					if panel == panel_selected {
-						render_rect(target, element.bounds, theme.background[2], ROUNDNESS)
-					} else if hovered {
-						render_rect(target, element.bounds, color_alpha(theme.background[2], 0.5), ROUNDNESS)
-					}
-				}
-
-				case .Left_Down: {
-					for i in 0..<theme_editor.panel_list_index {
-						p := theme_editor.panel_list[i]
-
-						if p == panel {
-							if i != theme_editor.panel_selected_index {
-								element_repaint(panel)
-							}
-
-							theme_editor.panel_selected_index = i
-							break
-						}
-					}
-				}
-
-				case .Get_Cursor: {
-					return int(Cursor.Hand)
-				}
-			}
-
-			return 0
-		}
-		slider_panel.data = color_mod
-		theme_editor.panel_list[theme_editor.panel_list_index] = slider_panel
-		theme_editor.panel_list_index += 1
-		label_init(slider_panel, { .HF }, name)
-
-		checkbox_init(slider_panel, {}, "Lock", false)
-		cb := color_button_init(slider_panel, { .VF }, color_mod)
+		cb := color_button_init(parent, {}, color_mod)
 		cb.invoke = proc(button: ^Color_Button, data: rawptr) {
 			element_message(button.parent, .Left_Down)
 		}
 
-		for i in 0..<4 {
-			value := &color_mod[i]
-			s := slider_init(slider_panel, {}, f32(value^) / 255)
-			s.data = value
-			s.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "%d", u8(position * 255))
-			}
-			
-			s.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-				slider := cast(^Slider) element
+		toggle_simple_init(parent, false)
 
-				#partial switch msg {
-					case .Value_Changed: {
-						value := cast(^u8) element.data
-						value^ = u8(slider.position * 255)
-						
-						for i in 0..<theme_editor.panel_list_index {
-							panel := theme_editor.panel_list[i]
-							if panel == cast(^Panel) element.parent {
-								theme_editor.panel_selected_index = i
-								break
-							}
-						}
+		sat := slider_init(parent, {}, 1)
+		sat.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "%.3f", position)
+		}
 
-						gs_update_all_windows()
-					}
-				} 
-
-				return 0
-			}
+		val := slider_init(parent, {}, 1)
+		val.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "%.3f", position)
 		}
 	}
 
 	p := theme_editor.panel
-	SPACER_WIDTH :: 10
-	// spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	
-	{
-		t := toggle_panel_init(p, { .HF }, {}, "Background", true)
-		color_slider(t.panel, &theme.background[0], "background 0")
-		color_slider(t.panel, &theme.background[1], "background 1")
-		color_slider(t.panel, &theme.background[2], "background 2")
-	}
-	
-	{
-		t := toggle_panel_init(p, { .HF }, {}, "Panel", true)
-		color_slider(t.panel, &theme.panel[0], "panel parent")
-		color_slider(t.panel, &theme.panel[1], "panel front")
-		color_slider(t.panel, &theme.shadow, "shadow")
-	}
 
-	{
-		t := toggle_panel_init(p, { .HF }, {}, "Text", true)
-		color_slider(t.panel, &theme.text_default, "default")
-		color_slider(t.panel, &theme.text_blank, "blank")
-		color_slider(t.panel, &theme.text_good, "good")
-		color_slider(t.panel, &theme.text_bad, "bad")
-		color_slider(t.panel, &theme.text_link, "link")
-		color_slider(t.panel, &theme.text_date, "date")
-	}
-
-	{
-		t := toggle_panel_init(p, { .HF }, {}, "Caret", true)
-		color_slider(t.panel, &theme.caret, "caret")
-		color_slider(t.panel, &theme.caret_selection, "caret selection")
-	}
-	
-	{
-		t := toggle_panel_init(p, { .HF }, {}, "Tags", true)
-		for i in 0..<8 {
-			color_slider(t.panel, &theme.tags[i], fmt.tprintf("tag %d", i))
-		}
-	}
-
-	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	{
-		panel := panel_init(p, { .HF })
-		picker := color_picker_init(panel, {}, 0)
-		picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			sv := cast(^Color_Picker_SV) element
-
-			if msg == .Value_Changed {
-				hue := cast(^Color_Picker_HUE) element.parent.children[1]
-				p := theme_selected_panel()
-				color_mod := cast(^Color) p.data
-				
-				output := color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
-				color_mod^ = output
-
-				theme_reformat_panel_sliders(p)
-				gs_update_all_windows()
-			}
-
-			return 0
-		}
-		theme_editor.picker = picker
-		theme_editor.panel.data = picker
-		window.element.data = picker
-	}
-	
-	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 	{
 		panel_current := panel_init(p, { .HF })
 
@@ -450,39 +422,8 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		button_panel.background_index = 1
 		button_panel.rounded = true
 
-		b1 := button_init(button_panel, {}, "Randomize Simple")
-		b1.invoke = proc(button: ^Button, data: rawptr) {
-			for i in 0..<theme_editor.panel_list_index {
-				p := theme_editor.panel_list[i]
-				locked := theme_panel_locked(p)
-
-				if !locked {
-					color := cast(^Color) p.data
-					color.r = u8(rand.float32() * 255)
-					color.g = u8(rand.float32() * 255)
-					color.b = u8(rand.float32() * 255)
-					theme_reformat_panel_sliders(p)
-				}
-			}
-	
-			gs_update_all_windows()
-		}		
 		b2 := button_init(button_panel, {}, "Randomize HSV")
 		b2.invoke = proc(button: ^Button, data: rawptr) {
-			rand_hue := theme_editor.checkbox_hue.state
-			rand_sat := theme_editor.checkbox_sat.state
-			rand_value := theme_editor.checkbox_value.state
-
-			hue_static := theme_editor.slider_hue_static.position
-			hue_low := theme_editor.slider_hue_low.position
-			hue_high := theme_editor.slider_hue_high.position
-			sat_static := theme_editor.slider_sat_static.position
-			sat_low := theme_editor.slider_sat_low.position
-			sat_high := theme_editor.slider_sat_high.position
-			value_static := theme_editor.slider_value_static.position
-			value_low := theme_editor.slider_value_low.position
-			value_high := theme_editor.slider_value_high.position
-
 			gen :: proc(low, high: f32) -> f32 {
 				low := clamp(low, 0, high)
 				high := clamp(high, low, 1)
@@ -498,19 +439,31 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			  return res * (high - low) + low
 			}
 
-			for i in 0..<theme_editor.panel_list_index {
-				p := theme_editor.panel_list[i]
-				locked := theme_panel_locked(p)
-
-				if !locked {
-					color := cast(^Color) p.data
-					h := rand_hue ? gen(hue_low, hue_high) : hue_static
-					s := rand_sat ? gen(sat_low, sat_high) : sat_static
-					v := rand_value ? gen(value_low, value_high) : value_static
-					color^ = color_hsv_to_rgb(h, s, v)
-					theme_reformat_panel_sliders(p)
-				}
+			index: int
+			wrap_at := len(theme_editor.grid.cell_sizes)
+			for index < len(theme_editor.grid.children) {
+				label := theme_editor.grid.children[wrap_at * index]
+				index += 1
 			}
+
+			// for child in theme_editor.grid.children {
+			// 	if child.message_class == color_button_message {
+
+			// 	}
+			// }
+
+			// for i in 0..<theme_editor.panel_index {
+			// 	p := theme_editor.panels[i]
+			// 	locked := theme_panel_locked(p)
+
+			// 	if !locked {
+			// 		color := cast(^Color) p.data
+			// 		h := gen_hue(0, 1)
+			// 		s := gen(0, 1)
+			// 		v := gen(0, 1)
+			// 		color^ = color_hsv_to_rgb(h, s, v)
+			// 	}
+			// }
 
 			gs_update_all_windows()
 		}	
@@ -518,35 +471,17 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		r3 := button_init(button_panel, {}, "Reset Previous")
 		r3.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_editor.theme_previous
-
-			for i in 0..<theme_editor.panel_list_index {
-				p := theme_editor.panel_list[i]
-				theme_reformat_panel_sliders(p)
-			}
-
 			gs_update_all_windows()
 		}
 
 		r1 := button_init(button_panel, {}, "Reset / Light")
 		r1.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_light
-
-			for i in 0..<theme_editor.panel_list_index {
-				p := theme_editor.panel_list[i]
-				theme_reformat_panel_sliders(p)
-			}
-
 			gs_update_all_windows()
 		}
 		r2 := button_init(button_panel, {}, "Reset / Black")
 		r2.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_black
-			
-			for i in 0..<theme_editor.panel_list_index {
-				p := theme_editor.panel_list[i]
-				theme_reformat_panel_sliders(p)
-			}
-
 			gs_update_all_windows()
 		}
 
@@ -557,39 +492,101 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			}
 		} 
 
-		LABEL_WIDTH :: 100
+		// LABEL_WIDTH :: 100
 
-		push_sliders :: proc(parent: ^Element, a, b, c: ^^Slider, static: f32, low: f32, high: f32) {
-			a^ = slider_init(parent, {}, static)
-			a^.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "Static %.3f", position)
-			}
-			b^ = slider_init(parent, {}, low)
-			b^.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "Low %.3f", position)
-			}
-			c^ = slider_init(parent, {}, high)
-			c^.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "High %.3f", position)
-			}
-		}
-		using theme_editor
+		// push_sliders :: proc(parent: ^Element, a, b, c: ^^Slider, static: f32, low: f32, high: f32) {
+		// 	a^ = slider_init(parent, {}, static)
+		// 	a^.formatting = proc(builder: ^strings.Builder, position: f32) {
+		// 		fmt.sbprintf(builder, "Static %.3f", position)
+		// 	}
+		// 	b^ = slider_init(parent, {}, low)
+		// 	b^.formatting = proc(builder: ^strings.Builder, position: f32) {
+		// 		fmt.sbprintf(builder, "Low %.3f", position)
+		// 	}
+		// 	c^ = slider_init(parent, {}, high)
+		// 	c^.formatting = proc(builder: ^strings.Builder, position: f32) {
+		// 		fmt.sbprintf(builder, "High %.3f", position)
+		// 	}
+		// }
+		// using theme_editor
 
-		p1 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
-		label_init(p1, {}, "Hue", LABEL_WIDTH)
-		checkbox_hue = checkbox_init(p1, {}, "USE", true)
-		push_sliders(p1, &slider_hue_static, &slider_hue_low, &slider_hue_high, 0, 0, 1)
+		// p1 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
+		// label_init(p1, {}, "Hue", LABEL_WIDTH)
+		// checkbox_hue = checkbox_init(p1, {}, "USE", true)
+		// push_sliders(p1, &slider_hue_static, &slider_hue_low, &slider_hue_high, 0, 0, 1)
 		
-		p2 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
-		label_init(p2, {}, "Saturation", LABEL_WIDTH)
-		checkbox_sat = checkbox_init(p2, {}, "USE", true)
-		push_sliders(p2, &slider_sat_static, &slider_sat_low, &slider_sat_high, 1, 0.5, 0.75)
+		// p2 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
+		// label_init(p2, {}, "Saturation", LABEL_WIDTH)
+		// checkbox_sat = checkbox_init(p2, {}, "USE", true)
+		// push_sliders(p2, &slider_sat_static, &slider_sat_low, &slider_sat_high, 1, 0.5, 0.75)
 		
-		p3 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
-		label_init(p3, {}, "Value", LABEL_WIDTH)
-		checkbox_value = checkbox_init(p3, {}, "USE", true)
-		push_sliders(p3, &slider_value_static, &slider_value_low, &slider_value_high, 1, 0.5, 1)
+		// p3 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
+		// label_init(p3, {}, "Value", LABEL_WIDTH)
+		// checkbox_value = checkbox_init(p3, {}, "USE", true)
+		// push_sliders(p3, &slider_value_static, &slider_value_low, &slider_value_high, 1, 0.5, 1)
 	}
+
+	SPACER_WIDTH :: 10
+	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+
+	{
+		sg := static_grid_init(
+			p,
+			{},
+			{ 200, 100, 100, 100, 100 },
+			"Name\nColor\nLocked?\nSaturation\nValue",
+			50,
+			2,
+		)
+
+		color_slider(sg, &theme.background[0], "background 0")
+		color_slider(sg, &theme.background[1], "background 1")
+		color_slider(sg, &theme.background[2], "background 2")
+		
+		color_slider(sg, &theme.panel[0], "panel parent")
+		color_slider(sg, &theme.panel[1], "panel front")
+		color_slider(sg, &theme.shadow, "shadow")
+
+		color_slider(sg, &theme.text_default, "default")
+		color_slider(sg, &theme.text_blank, "blank")
+		color_slider(sg, &theme.text_good, "good")
+		color_slider(sg, &theme.text_bad, "bad")
+		color_slider(sg, &theme.text_link, "link")
+		color_slider(sg, &theme.text_date, "date")
+
+		color_slider(sg, &theme.caret, "caret")
+		color_slider(sg, &theme.caret_selection, "caret selection")
+
+		for i in 0..<8 {
+			color_slider(sg, &theme.tags[i], fmt.tprintf("tag %d", i))
+		}
+	}
+
+	// spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
+	// {
+	// 	panel := panel_init(p, { .HF })
+	// 	picker := color_picker_init(panel, {}, 0)
+	// 	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	// 		sv := cast(^Color_Picker_SV) element
+
+	// 		if msg == .Value_Changed {
+	// 			hue := cast(^Color_Picker_HUE) element.parent.children[1]
+	// 			p := theme_selected_panel()
+	// 			color_mod := cast(^Color) p.data
+				
+	// 			output := color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
+	// 			color_mod^ = output
+
+	// 			theme_reformat_panel_sliders(p)
+	// 			gs_update_all_windows()
+	// 		}
+
+	// 		return 0
+	// 	}
+	// 	theme_editor.picker = picker
+	// 	theme_editor.panel.data = picker
+	// 	window.element.data = picker
+	// }	
 }
 
 // parse text to color

@@ -39,6 +39,9 @@ Icon :: enum {
 	Tomato = 0xeb9a,
 	Tag = 0xf004,
 
+	Check = 0xec4b,
+	Close = 0xec4f,
+
 	Cog = 0xefb0,
 	Reply = 0xec7f,
 	Archive = 0xeea5,
@@ -1099,8 +1102,7 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 		return
 	}
 
-	temp, sorted := element_children_sorted_or_unsorted(element)
-	defer if sorted do delete(temp)
+	temp := element_children_sorted_or_unsorted(element)
 
 	for child in temp {
 		render_element_clipped(target, child)

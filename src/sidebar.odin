@@ -582,7 +582,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 			// TODO FIX THIS
 			for i in low..<high + 1 {
-				button := cast(^Archive_Button) c[len(c) - 1 - i]
+				button := cast(^Archive_Button) c[i - 1]
 				copy_push_empty(strings.to_string(button.builder))
 			}
 		}

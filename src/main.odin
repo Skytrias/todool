@@ -36,6 +36,20 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // rework scrollbar to just float and take and be less intrusive
 // have spall push threaded content based on ids or sdl timers
 
+// main :: proc() {
+// 	Your_Union :: struct #raw_union {
+// 		a: [4]int,
+// 		b: [2][2]int,
+// 	}
+
+// 	test := Your_Union { a = 1 }
+// 	fmt.eprintln(test.a, test.b)
+// 	test.a.y = 2
+// 	fmt.eprintln(test.a, test.b)
+// 	test.a.z = 3
+// 	fmt.eprintln(test.a, test.b)
+// }
+
 main :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)	
