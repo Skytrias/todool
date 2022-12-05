@@ -1672,6 +1672,8 @@ gs_message_loop :: proc() {
 	// flux_render_last_frame: bool
 	
 	for gs.running {
+		free_all(context.temp_allocator)
+
 		// check prior for any window needing updates
 		gs_windows_iter_init()
 		for w in gs_windows_iter_step() {

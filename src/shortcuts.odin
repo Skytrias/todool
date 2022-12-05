@@ -245,6 +245,22 @@ find_same_indentation_backwards :: proc(visible_index: int) -> (res: int) {
 	return
 }
 
+find_same_indentation_forwards :: proc(visible_index: int) -> (res: int) {
+	res = -1
+	task_current := tasks_visible[visible_index]
+
+	for i := visible_index + 1; i < len(tasks_visible); i += 1 {
+		task := tasks_visible[i]
+		
+		if task.indentation == task_current.indentation {
+			res = i
+			return
+		}
+	}
+
+	return
+}
+
 todool_indent_jump_same_prev :: proc(du: u32) {
 	if task_head == -1 {
 		return
@@ -273,19 +289,15 @@ todool_indent_jump_same_next :: proc(du: u32) {
 
 	task_current := tasks_visible[task_head]
 	shift := du_shift(du)
+	goal := find_same_indentation_forwards(task_head)
 
-	for i := task_head + 1; i < len(tasks_visible); i += 1 {
-		task := tasks_visible[i]
-		
-		if task.indentation == task_current.indentation {
-			if task_head_tail_check_begin(shift) {
-				task_head = i
-			}
-			task_head_tail_check_end(shift)
-			element_repaint(mode_panel)
-			element_message(task.box, .Box_Set_Caret, BOX_END)
-			break
+	if goal != -1 {
+		if task_head_tail_check_begin(shift) {
+			task_head = goal
 		}
+		task_head_tail_check_end(shift)
+		element_repaint(mode_panel)
+		element_message(tasks_visible[goal].box, .Box_Set_Caret, BOX_END)
 	} 
 
 	vim.rep_task = nil
@@ -609,95 +621,115 @@ todool_mode_kanban :: proc(du: u32) {
 	}
 }
 
-todool_shift_down :: proc(du: u32) {
-	low, high := task_low_and_high()
-	if task_head == -1 || high + 1 >= len(tasks_visible) {
-		return
-	}
-
-	fmt.eprintln("UNIMPLEMENTED")
-
-	// manager := mode_panel_manager_scoped()
-	// task_head_tail_push(manager)
-
-	// task_state_progression = .Update_Animated
-	// for i := high + 1; i > low; i -= 1 {
-	// 	x, y := task_xy_to_real(i, i - 1)
-	// 	task_swap(manager, x, y)
-	// }
-
-	// task_head += 1
-	// task_tail += 1
-	// element_repaint(mode_panel)
+Undo_Item_Shift_Slice :: struct {
+	total_low: int,
+	total_high: int,
+	// data following with pointers that should be reset to
 }
 
-todool_shift_up :: proc(du: u32) {
-	if len(tasks_visible) < 2 {
-		return
-	}
+// store the total region in undo
+undo_push_shift_slice :: proc(manager: ^Undo_Manager, low, high: int) {
+	output := Undo_Item_Shift_Slice { low, high }
+	count := high - low
+	bytes := undo_push(manager, undo_shift_slice, &output, size_of(Undo_Item_Shift_Slice) + count * size_of(^Element))
 
-	low, high := task_low_and_high()
+	bytes_root := cast(^^Element) &bytes[size_of(Undo_Item_Shift_Slice)]
+	storage := mem.slice_ptr(bytes_root, count)
+	copy(storage, mode_panel.children[low:high])
+}
 
-	// save highest index before pops
-	highest_count := 1
+// undo element slice region to something stored prior
+undo_shift_slice :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Shift_Slice) item
+	count := data.total_high - data.total_low
+
+	// push before actually resetting data to a previous state
+	output := data^
+	bytes := undo_push(manager, undo_shift_slice, &output, size_of(Undo_Item_Shift_Slice) + count * size_of(^Element))
+	
+	// save current data
 	{
-		highest := tasks_visible[high]
-		if highest.has_children {
-			count := task_children_count(highest)
-			highest_count += count
-		}
+		bytes_root := cast(^^Element) &bytes[size_of(Undo_Item_Shift_Slice)]
+		storage := mem.slice_ptr(bytes_root, count)
+		copy(storage, mode_panel.children[data.total_low:data.total_high])
 	}
 
-	goal_visible_index := find_same_indentation_backwards(low)
+	// set to pushed data
+	{
+		bytes_root := uintptr(item) + size_of(Undo_Item_Shift_Slice)
+		storage := mem.slice_ptr(cast(^^Element) bytes_root, count)
+		copy(mode_panel.children[data.total_low:data.total_high], storage)
+	}
+}
+
+shift_tasks_complex :: proc(backwards: bool) {
+	goal_visible_index: int
+
+	if backwards { 
+		goal_visible_index = find_same_indentation_backwards(task_head)
+	} else {
+		goal_visible_index = find_same_indentation_forwards(task_head)
+	}
+
 	if goal_visible_index == -1 {
 		return
 	}
 
-	// gather lowest nodes
-	goal := tasks_visible[goal_visible_index]
-	goal_count := 1
-	if goal.has_children {
-		goal_count += task_children_count(goal)
+	// save highest index before pops
+	task_current := tasks_visible[backwards ? task_head : goal_visible_index]
+	current_count := 1
+	if task_current.has_children {
+		count := task_children_count(task_current)
+		current_count += count
 	}
-	
-	// TODO better memory allocation technique? scratch buffer
-	temp := make([]^Element, goal_count)
-	defer delete(temp)
+
+	// gather lowest nodes
+	task_goal := tasks_visible[backwards ? goal_visible_index : task_head]
+	goal_count := 1
+	if task_goal.has_children {
+		goal_count += task_children_count(task_goal)
+	}
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
+	// simplified version when only 2 tasks are pushed
+	if goal_count == 1 && current_count == 1 {
+		if backwards {
+			task_swap(manager, task_head - 1, task_head)
+			task_head -= 1
+			task_tail -= 1
+		} else {
+			task_swap(manager, task_head, task_head + 1)
+			task_head += 1
+			task_tail += 1
+		}
+
+		return
+	}
+
+	total_low := task_goal.index
+	total_high := task_current.index + current_count
+	undo_push_shift_slice(manager, total_low, total_high)
 
 	// copy all to the slice
-	fmt.eprintln("LOW", goal.index, goal.index + goal_count)
-	copy(temp, mode_panel.children[goal.index:goal.index + goal_count])
-
-	// find selection count
-	selection_count: int
-	{
-		a := tasks_visible[low].index
-		b := tasks_visible[high].index
-		selection_count = b - a + highest_count
-	}
-	fmt.eprintln(selection_count)
+	temp := make([]^Element, goal_count, context.temp_allocator)
+	copy(temp, mode_panel.children[task_goal.index:task_goal.index + goal_count])
 
 	// copy selection to goal index
-	{
-		lowest_index := tasks_visible[low].index
-		copy(
-			mode_panel.children[goal.index:], 
-			mode_panel.children[lowest_index:lowest_index + selection_count],
-		)
-	}
+	copy(
+		mode_panel.children[task_goal.index:], 
+		mode_panel.children[task_current.index:task_current.index + current_count],
+	)
 
 	// copy temp to proper region
-	{
-		copy(
-			mode_panel.children[goal.index + selection_count:], 
-			temp,
-		)
-	}
+	copy(
+		mode_panel.children[task_goal.index + current_count:], 
+		temp,
+	)
 
-	// manager := mode_panel_manager_scoped()
-	// task_head_tail_push(manager)
-
-	for i in 0..<len(mode_panel.children) {
+	// animate tasks that have a changed index
+	for i in task_goal.index..<task_current.index + current_count {
 		task := cast(^Task) mode_panel.children[i]
 
 		if task.index != i {
@@ -705,10 +737,71 @@ todool_shift_up :: proc(du: u32) {
 		}
 	}
 
-	fmt.eprintln("DONE")
+	if backwards {
+		task_head -= task_goal.folded ? 1 : goal_count
+		task_tail -= task_goal.folded ? 1 : goal_count
+	} else {
+		task_head += task_current.folded ? 1 : current_count
+		task_tail += task_current.folded ? 1 : current_count
+	}
+}
 
-	task_head -= goal.folded ? 1 : goal_count
-	task_tail -= goal.folded ? 1 : goal_count
+todool_shift_up :: proc(du: u32) {
+	if len(tasks_visible) < 2 {
+		return
+	}
+
+	if task_head == task_tail {
+		shift_tasks_complex(true)
+	} else {
+		low, high := task_low_and_high()
+
+		if low - 1 < 0 {
+			return
+		}
+
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+		low -= 1
+
+		task_state_progression = .Update_Animated
+		for i in low..<high {
+			x, y := task_xy_to_real(i, i + 1)
+			task_swap(manager, x, y)
+		}
+
+		task_head -= 1
+		task_tail -= 1
+		element_repaint(mode_panel)
+	}
+}
+
+todool_shift_down :: proc(du: u32) {
+	if len(tasks_visible) < 2 {
+		return
+	}
+
+	if task_head == task_tail {
+		shift_tasks_complex(false)
+	} else {
+		low, high := task_low_and_high()
+		if task_head == -1 || high + 1 >= len(tasks_visible) {
+			return
+		}
+
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+
+		task_state_progression = .Update_Animated
+		for i := high + 1; i > low; i -= 1 {
+			x, y := task_xy_to_real(i, i - 1)
+			task_swap(manager, x, y)
+		}
+
+		task_head += 1
+		task_tail += 1
+		element_repaint(mode_panel)
+	}
 }
 
 todool_select_all :: proc(du: u32) {
@@ -1458,8 +1551,7 @@ todool_paste_tasks_from_clipboard :: proc(du: u32) {
 		clipboard_text := clipboard_get_with_builder()
 		
 		// indentation
-		indentation_per_line := make([dynamic]u16, 0, 256)
-		defer delete(indentation_per_line)
+		indentation_per_line := make([dynamic]u16, 0, 256, context.temp_allocator)
 
 		// find indentation per line
 		{
@@ -1669,11 +1761,8 @@ undo_task_sort :: proc(manager: ^Undo_Manager, item: rawptr) {
 		children_from, children_to: i32,
 	}
 
-	sort_list := make([dynamic]Task_Line, 0, 64)
-	defer delete(sort_list)
-	
-	children := make([dynamic]^Task, 0, 64)
-	defer delete(children)
+	sort_list := make([dynamic]Task_Line, 0, 64, context.temp_allocator)
+	children := make([dynamic]^Task, 0, 64, context.temp_allocator)
 
 	for i in data.from..<data.to + 1 {
 		task := cast(^Task) mode_panel.children[i]
@@ -1724,6 +1813,7 @@ undo_task_sort :: proc(manager: ^Undo_Manager, item: rawptr) {
 	// actually save the data
 	bytes_root := cast(^^Task) &bytes[size_of(Undo_Item_Task_Sort_Original)]
 	storage := mem.slice_ptr(bytes_root, count)
+	// TODO just slice copy?
 	for i in 0..<count {
 		storage[i] = cast(^Task) mode_panel.children[i + data.from]
 	}

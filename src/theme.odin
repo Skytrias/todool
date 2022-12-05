@@ -1,6 +1,7 @@
 package src
 
 import "core:mem"
+import "core:math"
 import "core:math/rand"
 import "core:log"
 import "core:strconv"
@@ -486,6 +487,15 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 				low := clamp(low, 0, high)
 				high := clamp(high, low, 1)
 				return rand.float32() * (high - low) + low
+			}
+
+			gen_hue :: proc(low, high: f32) -> f32 {
+				low := clamp(low, 0, high)
+				high := clamp(high, low, 1)
+				res := rand.float32()
+				res += 0.618033988749895
+			  res = math.wrap(res, 1.0)
+			  return res * (high - low) + low
 			}
 
 			for i in 0..<theme_editor.panel_list_index {

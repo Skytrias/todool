@@ -1,5 +1,6 @@
 package src
 
+import "core:math"
 import "core:math/rand"
 
 Color :: [4]u8

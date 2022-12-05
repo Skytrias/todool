@@ -28,7 +28,6 @@ DEMO_MODE :: false // wether or not save&load are enabled
 
 // TODO change string color
 // TODO rendering line break selections
-
 // KEYMAP REWORK
 // add super key
 // keymap load newer combos per version by default
@@ -36,45 +35,6 @@ DEMO_MODE :: false // wether or not save&load are enabled
 
 // rework scrollbar to just float and take and be less intrusive
 // have spall push threaded content based on ids or sdl timers
-
-// main :: proc() {
-// 	gs_init()
-// 	context.logger = gs.logger
-// 	context.allocator = gs_allocator()
-
-// 	window := window_init(nil, {}, "Todool", 900, 900, 256, 256)
-// 	window_main = window
-// 	keymap_push_todool_commands(&window_main.keymap_custom)
-// 	keymap_push_todool_combos(&window_main.keymap_custom)
-
-// 	todool_menu_bar(&window.element)
-
-// 	gs_update_after_load()
-// 	gs_message_loop()			
-// }
-
-// import "../regex"
-
-// main :: proc() {
-// 	fmt.eprintln("~~~START~~~")
-// 	defer fmt.eprintln("~~~ END ~~~")
-
-// 	// b1 := regex.Bset {}
-// 	// fmt.eprintln(b1)
-// 	// // fmt.eprintln(regex.bbyte(80))
-// 	// fmt.eprintln(regex.bbyte(0))
-// 	// fmt.eprintln(b1)
-
-// 	re, g, ok := regex.parse_expr("foobar")
-// 	// fmt.eprintln(re)
-// 	// fmt.eprintln(g)
-// 	// fmt.eprintln(ok)
-// 	// fmt.eprintln("damn")
-
-// 	// pos, offset, err := regex.match_string("Hai-foobar", "f[o]+bar")
-// 	// pos, offset, err := regex.match_string("abb+a", "123abba123abbab", { .ASCII_Only })
-// 	// fmt.eprintln("match?", pos, offset, err)
-// }
 
 main :: proc() {
 	spall.init("test.spall")

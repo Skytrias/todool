@@ -68,7 +68,6 @@ pattern_load_content_simple :: proc(
 
 		if ok && m.captures_length > 1 {
 			word := lua.matcher_capture(&m, 0)
-			// fmt.eprintln(word)
 			task_push_undoable(manager, indentation, word, index_at^)
 			index_at^ += 1
 			found_any = true
