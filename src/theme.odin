@@ -143,64 +143,63 @@ theme_task_text :: #force_inline proc(state: Task_State) -> Color {
 	return {}
 }
 
-// theme_reformat_panel_sliders :: proc(panel: ^Panel) {
-// 	// reformat sliders		
-// 	for child in panel.children {
-// 		if child.message_class == slider_message {
-// 			slider := cast(^Slider) child
-// 			value := cast(^u8) slider.data
-// 			slider.position = f32(value^) / 255
-// 		}
-// 	}
-// }
-
 // layouts children in a grid, where 
 Static_Grid :: struct {
 	using element: Element,
 	cell_sizes: []int,
-	cell_names: string, // seperated by \n
 	cell_height: int,
 	cell_margin: int,
-	top: RectI,
+	skips: []int, // where to insert spaces
 }
 
 static_grid_init :: proc(
 	parent: ^Element,
 	flags: Element_Flags,
 	cell_sizes: []int,
-	cell_names: string,
 	cell_height: int,
 	cell_margin: int,
+	skips: []int,
 ) -> (res: ^Static_Grid) {
 	res = element_init(Static_Grid, parent, flags, static_grid_message, context.allocator)
 	assert(len(cell_sizes) > 1)
 	res.cell_sizes = slice.clone(cell_sizes)
-	res.cell_names = cell_names
 	res.cell_height = cell_height
 	res.cell_margin = cell_margin
+	res.skips = slice.clone(skips)
 	return
 }
 
 static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	sg := cast(^Static_Grid) element
+	SKIP_HEIGHT :: 20
 
 	#partial switch msg {
 		case .Layout: {
 			total := element.bounds
 			height := int(f32(sg.cell_height) * SCALE)
-			temp := rect_cut_top(&total, height)
-			sg.top = temp
+			temp: RectI
 			wrapped: int
 			margin := int(f32(sg.cell_margin) * SCALE)
+			next_skip := len(sg.skips) == 0 ? -1 : sg.skips[0]
+			skip_index: int
+			line_index := -1
 
 			// layout elements
 			for child, i in element.children {
+				// put skippers inside layouting
+				if next_skip != -1 && line_index == next_skip {
+					rect_cut_top(&total, int(SCALE * SKIP_HEIGHT))
+					skip_index += 1
+					next_skip = len(sg.skips) <= skip_index ? -1 : sg.skips[skip_index]
+				}
+
 				if wrapped >= len(sg.cell_sizes) {
 					wrapped = 0
 				}
 
 				if wrapped == 0 {
 					temp = rect_cut_top(&total, height)
+					line_index += 1
 				} 
 
 				rect := rect_cut_left(&temp, int(f32(sg.cell_sizes[wrapped]) * SCALE))
@@ -214,21 +213,6 @@ static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			target := element.window.target
 			render_rect_outline(target, element.bounds, theme.background[2], ROUNDNESS)
 			// render_rect_outline(target, element.bounds, RED, ROUNDNESS)
-
-			fcs_ahv()
-			fcs_font(font_regular)
-			fcs_size(DEFAULT_FONT_SIZE * SCALE)
-			fcs_color(theme.text_default)
-			bounds := sg.top
-			temp := sg.cell_names
-			index: int
-
-			for name in strings.split_lines_iterator(&temp) {
-				width := int(f32(sg.cell_sizes[index]) * SCALE)
-				rect := rect_cut_left(&bounds, width)
-				render_string_rect(target, rect, name)
-				index += 1
-			}
 		}
 
 		case .Get_Width: {
@@ -242,16 +226,34 @@ static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Get_Height: {
-			count := int(f32(len(sg.children)) / f32(len(sg.cell_sizes))) + 1
-			return int(SCALE * f32(sg.cell_height * count))
+			add := SKIP_HEIGHT * len(sg.skips)
+			count := int(f32(len(sg.children)) / f32(len(sg.cell_sizes)))
+			return int(SCALE * f32(sg.cell_height * count) + f32(add) * SCALE)
 		}
 
 		case .Destroy: {
 			delete(sg.cell_sizes)
+			delete(sg.skips)
 		}
 	}
 
 	return 0
+}
+
+static_grid_iter :: proc(sg: ^Static_Grid, index: ^int) -> (start: int, ok: bool) {
+	wrap_at := len(theme_editor.grid.cell_sizes)
+	
+	if index^ == 0 {
+		index^ = wrap_at
+	}
+
+	if index^ < len(theme_editor.grid.children) {
+		start = index^
+		index^ += wrap_at
+		ok = true
+	} 
+
+	return
 }
 
 Toggle_Simple :: struct {
@@ -286,6 +288,10 @@ toggle_simple_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 			render_icon_rect(target, element.bounds, icon)
 		}
 
+		case .Mouse_Move: {
+			element_repaint(element)
+		}
+
 		case .Clicked: {
 			toggle.state = !toggle.state
 			element_repaint(element)
@@ -299,9 +305,106 @@ toggle_simple_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 	return 0
 }
 
+// Button with a normal string, that changes to "Reset?" on hover
+// should be used to reset things in a grid
+Button_Reset :: struct {
+	using element: Element,
+	name: string,
+	invoke: proc(),
+}
+
+button_reset_init :: proc(
+	parent: ^Element, 
+	name: string,
+	invoke: proc() = nil,
+) -> (res: ^Button_Reset) {
+	res = element_init(Button_Reset, parent, {}, button_reset_message, context.allocator)
+	res.name = strings.clone(name)
+	res.invoke = invoke
+	return
+}
+
+button_reset_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button_Reset) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			hovered := element.window.hovered == element
+			pressed := element.window.pressed == element
+			interacted := (hovered || pressed) && button.invoke != nil
+
+			if interacted {
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			fcs_ahv()
+			fcs_font(interacted ? font_bold : font_regular)
+			fcs_size(DEFAULT_FONT_SIZE * SCALE)
+			fcs_color(interacted ? theme.text_good : theme.text_default)
+			text := interacted ? "Reset?" : button.name
+			render_string_rect(target, element.bounds, text)
+		}
+
+		case .Get_Cursor: {
+			if button.invoke != nil {
+				return int(Cursor.Hand)
+			}
+		}
+
+		case .Clicked: {
+			if button.invoke != nil {
+				button.invoke()
+			}
+		}
+
+		case .Mouse_Move: {
+			if button.invoke != nil {
+				element_repaint(element)
+			}
+		}
+
+		case .Destroy: {
+			delete(button.name)
+		}
+	}
+
+	return 0
+}
+
 theme_panel_locked :: proc(panel: ^Panel) -> bool {
 	checkbox := cast(^Checkbox) panel.children[1]
 	return checkbox.state
+}
+
+theme_editor_locked_reset :: proc() {
+	index: int
+	sg := theme_editor.grid
+	for root in static_grid_iter(sg, &index) {
+		locked := cast(^Toggle_Simple) sg.children[root + 2]
+		locked.state = false
+	}
+	element_repaint(sg)
+}
+
+theme_editor_saturation_reset :: proc() {
+	index: int
+	sg := theme_editor.grid
+	for root in static_grid_iter(sg, &index) {
+		slider := cast(^Slider) sg.children[root + 3]
+		slider.position = 1
+	}
+	element_repaint(sg)
+}
+
+theme_editor_value_reset :: proc() {
+	index: int
+	sg := theme_editor.grid
+	for root in static_grid_iter(sg, &index) {
+		slider := cast(^Slider) sg.children[root + 4]
+		slider.position = 1
+	}
+	element_repaint(sg)
 }
 
 theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
@@ -383,12 +486,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background, .Panel_Scroll_Vertical }, 0, 5)
 	theme_editor.panel.margin = 10
 
-	Color_Pair :: struct {
-		color: ^Color,
-		index: int,
-	}
-
-	color_slider :: proc(
+	color_line :: proc(
 		parent: ^Element, 
 		color_mod: ^Color, 
 		name: string,
@@ -422,7 +520,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		button_panel.background_index = 1
 		button_panel.rounded = true
 
-		b2 := button_init(button_panel, {}, "Randomize HSV")
+		b2 := button_init(button_panel, {}, "Randomize All")
 		b2.invoke = proc(button: ^Button, data: rawptr) {
 			gen :: proc(low, high: f32) -> f32 {
 				low := clamp(low, 0, high)
@@ -439,31 +537,22 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			  return res * (high - low) + low
 			}
 
+			sg := theme_editor.grid
 			index: int
-			wrap_at := len(theme_editor.grid.cell_sizes)
-			for index < len(theme_editor.grid.children) {
-				label := theme_editor.grid.children[wrap_at * index]
-				index += 1
+			for root in static_grid_iter(sg, &index) {
+				// NOTE manual indexed based on layout
+				locked := cast(^Toggle_Simple) sg.children[root + 2]
+
+				if !locked.state {
+					cb := cast(^Color_Button) sg.children[root + 1]
+					sat := cast(^Slider) sg.children[root + 3]
+					val := cast(^Slider) sg.children[root + 4]
+					h := gen_hue(0, 1)
+					s := gen(0, sat.position)
+					v := gen(0, val.position)
+					cb.color^ = color_hsv_to_rgb(h, s, v)
+				}
 			}
-
-			// for child in theme_editor.grid.children {
-			// 	if child.message_class == color_button_message {
-
-			// 	}
-			// }
-
-			// for i in 0..<theme_editor.panel_index {
-			// 	p := theme_editor.panels[i]
-			// 	locked := theme_panel_locked(p)
-
-			// 	if !locked {
-			// 		color := cast(^Color) p.data
-			// 		h := gen_hue(0, 1)
-			// 		s := gen(0, 1)
-			// 		v := gen(0, 1)
-			// 		color^ = color_hsv_to_rgb(h, s, v)
-			// 	}
-			// }
 
 			gs_update_all_windows()
 		}	
@@ -527,38 +616,44 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	}
 
 	SPACER_WIDTH :: 10
-	spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
 
 	{
 		sg := static_grid_init(
 			p,
 			{},
 			{ 200, 100, 100, 100, 100 },
-			"Name\nColor\nLocked?\nSaturation\nValue",
-			50,
+			40,
 			2,
+			{ 3, 6, 12, 14 },
 		)
+		theme_editor.grid = sg
 
-		color_slider(sg, &theme.background[0], "background 0")
-		color_slider(sg, &theme.background[1], "background 1")
-		color_slider(sg, &theme.background[2], "background 2")
+		button_reset_init(sg, "Name")
+		button_reset_init(sg, "Color")
+		button_reset_init(sg, "Locked", theme_editor_locked_reset)
+		button_reset_init(sg, "Saturation", theme_editor_saturation_reset)
+		button_reset_init(sg, "Value", theme_editor_value_reset)
+
+		color_line(sg, &theme.background[0], "background 0")
+		color_line(sg, &theme.background[1], "background 1")
+		color_line(sg, &theme.background[2], "background 2")
 		
-		color_slider(sg, &theme.panel[0], "panel parent")
-		color_slider(sg, &theme.panel[1], "panel front")
-		color_slider(sg, &theme.shadow, "shadow")
+		color_line(sg, &theme.panel[0], "panel parent")
+		color_line(sg, &theme.panel[1], "panel front")
+		color_line(sg, &theme.shadow, "shadow")
 
-		color_slider(sg, &theme.text_default, "default")
-		color_slider(sg, &theme.text_blank, "blank")
-		color_slider(sg, &theme.text_good, "good")
-		color_slider(sg, &theme.text_bad, "bad")
-		color_slider(sg, &theme.text_link, "link")
-		color_slider(sg, &theme.text_date, "date")
+		color_line(sg, &theme.text_default, "default")
+		color_line(sg, &theme.text_blank, "blank")
+		color_line(sg, &theme.text_good, "good")
+		color_line(sg, &theme.text_bad, "bad")
+		color_line(sg, &theme.text_link, "link")
+		color_line(sg, &theme.text_date, "date")
 
-		color_slider(sg, &theme.caret, "caret")
-		color_slider(sg, &theme.caret_selection, "caret selection")
+		color_line(sg, &theme.caret, "caret")
+		color_line(sg, &theme.caret_selection, "caret selection")
 
 		for i in 0..<8 {
-			color_slider(sg, &theme.tags[i], fmt.tprintf("tag %d", i))
+			color_line(sg, &theme.tags[i], fmt.tprintf("tag %d", i))
 		}
 	}
 
