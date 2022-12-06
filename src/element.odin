@@ -728,7 +728,7 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Update: {
-			// element_repaint(element)
+			element_repaint(element)
 		}
 
 		case .Clicked: {
