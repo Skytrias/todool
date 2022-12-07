@@ -1742,6 +1742,7 @@ gs_message_loop :: proc() {
 		}
 	}
 
+	app_destroy(app)
 	task_data_destroy()
 	gs_destroy()
 }

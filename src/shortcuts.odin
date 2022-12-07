@@ -679,8 +679,7 @@ shift_tasks_complex :: proc(backwards: bool) {
 	task_current := tasks_visible[backwards ? task_head : goal_visible_index]
 	current_count := 1
 	if task_current.has_children {
-		count := task_children_count(task_current)
-		current_count += count
+		current_count += task_children_count(task_current)
 	}
 
 	// gather lowest nodes
@@ -755,24 +754,87 @@ todool_shift_up :: proc(du: u32) {
 		shift_tasks_complex(true)
 	} else {
 		low, high := task_low_and_high()
+		goal_visible_index := low - 1
 
-		if low - 1 < 0 {
+		if goal_visible_index < 0 {
+			fmt.eprintln("stop early")
 			return
 		}
 
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
-		low -= 1
 
-		task_state_progression = .Update_Animated
-		for i in low..<high {
-			x, y := task_xy_to_real(i, i + 1)
-			task_swap(manager, x, y)
+		task_current := tasks_visible[low]
+		task_goal := tasks_visible[goal_visible_index]
+		goal_count := 1
+		weird_jump: bool
+		weird_count: int
+
+		if task_goal.has_children {
+			// find lowest indentation to determine unfolding since we could be hidden
+			lowest_indentation := max(int)
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+				lowest_indentation = min(lowest_indentation, task.indentation)
+			}
+
+			if goal_visible_index - 1 >= 0 {
+				prev := tasks_visible[goal_visible_index - 1]
+
+				if prev.folded {
+					item := Undo_Item_Bool_Toggle { &prev.folded }
+					undo_bool_toggle(manager, &item)
+
+					weird_jump = true
+					weird_count = task_children_count(prev)
+				}
+			}
+
+			count := task_children_count(task_goal)
+
+			// disallow our current to be inside this
+			if !(task_goal.index <= task_current.index && task_current.index <= task_goal.index + goal_count) {
+				goal_count += count
+				fmt.eprintln("goal had children")
+			} else {
+				// goal_count += 1
+				fmt.eprintln("DISALLOWED")
+			}
 		}
 
-		task_head -= 1
-		task_tail -= 1
-		element_repaint(mode_panel)
+		// save current region
+		current_count := 1 + tasks_visible[high].index - tasks_visible[low].index // TODO maybe real indices?
+		total_low := task_goal.index
+		total_high := task_current.index + current_count
+		undo_push_shift_slice(manager, total_low, total_high)
+
+		fmt.eprintln("current", current_count, goal_count)
+		fmt.eprintln("totals", total_low, total_high)
+		fmt.eprintln("indices", task_goal.index, task_current.index)
+
+		// copy to temp
+		c := mode_panel.children
+		temp := make([]^Element, goal_count, context.temp_allocator)
+		copy(temp, c[task_goal.index:task_goal.index + goal_count])
+
+		// copy selection to goal index
+		copy(c[task_goal.index:], c[task_current.index:task_current.index + current_count])
+
+		// copy temp to proper region
+		copy(c[task_goal.index + current_count:], temp)
+
+		// animate tasks that have a changed index
+		for i in total_low..<total_high {
+			task := cast(^Task) mode_panel.children[i]
+
+			if task.index != i {
+				task_swap_animation(task)
+			}
+		}
+
+		task_head = weird_jump ? task_head + weird_count - 1 : task_head - 1
+		task_tail = weird_jump ? task_tail + weird_count - 1 : task_tail - 1
+		window_repaint(window_main)
 	}
 }
 
@@ -785,22 +847,66 @@ todool_shift_down :: proc(du: u32) {
 		shift_tasks_complex(false)
 	} else {
 		low, high := task_low_and_high()
-		if task_head == -1 || high + 1 >= len(tasks_visible) {
+		goal_visible_index := high + 1
+
+		if goal_visible_index > len(tasks_visible) - 1 {
 			return
 		}
 
 		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
 
-		task_state_progression = .Update_Animated
-		for i := high + 1; i > low; i -= 1 {
-			x, y := task_xy_to_real(i, i - 1)
-			task_swap(manager, x, y)
+		task_goal := tasks_visible[goal_visible_index]
+		goal_count := 1
+		if task_goal.has_children && task_goal.folded {
+			// find lowest indentation to determine unfolding since we could be hidden
+			lowest_indentation := max(int)
+			for i in low..<high + 1 {
+				task := tasks_visible[i]
+				lowest_indentation = min(lowest_indentation, task.indentation)
+			}
+
+			// if item is higher indentation it means its a parent so we need to unfold
+			// and put not increase the goal count
+			if task_goal.indentation < lowest_indentation {
+				item := Undo_Item_Bool_Toggle { &task_goal.folded }
+				undo_bool_toggle(manager, &item)
+			} else {
+				goal_count += task_children_count(task_goal)
+			}
 		}
 
-		task_head += 1
-		task_tail += 1
-		element_repaint(mode_panel)
+		task_current := tasks_visible[low]
+
+		// save current region
+		current_count := 1 + tasks_visible[high].index - tasks_visible[low].index // TODO maybe real indices?
+		total_low := task_current.index
+		total_high := task_goal.index + goal_count
+		undo_push_shift_slice(manager, total_low, total_high)
+
+		// copy to temp
+		c := mode_panel.children
+		temp := make([]^Element, goal_count, context.temp_allocator)
+		copy(temp, c[task_goal.index:task_goal.index + goal_count])
+
+		// copy selection to goal index
+		copy(c[task_current.index + goal_count:], c[task_current.index:task_current.index + current_count])
+
+		// copy temp to proper region
+		copy(c[task_current.index:], temp)
+
+		// animate tasks that have a changed index
+		for i in total_low..<total_high {
+			task := cast(^Task) mode_panel.children[i]
+
+			if task.index != i {
+				task_swap_animation(task)
+			}
+		}
+
+		task_head += task_goal.folded ? 1 : goal_count
+		task_tail += task_goal.folded ? 1 : goal_count
+		window_repaint(window_main)
 	}
 }
 
@@ -930,11 +1036,11 @@ task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: i
 
 undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Task_Swap) item
-	a_folded := data.a^.folded
-	b_folded := data.b^.folded
+	// a_folded := data.a^.folded
+	// b_folded := data.b^.folded
 	data.a^, data.b^ = data.b^, data.a^
-	data.a^.folded = a_folded
-	data.b^.folded = a_folded
+	// data.a^.folded = a_folded
+	// data.b^.folded = a_folded
 	undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
 }
 
@@ -1167,24 +1273,6 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 		task_head = iter.low - 1
 		task_tail = iter.low - 1
 	}
-}
-
-// copy selected tasks
-copy_selection :: proc() -> bool {
-	if task_head != -1 {
-		copy_reset()
-		low, high := task_low_and_high()
-
-		// copy each line
-		for i in low..<high + 1 {
-			task := tasks_visible[i]
-			copy_push_task(task)
-		}
-
-		return true
-	}
-
-	return false
 }
 
 todool_indentation_shift :: proc(du: u32) {
@@ -1472,21 +1560,30 @@ todool_duplicate_line :: proc(du: u32) {
 		return
 	}
 
-	shift := du_shift(du)
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-	task_state_progression = .Update_Animated
-	task_current := tasks_visible[task_head]
-	index, indentation := task_head_safe_index_indentation()
-	task_push_undoable(manager, indentation, ss_string(&task_current.box.ss), index)
-	element_repaint(mode_panel)
 
-	task_head += 1
-	task_head_tail_check_end(shift)
+	task_state_progression = .Update_Animated
+
+	low, high := task_low_and_high()
+	task := tasks_visible[high]
+	diff := high - low + 1
+	lowest_indentation := tasks_lowest_indentation(low, high)
+
+	// temporarily copy and paste at the current location
+	copy_temp := copy_state_init(mem.Kilobyte, diff + 1, context.temp_allocator)
+	copy_state_copy_selection(&copy_temp, low, high)
+	copy_state_paste_at(&copy_temp, manager, task.index + 1, lowest_indentation)
+
+	window_repaint(window_main)
+
+	task_head += len(copy_temp.stored_tasks)
+	task_tail += len(copy_temp.stored_tasks)
 }
 
 todool_copy_tasks :: proc(du: u32 = 0) {
-	if copy_selection() {
+	low, high := task_low_and_high()
+	if copy_state_copy_selection(&app.copy_state, low, high) {
 		issue_copy()
 	}
 }
@@ -1500,13 +1597,14 @@ todool_cut_tasks :: proc(du: u32 = 0) {
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 
-	copy_selection()
+	low, high := task_low_and_high()
+	copy_state_copy_selection(&app.copy_state, low, high)
 	task_remove_selection(manager, true)
 	element_repaint(mode_panel)
 }
 
 todool_paste_tasks :: proc(du: u32 = 0) {
-	if copy_empty() {
+	if copy_state_empty(app.copy_state) {
 		return
 	}
 
@@ -1517,9 +1615,9 @@ todool_paste_tasks :: proc(du: u32 = 0) {
 	// no selection
 	if task_head == -1 || task_head == task_tail {
 		index, indentation := task_head_safe_index_indentation()
-		copy_paste_at(manager, index + 1, indentation)
+		copy_state_paste_at(&app.copy_state, manager, index + 1, indentation)
 		
-		task_head = max(task_head, 0) + len(copy_task_data)
+		task_head = max(task_head, 0) + len(app.copy_state.stored_tasks)
 		task_tail = max(task_head, 0)
 	} else {
 		indentation := max(int)
@@ -1537,9 +1635,9 @@ todool_paste_tasks :: proc(du: u32 = 0) {
 
 		index, _ := task_head_safe_index_indentation()
 		index += 1
-		copy_paste_at(manager, index, indentation)
+		copy_state_paste_at(&app.copy_state, manager, index, indentation)
 		
-		task_head += len(copy_task_data)
+		task_head += len(app.copy_state.stored_tasks)
 		task_tail = task_head
 	}
 

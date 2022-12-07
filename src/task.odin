@@ -85,10 +85,6 @@ goto_transition_animating: bool
 goto_transition_unit: f32
 goto_transition_hide: bool
 
-// copy state
-copy_text_data: strings.Builder
-copy_task_data: [dynamic]Copy_Task
-
 // font options used
 font_options_header: Font_Options
 font_options_bold: Font_Options
@@ -127,6 +123,22 @@ builder_line_number: strings.Builder
 rendered_glyphs: [dynamic]Rendered_Glyph
 rendered_glyphs_start: int
 wrapped_lines: [dynamic]string
+
+App :: struct {
+	copy_state: Copy_State,
+}
+app: ^App
+
+app_init :: proc() -> (res: ^App) {
+	res = new(App)
+	res.copy_state = copy_state_init(mem.Kilobyte * 4, 128, context.allocator)
+	return
+}
+
+app_destroy :: proc(a: ^App) {
+	copy_state_destroy(a.copy_state)
+	free(a)
+}
 
 // simple split from mode_panel to search bar
 Custom_Split :: struct {
@@ -214,9 +226,6 @@ task_data_init :: proc() {
 		size = DEFAULT_FONT_SIZE + 5,
 	}
 
-	strings.builder_init(&copy_text_data, 0, mem.Kilobyte * 10)
-	copy_task_data = make([dynamic]Copy_Task, 0, 128)
-
 	drag_list = make([dynamic]^Task, 0, 64)
 
 	pomodoro_init()
@@ -247,7 +256,6 @@ task_data_destroy :: proc() {
 	bookmark_state_destroy()
 	delete(tasks_visible)
 	delete(drag_list)
-	copy_destroy()
 
 	undo_manager_destroy(&um_task)
 	undo_manager_destroy(&um_search)
@@ -261,112 +269,6 @@ task_data_destroy :: proc() {
 	delete(wrapped_lines)
 
 	delete(last_save_location.buf)
-}
-
-// destroy copy data and delete link data
-copy_destroy :: proc() {
-	for cp in copy_task_data {
-		if cp.link != "" {
-			delete(cp.link)
-		}
-	}	
-	delete(copy_text_data.buf)
-	delete(copy_task_data)
-}
-
-// reset copy data
-copy_reset :: proc() {
-	strings.builder_reset(&copy_text_data)
-	for cp in copy_task_data {
-		if cp.link != "" {
-			delete(cp.link)
-		}
-	}
-	clear(&copy_task_data)
-}
-
-// just push text, e.g. from archive
-copy_push_empty :: proc(text: string) {
-	text_byte_start := len(copy_text_data.buf)
-	strings.write_string(&copy_text_data, text)
-	text_byte_end := len(copy_text_data.buf)
-
-	// copy crucial info of task
-	append(&copy_task_data, Copy_Task {
-		text_byte_start = u32(text_byte_start),
-		text_byte_end = u32(text_byte_end),
-	})
-}
-
-// push a task to copy list
-copy_push_task :: proc(task: ^Task) {
-	// NOTE works with utf8 :) copies task text
-	text_byte_start := len(copy_text_data.buf)
-	strings.write_string(&copy_text_data, ss_string(&task.box.ss))
-	text_byte_end := len(copy_text_data.buf)
-
-	link: string
-	if task_link_is_valid(task) {
-		link = strings.clone(strings.to_string(task.button_link.builder))
-	}
-
-	// copy crucial info of task
-	append(&copy_task_data, Copy_Task {
-		u32(text_byte_start),
-		u32(text_byte_end),
-		u8(task.indentation),
-		task.state,
-		task.tags,
-		task.folded,
-		task_bookmark_is_valid(task),
-		task_time_date_is_valid(task) ? task.time_date.stamp : {},
-		task.image_display == nil ? nil : task.image_display.img,
-		link,
-	})
-}
-
-copy_empty :: proc() -> bool {
-	return len(copy_task_data) == 0
-}
-
-copy_paste_at :: proc(
-	manager: ^Undo_Manager, 
-	real_index: int, 
-	indentation: int,
-) {
-	full_text := strings.to_string(copy_text_data)
-	index_at := real_index
-
-	// find lowest indentation
-	lowest_indentation := 255
-	for t, i in copy_task_data {
-		lowest_indentation = min(lowest_indentation, int(t.indentation))
-	}
-
-	// copy into index range
-	for t, i in copy_task_data {
-		text := full_text[t.text_byte_start:t.text_byte_end]
-		relative_indentation := indentation + int(t.indentation) - lowest_indentation
-		
-		task := task_push_undoable(manager, relative_indentation, text, index_at + i)
-		task.folded = t.folded
-		task.state = t.state
-		task_set_bookmark(task, t.bookmarked)
-		task.tags = t.tags
-
-		if t.timestamp != {} {
-			task_set_time_date(task)
-			task.time_date.stamp = t.timestamp
-		}
-
-		if t.stored_image != nil {
-			task_set_img(task, t.stored_image)
-		}
-
-		if t.link != "" {
-			task_set_link(task, t.link)
-		}
-	}
 }
 
 // advance index in a looping fashion, backwards can be easily used
@@ -391,20 +293,6 @@ Task_State :: enum u8 {
 	Done,
 	Canceled,
 } 
-
-// Bare data to copy task from
-Copy_Task :: struct #packed {
-	text_byte_start: u32, // offset into text_list
-	text_byte_end: u32, // offset into text_list
-	indentation: u8,
-	state: Task_State,
-	tags: u8,
-	folded: bool,
-	bookmarked: bool,
-	timestamp: time.Time,
-	stored_image: ^Stored_Image,
-	link: string,
-}
 
 Task :: struct {
 	using element: Element,
@@ -519,6 +407,17 @@ task_head_safe_index_indentation :: proc(init := -1) -> (index, indentation: int
 		index = task.index
 		indentation = task.indentation
 	}
+	return
+}
+
+// find lowest indentation in range
+tasks_lowest_indentation :: proc(low, high: int) -> (res: int) {
+	res = max(int)
+
+	for i in low..<high + 1 {
+		res = min(res, tasks_visible[i].indentation)
+	}
+	
 	return
 }
 

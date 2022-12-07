@@ -576,14 +576,14 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			low, high := archive_low_and_high()
 			c := panel_children(sb.archive.buttons)
 			
-			copy_reset()
+			copy_state_reset(&app.copy_state)
 			last_was_task_copy = true
 			element_repaint(mode_panel)
 
 			// TODO FIX THIS
 			for i in low..<high + 1 {
 				button := cast(^Archive_Button) c[i - 1]
-				copy_push_empty(strings.to_string(button.builder))
+				copy_state_push_empty(&app.copy_state, strings.to_string(button.builder))
 			}
 		}
 
