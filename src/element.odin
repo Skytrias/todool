@@ -1332,6 +1332,7 @@ Spacer :: struct {
 	width, height: int,
 	vertical: bool,
 	style: Spacer_Style,
+	color: ^Color,
 }
 
 spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1340,6 +1341,7 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 	#partial switch msg {
 		case .Paint_Recursive: {
 			target := element.window.target
+			color := spacer.color == nil ? theme.text_default : spacer.color^
 
 			switch spacer.style {
 				case .Empty: {} 
@@ -1356,11 +1358,11 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 						rect.b = rect.t + LINE_WIDTH
 					}
 
-					render_rect(target, rect, theme.text_default, ROUNDNESS)
+					render_rect(target, rect, color, ROUNDNESS)
 				} 
 
 				case .Full: {
-					render_rect(target, element.bounds, theme.text_default, ROUNDNESS)
+					render_rect(target, element.bounds, color, ROUNDNESS)
 				}
 
 				case .Dotted: {
@@ -2636,11 +2638,20 @@ color_picker_init :: proc(
 	parent: ^Element, 
 	flags: Element_Flags, 
 	hue: f32,
+	saturation: f32,
+	value: f32,
 	allocator := context.allocator,
 ) -> (res: ^Color_Picker) {
 	res = element_init(Color_Picker, parent, flags, color_picker_message, allocator)
 	res.sv = element_init(Color_Picker_SV, res, flags, color_picker_sv_message, allocator)
+	sv := cast(^Color_Picker_SV) res.sv
+	sv.x = saturation
+	sv.y = 1 - value
+
 	res.hue = element_init(Color_Picker_HUE, res, flags, color_picker_hue_message, allocator)
+	h := cast(^Color_Picker_HUE) res.hue
+	h.y = hue
+
 	return 
 }
 

@@ -14,7 +14,12 @@ Theme_Editor :: struct {
 	panel: ^Panel,
 	grid: ^Static_Grid,
 	window: ^Window,
+	lines: [64]^Element,
+	line_index: int,
+	line_selected: int,
+	skips: [7]int,
 
+	color_modify: ^Color,
 	color_copy: Color,
 	theme_previous: Theme,
 }
@@ -142,18 +147,79 @@ theme_task_text :: #force_inline proc(state: Task_State) -> Color {
 	return {}
 }
 
+// simple line with internal layout based on parent
+Static_Line :: struct {
+	using element: Element,
+	cell_sizes: ^[]int,
+	index: int,
+}
+
+static_line_init :: proc(
+	parent: ^Element,
+	cell_sizes: ^[]int,
+	index: int = -1,
+) -> (res: ^Static_Line) {
+	res = element_init(Static_Line, parent, {}, static_line_message, context.allocator)
+	res.cell_sizes = cell_sizes
+	res.index = index
+	return
+}
+
+static_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	sl := cast(^Static_Line) element
+	
+	#partial switch msg {
+		case .Layout: {
+			assert(len(sl.cell_sizes) == len(element.children))
+			padding := rect_xxyy(0, int(SCALE * 2))
+			bounds := rect_padding(element.bounds, padding) 
+
+			for child, i in element.children {
+				size := int(f32(sl.cell_sizes[i]) * SCALE)
+				rect := rect_cut_left(&bounds, size)
+				element_move(child, rect)
+			}
+		}
+
+		case .Clicked: {
+			if sl.index != -1 {
+				theme_editor.line_selected = sl.index
+			}
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			hovered := element.window.hovered
+			
+			if 
+				sl.index != -1 && 
+				hovered != nil && 
+				(hovered == element || hovered.parent == element) {
+				render_hovered_highlight(target, element.bounds)
+			}
+				
+			if theme_editor.line_selected == sl.index {
+				render_hovered_highlight(target, element.bounds)
+			}
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+	}
+
+	return 0
+}
+
 // layouts children in a grid, where 
 Static_Grid :: struct {
 	using element: Element,
 	cell_sizes: []int,
 	cell_height: int,
-	cell_margin: int,
-	skips: []int, // where to insert spaces
-}
-
-Static_Line :: struct {
-	using element: Element,
-	index: int,
 }
 
 static_grid_init :: proc(
@@ -161,84 +227,52 @@ static_grid_init :: proc(
 	flags: Element_Flags,
 	cell_sizes: []int,
 	cell_height: int,
-	cell_margin: int,
-	skips: []int,
 ) -> (res: ^Static_Grid) {
 	res = element_init(Static_Grid, parent, flags, static_grid_message, context.allocator)
 	assert(len(cell_sizes) > 1)
 	res.cell_sizes = slice.clone(cell_sizes)
 	res.cell_height = cell_height
-	res.cell_margin = cell_margin
-	res.skips = slice.clone(skips)
 	return
 }
 
-static_grid_finalize :: proc(sg: ^Static_Grid) {
-	wrap_at := len(theme_editor.grid.cell_sizes)
-	index: int
-	skip := 0
-	skip_index := -1
-	line_index: int
+theme_editor_lines :: proc() -> []^Element {
+	return theme_editor.lines[:theme_editor.line_index]
+}
 
-	for root in static_grid_iter(sg, &index) {
-		toggle := cast(^Toggle_Simple) sg.children[root + 2]
+theme_editor_skips_finalize :: proc() {
+	lines := theme_editor_lines()
+	skip := theme_editor.skips[0]
+	skip_index: int
 
-		if line_index == skip {
+	for line, i in lines {
+		toggle := cast(^Toggle_Simple) line.children[3]
+		
+		if i == skip {
 			toggle.state = true
 			skip_index += 1
-			skip = len(sg.skips) > skip_index ? sg.skips[skip_index] : -1
+			skip = theme_editor.skips[skip_index]
 		} else {
 			toggle.state = false
 		}
-
-		line_index += 1
 	}
 }
 
 static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	sg := cast(^Static_Grid) element
-	SKIP_HEIGHT :: 20
 
 	#partial switch msg {
 		case .Layout: {
 			total := element.bounds
 			height := int(f32(sg.cell_height) * SCALE)
-			temp: RectI
-			wrapped: int
-			margin := int(f32(sg.cell_margin) * SCALE)
-			next_skip := len(sg.skips) == 0 ? -1 : sg.skips[0]
-			skip_index: int
-			line_index := -1
 
 			// layout elements
 			for child, i in element.children {
-				// put skippers inside layouting
-				if next_skip != -1 && line_index == next_skip {
-					rect_cut_top(&total, int(SCALE * SKIP_HEIGHT))
-					skip_index += 1
-					next_skip = len(sg.skips) <= skip_index ? -1 : sg.skips[skip_index]
+				h := element_message(child, .Get_Height) 
+				if h == 0 {
+					h = height
 				}
-
-				if wrapped >= len(sg.cell_sizes) {
-					wrapped = 0
-				}
-
-				if wrapped == 0 {
-					temp = rect_cut_top(&total, height)
-					line_index += 1
-				} 
-
-				rect := rect_cut_left(&temp, int(f32(sg.cell_sizes[wrapped]) * SCALE))
-				rect = rect_margin(rect, margin)
-				element_move(child, rect)
-				wrapped += 1
+				element_move(child, rect_cut_top(&total, h))
 			}
-		}
-
-		case .Paint_Recursive: {
-			target := element.window.target
-			render_rect_outline(target, element.bounds, theme.background[2], ROUNDNESS)
-			// render_rect_outline(target, element.bounds, RED, ROUNDNESS)
 		}
 
 		case .Get_Width: {
@@ -252,14 +286,22 @@ static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Get_Height: {
-			add := SKIP_HEIGHT * len(sg.skips)
-			count := static_grid_line_count(sg)
-			return int(SCALE * f32(sg.cell_height * count) + f32(add) * SCALE)
+			sum: int
+			height := int(f32(sg.cell_height) * SCALE)
+
+			for child, i in element.children {
+				h := element_message(child, .Get_Height) 
+				if h == 0 {
+					h = height
+				}
+				sum += h
+			}
+
+			return sum
 		}
 
 		case .Destroy: {
 			delete(sg.cell_sizes)
-			delete(sg.skips)
 		}
 	}
 
@@ -267,33 +309,7 @@ static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 }
 
 static_grid_line_count :: proc(sg: ^Static_Grid) -> int {
-	return int(f32(len(sg.children)) / f32(len(sg.cell_sizes)))
-}
-
-static_grid_iter :: proc(sg: ^Static_Grid, index: ^int) -> (start: int, ok: bool) {
-	wrap_at := len(theme_editor.grid.cell_sizes)
-	
-	if index^ == 0 {
-		index^ = wrap_at
-	}
-
-	if index^ < len(theme_editor.grid.children) {
-		start = index^
-		index^ += wrap_at
-		ok = true
-	} 
-
-	return
-}
-
-static_grid_line_index_to_real :: proc(sg: ^Static_Grid, line_index: int) -> int {
-	wrap_at := len(theme_editor.grid.cell_sizes)
-	return wrap_at + line_index * wrap_at
-}
-
-static_grid_child_at_line_index :: proc(sg: ^Static_Grid, line_index: int, offset: int) -> ^Element {
-	real := static_grid_line_index_to_real(sg, line_index)
-	return sg.children[real + offset]
+	return len(sg.children)
 }
 
 // simple toggle with state
@@ -405,7 +421,7 @@ button_reset_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			}
 		}
 
-		case .Mouse_Move: {
+		case .Update: {
 			if button.invoke != nil {
 				element_repaint(element)
 			}
@@ -419,62 +435,60 @@ button_reset_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 	return 0
 }
 
-theme_editor_toggle_reset :: proc() {
-	// index: int
-	// sg := theme_editor.grid
-	// for root in static_grid_iter(sg, &index) {
-	// 	toggle := cast(^Toggle_Simple) sg.children[root + 2]
-	// 	toggle.state = false
-	// }
-	sg := theme_editor.grid
-	static_grid_finalize(sg)
-	element_repaint(sg)
-}
-
 theme_editor_variation_reset :: proc() {
-	index: int
-	sg := theme_editor.grid
-	for root in static_grid_iter(sg, &index) {
-		slider := cast(^Slider) sg.children[root + 3]
+	lines := theme_editor_lines()
+
+	for line in lines {
+		slider := cast(^Slider) line.children[4]
 		slider.position = 1
 	}
-	element_repaint(sg)
+
+	window_repaint(theme_editor.window)
 }
 
-theme_editor_line_skip_range :: proc(wanted_skip_index: int) -> (from, to: int) {
-	sg := theme_editor.grid
-	from = wanted_skip_index == 0 ? 0 : sg.skips[wanted_skip_index - 1]
-	line_count := static_grid_line_count(sg)
-	to = len(sg.skips) > wanted_skip_index ? sg.skips[wanted_skip_index] : line_count - 1
+theme_editor_skip_from_to :: proc(line_index: int) -> (from, to: int) {
+	for skip, i in theme_editor.skips {
+		if skip == -1 {
+			continue
+		}
+
+		if skip <= line_index {
+			from = skip
+		} else if skip >= line_index {
+			to = skip
+			break
+		}
+	}		
+
 	return
 }
 
-theme_editor_toggle_set :: proc(toggle: ^Toggle_Simple) {
-	sg := theme_editor.grid
+theme_editor_root_reset :: proc() {
+	theme_editor_skips_finalize()
+	window_repaint(theme_editor.window)
+}
 
-	for skip_index in 0..<len(sg.skips) + 1 {
-		skip_last, skip_now := theme_editor_line_skip_range(skip_index)
-		found: bool
-
-		// find this toggle
-		for line_index in skip_last..<skip_now {
-			other := cast(^Toggle_Simple) static_grid_child_at_line_index(sg, line_index, 2)
-
-			if toggle == other {
-				found = true
-			}
-		}
-		
-		if found {
-			for line_index in skip_last..<skip_now {
-				other := cast(^Toggle_Simple) static_grid_child_at_line_index(sg, line_index, 2)
-				other.state = false
-			}
-
-			toggle.state = true
-			return
-		}
+theme_editor_locked_reset :: proc() {
+	lines := theme_editor_lines()
+	for line in lines {
+		toggle := cast(^Toggle_Simple) line.children[2]
+		toggle.state = false
 	}
+	window_repaint(theme_editor.window)
+}
+
+theme_editor_root_set :: proc(toggle: ^Toggle_Simple) {
+	lines := theme_editor_lines()
+	line := cast(^Static_Line) toggle.parent
+	from, to := theme_editor_skip_from_to(line.index)
+
+	for i in from..<to {
+		real := lines[i]
+		other := cast(^Toggle_Simple) real.children[3]
+		other.state = false
+	}
+	
+	toggle.state = true
 }
 
 theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
@@ -552,43 +566,14 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		return 0
 	}
 	theme_editor.window = window
-
-	theme_editor.panel = panel_init(&window.element, { .Panel_Default_Background, .Panel_Scroll_Vertical }, 0, 5)
-	theme_editor.panel.margin = 10
-
-	color_line :: proc(
-		parent: ^Element, 
-		color_mod: ^Color, 
-		name: string,
-		variation_value: f32,
-	) {
-		label_init(parent, { .Label_Right }, name)
-
-		cb := color_button_init(parent, {}, color_mod)
-		cb.invoke = proc(button: ^Color_Button, data: rawptr) {
-			// element_message(button.parent, .Left_Down)
-			theme_editor_menu()
-		}
-
-		toggle := toggle_simple_init(parent, false)
-		toggle.invoke = theme_editor_toggle_set
-
-		variation := slider_init(parent, {}, variation_value)
-		variation.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "%.3f", position)
-		}
-	}
-
-	p := theme_editor.panel
+	theme_editor.panel = panel_init(&window.element, { .HF, .VF, .Sort_By_Z_Index })
 
 	{
-		panel_current := panel_init(p, { .HF })
+		p := panel_init(theme_editor.panel, { .HF, .Panel_Default_Background, .Panel_Horizontal })
+		p.background_index = 2
+		p.z_index = 255
 
-		button_panel := panel_init(panel_current, { .Panel_Default_Background, .Panel_Horizontal }, 5, 0)
-		button_panel.background_index = 1
-		button_panel.rounded = true
-
-		b2 := button_init(button_panel, {}, "Randomize All")
+		b2 := button_init(p, {}, "Randomize All")
 		b2.invoke = proc(button: ^Button, data: rawptr) {
 			gen :: proc(low, high: f32) -> f32 {
 				low := clamp(low, 0, high)
@@ -605,70 +590,71 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			  return res * (high - low) + low
 			}
 
-			sg := theme_editor.grid
-			wrap_at := len(sg.cell_sizes)
-			for skip_index in 0..<len(sg.skips) + 1 {
-				root: ^Color
-				skip_last, skip_now := theme_editor_line_skip_range(skip_index)
-				other: [32]int
-				other_index: int
+			lines := theme_editor_lines() 
+			other: [32]int
+			other_index: int
 
-				// find root
-				for line_index in skip_last..<skip_now {
-					toggle := cast(^Toggle_Simple) static_grid_child_at_line_index(sg, line_index, 2)
+			for skip, i in theme_editor.skips {
+				if skip != -1 {
+					root_color: ^Color
+					locked: bool
+					other_index = 0
 					
-					if toggle.state {
-						button := cast(^Color_Button) static_grid_child_at_line_index(sg, line_index, 1)
-						root = button.color
-					} else {
-						// add other 
-						other[other_index] = line_index
-						other_index += 1
+					from, to := skip, theme_editor.skips[i + 1]
+					if to == -1 {
+						break
+					}
+
+					// find root
+					for line_index in from..<to {
+						line := lines[line_index]
+						lock := cast(^Toggle_Simple) line.children[2]
+						root := cast(^Toggle_Simple) line.children[3]
+
+						if root.state {
+							button := cast(^Color_Button) line.children[1]
+							locked = lock.state
+							root_color = button.color
+						} else {
+							// add other 
+							other[other_index] = line_index
+							other_index += 1
+						}
+					}
+
+					if !locked {
+						root_color^ = color_rand_non_alpha()
+					}
+
+					for line_index in other[:other_index] {
+						line := lines[line_index]
+						lock := cast(^Toggle_Simple) line.children[2]
+						
+						if !lock.state {
+							button := cast(^Color_Button) line.children[1]
+							newish := color_rand_non_alpha()
+							slider := cast(^Slider) line.children[4]
+							button.color^ = color_blend_amount(newish, root_color^, slider.position)
+						}
 					}
 				}
-
-				root^ = color_rand_non_alpha()
-				for line_index in other[:other_index] {
-					button := cast(^Color_Button) static_grid_child_at_line_index(sg, line_index, 1)
-					newish := color_rand_non_alpha()
-					slider := cast(^Slider) static_grid_child_at_line_index(sg, line_index, 3)
-					button.color^ = color_blend_amount(newish, root^, slider.position)
-				}
 			}
-
-			// sg := theme_editor.grid
-			// index: int
-			// for root in static_grid_iter(sg, &index) {
-
-			// 	// NOTE manual indexed based on layout
-			// 	toggle := cast(^Toggle_Simple) sg.children[root + 2]
-
-			// 	// if !locked.state {
-			// 		cb := cast(^Color_Button) sg.children[root + 1]
-			// 		variation := cast(^Slider) sg.children[root + 3]
-			// 		// val := cast(^Slider) sg.children[root + 4]
-			// 		h := gen_hue(0, 1)
-			// 		s := gen(0, 1)
-			// 		v := gen(0, 1)
-			// 		cb.color^ = color_hsv_to_rgb(h, s, v)
-			// 	// }
-			// }
 
 			gs_update_all_windows()
 		}	
 
-		r3 := button_init(button_panel, {}, "Reset Previous")
+		r3 := button_init(p, {}, "Reset Previous")
 		r3.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_editor.theme_previous
 			gs_update_all_windows()
 		}
 
-		r1 := button_init(button_panel, {}, "Reset / Light")
+		r1 := button_init(p, {}, "Reset / Light")
 		r1.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_light
 			gs_update_all_windows()
 		}
-		r2 := button_init(button_panel, {}, "Reset / Black")
+		r2 := button_init(p, {}, "Reset / Black")
 		r2.invoke = proc(button: ^Button, data: rawptr) {
 			theme = theme_default_black
 			gs_update_all_windows()
@@ -676,86 +662,95 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 		when !TODOOL_RELEASE {
 			// temp print theme
-			button_init(button_panel, {}, "Print").invoke = proc(button: ^Button, data: rawptr) {
+			button_init(p, {}, "Print").invoke = proc(button: ^Button, data: rawptr) {
 				fmt.eprintln(theme)
 			}
 		} 
-
-		// LABEL_WIDTH :: 100
-
-		// push_sliders :: proc(parent: ^Element, a, b, c: ^^Slider, static: f32, low: f32, high: f32) {
-		// 	a^ = slider_init(parent, {}, static)
-		// 	a^.formatting = proc(builder: ^strings.Builder, position: f32) {
-		// 		fmt.sbprintf(builder, "Static %.3f", position)
-		// 	}
-		// 	b^ = slider_init(parent, {}, low)
-		// 	b^.formatting = proc(builder: ^strings.Builder, position: f32) {
-		// 		fmt.sbprintf(builder, "Low %.3f", position)
-		// 	}
-		// 	c^ = slider_init(parent, {}, high)
-		// 	c^.formatting = proc(builder: ^strings.Builder, position: f32) {
-		// 		fmt.sbprintf(builder, "High %.3f", position)
-		// 	}
-		// }
-		// using theme_editor
-
-		// p1 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
-		// label_init(p1, {}, "Hue", LABEL_WIDTH)
-		// checkbox_hue = checkbox_init(p1, {}, "USE", true)
-		// push_sliders(p1, &slider_hue_static, &slider_hue_low, &slider_hue_high, 0, 0, 1)
-		
-		// p2 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
-		// label_init(p2, {}, "Saturation", LABEL_WIDTH)
-		// checkbox_sat = checkbox_init(p2, {}, "USE", true)
-		// push_sliders(p2, &slider_sat_static, &slider_sat_low, &slider_sat_high, 1, 0.5, 0.75)
-		
-		// p3 := panel_init(panel_current, { .Panel_Horizontal }, 5, 5)
-		// label_init(p3, {}, "Value", LABEL_WIDTH)
-		// checkbox_value = checkbox_init(p3, {}, "USE", true)
-		// push_sliders(p3, &slider_value_static, &slider_value_low, &slider_value_high, 1, 0.5, 1)
 	}
 
-	SPACER_WIDTH :: 10
+	color_line :: proc(
+		parent: ^Element, 
+		cell_sizes: ^[]int,
+		color_mod: ^Color, 
+		name: string,
+		variation_value: f32,
+	) {
+		line := static_line_init(parent, cell_sizes, theme_editor.line_index)
+		theme_editor.lines[theme_editor.line_index] = line
+		theme_editor.line_index += 1
+		label_init(line, { .Label_Right }, name)
+
+		cb := color_button_init(line, {}, color_mod)
+		cb.invoke = proc(button: ^Color_Button, data: rawptr) {
+			theme_editor_menu(button.color)
+		}
+
+		toggle1 := toggle_simple_init(line, false)
+
+		toggle2 := toggle_simple_init(line, false)
+		toggle2.invoke = theme_editor_root_set
+
+		variation := slider_init(line, {}, variation_value)
+		variation.formatting = proc(builder: ^strings.Builder, position: f32) {
+			fmt.sbprintf(builder, "%d%%", int(position * 100))
+		}
+	}
 
 	{
+		p := panel_init(theme_editor.panel, { .HF, .VF, .Panel_Default_Background, .Panel_Scroll_Vertical })
+		p.margin = 10
+
 		sg := static_grid_init(
 			p,
 			{},
-			{ 200, 100, 100, 100 },
+			{ 200, 100, 75, 75, 100 },
 			40,
-			2,
-			{ 3, 6, 12, 14 },
 		)
 		theme_editor.grid = sg
-
-		button_reset_init(sg, "Name")
-		button_reset_init(sg, "Color")
-		button_reset_init(sg, "Root", theme_editor_toggle_reset)
-		button_reset_init(sg, "Variation", theme_editor_variation_reset)
-
-		color_line(sg, &theme.background[0], "background 0", 0.25)
-		color_line(sg, &theme.background[1], "background 1", 0.33)
-		color_line(sg, &theme.background[2], "background 2", 0.50)
-		
-		color_line(sg, &theme.panel[0], "panel parent", 0.25)
-		color_line(sg, &theme.panel[1], "panel front", 0.5)
-		color_line(sg, &theme.shadow, "shadow", 0.75)
-
-		color_line(sg, &theme.text_default, "default", 1)
-		color_line(sg, &theme.text_blank, "blank", 1)
-		color_line(sg, &theme.text_good, "good", 1)
-		color_line(sg, &theme.text_bad, "bad", 1)
-		color_line(sg, &theme.text_link, "link", 1)
-		color_line(sg, &theme.text_date, "date", 1)
-
-		color_line(sg, &theme.caret, "caret", 0.25)
-		color_line(sg, &theme.caret_selection, "caret selection", 0.25)
-
-		for i in 0..<8 {
-			color_line(sg, &theme.tags[i], fmt.tprintf("tag %d", i), 1)
+		sizes := &sg.cell_sizes
+		space :: proc(parent: ^Element) {
+			spacer := spacer_init(parent, {}, 2, 10, .Thin)
+			spacer.color = &theme.background[2]
 		}
 
-		static_grid_finalize(sg)
+		{
+			line := static_line_init(sg, sizes)
+			button_reset_init(line, "Name")
+			button_reset_init(line, "Color")
+			button_reset_init(line, "Locked", theme_editor_locked_reset)
+			button_reset_init(line, "Root", theme_editor_root_reset)
+			button_reset_init(line, "Variation", theme_editor_variation_reset)
+		}
+		space(sg)
+
+		color_line(sg, sizes, &theme.background[0], "background 0", 0.2)
+		color_line(sg, sizes, &theme.background[1], "background 1", 0.4)
+		color_line(sg, sizes, &theme.background[2], "background 2", 0.6)
+		space(sg)
+
+		color_line(sg, sizes, &theme.panel[0], "panel parent", 0.25)
+		color_line(sg, sizes, &theme.panel[1], "panel front", 0.5)
+		color_line(sg, sizes, &theme.shadow, "shadow", 0.75)
+		space(sg)
+
+		color_line(sg, sizes, &theme.text_default, "default", 1)
+		color_line(sg, sizes, &theme.text_blank, "blank", 0.25)
+		color_line(sg, sizes, &theme.text_good, "good", 1)
+		color_line(sg, sizes, &theme.text_bad, "bad", 1)
+		color_line(sg, sizes, &theme.text_link, "link", 0.5)
+		color_line(sg, sizes, &theme.text_date, "date", 0.5)
+		space(sg)
+
+		color_line(sg, sizes, &theme.caret, "caret", 0.25)
+		color_line(sg, sizes, &theme.caret_selection, "caret selection", 0.25)
+		space(sg)
+
+		for i in 0..<8 {
+			color_line(sg, sizes, &theme.tags[i], fmt.tprintf("tag %d", i), 0.5)
+		}
+
+		theme_editor.skips = { 0, 3, 6, 12, 14, theme_editor.line_index, -1 }
+		theme_editor_skips_finalize()
 	}
 
 	// spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
@@ -785,9 +780,31 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	// }	
 }
 
-theme_editor_menu :: proc() {
+theme_editor_menu :: proc(color: ^Color) {
 	menu := menu_init(theme_editor.window, {}, 0)
-	menu_add_item(menu, {}, "Testing", nil)
+	p := menu.panel
+	p.shadow = true
+	theme_editor.color_modify = color
+
+	h, s, v, _ := color_rgb_to_hsv(color^)
+
+	picker := color_picker_init(p, {}, h, s, v)
+	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		sv := cast(^Color_Picker_SV) element
+
+		if msg == .Value_Changed {
+			hue := cast(^Color_Picker_HUE) element.parent.children[1]
+			
+			output := color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
+			theme_editor.color_modify^ = output
+
+			gs_update_all_windows()
+		}
+
+		return 0
+	}
+
+	// menu_add_item(menu, {}, "Testing", nil)
 	menu_show(menu)
 }
 
