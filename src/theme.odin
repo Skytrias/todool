@@ -491,6 +491,60 @@ theme_editor_root_set :: proc(toggle: ^Toggle_Simple) {
 	toggle.state = true
 }
 
+theme_randomize_all :: proc() {
+	lines := theme_editor_lines() 
+	other: [32]int
+	other_index: int
+
+	for skip, i in theme_editor.skips {
+		if skip != -1 {
+			root_color: ^Color
+			locked: bool
+			other_index = 0
+			
+			from, to := skip, theme_editor.skips[i + 1]
+			if to == -1 {
+				break
+			}
+
+			// find root
+			for line_index in from..<to {
+				line := lines[line_index]
+				lock := cast(^Toggle_Simple) line.children[2]
+				root := cast(^Toggle_Simple) line.children[3]
+
+				if root.state {
+					button := cast(^Color_Button) line.children[1]
+					locked = lock.state
+					root_color = button.color
+				} else {
+					// add other 
+					other[other_index] = line_index
+					other_index += 1
+				}
+			}
+
+			if !locked {
+				root_color^ = color_rand_non_alpha()
+			}
+
+			for line_index in other[:other_index] {
+				line := lines[line_index]
+				lock := cast(^Toggle_Simple) line.children[2]
+				
+				if !lock.state {
+					button := cast(^Color_Button) line.children[1]
+					newish := color_rand_non_alpha()
+					slider := cast(^Slider) line.children[4]
+					button.color^ = color_blend_amount(newish, root_color^, slider.position)
+				}
+			}
+		}
+	}
+
+	gs_update_all_windows()
+}		
+
 theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	if !theme_editor.open {
 		theme_editor = {}
@@ -510,45 +564,47 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 				handled := true
 
 				switch combo {
+					case "space": {
+						theme_randomize_all()
+					}
+
 					case "ctrl s": {
 						json_save_misc("save.sjson")
 					}
 
-					// case "ctrl c": {
-					// 	p := theme_selected_panel()
-					// 	color_mod := cast(^Color) p.data
-					// 	theme_editor.color_copy = color_mod^
-					// }
+					case "ctrl c": {
+						lines := theme_editor_lines()
+						line := lines[theme_editor.line_selected]
+						button := cast(^Color_Button) line.children[1]
+						theme_editor.color_copy = button.color^
+					}
 
-					// case "ctrl v": {
-					// 	found: bool
+					case "ctrl v": {
+						found: bool
 
-					// 	if clipboard_has_content() {
-					// 		// NOTE could be big clip
-					// 		text := clipboard_get_string(context.temp_allocator)
-					// 		color, ok := color_parse_string(text)
-					// 		// log.info("clipboard", text, ok, color)
+						if clipboard_has_content() {
+							// NOTE could be big clip
+							text := clipboard_get_string(context.temp_allocator)
+							color, ok := color_parse_string(text)
 
-					// 		if ok {
-					// 			p := theme_selected_panel()
+							if ok {
+								lines := theme_editor_lines()
+								line := lines[theme_editor.line_selected]
+								button := cast(^Color_Button) line.children[1]
+								button.color^ = color
+								gs_update_all_windows()
+								found = true
+							}
+						} 
 
-					// 			color_mod := cast(^Color) p.data
-					// 			color_mod^ = color
-
-					// 			theme_reformat_panel_sliders(p)
-					// 			gs_update_all_windows()
-					// 			found = true
-					// 		}
-					// 	} 
-
-					// 	if !found && theme_editor.color_copy != {} {
-					// 		p := theme_selected_panel()
-					// 		color_mod := cast(^Color) p.data
-					// 		color_mod^ = theme_editor.color_copy
-					// 		theme_reformat_panel_sliders(p)
-					// 		gs_update_all_windows()
-					// 	}
-					// }
+						if !found && theme_editor.color_copy != {} {
+							lines := theme_editor_lines()
+							line := lines[theme_editor.line_selected]
+							button := cast(^Color_Button) line.children[1]
+							button.color^ = theme_editor.color_copy
+							gs_update_all_windows()
+						}
+					}
 
 					case: {
 						handled = false
@@ -575,72 +631,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 		b2 := button_init(p, {}, "Randomize All")
 		b2.invoke = proc(button: ^Button, data: rawptr) {
-			gen :: proc(low, high: f32) -> f32 {
-				low := clamp(low, 0, high)
-				high := clamp(high, low, 1)
-				return rand.float32() * (high - low) + low
-			}
-
-			gen_hue :: proc(low, high: f32) -> f32 {
-				low := clamp(low, 0, high)
-				high := clamp(high, low, 1)
-				res := rand.float32()
-				res += 0.618033988749895
-			  res = math.wrap(res, 1.0)
-			  return res * (high - low) + low
-			}
-
-			lines := theme_editor_lines() 
-			other: [32]int
-			other_index: int
-
-			for skip, i in theme_editor.skips {
-				if skip != -1 {
-					root_color: ^Color
-					locked: bool
-					other_index = 0
-					
-					from, to := skip, theme_editor.skips[i + 1]
-					if to == -1 {
-						break
-					}
-
-					// find root
-					for line_index in from..<to {
-						line := lines[line_index]
-						lock := cast(^Toggle_Simple) line.children[2]
-						root := cast(^Toggle_Simple) line.children[3]
-
-						if root.state {
-							button := cast(^Color_Button) line.children[1]
-							locked = lock.state
-							root_color = button.color
-						} else {
-							// add other 
-							other[other_index] = line_index
-							other_index += 1
-						}
-					}
-
-					if !locked {
-						root_color^ = color_rand_non_alpha()
-					}
-
-					for line_index in other[:other_index] {
-						line := lines[line_index]
-						lock := cast(^Toggle_Simple) line.children[2]
-						
-						if !lock.state {
-							button := cast(^Color_Button) line.children[1]
-							newish := color_rand_non_alpha()
-							slider := cast(^Slider) line.children[4]
-							button.color^ = color_blend_amount(newish, root_color^, slider.position)
-						}
-					}
-				}
-			}
-
-			gs_update_all_windows()
+			theme_randomize_all()
 		}	
 
 		r3 := button_init(p, {}, "Reset Previous")
@@ -752,32 +743,6 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		theme_editor.skips = { 0, 3, 6, 12, 14, theme_editor.line_index, -1 }
 		theme_editor_skips_finalize()
 	}
-
-	// spacer_init(theme_editor.panel, { .HF }, 0, SPACER_WIDTH, .Thin)
-	// {
-	// 	panel := panel_init(p, { .HF })
-	// 	picker := color_picker_init(panel, {}, 0)
-	// 	picker.sv.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	// 		sv := cast(^Color_Picker_SV) element
-
-	// 		if msg == .Value_Changed {
-	// 			hue := cast(^Color_Picker_HUE) element.parent.children[1]
-	// 			p := theme_selected_panel()
-	// 			color_mod := cast(^Color) p.data
-				
-	// 			output := color_hsv_to_rgb(hue.y, sv.x, 1 - sv.y)
-	// 			color_mod^ = output
-
-	// 			theme_reformat_panel_sliders(p)
-	// 			gs_update_all_windows()
-	// 		}
-
-	// 		return 0
-	// 	}
-	// 	theme_editor.picker = picker
-	// 	theme_editor.panel.data = picker
-	// 	window.element.data = picker
-	// }	
 }
 
 theme_editor_menu :: proc(color: ^Color) {
@@ -804,7 +769,6 @@ theme_editor_menu :: proc(color: ^Color) {
 		return 0
 	}
 
-	// menu_add_item(menu, {}, "Testing", nil)
 	menu_show(menu)
 }
 
