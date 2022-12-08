@@ -3732,7 +3732,7 @@ menu_bar_line_combo :: proc(line: ^Menu_Bar_Line) -> (
 ) {
 	if line.command != "" {
 		node = keymap_command_find_combo(
-			&window_main.keymap_custom, 
+			&app.window_main.keymap_custom, 
 			line.command,
 			line.command_du,
 		)
@@ -3805,12 +3805,12 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 			if line.command_custom != nil {
 				line.command_custom()
 			} else {
-				if cmd, ok := window_main.keymap_custom.commands[line.command]; ok {
+				if cmd, ok := app.window_main.keymap_custom.commands[line.command]; ok {
 					cmd(line.command_du)
 				}
 			}
 
-			menu_close(window_main)
+			menu_close(app.window_main)
 		}
 
 		case .Get_Height: {

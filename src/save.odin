@@ -162,17 +162,17 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 	
 	cam := mode_panel_cam()
 	header := Save_Header {
-		u32be(task_head),
-		u32be(task_tail),
+		u32be(app.task_head),
+		u32be(app.task_tail),
 		i32be(cam.offset_x),
 		i32be(cam.offset_y),
-		u32be(len(mode_panel.children)),
+		u32be(len(app.mode_panel.children)),
 		size_of(Save_Task),
 	}
 	buffer_write_type(&buffer, header) or_return
 	
 	// write all lines
-	for child in mode_panel.children {
+	for child in app.mode_panel.children {
 		task := cast(^Task) child
 		t := Save_Task {
 			u8(task.indentation),
@@ -203,7 +203,7 @@ editor_save :: proc(file_path: string) -> (err: io.Error) {
 	}
 
 	// write opt data
-	for child, i in mode_panel.children {
+	for child, i in app.mode_panel.children {
 		task := cast(^Task) child
 		line_written: bool
 
@@ -312,8 +312,8 @@ editor_load_version :: proc(
 				line.tags = block_task.tags
 			}
 
-			task_head = int(header.task_head)
-			task_tail = int(header.task_tail)
+			app.task_head = int(header.task_head)
+			app.task_tail = int(header.task_tail)
 		}
 	}
 
@@ -324,7 +324,7 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 	// read until finished
 	for bytes.reader_length(reader) > 0 {
 		line_index := reader_read_type(reader, u32be) or_return
-		task := cast(^Task) mode_panel.children[line_index]
+		task := cast(^Task) app.mode_panel.children[line_index]
 
 		// read tag + opt data
 		tag: Save_Tag
@@ -618,13 +618,13 @@ json_save_misc :: proc(path: string) -> bool {
 		archive_data[i] = strings.to_string(button.builder)
 	}
 
-	window_x, window_y := window_get_position(window_main)
-	window_width := window_main.width
-	window_height := window_main.height
+	window_x, window_y := window_get_position(app.window_main)
+	window_width := app.window_main.width
+	window_height := app.window_main.height
 
 	// adjust by window border
 	{
-		t, l, b, r := window_border_size(window_main)
+		t, l, b, r := window_border_size(app.window_main)
 		// log.info(t, l, b, r)
 		// log.info(window_x, window_y, window_width, window_height)
 		window_y -= t
@@ -637,7 +637,7 @@ json_save_misc :: proc(path: string) -> bool {
 		hidden = {
 			scale = SCALE,
 			task_scale = TASK_SCALE,
-			mode_index = int(mode_panel.mode),
+			mode_index = int(app.mode_panel.mode),
 			
 			font_regular_path = gs.font_regular_path,
 			font_bold_path = gs.font_bold_path,
@@ -646,13 +646,13 @@ json_save_misc :: proc(path: string) -> bool {
 			window_y = window_y,
 			window_width = window_width,
 			window_height = window_height,
-			window_fullscreen = window_main.fullscreened,
+			window_fullscreen = app.window_main.fullscreened,
 			hide_statusbar = sb.options.checkbox_hide_statusbar.state,
 			hide_menubar = sb.options.checkbox_hide_menubar.state,
-			window_opacity = window_opacity_get(window_main),
+			window_opacity = window_opacity_get(app.window_main),
 			animation_speed = sb.options.slider_animation_speed.position,
 
-			last_save_location = strings.to_string(last_save_location),
+			last_save_location = strings.to_string(app.last_save_location),
 		},
 
 		options = {
@@ -762,7 +762,7 @@ json_load_misc :: proc(path: string) -> bool {
 			misc.hidden.task_scale = 1
 		}
 		scaling_set(misc.hidden.scale, misc.hidden.task_scale)
-		mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
+		app.mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
 			total_width, total_height := gs_display_total_bounds()
@@ -773,8 +773,8 @@ json_load_misc :: proc(path: string) -> bool {
 			x := min(max(misc.hidden.window_x, 0) + w, total_width) - w
 			y := min(max(misc.hidden.window_y, 0) + h, total_height) - h
 
-			window_set_position(window_main, x, y)
-			window_set_size(window_main, w, h)
+			window_set_position(app.window_main, x, y)
+			window_set_size(app.window_main, w, h)
 		}
 
 		last_save_set(misc.hidden.last_save_location)
@@ -788,13 +788,13 @@ json_load_misc :: proc(path: string) -> bool {
 		}
 
 		if misc.hidden.window_fullscreen {
-			window_fullscreen_toggle(window_main)
+			window_fullscreen_toggle(app.window_main)
 		}
 
 		checkbox_set(sb.options.checkbox_hide_statusbar, misc.hidden.hide_statusbar)
 		element_hide(statusbar.stat, misc.hidden.hide_statusbar)
 		checkbox_set(sb.options.checkbox_hide_menubar, misc.hidden.hide_menubar)
-		element_hide(task_menu_bar, misc.hidden.hide_menubar)
+		element_hide(app.task_menu_bar, misc.hidden.hide_menubar)
 
 		slider_set(sb.options.slider_opacity, misc.hidden.window_opacity)
 		slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
@@ -872,7 +872,7 @@ json_load_misc :: proc(path: string) -> bool {
 	}
 
 	pomodoro_label_format()
-	element_repaint(mode_panel)
+	element_repaint(app.mode_panel)
 
 	// archive
 	for text, i in misc.archive.data {
@@ -959,13 +959,13 @@ keymap_save :: proc(path: string) -> bool {
 		strings.write_string(b, "[END]\n")
 	}
 
-	write_content(&b, "[BOX]", &window_main.keymap_box)
+	write_content(&b, "[BOX]", &app.window_main.keymap_box)
 	strings.write_byte(&b, '\n')
-	write_content(&b, "[TODOOL]", &window_main.keymap_custom)
+	write_content(&b, "[TODOOL]", &app.window_main.keymap_custom)
 	strings.write_byte(&b, '\n')
-	write_content(&b, "[VIM-NORMAL]", &keymap_vim_normal)
+	write_content(&b, "[VIM-NORMAL]", &app.keymap_vim_normal)
 	strings.write_byte(&b, '\n')
-	write_content(&b, "[VIM-INSERT]", &keymap_vim_insert)
+	write_content(&b, "[VIM-INSERT]", &app.keymap_vim_insert)
 
 	file_path := bpath_temp(path)
 	ok := gs_write_safely(file_path, b.buf[:])
@@ -1053,10 +1053,10 @@ keymap_load :: proc(path: string) -> bool {
 	}
 
 	content := string(bytes)
-	section_read(&window_main.keymap_box, &content, "[BOX]") or_return
-	section_read(&window_main.keymap_custom, &content, "[TODOOL]") or_return
-	section_read(&keymap_vim_normal, &content, "[VIM-NORMAL]") or_return
-	section_read(&keymap_vim_insert, &content, "[VIM-INSERT]") or_return
+	section_read(&app.window_main.keymap_box, &content, "[BOX]") or_return
+	section_read(&app.window_main.keymap_custom, &content, "[TODOOL]") or_return
+	section_read(&app.keymap_vim_normal, &content, "[VIM-NORMAL]") or_return
+	section_read(&app.keymap_vim_insert, &content, "[VIM-INSERT]") or_return
 
 	keymap_force_push_latest()
 

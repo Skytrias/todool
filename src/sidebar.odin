@@ -200,39 +200,39 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 }
 
 sidebar_panel_init :: proc(parent: ^Element) {
-	panel_info = panel_init(parent, { .Panel_Default_Background, .VF, .Tab_Movement_Allowed }, 0, 5)
-	panel_info.background_index = 2
-	panel_info.z_index = 3
+	app.panel_info = panel_init(parent, { .Panel_Default_Background, .VF, .Tab_Movement_Allowed }, 0, 5)
+	app.panel_info.background_index = 2
+	app.panel_info.z_index = 3
 
 	// side options
 	{
-		i1 := icon_button_init(panel_info, { .HF }, .Cog, sidebar_button_message)
+		i1 := icon_button_init(app.panel_info, { .HF }, .Cog, sidebar_button_message)
 		i1.data = new_clone(Sidebar_Mode.Options)
 		i1.hover_info = "Options"
 		
-		i2 := icon_button_init(panel_info, { .HF }, .Tag, sidebar_button_message)
+		i2 := icon_button_init(app.panel_info, { .HF }, .Tag, sidebar_button_message)
 		i2.data = new_clone(Sidebar_Mode.Tags)
 		i2.hover_info = "Tags"
 
-		i3 := icon_button_init(panel_info, { .HF }, .Archive, sidebar_button_message)
+		i3 := icon_button_init(app.panel_info, { .HF }, .Archive, sidebar_button_message)
 		i3.data = new_clone(Sidebar_Mode.Archive)
 		i3.hover_info = "Archive"
 
-		i4 := icon_button_init(panel_info, { .HF }, .Chart, sidebar_button_message)
+		i4 := icon_button_init(app.panel_info, { .HF }, .Chart, sidebar_button_message)
 		i4.data = new_clone(Sidebar_Mode.Stats)
 		i4.hover_info = "Stats"
 	}
 
 	// pomodoro
 	{
-		spacer_init(panel_info, { .VF, }, 0, 20, .Thin)
-		i1 := icon_button_init(panel_info, { .HF }, .Tomato)
+		spacer_init(app.panel_info, { .VF, }, 0, 20, .Thin)
+		i1 := icon_button_init(app.panel_info, { .HF }, .Tomato)
 		i1.hover_info = "Start / Stop Pomodoro Time"
 		i1.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_toggle()
 		}
-		i2 := icon_button_init(panel_info, { .HF }, .Reply)
+		i2 := icon_button_init(app.panel_info, { .HF }, .Reply)
 		i2.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_reset()
@@ -243,13 +243,13 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		sb.stats.button_pomodoro_reset = i2
 		element_hide(i2, true)
 
-		sb.pomodoro_label = label_init(panel_info, { .HF, .Label_Center }, "00:00")
+		sb.pomodoro_label = label_init(app.panel_info, { .HF, .Label_Center }, "00:00")
 
-		b1 := button_init(panel_info, { .HF }, "1", pomodoro_button_message)
+		b1 := button_init(app.panel_info, { .HF }, "1", pomodoro_button_message)
 		b1.hover_info = "Select Work Time"
-		b2 := button_init(panel_info, { .HF }, "2", pomodoro_button_message)
+		b2 := button_init(app.panel_info, { .HF }, "2", pomodoro_button_message)
 		b2.hover_info = "Select Short Break Time"
-		b3 := button_init(panel_info, { .HF }, "3", pomodoro_button_message)
+		b3 := button_init(app.panel_info, { .HF }, "3", pomodoro_button_message)
 		b3.hover_info = "Select Long Break Time"
 	}
 
@@ -261,7 +261,7 @@ sidebar_panel_init :: proc(parent: ^Element) {
 			if msg == .Paint_Recursive {
 				target := element.window.target
 				text := strings.to_string(label.builder)
-				rev := last_was_task_copy ~ (uintptr(label.data) == uintptr(0))
+				rev := app.last_was_task_copy ~ (uintptr(label.data) == uintptr(0))
 				color := rev ? theme.text_default : theme.text_blank
 				fcs_element(element)
 				fcs_ahv()
@@ -274,12 +274,12 @@ sidebar_panel_init :: proc(parent: ^Element) {
 			return 0
 		}
 
-		spacer_init(panel_info, { }, 0, 20, .Thin)
-		l1 := label_init(panel_info, { .HF }, "TEXT")
+		spacer_init(app.panel_info, { }, 0, 20, .Thin)
+		l1 := label_init(app.panel_info, { .HF }, "TEXT")
 		l1.message_user = copy_label_message
 		l1.hover_info = "Next paste will insert raw text"
 		l1.data = rawptr(uintptr(0))
-		l2 := label_init(panel_info, { .HF }, "TASK")
+		l2 := label_init(app.panel_info, { .HF }, "TASK")
 		l2.message_user = copy_label_message
 		l2.hover_info = "Next paste will insert a task"
 		l2.data = rawptr(uintptr(1))
@@ -287,16 +287,16 @@ sidebar_panel_init :: proc(parent: ^Element) {
 
 	// mode		
 	{
-		spacer_init(panel_info, { }, 0, 20, .Thin)
+		spacer_init(app.panel_info, { }, 0, 20, .Thin)
 		SIZE :: 50
-		b1 := image_button_init(panel_info, { .HF }, .List, SIZE, SIZE, mode_based_button_message)
+		b1 := image_button_init(app.panel_info, { .HF }, .List, SIZE, SIZE, mode_based_button_message)
 		b1.hover_info = "List Mode"
-		b2 := image_button_init(panel_info, { .HF }, .Kanban, SIZE, SIZE, mode_based_button_message)
+		b2 := image_button_init(app.panel_info, { .HF }, .Kanban, SIZE, SIZE, mode_based_button_message)
 		b2.hover_info = "Kanban Mode"
 	}	
 
 	when PRESENTATION_MODE {
-		element_hide(panel_info, true)
+		element_hide(app.panel_info, true)
 	}
 }
 
@@ -312,7 +312,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		// panel.z_index = 2
 
 		header := label_init(panel, { .Label_Center }, title)
-		header.font_options = &font_options_header
+		header.font_options = &app.font_options_header
 		spacer_init(panel, {}, 0, 5, .Thin)
 
 		return panel
@@ -358,7 +358,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		checkbox_hide_menubar = checkbox_init(panel, flags, "Hide Menubar", false)
 		checkbox_hide_menubar.invoke = proc(data: rawptr) {
 			box := cast(^Checkbox) data
-			element_hide(task_menu_bar, box.state)
+			element_hide(app.task_menu_bar, box.state)
 		}
 		checkbox_vim = checkbox_init(panel, flags, "Use VIM bindings", false)
 		checkbox_spell_checking = checkbox_init(panel, flags, "Use Spell-Checking", false)
@@ -383,7 +383,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			slider := cast(^Slider) element
 
 			if msg == .Value_Changed {
-				window_opacity_set(window_main, clamp(slider.position, OPACITY_MIN, OPACITY_MAX))
+				window_opacity_set(app.window_main, clamp(slider.position, OPACITY_MIN, OPACITY_MAX))
 			}
 
 			return 0
@@ -394,7 +394,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 		spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
 		label_visuals := label_init(panel, { .HF, .Label_Center }, "Visuals")
-		label_visuals.font_options = &font_options_header
+		label_visuals.font_options = &app.font_options_header
 
 		slider_tab = slider_init(panel, flags, 0.25)
 		slider_tab.formatting = proc(builder: ^strings.Builder, position: f32) {
@@ -442,7 +442,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		{
 			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
 			header := label_init(panel, { .HF, .Label_Center }, "Progressbars")
-			header.font_options = &font_options_header
+			header.font_options = &app.font_options_header
 			checkbox_progressbar_show = checkbox_init(panel, flags, "Show", true)
 			checkbox_progressbar_percentage = checkbox_init(panel, flags, "Use Percentage", false)
 			checkbox_progressbar_hover_only = checkbox_init(panel, flags, "Hover Only", false)
@@ -452,7 +452,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		{
 			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
 			header := label_init(panel, { .HF, .Label_Center }, "Line Highlight")
-			header.font_options = &font_options_header
+			header.font_options = &app.font_options_header
 
 			checkbox_line_highlight_use = checkbox_init(panel, flags, "Show", false)
 			slider_line_highlight_alpha = slider_init(panel, flags, 0.5)
@@ -469,7 +469,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
 			header := label_init(panel, { .HF, .Label_Center }, "Power Mode")
-			header.font_options = &font_options_header
+			header.font_options = &app.font_options_header
 
 			ps_show = checkbox_init(panel, flags, "Show", false)
 
@@ -520,7 +520,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			text: string,
 		) {
 			b := text_box_init(panel, { .HF }, text)
-			b.um = &um_sidebar_tags
+			b.um = &app.um_sidebar_tags
 			sb.tags.names[sb.tags.temp_index]	= &b.ss
 			sb.tags.temp_index += 1
 		}
@@ -577,8 +577,8 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			c := panel_children(sb.archive.buttons)
 			
 			copy_state_reset(&app.copy_state)
-			last_was_task_copy = true
-			element_repaint(mode_panel)
+			app.last_was_task_copy = true
+			element_repaint(app.mode_panel)
 
 			// TODO FIX THIS
 			for i in low..<high + 1 {
@@ -619,7 +619,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		// statistics
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
 		l2 := label_init(panel, { .HF, .Label_Center }, "Statistics")
-		l2.font_options = &font_options_header
+		l2.font_options = &app.font_options_header
 
 		label_time_accumulated = label_init(panel, { .HF, .Label_Center })
 		b1 := button_init(panel, flags, "Reset acummulated")
@@ -873,13 +873,13 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 	#partial switch msg {
 		case .Button_Highlight: {
 			color := cast(^Color) dp
-			selected := index == int(mode_panel.mode)
+			selected := index == int(app.mode_panel.mode)
 			color^ = selected ? theme.text_default : theme.text_blank
 			return selected ? 1 : 2
 		}
 
 		case .Clicked: {
-			set := cast(^int) &mode_panel.mode
+			set := cast(^int) &app.mode_panel.mode
 			if set^ != index {
 				set^ = index
 				element_repaint(element)

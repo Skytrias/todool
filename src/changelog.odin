@@ -192,7 +192,7 @@ changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 
 	count := 1
 	for qtask in changelog.qlist {
-		task := cast(^Task) mode_panel.children[qtask.task_index]
+		task := cast(^Task) app.mode_panel.children[qtask.task_index]
 		write(b, task, task.indentation, count)
 		count += 1
 	}
@@ -209,7 +209,7 @@ changelog_result_pop_tasks :: proc() {
 
 	off: int
 	for qtask in changelog.qlist {
-		task := cast(^Task) mode_panel.children[qtask.task_index - off]
+		task := cast(^Task) app.mode_panel.children[qtask.task_index - off]
 		if qtask.remove {
 			archive_push(ss_string(&task.box.ss))
 			task_remove_at_index(manager, qtask.task_index - off)
@@ -217,7 +217,7 @@ changelog_result_pop_tasks :: proc() {
 		}		
 	}
 
-	mode_panel.window.update_next = true
+	app.mode_panel.window.update_next = true
 	changelog_update_safe()
 }
 
@@ -337,8 +337,8 @@ changelog_find :: proc() {
 	include := changelog.checkbox_include_canceled.state
 	skip := changelog.checkbox_skip_folded.state
 
-	for i in 0..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
+	for i in 0..<len(app.mode_panel.children) {
+		task := cast(^Task) app.mode_panel.children[i]
 
 		// skip individual task
 		if skip && (!task.visible || (task.has_children && task.folded)) {

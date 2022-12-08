@@ -162,10 +162,10 @@ keymap_editor_spawn :: proc() {
 	)
 	ke.panel.background_index = 0
 
-	keymap_editor_push_keymap(&window_main.keymap_box, "Box")
-	keymap_editor_push_keymap(&window_main.keymap_custom, "Todool")
-	keymap_editor_push_keymap(&keymap_vim_normal, "Vim Normal")
-	keymap_editor_push_keymap(&keymap_vim_insert, "Vim Insert")
+	keymap_editor_push_keymap(&app.window_main.keymap_box, "Box")
+	keymap_editor_push_keymap(&app.window_main.keymap_custom, "Todool")
+	keymap_editor_push_keymap(&app.keymap_vim_normal, "Vim Normal")
+	keymap_editor_push_keymap(&app.keymap_vim_insert, "Vim Insert")
 }
 
 KE_Button :: struct {

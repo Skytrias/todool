@@ -27,9 +27,9 @@ bookmark_state_destroy :: proc() {
 
 bookmark_nearest_index :: proc(backward: bool) -> int {
 	// on reset set to closest from current
-	if task_head != -1 {
+	if app.task_head != -1 {
 		// look for anything higher than the current index
-		visible_index := tasks_visible[task_head].visible_index
+		visible_index := app.tasks_visible[app.task_head].visible_index
 		found: bool
 
 		if backward {
@@ -54,7 +54,7 @@ bookmark_nearest_index :: proc(backward: bool) -> int {
 
 // advance bookmark or jump to closest on reset
 bookmark_advance :: proc(backward: bool) {
-	if task_head == -1 {
+	if app.task_head == -1 {
 		return
 	}
 
@@ -74,7 +74,7 @@ bookmark_advance :: proc(backward: bool) {
 bookmarks_clear_and_set :: proc() {
 	// count first
 	clear(&bs.rows)
-	for task, i in tasks_visible {
+	for task, i in app.tasks_visible {
 		if task_bookmark_is_valid(task) {
 			append(&bs.rows, task)
 		}
@@ -82,7 +82,7 @@ bookmarks_clear_and_set :: proc() {
 }
 
 bookmarks_render_connections :: proc(target: ^Render_Target, clip: RectI) {
-	if task_head == -1 || len(bs.rows) <= 1 || bs.alpha == 0 {
+	if app.task_head == -1 || len(bs.rows) <= 1 || bs.alpha == 0 {
 		return
 	}
 

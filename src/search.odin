@@ -123,8 +123,8 @@ search_update :: proc(pattern: string) {
 		builder := strings.builder_make(0, 256, context.temp_allocator)
 
 		// find results
-		for i in 0..<len(tasks_visible) {
-			task := tasks_visible[i]
+		for i in 0..<len(app.tasks_visible) {
+			task := app.tasks_visible[i]
 			text := ss_string(&task.box.ss)
 			task_pushed: bool
 			index: int
@@ -151,8 +151,8 @@ search_update :: proc(pattern: string) {
 		}
 	} else {
 		// find results
-		for i in 0..<len(tasks_visible) {
-			task := tasks_visible[i]
+		for i in 0..<len(app.tasks_visible) {
+			task := app.tasks_visible[i]
 			text := ss_string(&task.box.ss)
 			task_pushed: bool
 			index: int
@@ -202,15 +202,15 @@ search_find :: proc(backwards: bool) {
 		length_sum += int(entry.length)
 	}
 
-	task_head = task.visible_index
-	task_tail = task.visible_index
+	app.task_head = task.visible_index
+	app.task_tail = task.visible_index
 
 	result := results[result_index]
 	text := task_string(task)
 	task.box.head = int(result.end)
 	task.box.tail = int(result.start)
 
-	element_repaint(mode_panel)
+	element_repaint(app.mode_panel)
 }
 
 search_find_next :: proc() {
@@ -316,7 +316,7 @@ search_init :: proc(parent: ^Element) {
 
 	box := text_box_init(p, { .HF })
 	search.text_box = box
-	box.um = &um_search
+	box.um = &app.um_search
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
 
@@ -334,8 +334,8 @@ search_init :: proc(parent: ^Element) {
 					case "escape": {
 						element_hide(panel_search, true)
 						element_repaint(panel_search)
-						task_head = search.saved_task_head
-						task_tail = search.saved_task_tail
+						app.task_head = search.saved_task_head
+						app.task_tail = search.saved_task_tail
 					}
 
 					case "return": {

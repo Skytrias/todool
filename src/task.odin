@@ -24,22 +24,6 @@ Task_State_Progression :: enum {
 	Update_Animated,
 }
 
-task_menu_bar: ^Menu_Bar
-task_state_progression: Task_State_Progression = .Update_Instant
-progressbars_alpha: f32 // animation
-
-// focus
-focusing: bool
-focus_head: int
-focus_tail: int
-
-// rax
-main_thread_running := true
-
-// keymap special
-keymap_vim_normal: Keymap
-keymap_vim_insert: Keymap
-
 Vim_State :: struct {
 	insert_mode: bool,
 	
@@ -52,90 +36,174 @@ Vim_State :: struct {
 }
 vim: Vim_State
 
-// last save
-last_save_location: strings.Builder
-
 TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
-
-um_task: Undo_Manager
-um_search: Undo_Manager
-um_goto: Undo_Manager
-um_sidebar_tags: Undo_Manager
-
-panel_info: ^Panel
-mode_panel: ^Mode_Panel
-custom_split: ^Custom_Split
-window_main: ^Window
-caret_rect: RectI
-caret_lerp_speed_y := f32(1)
-caret_lerp_speed_x := f32(1)
-last_was_task_copy := false
-task_clear_checking: map[^Task]u8
-task_highlight: ^Task
-
-// move state
-task_move_stack: []^Task
-
-// goto state
-panel_goto: ^Panel_Floaty
-goto_saved_task_head: int
-goto_saved_task_tail: int
-goto_transition_animating: bool
-goto_transition_unit: f32
-goto_transition_hide: bool
-
-// font options used
-font_options_header: Font_Options
-font_options_bold: Font_Options
-
-// works in visible line space!
-// gets used in key combs
-task_head := 0
-task_tail := 0
-old_task_head := 0
-old_task_tail := 0
-tasks_visible: [dynamic]^Task
-task_multi_context: bool
-
-// shadowing
 TASK_SHADOW_ALPHA :: 0.5
-task_shadow_alpha: f32
-
-// drag state
-drag_list: [dynamic]^Task
-drag_running: bool
-drag_index_at: int
-drag_goals: [3][2]f32
-drag_rect_lerp: RectF = RECT_LERP_INIT
-drag_circle: bool
-drag_circle_pos: [2]int
 DRAG_CIRCLE :: 30
-
-// dirty file
-dirty := 0
-dirty_saved := 0
-
-// line numbering
-builder_line_number: strings.Builder
-
-// global storage instead of per task/box
-rendered_glyphs: [dynamic]Rendered_Glyph
-rendered_glyphs_start: int
-wrapped_lines: [dynamic]string
 
 App :: struct {
 	copy_state: Copy_State,
+
+	task_menu_bar: ^Menu_Bar,
+	task_state_progression: Task_State_Progression,
+	progressbars_alpha: f32, // animation
+
+	// focus
+	focusing: bool,
+	focus_head: int,
+	focus_tail: int,
+	main_thread_running: bool,
+
+	// keymap special
+	keymap_vim_normal: Keymap,
+	keymap_vim_insert: Keymap,
+
+	// last save
+	last_save_location: strings.Builder,
+	um_task: Undo_Manager,
+	um_search: Undo_Manager,
+	um_goto: Undo_Manager,
+	um_sidebar_tags: Undo_Manager,
+
+	panel_info: ^Panel,
+	mode_panel: ^Mode_Panel,
+	custom_split: ^Custom_Split,
+	window_main: ^Window,
+	caret_rect: RectI,
+
+	caret_lerp_speed_y: f32,
+	caret_lerp_speed_x: f32,
+	last_was_task_copy: bool,
+	task_clear_checking: map[^Task]u8,
+	task_highlight: ^Task,
+
+	// move state
+	task_move_stack: []^Task,
+
+	// goto state
+	panel_goto: ^Panel_Floaty,
+	goto_saved_task_head: int,
+	goto_saved_task_tail: int,
+	goto_transition_animating: bool,
+	goto_transition_unit: f32,
+	goto_transition_hide: bool,
+
+	// font options used
+	font_options_header: Font_Options,
+	font_options_bold: Font_Options,
+
+	// works in visible line space!
+	// gets used in key combs
+	task_head: int,
+	task_tail: int,
+	old_task_head: int,
+	old_task_tail: int,
+	tasks_visible: [dynamic]^Task,
+	task_multi_context: bool,
+
+	// shadowing
+	task_shadow_alpha: f32,
+
+	// drag state
+	drag_list: [dynamic]^Task,
+	drag_running: bool,
+	drag_index_at: int,
+	drag_goals: [3][2]f32,
+	drag_rect_lerp: RectF,
+	drag_circle: bool,
+	drag_circle_pos: [2]int,
+
+	// dirty file
+	dirty: int,
+	dirty_saved: int,
+
+	// line numbering
+	builder_line_number: strings.Builder,
+
+	// global storage instead of per task/box
+	rendered_glyphs: [dynamic]Rendered_Glyph,
+	rendered_glyphs_start: int,
+	wrapped_lines: [dynamic]string,
 }
 app: ^App
 
 app_init :: proc() -> (res: ^App) {
 	res = new(App)
+	res.task_state_progression = .Update_Instant
 	res.copy_state = copy_state_init(mem.Kilobyte * 4, 128, context.allocator)
+	res.main_thread_running = true
+	res.caret_lerp_speed_y = 1
+	res.caret_lerp_speed_x = 1
+	res.drag_rect_lerp = RECT_LERP_INIT
+	
+	strings.builder_init(&res.last_save_location, 0, 128)
+
+	keymap_init_comments()
+	keymap_init(&res.keymap_vim_normal, 64, 256)
+	keymap_init(&res.keymap_vim_insert, 32, 32)
+
+	power_mode_init()
+	bookmark_state_init()
+
+	undo_manager_init(&res.um_task)
+	undo_manager_init(&res.um_search)
+	undo_manager_init(&res.um_goto)
+	undo_manager_init(&res.um_sidebar_tags)
+
+	res.task_clear_checking = make(map[^Task]u8, 128)
+	res.tasks_visible = make([dynamic]^Task, 0, 128)
+	res.task_move_stack = make([]^Task, 256)
+	search_state_init()
+
+	res.font_options_header = {
+		font = font_bold,
+		size = 30,
+	}
+	res.font_options_bold = {
+		font = font_bold,
+		size = DEFAULT_FONT_SIZE + 5,
+	}
+
+	res.drag_list = make([dynamic]^Task, 0, 64)
+
+	pomodoro_init()
+	spell_check_init()
+
+	strings.builder_init(&res.builder_line_number, 0, 32)
+
+	res.rendered_glyphs = make([dynamic]Rendered_Glyph, 0, 1028 * 2)
+	res.wrapped_lines = make([dynamic]string, 0, 1028)
+
 	return
 }
 
 app_destroy :: proc(a: ^App) {
+	keymap_destroy_comments()
+	keymap_destroy(&a.keymap_vim_normal)
+	keymap_destroy(&a.keymap_vim_insert)
+
+	delete(a.task_clear_checking)
+	delete(a.task_move_stack)
+
+	power_mode_destroy()
+	pomodoro_destroy()
+	search_state_destroy()
+	bookmark_state_destroy()
+	delete(a.tasks_visible)
+	delete(a.drag_list)
+
+	undo_manager_destroy(&a.um_task)
+	undo_manager_destroy(&a.um_search)
+	undo_manager_destroy(&a.um_goto)
+	undo_manager_destroy(&a.um_sidebar_tags)
+
+	spell_check_destroy()
+
+	delete(a.builder_line_number.buf)
+	delete(a.rendered_glyphs)
+	delete(a.wrapped_lines)
+
+	delete(a.last_save_location.buf)
 	copy_state_destroy(a.copy_state)
 	free(a)
 }
@@ -164,21 +232,21 @@ task_head_tail_call_all :: proc(
 	call: proc(task: ^Task, data: rawptr), 
 ) {
 	// empty
-	if task_head == -1 {
+	if app.task_head == -1 {
 		return
 	}
 
 	low, high := task_low_and_high()
 	for i in low..<high + 1 {
-		task := tasks_visible[i]
+		task := app.tasks_visible[i]
 		call(task, data)
 	}
 }
 
 // just clamp for safety here instead of everywhere
 task_head_tail_clamp :: proc() {
-	task_head = clamp(task_head, 0, len(tasks_visible) - 1)
-	task_tail = clamp(task_tail, 0, len(tasks_visible) - 1)
+	app.task_head = clamp(app.task_head, 0, len(app.tasks_visible) - 1)
+	app.task_tail = clamp(app.task_tail, 0, len(app.tasks_visible) - 1)
 }
 
 task_head_tail_call :: proc(
@@ -186,89 +254,20 @@ task_head_tail_call :: proc(
 	call: proc(task: ^Task, data: rawptr), 
 ) {
 	// empty
-	if task_head == -1 || task_head == task_tail {
+	if app.task_head == -1 || app.task_head == app.task_tail {
 		return
 	}
 
 	low, high := task_low_and_high()
 	for i in low..<high + 1 {
-		task := tasks_visible[i]
+		task := app.tasks_visible[i]
 		call(task, data)
 	}
 }
 
-task_data_init :: proc() {
-	strings.builder_init(&last_save_location, 0, 128)
-
-	keymap_init_comments()
-	keymap_init(&keymap_vim_normal, 64, 256)
-	keymap_init(&keymap_vim_insert, 32, 32)
-
-	power_mode_init()
-	bookmark_state_init()
-
-	undo_manager_init(&um_task)
-	undo_manager_init(&um_search)
-	undo_manager_init(&um_goto)
-	undo_manager_init(&um_sidebar_tags)
-
-	task_clear_checking = make(map[^Task]u8, 128)
-	tasks_visible = make([dynamic]^Task, 0, 128)
-	task_move_stack = make([]^Task, 256)
-	search_state_init()
-
-	font_options_header = {
-		font = font_bold,
-		size = 30,
-	}
-	font_options_bold = {
-		font = font_bold,
-		size = DEFAULT_FONT_SIZE + 5,
-	}
-
-	drag_list = make([dynamic]^Task, 0, 64)
-
-	pomodoro_init()
-	spell_check_init()
-
-	strings.builder_init(&builder_line_number, 0, 32)
-
-	rendered_glyphs = make([dynamic]Rendered_Glyph, 0, 1028 * 2)
-	wrapped_lines = make([dynamic]string, 0, 1028)
-}
-
 last_save_set :: proc(next: string = "") {
-	strings.builder_reset(&last_save_location)
-	strings.write_string(&last_save_location, next)
-}
-
-task_data_destroy :: proc() {
-	keymap_destroy_comments()
-	keymap_destroy(&keymap_vim_normal)
-	keymap_destroy(&keymap_vim_insert)
-
-	delete(task_clear_checking)
-	delete(task_move_stack)
-
-	power_mode_destroy()
-	pomodoro_destroy()
-	search_state_destroy()
-	bookmark_state_destroy()
-	delete(tasks_visible)
-	delete(drag_list)
-
-	undo_manager_destroy(&um_task)
-	undo_manager_destroy(&um_search)
-	undo_manager_destroy(&um_goto)
-	undo_manager_destroy(&um_sidebar_tags)
-
-	spell_check_destroy()
-
-	delete(builder_line_number.buf)
-	delete(rendered_glyphs)
-	delete(wrapped_lines)
-
-	delete(last_save_location.buf)
+	strings.builder_reset(&app.last_save_location)
+	strings.write_string(&app.last_save_location, next)
 }
 
 // advance index in a looping fashion, backwards can be easily used
@@ -367,7 +366,7 @@ mode_panel_manager_scoped :: #force_inline proc() -> ^Undo_Manager {
 }
 
 mode_panel_manager_begin :: #force_inline proc() -> ^Undo_Manager {
-	return &um_task
+	return &app.um_task
 }
 
 mode_panel_manager_end :: #force_inline proc(manager: ^Undo_Manager) {
@@ -375,9 +374,9 @@ mode_panel_manager_end :: #force_inline proc(manager: ^Undo_Manager) {
 }
 
 mode_panel_zoom_animate :: proc() {
-	if mode_panel != nil {
-		mode_panel.zoom_highlight = 2
-		window_animate(window_main, &mode_panel.zoom_highlight, 0, .Quadratic_Out, time.Second)
+	if app.mode_panel != nil {
+		app.mode_panel.zoom_highlight = 2
+		window_animate(app.window_main, &app.mode_panel.zoom_highlight, 0, .Quadratic_Out, time.Second)
 	} 
 	
 	power_mode_clear()
@@ -385,25 +384,25 @@ mode_panel_zoom_animate :: proc() {
 
 // line has selection
 task_has_selection :: #force_inline proc() -> bool {
-	return task_head != task_tail
+	return app.task_head != app.task_tail
 }
 
 // low and high from selection
 task_low_and_high :: #force_inline proc() -> (low, high: int) {
-	low = min(task_head, task_tail)
-	high = max(task_head, task_tail)
+	low = min(app.task_head, app.task_tail)
+	high = max(app.task_head, app.task_tail)
 	return
 }
 
 task_xy_to_real :: proc(low, high: int) -> (x, y: int) #no_bounds_check {
-	return tasks_visible[low].index, tasks_visible[high].index
+	return app.tasks_visible[low].index, app.tasks_visible[high].index
 }
 
 // returns index / indentation if possible from head
 task_head_safe_index_indentation :: proc(init := -1) -> (index, indentation: int) {
 	index = init
-	if task_head != -1 {
-		task := tasks_visible[task_head]
+	if app.task_head != -1 {
+		task := app.tasks_visible[app.task_head]
 		index = task.index
 		indentation = task.indentation
 	}
@@ -415,7 +414,7 @@ tasks_lowest_indentation :: proc(low, high: int) -> (res: int) {
 	res = max(int)
 
 	for i in low..<high + 1 {
-		res = min(res, tasks_visible[i].indentation)
+		res = min(res, app.tasks_visible[i].indentation)
 	}
 	
 	return
@@ -435,8 +434,8 @@ Task_Iter :: struct {
 
 ti_init :: proc() -> (res: Task_Iter) {
 	res.low, res.high = task_low_and_high()
-	a := tasks_visible[res.low].index
-	b := tasks_visible[res.high].index
+	a := app.tasks_visible[res.low].index
+	b := app.tasks_visible[res.high].index
 	res.offset = a
 	res.range = b - a + 1
 	return
@@ -444,12 +443,12 @@ ti_init :: proc() -> (res: Task_Iter) {
 
 ti_init_children_included :: proc() -> (res: Task_Iter) {
 	res.low, res.high = task_low_and_high()
-	a := tasks_visible[res.low]
+	a := app.tasks_visible[res.low]
 	aa := a.index
 	aa_count := task_children_count(a)
 	
 	// need to jump further till the children end
-	b := cast(^Task) mode_panel.children[aa + aa_count + 1]
+	b := cast(^Task) app.mode_panel.children[aa + aa_count + 1]
 	bb := b.index
 	bb_count := task_children_count(b)
 
@@ -459,8 +458,8 @@ ti_init_children_included :: proc() -> (res: Task_Iter) {
 }
 
 ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
-	if ti.index < ti.range && ti.offset + ti.index < len(mode_panel.children) {
-		res = cast(^Task) mode_panel.children[ti.offset + ti.index]
+	if ti.index < ti.range && ti.offset + ti.index < len(app.mode_panel.children) {
+		res = cast(^Task) app.mode_panel.children[ti.offset + ti.index]
 		index = ti.offset + ti.index
 		ti.index += 1
 		ok = true
@@ -470,8 +469,8 @@ ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
 }
 
 task_head_tail_check_begin :: proc(shift: bool) ->  bool {
-	if !shift && task_head != task_tail {
-		task_tail = task_head
+	if !shift && app.task_head != app.task_tail {
+		app.task_tail = app.task_head
 		return false
 	}
 
@@ -481,7 +480,7 @@ task_head_tail_check_begin :: proc(shift: bool) ->  bool {
 // set line selection to head when no shift
 task_head_tail_check_end :: #force_inline proc(shift: bool) {
 	if !shift {
-		task_tail = task_head
+		app.task_tail = app.task_head
 	}
 }
 
@@ -515,7 +514,7 @@ task_image_display_message :: proc(element: ^Element, msg: Message, di: int, dp:
 		}
 
 		case .Clicked: {
-			custom_split.image_display.img = display.img
+			app.custom_split.image_display.img = display.img
 			element_repaint(display)
 		}
 
@@ -547,8 +546,8 @@ task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			item := Undo_Item_Bool_Toggle { &task.folded }
 			undo_bool_toggle(manager, &item)
 
-			task_head = task.visible_index
-			task_tail = task.visible_index
+			app.task_head = task.visible_index
+			app.task_tail = task.visible_index
 
 			element_message(element, .Update)
 		}
@@ -632,7 +631,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			text_render := text
 
 			// cut of string text
-			if mode_panel.mode == .Kanban {
+			if app.mode_panel.mode == .Kanban {
 				task := cast(^Task) element.parent
 				actual_width := rect_width(task.bounds) - 30
 				iter := fontstash.text_iter_init(&gs.fc, text)
@@ -718,7 +717,7 @@ task_bookmark_is_valid :: proc(task: ^Task) -> bool {
 // TODO speedup or cache?
 task_total_bounds :: proc() -> (bounds: RectI) {
 	bounds = RECT_INF
-	for task in tasks_visible {
+	for task in app.tasks_visible {
 		rect_inf_push(&bounds, task.bounds)
 	}
 	return
@@ -783,7 +782,7 @@ task_init :: proc(
 	element.allocator = allocator
 
 	// just assign parent already
-	parent := mode_panel	
+	parent := app.mode_panel	
 	element.window = parent.window
 	element.parent = parent
 
@@ -821,7 +820,7 @@ task_push :: proc(
 
 // insert a task undoable to a region
 task_insert_at :: proc(manager: ^Undo_Manager, index_at: int, res: ^Task) {
-	if index_at == -1 || index_at == len(mode_panel.children) {
+	if index_at == -1 || index_at == len(app.mode_panel.children) {
 		item := Undo_Item_Task_Append { res }
 		undo_task_append(manager, &item)
 	} else {
@@ -854,11 +853,11 @@ task_all_children_iter :: proc(
 	indentation: int,
 	index: ^int,
 ) -> (res: ^Task, ok: bool) {
-	if index^ > len(mode_panel.children) - 1 {
+	if index^ > len(app.mode_panel.children) - 1 {
 		return
 	}
 
-	res = cast(^Task) mode_panel.children[index^]
+	res = cast(^Task) app.mode_panel.children[index^]
 	ok = indentation <= res.indentation
 	index^ += 1
 	return
@@ -869,11 +868,11 @@ task_visible_children_iter :: proc(
 	indentation: int,
 	index: ^int,
 ) -> (res: ^Task, ok: bool) {
-	if index^ > len(tasks_visible) - 1 {
+	if index^ > len(app.tasks_visible) - 1 {
 		return
 	}
 
-	res = tasks_visible[index^]
+	res = app.tasks_visible[index^]
 	ok = indentation <= res.indentation
 	index^ += 1
 	return
@@ -894,12 +893,12 @@ mode_panel_init :: proc(
 }
 
 mode_panel_draw_verticals :: proc(target: ^Render_Target) {
-	if task_head < 1 {
+	if app.task_head < 1 {
 		return
 	}
 
 	tab := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-	p := tasks_visible[task_head]
+	p := app.tasks_visible[app.task_head]
 	color := theme.text_default
 
 	for p != nil {
@@ -934,7 +933,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 // set has children, index, and visible parent per each task
 task_set_children_info :: proc() {
 	// reset
-	for child, i in mode_panel.children {
+	for child, i in app.mode_panel.children {
 		task := cast(^Task) child
 		task.index = i
 		task.has_children = false
@@ -942,9 +941,9 @@ task_set_children_info :: proc() {
 	}
 
 	// simple check for indentation
-	for i := 0; i < len(mode_panel.children) - 1; i += 1 {
-		a := cast(^Task) mode_panel.children[i]
-		b := cast(^Task) mode_panel.children[i + 1]
+	for i := 0; i < len(app.mode_panel.children) - 1; i += 1 {
+		a := cast(^Task) app.mode_panel.children[i]
+		b := cast(^Task) app.mode_panel.children[i + 1]
 
 		if a.indentation < b.indentation {
 			a.has_children = true
@@ -953,12 +952,12 @@ task_set_children_info :: proc() {
 
 	// dumb set visible parent to everything coming after
 	// each upcoming has_children will set correctly
-	for i in 0..<len(mode_panel.children) {
-		a := cast(^Task) mode_panel.children[i]
+	for i in 0..<len(app.mode_panel.children) {
+		a := cast(^Task) app.mode_panel.children[i]
 
 		if a.has_children {
-			for j in i + 1..<len(mode_panel.children) {
-				b := cast(^Task) mode_panel.children[j]
+			for j in i + 1..<len(app.mode_panel.children) {
+				b := cast(^Task) app.mode_panel.children[j]
 
 				if a.indentation < b.indentation {
 					b.visible_parent = a
@@ -972,11 +971,11 @@ task_set_children_info :: proc() {
 
 // set visible flags on task based on folding
 task_set_visible_tasks :: proc() {
-	clear(&tasks_visible)
+	clear(&app.tasks_visible)
 	manager := mode_panel_manager_begin()
 
 	// set visible lines based on fold of parents
-	for child in mode_panel.children {
+	for child in app.mode_panel.children {
 		task := cast(^Task) child
 		p := task.visible_parent
 		task.visible = true
@@ -1005,8 +1004,8 @@ task_set_visible_tasks :: proc() {
 		
 		// just update icon & hide each
 		if task.visible {
-			task.visible_index = len(tasks_visible)
-			append(&tasks_visible, task)
+			task.visible_index = len(app.tasks_visible)
+			append(&app.tasks_visible, task)
 		}
 	}
 }
@@ -1015,8 +1014,8 @@ task_set_visible_tasks :: proc() {
 // manager = nil will not push changes to undo
 task_check_parent_states :: proc(manager: ^Undo_Manager) {
 	// reset all counts
-	for i in 0..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
+	for i in 0..<len(app.mode_panel.children) {
+		task := cast(^Task) app.mode_panel.children[i]
 		if task.has_children {
 			task.state_count = {}
 			task.children_count = 0
@@ -1028,8 +1027,8 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 
 	// count up states
 	task_count: int
-	for i := len(mode_panel.children) - 1; i >= 0; i -= 1 {
-		task := cast(^Task) mode_panel.children[i]
+	for i := len(app.mode_panel.children) - 1; i >= 0; i -= 1 {
+		task := cast(^Task) app.mode_panel.children[i]
 
 		// when has children - set state based on counted result
 		if task.has_children {
@@ -1076,8 +1075,8 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 
 // in real indicess
 task_children_count :: proc(parent: ^Task) -> (count: int) {
-	for i in parent.index + 1..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
+	for i in parent.index + 1..<len(app.mode_panel.children) {
+		task := cast(^Task) app.mode_panel.children[i]
 
 		if task.indentation <= parent.indentation {
 			break
@@ -1091,11 +1090,11 @@ task_children_count :: proc(parent: ^Task) -> (count: int) {
 
 // in real indicess
 task_children_range :: proc(parent: ^Task) -> (low, high: int) {
-	low = min(parent.index + 1, len(mode_panel.children) - 1)
+	low = min(parent.index + 1, len(app.mode_panel.children) - 1)
 	high = -1
 
-	for i in parent.index + 1..<len(mode_panel.children) {
-		task := cast(^Task) mode_panel.children[i]
+	for i in parent.index + 1..<len(app.mode_panel.children) {
+		task := cast(^Task) app.mode_panel.children[i]
 
 		if task.indentation <= parent.indentation {
 			break
@@ -1115,17 +1114,17 @@ tasks_eliminate_wanted_clear_tasks :: proc(panel: ^Mode_Panel) {
 	// eliminate tasks set up for manual clearing
 	for i in 0..<len(panel.children) {
 		task := cast(^Task) panel.children[i]
-		if task in task_clear_checking {
-			delete_key(&task_clear_checking, task)
+		if task in app.task_clear_checking {
+			delete_key(&app.task_clear_checking, task)
 		}
 	}
 }
 
 tasks_clear_left_over :: proc() {
-	for key, value in task_clear_checking {
+	for key, value in app.task_clear_checking {
 		element_destroy_and_deallocate(key)
 	}
-	clear(&task_clear_checking)
+	clear(&app.task_clear_checking)
 }
 	
 mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1140,8 +1139,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
 
-			if image_display_has_content_now(custom_split.image_display) {
-				child := custom_split.image_display
+			if image_display_has_content_now(app.custom_split.image_display) {
+				child := app.custom_split.image_display
 
 				if (.Hide not_in child.flags) && rect_contains(child.bounds, p.x, p.y) {
 					p.res = child
@@ -1178,7 +1177,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			gap_horizontal_scaled := int(visuals_gap_horizontal() * TASK_SCALE)
 			kanban_width_scaled := int(visuals_kanban_width() * TASK_SCALE)
 			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-			task_min_width := int(max(300, (rect_widthf(mode_panel.bounds) - 50) * TASK_SCALE))
+			task_min_width := int(max(300, (rect_widthf(panel.bounds) - 50) * TASK_SCALE))
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
 
 			switch panel.mode {
@@ -1268,19 +1267,19 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// update caret
-			if task_head != -1 {
-				task := tasks_visible[task_head]
+			if app.task_head != -1 {
+				task := app.tasks_visible[app.task_head]
 				scaled_size := fcs_task(task)
 				x := task.box.bounds.l
 				y := task.box.bounds.t
-				caret_rect = box_layout_caret(task.box, scaled_size, TASK_SCALE, x, y,)
+				app.caret_rect = box_layout_caret(task.box, scaled_size, TASK_SCALE, x, y,)
 				power_mode_check_spawn()
 			}
 
 			// check on change
-			if task_head != -1 {
-				mode_panel_cam_bounds_check_x(caret_rect.r, caret_rect.r, false, true)
-				mode_panel_cam_bounds_check_y(caret_rect.t, caret_rect.b, true)
+			if app.task_head != -1 {
+				mode_panel_cam_bounds_check_x(app.caret_rect.r, app.caret_rect.r, false, true)
+				mode_panel_cam_bounds_check_y(app.caret_rect.t, app.caret_rect.b, true)
 			}
 		}
 
@@ -1290,11 +1289,11 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds := element.bounds
 			render_rect(target, bounds, theme.background[0], 0)
 
-			if task_head == -1 {
+			if app.task_head == -1 {
 				fcs_ahv()
 				fcs_font(font_regular)
 				fcs_color(theme.text_default)
-				render_string_rect(target, mode_panel.bounds, "press \"return\" to insert a new task")
+				render_string_rect(target, panel.bounds, "press \"return\" to insert a new task")
 				// return 0
 			}
 
@@ -1323,21 +1322,21 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// word error highlight
 			when !PRESENTATION_MODE {
-				if options_spell_checking() && task_head != -1 && task_head == task_tail {
+				if options_spell_checking() && app.task_head != -1 && app.task_head == app.task_tail {
 					render_push_clip(target, panel.clip)
-					task := tasks_visible[task_head] 
+					task := app.tasks_visible[app.task_head] 
 					spell_check_render_missing_words(target, task)
 				}
 			}
 
 			// TODO looks shitty when swapping
 			// shadow highlight for non selection
-			if task_head != -1 && task_shadow_alpha != 0 {
+			if app.task_head != -1 && app.task_shadow_alpha != 0 {
 				render_push_clip(target, panel.clip)
 				low, high := task_low_and_high()
-				color := color_alpha(theme.background[0], task_shadow_alpha)
+				color := color_alpha(theme.background[0], app.task_shadow_alpha)
 				
-				for t in tasks_visible {
+				for t in app.tasks_visible {
 					if !(low <= t.visible_index && t.visible_index <= high) {
 						rect := t.bounds
 						render_rect(target, rect, color)
@@ -1346,13 +1345,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// task outlines
-			if task_head != -1 {
+			if app.task_head != -1 {
 				low, high := task_low_and_high()
-				render_push_clip(target, mode_panel.clip)
+				render_push_clip(target, app.mode_panel.clip)
 				for i in low..<high + 1 {
-					task := tasks_visible[i]
+					task := app.tasks_visible[i]
 					rect := task.bounds
-					color := task_head == i ? theme.caret : theme.text_default
+					color := app.task_head == i ? theme.caret : theme.text_default
 					render_rect_outline(target, rect, color)
 				}
 			}
@@ -1362,28 +1361,28 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// drag visualizing circle
-			if !drag_running && drag_circle {
+			if !app.drag_running && app.drag_circle {
 				render_push_clip(target, panel.clip)
 				circle_size := DRAG_CIRCLE * TASK_SCALE
-				x := f32(drag_circle_pos.x)
-				y := f32(drag_circle_pos.y)
+				x := f32(app.drag_circle_pos.x)
+				y := f32(app.drag_circle_pos.y)
 				render_circle_outline(target, x, y, circle_size, 2, theme.text_default, true)
-				diff_x := abs(drag_circle_pos.x - element.window.cursor_x)
-				diff_y := abs(drag_circle_pos.y - element.window.cursor_y)
+				diff_x := abs(app.drag_circle_pos.x - element.window.cursor_x)
+				diff_y := abs(app.drag_circle_pos.y - element.window.cursor_y)
 				diff := max(diff_x, diff_y)
 				render_circle(target, x, y, f32(diff), theme.text_bad, true)
 			}
 
 			// drag visualizer line
-			if task_head != -1 && drag_running && drag_index_at != -1 {
+			if app.task_head != -1 && app.drag_running && app.drag_index_at != -1 {
 				render_push_clip(target, panel.clip)
 				
-				drag_task := tasks_visible[drag_index_at]
+				drag_task := app.tasks_visible[app.drag_index_at]
 				bounds := drag_task.bounds
 				margin := int(4 * TASK_SCALE)
 				bounds.t = bounds.b - margin
-				rect_lerp(&drag_rect_lerp, bounds, 0.5)
-				bounds = rect_ftoi(drag_rect_lerp)
+				rect_lerp(&app.drag_rect_lerp, bounds, 0.5)
+				bounds = rect_ftoi(app.drag_rect_lerp)
 
 				// inner
 				{
@@ -1400,7 +1399,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			// render dragged tasks
-			if drag_running {
+			if app.drag_running {
 				render_push_clip(target, panel.clip)
 
 				// NOTE also have to change init positioning call :)
@@ -1409,8 +1408,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				x := element.window.cursor_x - int(f32(width) / 2)
 				y := element.window.cursor_y - int(f32(height) / 2)
 
-				for i := len(drag_goals) - 1; i >= 0; i -= 1 {
-					pos := &drag_goals[i]
+				for i := len(app.drag_goals) - 1; i >= 0; i -= 1 {
+					pos := &app.drag_goals[i]
 					state := true
 					goal_x := x + int(f32(i) * 5 * TASK_SCALE)
 					goal_y := y + int(f32(i) * 5 * TASK_SCALE)
@@ -1433,9 +1432,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			time_date_render_highlight_on_pressed(target, panel.clip)
 
 			// draw the fullscreen image on top
-			if image_display_has_content_now(custom_split.image_display) {
+			if image_display_has_content_now(app.custom_split.image_display) {
 				render_push_clip(target, panel.clip)
-				element_message(custom_split.image_display, .Paint_Recursive)
+				element_message(app.custom_split.image_display, .Paint_Recursive)
 			}
 
 			return 1
@@ -1464,15 +1463,15 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Right_Up: {
-			drag_circle = false
+			app.drag_circle = false
 			
-			if task_head == -1 {
+			if app.task_head == -1 {
 				if task_dragging_end() {
 					return 1
 				}
 			}
 
-			if task_head != task_tail && task_head != -1 {
+			if app.task_head != app.task_tail && app.task_head != -1 {
 				task_context_menu_spawn(nil)
 				return 1
 			}
@@ -1485,8 +1484,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				return 1
 			}
 
-			if task_head != task_tail {
-				task_tail = task_head
+			if app.task_head != app.task_tail {
+				app.task_tail = app.task_head
 				return 1
 			}
 		}
@@ -1531,8 +1530,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// add task on double click
 			clicks := di % 2
 			if clicks == 1 {
-				if task_head != -1 {
-					task := tasks_visible[task_head]
+				if app.task_head != -1 {
+					task := app.tasks_visible[app.task_head]
 					diff_y := element.window.cursor_y - (task.bounds.t + rect_height_halfed(task.bounds))
 					todool_insert_sibling(diff_y < 0 ? COMBO_SHIFT : COMBO_EMPTY)
 				}
@@ -1544,31 +1543,31 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// drag animation and camera panning
 			// NOTE clamps to the task bounds
-			if drag_running {
+			if app.drag_running {
 				// just check for bounds
 				x := element.window.cursor_x
 				y := element.window.cursor_y
-				ygoal, ydirection := cam_bounds_check_y(cam, mode_panel.bounds, y, y)
-				xgoal, xdirection := cam_bounds_check_x(cam, mode_panel.bounds, x, x)
+				ygoal, ydirection := cam_bounds_check_y(cam, app.mode_panel.bounds, y, y)
+				xgoal, xdirection := cam_bounds_check_x(cam, app.mode_panel.bounds, x, x)
 				task_bounds := task_total_bounds()
 
-				top := task_bounds.t - mode_panel.bounds.t
-				bottom := task_bounds.b - mode_panel.bounds.t
+				top := task_bounds.t - app.mode_panel.bounds.t
+				bottom := task_bounds.b - app.mode_panel.bounds.t
 
 				if ydirection != 0 && 
 					(ydirection == 1 && top < cam.margin_y * 2) ||
-					(ydirection == -1 && bottom > mode_panel.bounds.b - cam.margin_y * 4) { 
+					(ydirection == -1 && bottom > app.mode_panel.bounds.b - cam.margin_y * 4) { 
 					cam.freehand = true
 					cam_inc_y(cam, f32(ygoal) * 0.1 * f32(ydirection))
 				}
 
 				// need to offset by mode panel
-				left := task_bounds.l - mode_panel.bounds.l
-				right := task_bounds.r - mode_panel.bounds.l
+				left := task_bounds.l - app.mode_panel.bounds.l
+				right := task_bounds.r - app.mode_panel.bounds.l
 
 				if xdirection != 0 && 
 					(xdirection == 1 && left < cam.margin_x * 2) ||
-					(xdirection == -1 && right > mode_panel.bounds.r - cam.margin_x * 4) {
+					(xdirection == -1 && right > app.mode_panel.bounds.r - cam.margin_x * 4) {
 					cam.freehand = true
 					cam_inc_x(cam, f32(xgoal) * 0.1 * f32(xdirection))
 				}
@@ -1580,7 +1579,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			handled |= y_handled
 
 			// check y afterwards
-			goal_y, direction_y := cam_bounds_check_y(cam, mode_panel.bounds, caret_rect.t, caret_rect.b)
+			goal_y, direction_y := cam_bounds_check_y(cam, app.mode_panel.bounds, app.caret_rect.t, app.caret_rect.b)
 
 			if cam.ay.direction != CAM_CENTER && direction_y == 0 {
 				cam.ay.animating = false
@@ -1591,7 +1590,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// check x afterwards
 			// NOTE just check this everytime due to inconsistency
-			mode_panel_cam_bounds_check_x(caret_rect.l, caret_rect.r, true, true)
+			mode_panel_cam_bounds_check_x(app.caret_rect.l, app.caret_rect.r, true, true)
 
 			// fmt.eprintln("animating!", handled, cam.offset_y, cam.offset_x)
 			return int(handled)
@@ -1652,7 +1651,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
  			// paint selection before text
 			scaled_size := fcs_task(task)
-			if task_head == task_tail && task.visible_index == task_head {
+			if app.task_head == app.task_tail && task.visible_index == app.task_head {
 				box_render_selection(target, box, x, y, theme.caret_selection)
 				task_box_paint_default_selection(box, scaled_size)
 				// task_box_paint_default(box)
@@ -1661,8 +1660,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
 			// outline visible selected one
-			if task_head == task_tail && task.visible_index == task_head {
-				render_rect(target, caret_rect, theme.caret, 0)
+			if app.task_head == app.task_tail && task.visible_index == app.task_head {
+				render_rect(target, app.caret_rect, theme.caret, 0)
 			}
 
 			return 1
@@ -1681,13 +1680,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					repaint: bool
 
 					// find hovered task and set till
-					for t in tasks_visible {
+					for t in app.tasks_visible {
 						if rect_contains(t.bounds, element.window.cursor_x, element.window.cursor_y) {
-							if task_head != t.visible_index {
+							if app.task_head != t.visible_index {
 								repaint = true
 							}
 
-							task_head = t.visible_index
+							app.task_head = t.visible_index
 							break
 						}
 					}
@@ -1696,7 +1695,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 						element_repaint(task)
 					}
 				} else {
-					if task_head == task_tail {
+					if app.task_head == app.task_tail {
 						scaled_size := fcs_task(task)
 						fcs_ahv(.Left, .Top)
 						element_box_mouse_selection(task.box, task.box, di, true, 0, scaled_size)
@@ -1706,8 +1705,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				}
 			} else if element.window.pressed_button == MOUSE_RIGHT {
 				element_repaint(element)
-				drag_circle = true
-				drag_circle_pos = mouse
+				app.drag_circle = true
+				app.drag_circle_pos = mouse
 
 				if task_dragging_check_start(task, mouse) {
 					return 1
@@ -1718,7 +1717,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Right_Up: {
-			drag_circle = false
+			app.drag_circle = false
 
 			if task_dragging_end() {
 				return 1
@@ -1728,7 +1727,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 		}
 
 		case .Value_Changed: {
-			dirty_push(&um_task)
+			dirty_push(&app.um_task)
 		}
 	}
 
@@ -1940,13 +1939,13 @@ tag_mode_size :: proc(tag_mode: int) -> (res: int) {
 
 task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 	// set line to the head
-	shift := window_main.shift
+	shift := app.window_main.shift
 	task_head_tail_check_begin(shift)
-	task_head = task.visible_index
+	app.task_head = task.visible_index
 	task_head_tail_check_end(shift)
 
 	if only_box {
-		if task_head != task_tail {
+		if app.task_head != app.task_tail {
 			box_set_caret_dp(task.box, BOX_END, nil)
 		} else {
 			old_tail := task.box.tail
@@ -2039,7 +2038,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		}
 
 		case .Middle_Down: {
-			window_set_pressed(element.window, mode_panel, MOUSE_MIDDLE)
+			window_set_pressed(element.window, app.mode_panel, MOUSE_MIDDLE)
 		}
 
 		case .Find_By_Point_Recursive: {
@@ -2153,7 +2152,7 @@ task_progress_state_set :: proc(task: ^Task) {
 
 goto_init :: proc(window: ^Window) {
 	p := panel_floaty_init(&window.element, {})
-	panel_goto = p
+	app.panel_goto = p
 	p.panel.background_index = 2
 	p.width = 200
 	// p.height = DEFAULT_FONT_SIZE * 2 * SCALE + p.panel.margin * 2
@@ -2167,14 +2166,14 @@ goto_init :: proc(window: ^Window) {
 		#partial switch msg {
 			case .Animate: {
 				handled := animate_to(
-					&goto_transition_animating,
-					&goto_transition_unit,
-					goto_transition_hide ? 1 : 0,
+					&app.goto_transition_animating,
+					&app.goto_transition_unit,
+					app.goto_transition_hide ? 1 : 0,
 					4,
 					0.01,
 				)
 
-				if !handled && goto_transition_hide {
+				if !handled && app.goto_transition_hide {
 					element_hide(floaty, true)
 				}
 
@@ -2190,11 +2189,11 @@ goto_init :: proc(window: ^Window) {
 				w := int(f32(floaty.width) * SCALE)
 
 				floaty.x = 
-					mode_panel.bounds.l + rect_width_halfed(mode_panel.bounds) - w / 2
+					app.mode_panel.bounds.l + rect_width_halfed(app.mode_panel.bounds) - w / 2
 				
 				off := int(10 * SCALE)
 				floaty.y = 
-					(mode_panel.bounds.t + off) + int(goto_transition_unit * -f32(floaty.height + off))
+					(app.mode_panel.bounds.t + off) + int(app.goto_transition_unit * -f32(floaty.height + off))
 
 				// NOTE already taking scale into account from children
 				h := floaty.height
@@ -2216,13 +2215,13 @@ goto_init :: proc(window: ^Window) {
 
 					// 	// reset to origin 
 					// 	task_head = goto_saved_task_head
-					// 	task_tail = goto_saved_task_tail
+					// 	app.task_tail = goto_saved_task_tail
 					// }
 
 					case "return": {
-						goto_transition_unit = 0
-						goto_transition_hide = true
-						goto_transition_animating = true
+						app.goto_transition_unit = 0
+						app.goto_transition_hide = true
+						app.goto_transition_animating = true
 						element_animation_start(floaty)
 					}
 
@@ -2242,36 +2241,36 @@ goto_init :: proc(window: ^Window) {
 	spacer_init(p.panel, { .HF }, 0, 10)
 	box := text_box_init(p.panel, { .HF })
 	box.codepoint_numbers_only = true
-	box.um = &um_goto
+	box.um = &app.um_goto
 	box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
 
 		#partial switch msg {
 			case .Value_Changed: {
 				value := strconv.atoi(ss_string(&box.ss))
-				old_head := task_head
-				old_tail := task_tail
+				old_head := app.task_head
+				old_tail := app.task_tail
 
 				// NOTE kinda bad because it changes on reparse
 				// if options_vim_use() {
 				// 	temp := task_head
 				// 	task_head = temp + value
-				// 	task_tail = temp + value
+				// 	app.task_tail = temp + value
 				// 	fmt.eprintln(task_head, task_tail)
 				// } else {
 					value -= 1
-					task_head = value
-					task_tail = value
+					app.task_head = value
+					app.task_tail = value
 				// }
 
-				if old_head != task_head && old_tail != task_tail {
+				if old_head != app.task_head && old_tail != app.task_tail {
 					element_repaint(box)
 				}
 			}
 
 			case .Update: {
 				if di == UPDATE_FOCUS_LOST {
-					element_hide(panel_goto, true)
+					element_hide(app.panel_goto, true)
 					element_focus(element.window, nil)
 				}
 			}
@@ -2320,7 +2319,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			// avoid layouting twice
 			bottom, right := scrollbars_layout_prior(&bounds, split.hscrollbar, split.vscrollbar)
-			element_move(mode_panel, bounds)
+			element_move(app.mode_panel, bounds)
 
 			// scrollbar depends on result after mode panel layouting
 			task_bounds := task_total_bounds()
@@ -2331,7 +2330,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Scrolled_X: {
-			cam := &mode_panel.cam[mode_panel.mode]
+			cam := &app.mode_panel.cam[app.mode_panel.mode]
 			if split.hscrollbar != nil {
 				cam.offset_x = math.round(-split.hscrollbar.position)
 			}
@@ -2339,7 +2338,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Scrolled_Y: {
-			cam := &mode_panel.cam[mode_panel.mode]
+			cam := &app.mode_panel.cam[app.mode_panel.mode]
 			if split.vscrollbar != nil {
 				cam.offset_y = math.round(-split.vscrollbar.position)
 			}	
@@ -2353,18 +2352,18 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := split.window.rect
 
-	custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
+	app.custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
 
 	when !PRESENTATION_MODE {
-		custom_split.vscrollbar = scrollbar_init(custom_split, {}, false, context.allocator)
-		custom_split.vscrollbar.force_visible = true	
-		custom_split.hscrollbar = scrollbar_init(custom_split, {}, true, context.allocator)
-		custom_split.hscrollbar.force_visible = true	
+		app.custom_split.vscrollbar = scrollbar_init(app.custom_split, {}, false, context.allocator)
+		app.custom_split.vscrollbar.force_visible = true	
+		app.custom_split.hscrollbar = scrollbar_init(app.custom_split, {}, true, context.allocator)
+		app.custom_split.hscrollbar.force_visible = true	
 	}
 
-	custom_split.image_display = image_display_init(custom_split, {}, nil)
-	custom_split.image_display.aspect = .Mix
-	custom_split.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	app.custom_split.image_display = image_display_init(app.custom_split, {}, nil)
+	app.custom_split.image_display.aspect = .Mix
+	app.custom_split.image_display.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		display := cast(^Image_Display) element
 
 		#partial switch msg {
@@ -2381,18 +2380,18 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 		return 0
 	}
 
-	mode_panel = mode_panel_init(custom_split, {})
-	search_init(custom_split)
+	app.mode_panel = mode_panel_init(app.custom_split, {})
+	search_init(app.custom_split)
 	
-	return mode_panel
+	return app.mode_panel
 }
 
 tasks_load_file :: proc() {
 	spall.scoped("load tasks")
 	err: io.Error = .Empty
 	
-	if len(last_save_location.buf) != 0 {
-		err = editor_load(strings.to_string(last_save_location))
+	if len(app.last_save_location.buf) != 0 {
+		err = editor_load(strings.to_string(app.last_save_location))
 	} 
 	
 	// on error reset and load default
@@ -2407,20 +2406,20 @@ tasks_load_file :: proc() {
 }
 
 tasks_load_reset :: proc() {
-	mode_panel.mode = .List
+	app.mode_panel.mode = .List
 
 	// NOTE TEMP
 	// TODO need to cleanup node data
-	tasks_eliminate_wanted_clear_tasks(mode_panel)
-	element_destroy_descendents(mode_panel, false)
-	element_deallocate(&window_main.element) // clear mem
+	tasks_eliminate_wanted_clear_tasks(app.mode_panel)
+	element_destroy_descendents(app.mode_panel, false)
+	element_deallocate(&app.window_main.element) // clear mem
 	tasks_clear_left_over()
-	clear(&mode_panel.children)
+	clear(&app.mode_panel.children)
 	
 	// mode_panel.flags += { .Destroy_Descendent }
-	undo_manager_reset(&um_task)
-	dirty = 0
-	dirty_saved = 0
+	undo_manager_reset(&app.um_task)
+	app.dirty = 0
+	app.dirty_saved = 0
 }
 
 tasks_load_tutorial :: proc() {
@@ -2544,22 +2543,22 @@ tasks_load_tutorial :: proc() {
 		t("rightclick empty -> Default Context Menu Opens")
 	}
 
-	task_head = 0
-	task_tail = 0
+	app.task_head = 0
+	app.task_tail = 0
 
 	// TODO add ctrl+shift+return to insert at prev
 }
 
 task_context_menu_spawn :: proc(task: ^Task) {
-	menu := menu_init(mode_panel.window, { .Panel_Expand })
+	menu := menu_init(app.mode_panel.window, { .Panel_Expand })
 	defer menu_show(menu)
 
-	task_multi_context := task_head != task_tail
+	task_multi_context := app.task_head != app.task_tail
 	
 	// select this task on single right click
-	if task_head == task_tail {
-		task_tail = task.visible_index
-		task_head = task.visible_index
+	if app.task_head == app.task_tail {
+		app.task_tail = task.visible_index
+		app.task_head = task.visible_index
 	}
 
 	p := menu.panel
@@ -2568,7 +2567,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	p.background_index = 2
 	header_name := task_multi_context ? "Multi Properties" : "Task Properties"
 	header := label_init(p, { .Label_Center }, header_name)
-	header.font_options = &font_options_bold
+	header.font_options = &app.font_options_bold
 
 	if task_multi_context {
 		button_panel := panel_init(p, { .Panel_Horizontal })
@@ -2686,22 +2685,22 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		b1_text := task_seperator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
 		b1 := button_init(p, {}, b1_text)
 		b1.invoke = proc(button: ^Button, data: rawptr) {
-			task := tasks_visible[task_head]
+			task := app.tasks_visible[app.task_head]
 			valid := task_seperator_is_valid(task)
 			task_set_seperator(task, !valid)
 			
 			menu_close(button.window)
 		}
 
-		b2_text := task_highlight == task ? "Remove Highlight" : "Set Highlight"
+		b2_text := app.task_highlight == task ? "Remove Highlight" : "Set Highlight"
 		b2 := button_init(p, {}, b2_text)
 
 		b2.invoke = proc(button: ^Button, data: rawptr) {
-			task := tasks_visible[task_head]
-			if task == task_highlight {
-				task_highlight = nil
+			task := app.tasks_visible[app.task_head]
+			if task == app.task_highlight {
+				app.task_highlight = nil
 			} else {
-				task_highlight = task
+				app.task_highlight = task
 			}
 
 			menu_close(button.window)
@@ -2733,7 +2732,7 @@ check_collision_point_circles :: proc(
 }
 
 task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool {
-	if task_head == -1 || drag_running {
+	if app.task_head == -1 || app.drag_running {
 		return true
 	}
 
@@ -2749,42 +2748,42 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 
 	// on not task != selection just select this one
 	if !selected {
-		task_head = task.visible_index
-		task_tail = task.visible_index
+		app.task_head = task.visible_index
+		app.task_tail = task.visible_index
 		low, high = task_low_and_high()
 	}
 
-	clear(&drag_list)
+	clear(&app.drag_list)
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 
 	// push removal tasks to array before
 	iter := ti_init()
 	for task in ti_step(&iter) {
-		append(&drag_list, task)
+		append(&app.drag_list, task)
 	}
 
 	task_head_tail_push(manager)
 	task_remove_selection(manager, false)
 
 	if low != high {
-		task_head = low
-		task_tail = low
+		app.task_head = low
+		app.task_tail = low
 	}
 
-	drag_running = true
-	drag_index_at = -1
-	element_animation_start(mode_panel)
+	app.drag_running = true
+	app.drag_index_at = -1
+	element_animation_start(app.mode_panel)
 
 	// init animation positions
 	{
 		width := int(TASK_DRAG_SIZE * TASK_SCALE)
 		height := int(TASK_DRAG_SIZE * TASK_SCALE)
-		x := window_main.cursor_x - int(f32(width) / 2)
-		y := window_main.cursor_y - int(f32(height) / 2)
+		x := app.window_main.cursor_x - int(f32(width) / 2)
+		y := app.window_main.cursor_y - int(f32(height) / 2)
 
-		for i := len(drag_goals) - 1; i >= 0; i -= 1 {
-			pos := &drag_goals[i]
+		for i := len(app.drag_goals) - 1; i >= 0; i -= 1 {
+			pos := &app.drag_goals[i]
 			pos.x = f32(x) + f32(i) * 5 * TASK_SCALE
 			pos.y = f32(y) + f32(i) * 5 * TASK_SCALE
 		}
@@ -2794,35 +2793,35 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 }
 
 task_dragging_end :: proc() -> bool {
-	if !drag_running {
+	if !app.drag_running {
 		return false
 	}
 
-	drag_circle = false
-	drag_running = false
-	element_animation_stop(mode_panel)
-	force_push := task_head == -1
+	app.drag_circle = false
+	app.drag_running = false
+	element_animation_stop(app.mode_panel)
+	force_push := app.task_head == -1
 
 	// remove task on invalid
-	if drag_index_at == -1 && !force_push {
+	if app.drag_index_at == -1 && !force_push {
 		return true
 	}
 
 	// find lowest indentation 
 	lowest_indentation := max(int)
-	for i in 0..<len(drag_list) {
-		task := drag_list[i]
+	for i in 0..<len(app.drag_list) {
+		task := app.drag_list[i]
 		lowest_indentation = min(lowest_indentation, task.indentation)
 	}
 
 	drag_indentation: int
 	drag_index := -1
 
-	if drag_index_at != -1 {
-		task_drag_at := tasks_visible[drag_index_at]
+	if app.drag_index_at != -1 {
+		task_drag_at := app.tasks_visible[app.drag_index_at]
 		drag_index = task_drag_at.index
 
-		if task_head != -1 {
+		if app.task_head != -1 {
 			drag_indentation = task_drag_at.indentation
 
 			if task_drag_at.has_children {
@@ -2833,12 +2832,12 @@ task_dragging_end :: proc() -> bool {
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
-	task_state_progression = .Update_Animated	
+	app.task_state_progression = .Update_Animated	
 	
 	// paste lines with indentation change saved
 	visible_count: int
-	for i in 0..<len(drag_list) {
-		t := drag_list[i]
+	for i in 0..<len(app.drag_list) {
+		t := app.drag_list[i]
 		visible_count += int(t.visible)
 		relative_indentation := drag_indentation + int(t.indentation) - lowest_indentation
 		
@@ -2853,16 +2852,16 @@ task_dragging_end :: proc() -> bool {
 		task_insert_at(manager, drag_index + i + 1, t)
 	}
 
-	task_tail = drag_index_at + 1
-	task_head = drag_index_at + visible_count
+	app.task_tail = app.drag_index_at + 1
+	app.task_head = app.drag_index_at + visible_count
 
-	element_repaint(mode_panel)
-	window_set_cursor(mode_panel.window, .Arrow)
+	element_repaint(app.mode_panel)
+	window_set_cursor(app.mode_panel.window, .Arrow)
 	return true
 }
 
 mode_panel_context_menu_spawn :: proc() {
-	menu := menu_init(mode_panel.window, { .Panel_Expand })
+	menu := menu_init(app.mode_panel.window, { .Panel_Expand })
 	defer menu_show(menu)
 
 	p := menu.panel
@@ -2886,7 +2885,7 @@ mode_panel_context_menu_spawn :: proc() {
 	}
 	
 	button_init(p, {}, "Load Tutorial").invoke = proc(button: ^Button, data: rawptr) {
-	  if !todool_check_for_saving(window_main) {
+	  if !todool_check_for_saving(app.window_main) {
 		  tasks_load_reset()
 		  last_save_set("")
 		  tasks_load_tutorial()
@@ -2909,7 +2908,7 @@ mode_panel_context_menu_spawn :: proc() {
 }
 
 task_highlight_render :: proc(target: ^Render_Target, after: bool) {
-	if task_highlight == nil {
+	if app.task_highlight == nil {
 		return
 	}
 
@@ -2921,8 +2920,8 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 
 	exists := false
 
-	for task in tasks_visible {
-		if task_highlight == task {
+	for task in app.tasks_visible {
+		if app.task_highlight == task {
 			exists = true
 			continue
 		}
@@ -2932,18 +2931,18 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 		return
 	}
 
-	render_push_clip(target, mode_panel.clip)
+	render_push_clip(target, app.mode_panel.clip)
 
-	switch mode_panel.mode {
+	switch app.mode_panel.mode {
 		case .List: {
-			rect := mode_panel.bounds
-			rect.t = task_highlight.bounds.t
-			rect.b = task_highlight.bounds.b
+			rect := app.mode_panel.bounds
+			rect.t = app.task_highlight.bounds.t
+			rect.b = app.task_highlight.bounds.b
 			render_rect(target, rect, theme.text_bad)
 		}
 
 		case .Kanban: {
-			rect := task_highlight.bounds
+			rect := app.task_highlight.bounds
 			rect = rect_margin(rect, int(-10 * TASK_SCALE))
 			render_rect(target, rect, theme.text_bad, ROUNDNESS)
 		}
@@ -2951,11 +2950,11 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 }
 
 task_render_progressbars :: proc(target: ^Render_Target) {
-	if progressbars_alpha == 0 {
+	if app.progressbars_alpha == 0 {
 		return
 	}
 
-	render_push_clip(target, mode_panel.clip)
+	render_push_clip(target, app.mode_panel.clip)
 	builder := strings.builder_make(16, context.temp_allocator)
 
 	fcs_ahv()
@@ -2969,11 +2968,11 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	// off := int(visuals_task_margin() / 2)
 	default_rect := rect_wh(0, 0, w, h)
 	low, high := task_low_and_high()
-	hovered := mode_panel.window.hovered
+	hovered := app.mode_panel.window.hovered
 	use_percentage := progressbar_percentage()
 	hover_only := progressbar_hover_only()
 
-	for task in tasks_visible {
+	for task in app.tasks_visible {
 		if hover_only && hovered != task && hovered.parent != task {
 			continue
 		}
@@ -2987,7 +2986,7 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			prect := rect
 			progress_size := rect_widthf(rect)
 			alpha: f32 = low <= task.visible_index && task.visible_index <= high ? 0.25 : 1
-			alpha = min(progressbars_alpha, alpha)
+			alpha = min(app.progressbars_alpha, alpha)
 
 			for state, i in Task_State {
 				if task.progress_animation[state] != 0 {
@@ -3016,7 +3015,7 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 	menu = menu_bar_init(split)
 	
 	quit :: proc() {
-		window_try_quit(window_main)
+		window_try_quit(app.window_main)
 	}
 
 	locals :: proc() {
@@ -3117,7 +3116,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	alpha := visuals_line_highlight_alpha()
 
 	// force in goto
-	if panel_goto != nil && (.Hide not_in panel_goto.flags) && !goto_transition_hide {
+	if app.panel_goto != nil && (.Hide not_in app.panel_goto.flags) && !app.goto_transition_hide {
 		render = true
 	}
 	
@@ -3128,7 +3127,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 
 	render_push_clip(target, clip)
 	
-	b := &builder_line_number
+	b := &app.builder_line_number
 	fcs_ahv(.Right, .Middle)
 	fcs_font(font_regular)
 	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
@@ -3138,7 +3137,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	// line_offset := options_vim_use() ? -task_head : 1
 	line_offset := TODOOL_RELEASE ? 1 : 0
 
-	for t, i in tasks_visible {
+	for t, i in app.tasks_visible {
 		// NOTE necessary as the modes could have the tasks at different positions
 		if !rect_overlap(t.bounds, clip) {
 			continue
@@ -3157,7 +3156,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 
 		strings.builder_reset(b)
 		strings.write_int(b, i + line_offset)
-		text := strings.to_string(builder_line_number)
+		text := strings.to_string(app.builder_line_number)
 		width := string_width(text) + TEXT_MARGIN_HORIZONTAL
 		render_string_rect(target, r, text)
 	}
@@ -3165,14 +3164,14 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 
 // render top right zoom highlight 
 render_zoom_highlight :: proc(target: ^Render_Target, clip: RectI) {
-	if mode_panel.zoom_highlight == 0 {
+	if app.mode_panel.zoom_highlight == 0 {
 		return
 	}
 
 	render_push_clip(target, clip)
-	alpha := min(mode_panel.zoom_highlight, 1)
+	alpha := min(app.mode_panel.zoom_highlight, 1)
 	color := color_alpha(theme.text_default, alpha)
-	rect := mode_panel.bounds
+	rect := app.mode_panel.bounds
 	rect.l = rect.r - 100
 	rect.b = rect.t + 100
 	zoom := fmt.tprintf("%.2f", TASK_SCALE)
@@ -3192,31 +3191,31 @@ render_zoom_highlight :: proc(target: ^Render_Target, clip: RectI) {
 // rendered glyphs system to store previously rendered glyphs 
 
 rendered_glyphs_clear :: proc() {
-	clear(&rendered_glyphs)	
+	clear(&app.rendered_glyphs)	
 }
 
 rendered_glyph_start :: #force_inline proc() {
-	rendered_glyphs_start = len(rendered_glyphs)
+	app.rendered_glyphs_start = len(app.rendered_glyphs)
 }
 
 rendered_glyph_gather :: #force_inline proc(output: ^[]Rendered_Glyph) {
-	output^ = rendered_glyphs[rendered_glyphs_start:len(rendered_glyphs)]
+	output^ = app.rendered_glyphs[app.rendered_glyphs_start:len(app.rendered_glyphs)]
 }
 
 rendered_glyph_push :: proc(x, y: f32, codepoint: rune) -> ^Rendered_Glyph {
-	append(&rendered_glyphs, Rendered_Glyph { 
+	append(&app.rendered_glyphs, Rendered_Glyph { 
 		x = x, 
 		y = y, 
 		codepoint = codepoint,
 	})
-	return &rendered_glyphs[len(rendered_glyphs) - 1]
+	return &app.rendered_glyphs[len(app.rendered_glyphs) - 1]
 }
 
 rendered_glyphs_slice :: proc(start, end: int) -> (res: []Rendered_Glyph, ok: bool) {
 	if start == end || end == 0 {
 		return 
 	} else {
-		res = rendered_glyphs[start:end]
+		res = app.rendered_glyphs[start:end]
 		ok = true
 	}
 
@@ -3226,7 +3225,7 @@ rendered_glyphs_slice :: proc(start, end: int) -> (res: []Rendered_Glyph, ok: bo
 // wrapped lines equivalent
 
 wrapped_lines_clear :: proc() {
-	clear(&wrapped_lines)	
+	clear(&app.wrapped_lines)	
 }
 
 wrapped_lines_push :: proc(
@@ -3234,20 +3233,20 @@ wrapped_lines_push :: proc(
 	width: f32,
 	output: ^[]string,
 ) {
-	start := len(wrapped_lines)
+	start := len(app.wrapped_lines)
 	fontstash.wrap_format_to_lines(
 		&gs.fc,
 		text,
 		width,
-		&wrapped_lines,
+		&app.wrapped_lines,
 	)
-	output^ = wrapped_lines[start:len(wrapped_lines)]
+	output^ = app.wrapped_lines[start:len(app.wrapped_lines)]
 }
 
 wrapped_lines_push_forced :: proc(text: string, output: ^[]string) {
-	start := len(wrapped_lines)
-	append(&wrapped_lines, text)		
-	output^ = wrapped_lines[start:len(wrapped_lines)]
+	start := len(app.wrapped_lines)
+	append(&app.wrapped_lines, text)		
+	output^ = app.wrapped_lines[start:len(app.wrapped_lines)]
 }
 
 // opens a link via libc.system

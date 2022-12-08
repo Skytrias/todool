@@ -129,8 +129,8 @@ power_mode_spawn_at_caret :: proc() {
 	}
 
 	cam := mode_panel_cam()
-	x := f32(caret_rect.l)
-	y := f32(caret_rect.t) + rect_heightf_halfed(caret_rect)
+	x := f32(app.caret_rect.l)
+	y := f32(app.caret_rect.t) + rect_heightf_halfed(app.caret_rect)
 	color: Color = pm_particle_colored() ? {} : pm_state.caret_color
 	power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, P_SPAWN_HIGH, color)
 }
@@ -291,8 +291,8 @@ cam_screenshake_reset :: #force_inline proc(cam: ^Pan_Camera) {
 power_mode_set_caret_color :: proc() {
   using pm_state
 
-  if task_head != -1 {
-  	task := tasks_visible[task_head]
+  if app.task_head != -1 {
+  	task := app.tasks_visible[app.task_head]
   	// TODO make this syntax based instead
   	caret_color = theme_task_text(task.state)
   }	

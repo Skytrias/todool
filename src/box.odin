@@ -336,7 +336,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		case .Key_Combination: {
 			combo := (cast(^string) dp)^
 			handled := false
-			kbox = { task_box, &um_task, element, true, false }
+			kbox = { task_box, &app.um_task, element, true, false }
 
 			if keymap_combo_execute(&task_box.window.keymap_box, combo) {
 				handled = !kbox.failed
@@ -356,7 +356,7 @@ task_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		case .Unicode_Insertion: {
 			codepoint := (cast(^rune) dp)^
 
-			if box_insert(&um_task, element, task_box, codepoint, true) {
+			if box_insert(&app.um_task, element, task_box, codepoint, true) {
 				power_mode_issue_spawn()
 				element_repaint(element)
 				return 1
@@ -421,7 +421,7 @@ box_paste :: proc(
 		// only when from task, accept pngs/links
 		if msg_by_task {
 			if strings.has_suffix(text, ".png") {
-				task := tasks_visible[task_head]
+				task := app.tasks_visible[app.task_head]
 				handle := image_load_push(text)
 				
 				if handle != nil {
@@ -433,7 +433,7 @@ box_paste :: proc(
 
 			// TODO could be sped up probably
 			if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
-				task := tasks_visible[task_head]
+				task := app.tasks_visible[app.task_head]
 				task_set_link(task, text)
 				found = true
 				return
@@ -1500,14 +1500,14 @@ kbox_delete :: proc(du: u32) {
 
 kbox_copy :: proc(du: u32) {
 	kbox.failed = !box_copy_selection(kbox.element.window, kbox.box)
-	last_was_task_copy = false
+	app.last_was_task_copy = false
 }
 
 kbox_cut :: proc(du: u32) {
 	if kbox.box.tail != kbox.box.head {
 		kbox.failed = !box_copy_selection(kbox.element.window, kbox.box)
 		kbox_delete(0x00)
-		last_was_task_copy = false
+		app.last_was_task_copy = false
 	} else {
 		kbox.failed = true
 	}
@@ -1515,10 +1515,10 @@ kbox_cut :: proc(du: u32) {
 
 kbox_paste :: proc(du: u32) {
 	if clipboard_check_changes() {
-		last_was_task_copy = false
+		app.last_was_task_copy = false
 	}
 
-	if !last_was_task_copy {
+	if !app.last_was_task_copy {
 		kbox.failed = !box_paste(kbox.um, kbox.element, kbox.box, kbox.by_task)
 	} else {
 		kbox.failed = true

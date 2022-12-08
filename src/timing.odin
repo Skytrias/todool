@@ -348,10 +348,10 @@ time_date_render_highlight_on_pressed :: proc(
 	target: ^Render_Target, 
 	clip: RectI,
 ) {
-	element := window_main.pressed
+	element := app.window_main.pressed
 
 	if element == nil {
-		element = window_main.hovered
+		element = app.window_main.hovered
 
 		if element == nil {
 			return
@@ -543,7 +543,7 @@ menu_date_day_set :: proc(value: int) {
 	offset_year, offset_month, offset_day := menu_date_timing()
 	menu_date_time_ptr^, _ = time.datetime_to_time(offset_year, int(offset_month), value, 1, 1, 1)
 
-	menu_close(window_main)
+	menu_close(app.window_main)
 }
 
 MENU_DATE_COUNT :: 7 * 6 // 7 days times 5
@@ -594,14 +594,14 @@ menu_date_buttons_set :: proc() {
 		incl(&button.flags, Element_Flag.Hide)
 	}
 
-	window_repaint(window_main)
+	window_repaint(app.window_main)
 }
 
 menu_date_spawn :: proc(ptr: ^time.Time, x, y: int) {
 	menu_date_time_ptr = ptr
 	menu_date_day_offset = 0
 
-	menu := menu_init(mode_panel.window, { .Panel_Expand })
+	menu := menu_init(app.mode_panel.window, { .Panel_Expand })
 	menu.x = x
 	menu.y = y
 	menu.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -647,7 +647,7 @@ menu_date_spawn :: proc(ptr: ^time.Time, x, y: int) {
 	}
 
 	header := label_init(p, { .Label_Center }, "Calendar")
-	header.font_options = &font_options_header
+	header.font_options = &app.font_options_header
 
 	// top bar
 	{

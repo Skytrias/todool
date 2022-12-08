@@ -133,14 +133,14 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 		b := &label_info.builder
 		strings.builder_reset(b)
 
-		if task_head == -1 {
+		if app.task_head == -1 {
 			fmt.sbprintf(b, "~")
 		} else {
-			if task_head != task_tail {
+			if app.task_head != app.task_tail {
 				low, high := task_low_and_high()
 				fmt.sbprintf(b, "Lines %d - %d selected", low + 1, high + 1)
 			} else {
-				task := tasks_visible[task_head]
+				task := app.tasks_visible[app.task_head]
 
 				if .Hide not_in panel_search.flags {
 					index := search.current_index
@@ -159,7 +159,7 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 						fmt.sbprintf(b, "%d characters selected", high - low)
 					} else {
 						// default
-						fmt.sbprintf(b, "Line %d, Column %d", task_head + 1, task.box.head + 1)
+						fmt.sbprintf(b, "Line %d, Column %d", app.task_head + 1, task.box.head + 1)
 					}
 				}
 			}
@@ -168,7 +168,7 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 
 	// count states
 	count: [Task_State]int
-	for task in tasks_visible {
+	for task in app.tasks_visible {
 		count[task.state] += 1
 	}
 	task_names := reflect.enum_field_names(Task_State)
@@ -184,14 +184,14 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 	}
 
 	{
-		total := len(mode_panel.children)
-		shown := len(tasks_visible)
-		hidden := total - len(tasks_visible)
-		deleted := len(task_clear_checking)
+		total := len(app.mode_panel.children)
+		shown := len(app.tasks_visible)
+		hidden := total - len(app.tasks_visible)
+		deleted := len(app.task_clear_checking)
 
 		// run through list and decrease clear count
-		for task in tasks_visible {
-			if task in task_clear_checking {
+		for task in app.tasks_visible {
+			if task in app.task_clear_checking {
 				deleted -= 1
 			}
 		}

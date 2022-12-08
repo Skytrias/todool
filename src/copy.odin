@@ -150,7 +150,7 @@ copy_state_copy_selection :: proc(state: ^Copy_State, low, high: int) -> bool {
 
 		// copy each line
 		for i in low..<high + 1 {
-			task := tasks_visible[i]
+			task := app.tasks_visible[i]
 			copy_state_push_task(state, task)
 		}
 

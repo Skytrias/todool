@@ -603,7 +603,7 @@ keymap_destroy_comments :: proc() {
 }
 
 keymap_force_push_latest :: proc() {
-	keymap_push = &window_main.keymap_custom
+	keymap_push = &app.window_main.keymap_custom
 	CP4("alt a", "sort_locals")
 	CP4("ctrl r", "toggle_timestamp")
 }

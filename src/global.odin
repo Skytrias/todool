@@ -340,7 +340,7 @@ image_load_process_on_thread :: proc(t: ^thread.Thread) {
 	}
 
 	sdl_push_empty_event()
-	intrinsics.atomic_store(&window_main.update_next, true)
+	intrinsics.atomic_store(&app.window_main.update_next, true)
 	gs.stored_image_thread = nil
 	thread.destroy(t)
 }
@@ -1743,7 +1743,6 @@ gs_message_loop :: proc() {
 	}
 
 	app_destroy(app)
-	task_data_destroy()
 	gs_destroy()
 }
 
@@ -2119,7 +2118,7 @@ dialog_spawn :: proc(
 
 			text := format[byte_start:byte_end - (end_early ? 1 : 0)]
 			label := label_init(row, { .Label_Center, .HF }, text)
-			label.font_options = &font_options_bold
+			label.font_options = &app.font_options_bold
 
 			if end_early {
 				row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)
