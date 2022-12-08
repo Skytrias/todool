@@ -41,6 +41,12 @@ TASK_DRAG_SIZE :: 80
 TASK_SHADOW_ALPHA :: 0.5
 DRAG_CIRCLE :: 30
 
+// TASK LAYOUT DATA
+// dynamic array to store new tasks -> no new(Task) required anymore
+// free list to store which tasks were previously "removed" for undo/redo capability
+// (maybe) free list for folded content
+// "visible" list is fed manually
+
 App :: struct {
 	copy_state: Copy_State,
 
@@ -3266,6 +3272,7 @@ open_link :: proc(url: string) {
 	libc.system(cstring(raw_data(b.buf)))
 }
 
+// TODO check on windows
 open_folder :: proc(path: string) {
 	b := &gs.cstring_builder
 	strings.builder_reset(b)

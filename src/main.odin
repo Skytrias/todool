@@ -60,7 +60,6 @@ main :: proc() {
 	context.allocator = gs_allocator()	
 
 	app = app_init()
-	// task_data_init()
 
 	window := window_init(nil, {}, "Todool", 900, 900, 256, 256)
 	window.on_resize = proc(window: ^Window) {
