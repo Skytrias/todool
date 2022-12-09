@@ -154,7 +154,7 @@ main :: proc() {
 main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: rawptr) -> int {
 	task_head_tail_clamp()
 	if app.task_head != -1 && !task_has_selection() && app_filter_not_empty() {
-		box := app_task(app.task_head).box
+		box := app_task_filter(app.task_head).box
 
 		if element_message(box, msg, di, dp) == 1 {
 			cam := mode_panel_cam()
@@ -190,8 +190,8 @@ main_update :: proc(window: ^Window) {
 	switch app.task_state_progression {
 		case .Idle: {}
 		case .Update_Instant: {
-			for i in 0..<len(app.mode_panel.children) {
-				task := cast(^Task) app.mode_panel.children[i]
+			for index in app.pool.filter {
+				task := app_task_list(index)
 
 				if task.has_children {
 					task_progress_state_set(task)
@@ -199,8 +199,8 @@ main_update :: proc(window: ^Window) {
 			}
 		}
 		case .Update_Animated: {
-			for i in 0..<len(app.mode_panel.children) {
-				task := cast(^Task) app.mode_panel.children[i]
+			for index in app.pool.filter {
+				task := app_task_list(index)
 
 				if task.has_children {
 					element_animation_start(task)
@@ -214,7 +214,7 @@ main_update :: proc(window: ^Window) {
 
 	// just set the font options once here
 	for index in app.pool.filter {
-		task := app_task(index)
+		task := app_task_list(index)
 		task.font_options = task.has_children ? &app.font_options_bold : nil
 	}
 	
@@ -228,7 +228,7 @@ main_update :: proc(window: ^Window) {
 	// 		for index in app.pool.filter {
 	// 		for task, i in app.tasks_visible {
 	// 			if rect_contains(task.bounds, window.cursor_x, window.cursor_y) {
-	// 				app.drag_index_at = task.visible_index
+	// 				app.drag_index_at = task.filter_index
 	// 				break
 	// 			}
 	// 		}
@@ -405,7 +405,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			}
 
 			task := app_task_head()
-			task_insert_offset := task.index + 1
+			task_insert_offset := task.filter_index + 1
 			task_indentation := task.indentation
 
 			pattern_dialog: bool
@@ -429,7 +429,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 							y -= window_y
 
 							for index in app.pool.filter {
-								t := app_task(index)
+								t := app_task_list(index)
 
 								if rect_contains(t.bounds, x, y) {
 									task = t
@@ -487,7 +487,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				undo_group_end(manager)
 			}
 
-			element_repaint(app.mode_panel)
+			window_repaint(app.window_main)
 		}
 
 		case .Deallocate: {

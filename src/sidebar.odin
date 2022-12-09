@@ -578,7 +578,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			
 			copy_state_reset(&app.copy_state)
 			app.last_was_task_copy = true
-			element_repaint(app.mode_panel)
+			element_repaint(app.mmpp)
 
 			// TODO FIX THIS
 			for i in low..<high + 1 {
@@ -873,13 +873,13 @@ mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 	#partial switch msg {
 		case .Button_Highlight: {
 			color := cast(^Color) dp
-			selected := index == int(app.mode_panel.mode)
+			selected := index == int(app.mmpp.mode)
 			color^ = selected ? theme.text_default : theme.text_blank
 			return selected ? 1 : 2
 		}
 
 		case .Clicked: {
-			set := cast(^int) &app.mode_panel.mode
+			set := cast(^int) &app.mmpp.mode
 			if set^ != index {
 				set^ = index
 				element_repaint(element)

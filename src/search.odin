@@ -203,15 +203,15 @@ search_find :: proc(backwards: bool) {
 		length_sum += int(entry.length)
 	}
 
-	app.task_head = task.visible_index
-	app.task_tail = task.visible_index
+	app.task_head = task.filter_index
+	app.task_tail = task.filter_index
 
 	result := results[result_index]
 	text := task_string(task)
 	task.box.head = int(result.end)
 	task.box.tail = int(result.start)
 
-	element_repaint(app.mode_panel)
+	element_repaint(app.mmpp)
 }
 
 search_find_next :: proc() {

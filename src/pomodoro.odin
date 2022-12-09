@@ -41,7 +41,7 @@ pomodoro_destroy :: proc() {
 pomodoro_celebration_spawn :: proc(x, y: f32) {
 	if !pomodoro.celebrating {
 		pomodoro.celebrating = true
-		// fmt.eprintln("called", mode_panel.bounds)
+		// fmt.eprintln("called", mmpp.bounds)
 		
 		for c in &pomodoro.celebration {
 			c.skip = false
@@ -53,7 +53,7 @@ pomodoro_celebration_spawn :: proc(x, y: f32) {
 			x_goal := x + rand.float32() * WIDTH - WIDTH / 2 
 			anim_duration := time.Millisecond * time.Duration(rand.float32() * 4000 + 500)
 			anim_wait := rand.float64() * 2
-			window_animate(app.window_main, &c.y, f32(app.mode_panel.bounds.b + 50), .Quadratic_In_Out, anim_duration, anim_wait)
+			window_animate(app.window_main, &c.y, f32(app.mmpp.bounds.b + 50), .Quadratic_In_Out, anim_duration, anim_wait)
 			window_animate(app.window_main, &c.x, x_goal, .Quadratic_Out, anim_duration, anim_wait)
 		}
 	}
@@ -73,7 +73,7 @@ pomodoro_celebration_render :: proc(target: ^Render_Target) {
 			rect := rect_wh(int(c.x), int(c.y), 10, 10)
 			render_rect(target, rect, c.color, ROUNDNESS)	
 
-			if int(c.y) >= app.mode_panel.bounds.b {
+			if int(c.y) >= app.mmpp.bounds.b {
 				c.skip = true
 			}
 		}
@@ -130,7 +130,7 @@ pomodoro_stopwatch_reset :: #force_inline proc() {
 pomodoro_stopwatch_hot_toggle :: proc(du: u32) {
 	defer {
 		element_hide(sb.stats.button_pomodoro_reset, !pomodoro.stopwatch.running)
-		element_repaint(app.mode_panel)
+		element_repaint(app.mmpp)
 	}
 	
 	value, ok := du_value(du)

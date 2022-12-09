@@ -27,18 +27,31 @@ Task_Pool :: struct {
 	filter: [dynamic]int, // what to use
 }
 
-task_pool_push_new :: proc(pool: ^Task_Pool) -> (index: int) {
-	index = len(pool.list)
+task_pool_push_new :: proc(pool: ^Task_Pool) -> (task: ^Task) {
+	index := len(pool.list)
 	append(&pool.list, Task {
-		index = index,
+		list_index = index,
 	})
-	return
+	return &pool.list[index]
 }
 
 task_pool_push_remove :: proc(pool: ^Task_Pool, index: int, loc := #caller_location) #no_bounds_check {
-	runtime.bounds_check_error_loc(loc, index, len(pool.list) - 1)
+	runtime.bounds_check_error_loc(loc, index, len(pool.list))
 	append(&pool.removed_list, index)
 }
+
+task_pool_pop_remove :: proc(pool: ^Task_Pool) -> (index: int) {
+	// index = -1
+
+	// if len(pool.removed_list) > 0 {
+		index = pool.removed_list[len(pool.removed_list) - 1]
+		pop(&pool.removed_list)
+	// }
+
+	return
+}
+
+// task_pool_remove
 
 task_pool_init :: proc() -> (res: Task_Pool) {
 	res.list = make([dynamic]Task, 0, 256)

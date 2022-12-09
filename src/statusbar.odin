@@ -166,55 +166,50 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 		}
 	}
 
-	// TODO
-	// // count states
-	// count: [Task_State]int
-	// for task in app.tasks_visible {
-	// 	count[task.state] += 1
-	// }
-	// task_names := reflect.enum_field_names(Task_State)
+	// count states
+	count: [Task_State]int
+	for list_index in app.pool.filter {
+		task := app_task_list(list_index)
+		count[task.state] += 1
+	}
+	task_names := reflect.enum_field_names(Task_State)
 
-	// // tasks
-	// for state, i in Task_State {
-	// 	label := label_task_state[state]
-	// 	b := &label.builder
-	// 	strings.builder_reset(b)
-	// 	strings.write_string(b, task_names[i])
-	// 	strings.write_byte(b, ' ')
-	// 	strings.write_int(b, count[state])
-	// }
+	// tasks
+	for state, i in Task_State {
+		label := label_task_state[state]
+		b := &label.builder
+		strings.builder_reset(b)
+		strings.write_string(b, task_names[i])
+		strings.write_byte(b, ' ')
+		strings.write_int(b, count[state])
+	}
 
-	// {
-	// 	total := len(app.mode_panel.children)
-	// 	shown := len(app.tasks_visible)
-	// 	hidden := total - len(app.tasks_visible)
-	// 	deleted := len(app.task_clear_checking)
-
-	// 	// run through list and decrease clear count
-	// 	for task in app.tasks_visible {
-	// 		if task in app.task_clear_checking {
-	// 			deleted -= 1
-	// 		}
-	// 	}
+	{
+		total := len(app.pool.filter) + len(app.pool.removed_list)
+		shown := len(app.pool.filter)
+		// TODO hidden
+		hidden := 0
+		// hidden := total - len(app.tasks_visible)
+		deleted := len(app.pool.removed_list)
 		
-	// 	b := &label_task_count.builder
-	// 	strings.builder_reset(b)
+		b := &label_task_count.builder
+		strings.builder_reset(b)
 
-	// 	strings.write_string(b, "Total ")
-	// 	strings.write_int(b, total)
-	// 	strings.write_string(b, ", ")
+		strings.write_string(b, "Total ")
+		strings.write_int(b, total)
+		strings.write_string(b, ", ")
 
-	// 	if hidden != 0 {
-	// 		strings.write_string(b, "Shown ")
-	// 		strings.write_int(b, shown)
-	// 		strings.write_string(b, ", ")
+		if hidden != 0 {
+			strings.write_string(b, "Shown ")
+			strings.write_int(b, shown)
+			strings.write_string(b, ", ")
 
-	// 		strings.write_string(b, "Hidden ")
-	// 		strings.write_int(b, hidden)
-	// 		strings.write_string(b, ", ")
-	// 	}
+			strings.write_string(b, "Hidden ")
+			strings.write_int(b, hidden)
+			strings.write_string(b, ", ")
+		}
 
-	// 	strings.write_string(b, "Deleted ")
-	// 	strings.write_int(b, deleted)
-	// }
+		strings.write_string(b, "Deleted ")
+		strings.write_int(b, deleted)
+	}
 }

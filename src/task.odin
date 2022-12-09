@@ -43,6 +43,7 @@ TASK_SHADOW_ALPHA :: 0.5
 DRAG_CIRCLE :: 30
 
 App :: struct {
+	pool: Task_Pool,
 	copy_state: Copy_State,
 
 	// progress bars
@@ -69,7 +70,7 @@ App :: struct {
 	// ui state
 	task_menu_bar: ^Menu_Bar,
 	panel_info: ^Panel,
-	mode_panel: ^Mode_Panel,
+	mmpp: ^Mode_Panel,
 	custom_split: ^Custom_Split,
 	window_main: ^Window,
 	caret_rect: RectI,
@@ -100,12 +101,6 @@ App :: struct {
 	task_tail: int,
 	old_task_head: int,
 	old_task_tail: int,
-
-	pool: Task_Pool,
-
-	// old task pool
-	// tasks_visible: [dynamic]^Task,
-	// task_clear_checking: map[^Task]u8,
 
 	// shadowing
 	task_shadow_alpha: f32,
@@ -221,17 +216,24 @@ app_destroy :: proc(a: ^App) {
 }
 
 // helper call to get a task
-app_task :: proc(index: int, loc := #caller_location) -> ^Task #no_bounds_check {
-	runtime.bounds_check_error_loc(loc, index, len(app.pool.list) - 1)
-	return &app.pool.list[index]
+app_task_list :: proc(list_index: int, loc := #caller_location) -> ^Task #no_bounds_check {
+	runtime.bounds_check_error_loc(loc, list_index, len(app.pool.list))
+	return &app.pool.list[list_index]
+}
+
+app_task_filter :: proc(filter_index: int, loc := #caller_location) -> ^Task #no_bounds_check {
+	runtime.bounds_check_error_loc(loc, filter_index, len(app.pool.filter))
+	list_index := app.pool.filter[filter_index]
+	runtime.bounds_check_error_loc(loc, list_index, len(app.pool.list))
+	return &app.pool.list[list_index]
 }
 
 app_task_head :: #force_inline proc() -> ^Task {
-	return &app.pool.list[app.task_head]
+	return app_task_filter(app.task_head)
 }
 
 app_task_tail :: #force_inline proc() -> ^Task {
-	return &app.pool.list[app.task_tail]
+	return app_task_filter(app.task_tail)
 }
 
 app_filter_not_empty :: #force_inline proc() -> bool {
@@ -272,7 +274,7 @@ task_head_tail_call_all :: proc(
 
 	low, high := task_low_and_high()
 	for i in low..<high + 1 {
-		task := app_task(i)
+		task := app_task_filter(i)
 		call(task, data)
 	}
 }
@@ -294,7 +296,7 @@ task_head_tail_call :: proc(
 
 	low, high := task_low_and_high()
 	for i in low..<high + 1 {
-		task := app_task(i)
+		task := app_task_filter(i)
 		call(task, data)
 	}
 }
@@ -330,11 +332,9 @@ Task_State :: enum u8 {
 Task :: struct {
 	using element: Element,
 	
-	// NOTE set in update
-	index: int, 
-	visible_index: int, 
-	visible_parent: ^Task,
-	visible: bool,
+	list_index: int, // NOTE set once
+	filter_index: int, // NOTE set in update
+	visible_parent: ^Task, // NOTE set in update
 
 	// elements
 	box: ^Task_Box,
@@ -408,9 +408,9 @@ mode_panel_manager_end :: #force_inline proc(manager: ^Undo_Manager) {
 }
 
 mode_panel_zoom_animate :: proc() {
-	if app.mode_panel != nil {
-		app.mode_panel.zoom_highlight = 2
-		window_animate(app.window_main, &app.mode_panel.zoom_highlight, 0, .Quadratic_Out, time.Second)
+	if app.mmpp != nil {
+		app.mmpp.zoom_highlight = 2
+		window_animate(app.window_main, &app.mmpp.zoom_highlight, 0, .Quadratic_Out, time.Second)
 	} 
 	
 	power_mode_clear()
@@ -428,16 +428,36 @@ task_low_and_high :: #force_inline proc() -> (low, high: int) {
 	return
 }
 
-// task_xy_to_real :: proc(low, high: int) -> (x, y: int) #no_bounds_check {
-// 	return app.tasks_visible[low].index, app.tasks_visible[high].index
-// }
+// LOW / HIGH iter for simple iteration
+LH_Iter :: struct {
+	low, high: int,
+	range: int,
+	index: int,
+}
+
+lh_iter_init :: proc() -> (res: LH_Iter) {
+	res.low, res.high = task_low_and_high()
+	res.range = res.high - res.low + 1
+	return
+}
+
+lh_iter_step :: proc(iter: ^LH_Iter) -> (task: ^Task, linear_index: int, ok: bool) {
+	if iter.index < iter.range {
+		linear_index = iter.index
+		task = app_task_filter(iter.index + iter.low)
+		ok = true
+		iter.index += 1
+	}
+
+	return
+}
 
 // returns index / indentation if possible from head
 task_head_safe_index_indentation :: proc(init := -1) -> (index, indentation: int) {
 	index = init
 	if app.task_head != -1 {
 		task := app_task_head()
-		index = task.index
+		index = task.filter_index
 		indentation = task.indentation
 	}
 	return
@@ -448,11 +468,13 @@ tasks_lowest_indentation :: proc(low, high: int) -> (res: int) {
 	res = max(int)
 
 	for i in low..<high + 1 {
-		res = min(res, app_task(i).indentation)
+		res = min(res, app_task_filter(i).indentation)
 	}
 	
 	return
 }
+
+
 
 // // step through real values from hidden
 
@@ -468,8 +490,8 @@ tasks_lowest_indentation :: proc(low, high: int) -> (res: int) {
 
 // ti_init :: proc() -> (res: Task_Iter) {
 // 	res.low, res.high = task_low_and_high()
-// 	a := app.tasks_visible[res.low].index
-// 	b := app.tasks_visible[res.high].index
+// 	a := app.tasks_visible[res.low].filter_index
+// 	b := app.tasks_visible[res.high].filter_index
 // 	res.offset = a
 // 	res.range = b - a + 1
 // 	return
@@ -478,12 +500,12 @@ tasks_lowest_indentation :: proc(low, high: int) -> (res: int) {
 // ti_init_children_included :: proc() -> (res: Task_Iter) {
 // 	res.low, res.high = task_low_and_high()
 // 	a := app.tasks_visible[res.low]
-// 	aa := a.index
+// 	aa := a.filter_index
 // 	aa_count := task_children_count(a)
 	
 // 	// need to jump further till the children end
 // 	b := cast(^Task) app.mode_panel.children[aa + aa_count + 1]
-// 	bb := b.index
+// 	bb := b.filter_index
 // 	bb_count := task_children_count(b)
 
 // 	res.offset = aa
@@ -492,10 +514,10 @@ tasks_lowest_indentation :: proc(low, high: int) -> (res: int) {
 // }
 
 // ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
-// 	if ti.index < ti.range && ti.offset + ti.index < len(app.mode_panel.children) {
-// 		res = cast(^Task) app.mode_panel.children[ti.offset + ti.index]
-// 		index = ti.offset + ti.index
-// 		ti.index += 1
+// 	if ti.filter_index < ti.range && ti.offset + ti.filter_index < len(app.pool.filter) {
+// 		res = cast(^Task) app.mode_panel.children[ti.offset + ti.filter_index]
+// 		index = ti.offset + ti.filter_index
+// 		ti.filter_index += 1
 // 		ok = true
 // 	}
 
@@ -580,8 +602,8 @@ task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			item := Undo_Item_Bool_Toggle { &task.folded }
 			undo_bool_toggle(manager, &item)
 
-			app.task_head = task.visible_index
-			app.task_tail = task.visible_index
+			app.task_head = task.filter_index
+			app.task_tail = task.filter_index
 
 			element_message(element, .Update)
 		}
@@ -665,7 +687,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			text_render := text
 
 			// cut of string text
-			if app.mode_panel.mode == .Kanban {
+			if app.mmpp.mode == .Kanban {
 				task := cast(^Task) element.parent
 				actual_width := rect_width(task.bounds) - 30
 				iter := fontstash.text_iter_init(&gs.fc, text)
@@ -752,7 +774,7 @@ task_bookmark_is_valid :: proc(task: ^Task) -> bool {
 task_total_bounds :: proc() -> (bounds: RectI) {
 	bounds = RECT_INF
 	for index in app.pool.filter {
-		task := app_task(index)
+		task := app_task_list(index)
 		rect_inf_push(&bounds, task.bounds)
 	}
 	return
@@ -810,14 +832,15 @@ task_init :: proc(
 	indentation: int,
 	text: string,
 ) -> (res: ^Task) { 
+	res = task_pool_push_new(&app.pool)
+
 	allocator := context.allocator
-	res = new(Task, allocator)
 	element := cast(^Element) res
 	element.message_class = task_message
 	element.allocator = allocator
 
 	// just assign parent already
-	parent := app.mode_panel	
+	parent := app.mmpp
 	element.window = parent.window
 	element.parent = parent
 
@@ -832,7 +855,7 @@ task_init :: proc(
 	res.box = task_box_init(res, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
 
-	return
+	return res
 }
 
 // push line element to panel middle with indentation
@@ -843,26 +866,15 @@ task_push :: proc(
 ) -> (res: ^Task) {
 	res = task_init(indentation, text)
 
-	parent := res.parent
-	if index_at == -1 || index_at == len(parent.children) {
-		append(&parent.children, res)
+	if index_at == -1 || index_at >= len(app.pool.filter) {
+		append(&app.pool.filter, res.list_index)
 	} else {
-		inject_at(&parent.children, index_at, res)
+		inject_at(&app.pool.filter, index_at, res.list_index)
 	}	
 
 	return
 }
 
-// insert a task undoable to a region
-task_insert_at :: proc(manager: ^Undo_Manager, index_at: int, res: ^Task) {
-	if index_at == -1 || index_at == len(app.mode_panel.children) {
-		item := Undo_Item_Task_Append { res }
-		undo_task_append(manager, &item)
-	} else {
-		item := Undo_Item_Task_Insert_At { index_at, res }
-		undo_task_insert_at(manager, &item)
-	}	
-}
 
 // push line element to panel middle with indentation
 task_push_undoable :: proc(
@@ -872,7 +884,16 @@ task_push_undoable :: proc(
 	index_at := -1,
 ) -> (res: ^Task) {
 	res = task_init(indentation, text)
-	task_insert_at(manager, index_at, res)
+
+	if index_at == -1 || index_at >= len(app.pool.filter) {
+		item := Undo_Item_Task_Append { res.list_index, false }
+		undo_task_append(manager, &item)
+	} else {
+		res.filter_index = index_at
+		item := Undo_Item_Task_Insert_At { res.filter_index, res.list_index, false }
+		undo_task_insert_at(manager, &item)
+	}	
+
 	return
 }
 
@@ -888,11 +909,11 @@ task_all_children_iter :: proc(
 	indentation: int,
 	index: ^int,
 ) -> (res: ^Task, ok: bool) {
-	if index^ > len(app.mode_panel.children) - 1 {
+	if index^ > len(app.pool.filter) - 1 {
 		return
 	}
 
-	res = cast(^Task) app.mode_panel.children[index^]
+	res = app_task_filter(index^)
 	ok = indentation <= res.indentation
 	index^ += 1
 	return
@@ -907,7 +928,7 @@ task_visible_children_iter :: proc(
 		return
 	}
 
-	res = app_task(index^)
+	res = app_task_filter(index^)
 	ok = indentation <= res.indentation
 	index^ += 1
 	return
@@ -938,7 +959,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 	for p != nil {
 		if p.visible_parent != nil {
-			index := p.visible_parent.visible_index + 1
+			index := p.visible_parent.filter_index + 1
 			bound_rect: RectI
 
 			// TODO use rect_inf
@@ -967,18 +988,18 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 // set has children, index, and visible parent per each task
 task_set_children_info :: proc() {
-	// reset
-	for child, i in app.mode_panel.children {
-		task := cast(^Task) child
-		task.index = i
+	// reset data
+	for list_index, linear_index in app.pool.filter {
+		task := app_task_list(list_index)
+		task.filter_index = linear_index
 		task.has_children = false
 		task.visible_parent = nil
 	}
 
 	// simple check for indentation
-	for i := 0; i < len(app.mode_panel.children) - 1; i += 1 {
-		a := cast(^Task) app.mode_panel.children[i]
-		b := cast(^Task) app.mode_panel.children[i + 1]
+	for i := 0; i < len(app.pool.filter) - 1; i += 1 {
+		a := app_task_filter(i)
+		b := app_task_filter(i + 1)
 
 		if a.indentation < b.indentation {
 			a.has_children = true
@@ -987,12 +1008,12 @@ task_set_children_info :: proc() {
 
 	// dumb set visible parent to everything coming after
 	// each upcoming has_children will set correctly
-	for i in 0..<len(app.mode_panel.children) {
-		a := cast(^Task) app.mode_panel.children[i]
+	for i in 0..<len(app.pool.filter) {
+		a := app_task_filter(i)
 
 		if a.has_children {
-			for j in i + 1..<len(app.mode_panel.children) {
-				b := cast(^Task) app.mode_panel.children[j]
+			for j in i + 1..<len(app.pool.filter) {
+				b := app_task_filter(j)
 
 				if a.indentation < b.indentation {
 					b.visible_parent = a
@@ -1039,7 +1060,7 @@ task_set_children_info :: proc() {
 		
 // 		// just update icon & hide each
 // 		if task.visible {
-// 			task.visible_index = len(app.pool.filter)
+// 			task.filter_index = len(app.pool.filter)
 // 			append(&app.tasks_visible, task)
 // 		}
 // 	}
@@ -1049,8 +1070,9 @@ task_set_children_info :: proc() {
 // manager = nil will not push changes to undo
 task_check_parent_states :: proc(manager: ^Undo_Manager) {
 	// reset all counts
-	for i in 0..<len(app.mode_panel.children) {
-		task := cast(^Task) app.mode_panel.children[i]
+	for i in 0..<len(app.pool.filter) {
+		task := app_task_filter(i)
+
 		if task.has_children {
 			task.state_count = {}
 			task.children_count = 0
@@ -1062,8 +1084,8 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 
 	// count up states
 	task_count: int
-	for i := len(app.mode_panel.children) - 1; i >= 0; i -= 1 {
-		task := cast(^Task) app.mode_panel.children[i]
+	for i := len(app.pool.filter) - 1; i >= 0; i -= 1 {
+		task := app_task_filter(i)
 
 		// when has children - set state based on counted result
 		if task.has_children {
@@ -1110,8 +1132,8 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 
 // in real indicess
 task_children_count :: proc(parent: ^Task) -> (count: int) {
-	for i in parent.index + 1..<len(app.mode_panel.children) {
-		task := cast(^Task) app.mode_panel.children[i]
+	for i in parent.filter_index + 1..<len(app.pool.filter) {
+		task := app_task_filter(i)
 
 		if task.indentation <= parent.indentation {
 			break
@@ -1125,11 +1147,11 @@ task_children_count :: proc(parent: ^Task) -> (count: int) {
 
 // in real indicess
 task_children_range :: proc(parent: ^Task) -> (low, high: int) {
-	low = min(parent.index + 1, len(app.mode_panel.children) - 1)
+	low = min(parent.filter_index + 1, len(app.pool.filter) - 1)
 	high = -1
 
-	for i in parent.index + 1..<len(app.mode_panel.children) {
-		task := cast(^Task) app.mode_panel.children[i]
+	for i in parent.filter_index + 1..<len(app.pool.filter) {
+		task := app_task_filter(i)
 
 		if task.indentation <= parent.indentation {
 			break
@@ -1185,12 +1207,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
-			for i := len(element.children) - 1; i >= 0; i -= 1 {
-				task := cast(^Task) element.children[i]
-
-				if !task.visible {
-					continue
-				}
+			for i := len(app.pool.filter) - 1; i >= 0; i -= 1 {
+				task := app_task_filter(i)
 
 				if element_message(task, .Find_By_Point_Recursive, 0, dp) == 1 {
 					return 1
@@ -1221,12 +1239,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				case .List: {
 					cut := bounds
 
-					for child in element.children {
-						task := cast(^Task) child
-						
-						if !task.visible {
-							continue
-						}
+					for list_index in app.pool.filter {
+						task := app_task_list(list_index)
 
 						pseudo_rect := cut
 						pseudo_rect.l += int(task.indentation) * tab_scaled
@@ -1253,21 +1267,17 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					kanban_children_start: int
 					root: ^Task
 
-					for child, i in element.children {
-						task := cast(^Task) child
+					for list_index, linear_index in app.pool.filter {
+						task := app_task_list(list_index)
 						
-						if !task.visible {
-							continue
-						}
-
 						if task.indentation == 0 {
 							// get max indentations till same line is found
 							max_indentations: int
-							kanban_children_start = i
+							kanban_children_start = linear_index
 							kanban_children_count = 1
 
-							for j in i + 1..<len(element.children) {
-								other := cast(^Task) element.children[j]
+							for j in linear_index + 1..<len(app.pool.filter) {
+								other := app_task_filter(j)
 								max_indentations = max(max_indentations, other.indentation)
 								
 								if other.indentation == 0 {
@@ -1296,7 +1306,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						r.l += int(task.indentation_smooth * f32(tab_scaled))
 						element_move(task, r)
 
-						if i - kanban_children_start < kanban_children_count - 1 {
+						if linear_index - kanban_children_start < kanban_children_count - 1 {
 							kanban_current.t += gap_vertical_scaled
 						}
 					}
@@ -1345,14 +1355,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			mode_panel_draw_verticals(target)
 
 			// custom draw loop!
-			for child in element.children {
-				task := cast(^Task) child
-
-				if !task.visible {
-					continue
-				}
-
-				render_element_clipped(target, child)
+			for list_index in app.pool.filter {
+				task := app_task_list(list_index)
+				render_element_clipped(target, task)
 			}
 
 			search_draw_highlights(target, panel)
@@ -1374,8 +1379,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				color := color_alpha(theme.background[0], app.task_shadow_alpha)
 				
 				for index in app.pool.filter {
-					t := app_task(index)
-					if !(low <= t.visible_index && t.visible_index <= high) {
+					t := app_task_list(index)
+					if !(low <= t.filter_index && t.filter_index <= high) {
 						rect := t.bounds
 						render_rect(target, rect, color)
 					}
@@ -1385,9 +1390,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// task outlines
 			if app.task_head != -1 {
 				low, high := task_low_and_high()
-				render_push_clip(target, app.mode_panel.clip)
+				render_push_clip(target, panel.clip)
 				for i in low..<high + 1 {
-					task := app_task(i)
+					task := app_task_filter(i)
 					rect := task.bounds
 					color := app.task_head == i ? theme.caret : theme.text_default
 					render_rect_outline(target, rect, color)
@@ -1415,7 +1420,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if app.task_head != -1 && app.drag_running && app.drag_index_at != -1 {
 				render_push_clip(target, panel.clip)
 				
-				drag_task := app_task(app.drag_index_at)
+				drag_task := app_task_filter(app.drag_index_at)
 				bounds := drag_task.bounds
 				margin := int(4 * TASK_SCALE)
 				bounds.t = bounds.b - margin
@@ -1557,8 +1562,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		}
 
 		case .Update: {
-			for child in element.children {
-				element_message(child, .Update, di, dp)
+			for list_index in app.pool.filter {
+				task := app_task_list(list_index)
+				element_message(task, .Update, di, dp)
 			}
 		}
 
@@ -1585,27 +1591,27 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				// just check for bounds
 				x := element.window.cursor_x
 				y := element.window.cursor_y
-				ygoal, ydirection := cam_bounds_check_y(cam, app.mode_panel.bounds, y, y)
-				xgoal, xdirection := cam_bounds_check_x(cam, app.mode_panel.bounds, x, x)
+				ygoal, ydirection := cam_bounds_check_y(cam, panel.bounds, y, y)
+				xgoal, xdirection := cam_bounds_check_x(cam, panel.bounds, x, x)
 				task_bounds := task_total_bounds()
 
-				top := task_bounds.t - app.mode_panel.bounds.t
-				bottom := task_bounds.b - app.mode_panel.bounds.t
+				top := task_bounds.t - panel.bounds.t
+				bottom := task_bounds.b - panel.bounds.t
 
 				if ydirection != 0 && 
 					(ydirection == 1 && top < cam.margin_y * 2) ||
-					(ydirection == -1 && bottom > app.mode_panel.bounds.b - cam.margin_y * 4) { 
+					(ydirection == -1 && bottom > panel.bounds.b - cam.margin_y * 4) { 
 					cam.freehand = true
 					cam_inc_y(cam, f32(ygoal) * 0.1 * f32(ydirection))
 				}
 
 				// need to offset by mode panel
-				left := task_bounds.l - app.mode_panel.bounds.l
-				right := task_bounds.r - app.mode_panel.bounds.l
+				left := task_bounds.l - panel.bounds.l
+				right := task_bounds.r - panel.bounds.l
 
 				if xdirection != 0 && 
 					(xdirection == 1 && left < cam.margin_x * 2) ||
-					(xdirection == -1 && right > app.mode_panel.bounds.r - cam.margin_x * 4) {
+					(xdirection == -1 && right > panel.bounds.r - cam.margin_x * 4) {
 					cam.freehand = true
 					cam_inc_x(cam, f32(xgoal) * 0.1 * f32(xdirection))
 				}
@@ -1617,7 +1623,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			handled |= y_handled
 
 			// check y afterwards
-			goal_y, direction_y := cam_bounds_check_y(cam, app.mode_panel.bounds, app.caret_rect.t, app.caret_rect.b)
+			goal_y, direction_y := cam_bounds_check_y(cam, panel.bounds, app.caret_rect.t, app.caret_rect.b)
 
 			if cam.ay.direction != CAM_CENTER && direction_y == 0 {
 				cam.ay.animating = false
@@ -1689,7 +1695,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
  			// paint selection before text
 			scaled_size := fcs_task(task)
-			if app.task_head == app.task_tail && task.visible_index == app.task_head {
+			if app.task_head == app.task_tail && task.filter_index == app.task_head {
 				box_render_selection(target, box, x, y, theme.caret_selection)
 				task_box_paint_default_selection(box, scaled_size)
 				// task_box_paint_default(box)
@@ -1698,7 +1704,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
 			// outline visible selected one
-			if app.task_head == app.task_tail && task.visible_index == app.task_head {
+			if app.task_head == app.task_tail && task.filter_index == app.task_head {
 				render_rect(target, app.caret_rect, theme.caret, 0)
 			}
 
@@ -1719,13 +1725,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 					// find hovered task and set till
 					for index in app.pool.filter {
-						t := app_task(index)
+						t := app_task_list(index)
 						if rect_contains(t.bounds, element.window.cursor_x, element.window.cursor_y) {
-							if app.task_head != t.visible_index {
+							if app.task_head != t.filter_index {
 								repaint = true
 							}
 
-							app.task_head = t.visible_index
+							app.task_head = t.filter_index
 							break
 						}
 					}
@@ -1980,7 +1986,7 @@ task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 	// set line to the head
 	shift := app.window_main.shift
 	task_head_tail_check_begin(shift)
-	app.task_head = task.visible_index
+	app.task_head = task.filter_index
 	task_head_tail_check_end(shift)
 
 	if only_box {
@@ -2077,7 +2083,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		}
 
 		case .Middle_Down: {
-			window_set_pressed(element.window, app.mode_panel, MOUSE_MIDDLE)
+			window_set_pressed(element.window, app.mmpp, MOUSE_MIDDLE)
 		}
 
 		case .Find_By_Point_Recursive: {
@@ -2228,11 +2234,11 @@ goto_init :: proc(window: ^Window) {
 				w := int(f32(floaty.width) * SCALE)
 
 				floaty.x = 
-					app.mode_panel.bounds.l + rect_width_halfed(app.mode_panel.bounds) - w / 2
+					app.mmpp.bounds.l + rect_width_halfed(app.mmpp.bounds) - w / 2
 				
 				off := int(10 * SCALE)
 				floaty.y = 
-					(app.mode_panel.bounds.t + off) + int(app.goto_transition_unit * -f32(floaty.height + off))
+					(app.mmpp.bounds.t + off) + int(app.goto_transition_unit * -f32(floaty.height + off))
 
 				// NOTE already taking scale into account from children
 				h := floaty.height
@@ -2358,7 +2364,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			// avoid layouting twice
 			bottom, right := scrollbars_layout_prior(&bounds, split.hscrollbar, split.vscrollbar)
-			element_move(app.mode_panel, bounds)
+			element_move(app.mmpp, bounds)
 
 			// scrollbar depends on result after mode panel layouting
 			task_bounds := task_total_bounds()
@@ -2369,7 +2375,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Scrolled_X: {
-			cam := &app.mode_panel.cam[app.mode_panel.mode]
+			cam := &app.mmpp.cam[app.mmpp.mode]
 			if split.hscrollbar != nil {
 				cam.offset_x = math.round(-split.hscrollbar.position)
 			}
@@ -2377,7 +2383,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Scrolled_Y: {
-			cam := &app.mode_panel.cam[app.mode_panel.mode]
+			cam := &app.mmpp.cam[app.mmpp.mode]
 			if split.vscrollbar != nil {
 				cam.offset_y = math.round(-split.vscrollbar.position)
 			}	
@@ -2419,10 +2425,10 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 		return 0
 	}
 
-	app.mode_panel = mode_panel_init(app.custom_split, {})
+	app.mmpp = mode_panel_init(app.custom_split, {})
 	search_init(app.custom_split)
 	
-	return app.mode_panel
+	return app.mmpp
 }
 
 tasks_load_file :: proc() {
@@ -2445,15 +2451,17 @@ tasks_load_file :: proc() {
 }
 
 tasks_load_reset :: proc() {
-	app.mode_panel.mode = .List
+	app.mmpp.mode = .List
 
 	// NOTE TEMP
 	// TODO need to cleanup node data
-	tasks_eliminate_wanted_clear_tasks(app.mode_panel)
-	element_destroy_descendents(app.mode_panel, false)
+	tasks_eliminate_wanted_clear_tasks(app.mmpp)
+	element_destroy_descendents(app.mmpp, false)
 	element_deallocate(&app.window_main.element) // clear mem
 	tasks_clear_left_over()
-	clear(&app.mode_panel.children)
+
+	// REVIEW
+	task_pool_clear(&app.pool)
 	
 	// mode_panel.flags += { .Destroy_Descendent }
 	undo_manager_reset(&app.um_task)
@@ -2589,15 +2597,15 @@ tasks_load_tutorial :: proc() {
 }
 
 task_context_menu_spawn :: proc(task: ^Task) {
-	menu := menu_init(app.mode_panel.window, { .Panel_Expand })
+	menu := menu_init(app.mmpp.window, { .Panel_Expand })
 	defer menu_show(menu)
 
 	task_multi_context := app.task_head != app.task_tail
 	
 	// select this task on single right click
 	if app.task_head == app.task_tail {
-		app.task_tail = task.visible_index
-		app.task_head = task.visible_index
+		app.task_tail = task.filter_index
+		app.task_head = task.filter_index
 	}
 
 	p := menu.panel
@@ -2784,12 +2792,12 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 	// }
 
 	// low, high := task_low_and_high()
-	// selected := low <= task.visible_index && task.visible_index <= high
+	// selected := low <= task.filter_index && task.filter_index <= high
 
 	// // on not task != selection just select this one
 	// if !selected {
-	// 	app.task_head = task.visible_index
-	// 	app.task_tail = task.visible_index
+	// 	app.task_head = task.filter_index
+	// 	app.task_tail = task.filter_index
 	// 	low, high = task_low_and_high()
 	// }
 
@@ -2861,7 +2869,7 @@ task_dragging_end :: proc() -> bool {
 
 	// if app.drag_index_at != -1 {
 	// 	task_drag_at := app.tasks_visible[app.drag_index_at]
-	// 	drag_index = task_drag_at.index
+	// 	drag_index = task_drag_at.filter_index
 
 	// 	if app.task_head != -1 {
 	// 		drag_indentation = task_drag_at.indentation
@@ -2904,7 +2912,7 @@ task_dragging_end :: proc() -> bool {
 }
 
 mode_panel_context_menu_spawn :: proc() {
-	menu := menu_init(app.mode_panel.window, { .Panel_Expand })
+	menu := menu_init(app.mmpp.window, { .Panel_Expand })
 	defer menu_show(menu)
 
 	p := menu.panel
@@ -2964,7 +2972,7 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 	exists := false
 
 	for index in app.pool.filter {
-		task := app_task(index)
+		task := app_task_list(index)
 		if app.task_highlight == task {
 			exists = true
 			continue
@@ -2975,11 +2983,11 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 		return
 	}
 
-	render_push_clip(target, app.mode_panel.clip)
+	render_push_clip(target, app.mmpp.clip)
 
-	switch app.mode_panel.mode {
+	switch app.mmpp.mode {
 		case .List: {
-			rect := app.mode_panel.bounds
+			rect := app.mmpp.bounds
 			rect.t = app.task_highlight.bounds.t
 			rect.b = app.task_highlight.bounds.b
 			render_rect(target, rect, theme.text_bad)
@@ -2998,7 +3006,7 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 		return
 	}
 
-	render_push_clip(target, app.mode_panel.clip)
+	render_push_clip(target, app.mmpp.clip)
 	builder := strings.builder_make(16, context.temp_allocator)
 
 	fcs_ahv()
@@ -3012,12 +3020,13 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	// off := int(visuals_task_margin() / 2)
 	default_rect := rect_wh(0, 0, w, h)
 	low, high := task_low_and_high()
-	hovered := app.mode_panel.window.hovered
+	hovered := app.mmpp.window.hovered
 	use_percentage := progressbar_percentage()
 	hover_only := progressbar_hover_only()
 
 	for index in app.pool.filter {
-		task := app_task(index)
+		task := app_task_list(index)
+		
 		if hover_only && hovered != task && hovered.parent != task {
 			continue
 		}
@@ -3030,7 +3039,7 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 
 			prect := rect
 			progress_size := rect_widthf(rect)
-			alpha: f32 = low <= task.visible_index && task.visible_index <= high ? 0.25 : 1
+			alpha: f32 = low <= task.filter_index && task.filter_index <= high ? 0.25 : 1
 			alpha = min(app.progressbars_alpha, alpha)
 
 			for state, i in Task_State {
@@ -3182,8 +3191,8 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	// line_offset := options_vim_use() ? -task_head : 1
 	line_offset := TODOOL_RELEASE ? 1 : 0
 
-	for index, linear_index in app.pool.filter { 
-		t := app_task(index)
+	for list_index, linear_index in app.pool.filter { 
+		t := app_task_list(list_index)
 
 		// NOTE necessary as the modes could have the tasks at different positions
 		if !rect_overlap(t.bounds, clip) {
@@ -3211,14 +3220,14 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 
 // render top right zoom highlight 
 render_zoom_highlight :: proc(target: ^Render_Target, clip: RectI) {
-	if app.mode_panel.zoom_highlight == 0 {
+	if app.mmpp.zoom_highlight == 0 {
 		return
 	}
 
 	render_push_clip(target, clip)
-	alpha := min(app.mode_panel.zoom_highlight, 1)
+	alpha := min(app.mmpp.zoom_highlight, 1)
 	color := color_alpha(theme.text_default, alpha)
-	rect := app.mode_panel.bounds
+	rect := app.mmpp.bounds
 	rect.l = rect.r - 100
 	rect.b = rect.t + 100
 	zoom := fmt.tprintf("%.2f", TASK_SCALE)

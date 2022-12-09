@@ -90,7 +90,7 @@ cam_inc_x :: proc(cam: ^Pan_Camera, off: f32) {
 
 // return the cam per mode
 mode_panel_cam :: #force_inline proc() -> ^Pan_Camera #no_bounds_check {
-	return &app.mode_panel.cam[app.mode_panel.mode]
+	return &app.mmpp.cam[app.mmpp.mode]
 }
 
 cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
@@ -204,15 +204,15 @@ mode_panel_cam_bounds_check_y :: proc(
 	goal: int
 	direction: int
 	if app.task_head != -1 && use_task {
-		task := app_task(app.task_head)
+		task := app_task_head()
 		to_top = task.bounds.t
 		to_bottom = task.bounds.b
 	}
 
-	goal, direction = cam_bounds_check_y(cam, app.mode_panel.bounds, to_top, to_bottom)
+	goal, direction = cam_bounds_check_y(cam, app.mmpp.bounds, to_top, to_bottom)
 
 	if direction != 0 {
-		element_animation_start(app.mode_panel)
+		element_animation_start(app.mmpp)
 		cam.ay.animating = true
 		cam.ay.direction = direction
 		cam.ay.goal = goal
@@ -237,10 +237,10 @@ mode_panel_cam_bounds_check_x :: proc(
 	to_left := to_left
 	to_right := to_right
 
-	switch app.mode_panel.mode {
+	switch app.mmpp.mode {
 		case .List: {
 			if app.task_head != -1 {
-				t := app_task(app.task_head)
+				t := app_task_head()
 
 				// check if one liner
 				if len(t.box.wrapped_lines) == 1 {
@@ -256,7 +256,7 @@ mode_panel_cam_bounds_check_x :: proc(
 				}
 			}
 
-			goal, direction = cam_bounds_check_x(cam, app.mode_panel.bounds, to_left, to_right)
+			goal, direction = cam_bounds_check_x(cam, app.mmpp.bounds, to_left, to_right)
 		}
 
 		case .Kanban: {
@@ -264,21 +264,22 @@ mode_panel_cam_bounds_check_x :: proc(
 			t: ^Task
 			if app.task_head != -1 && use_kanban {
 				index := app.task_head
+				
 				for t == nil || (t.indentation != 0 && index >= 0) {
-					t = app_task(index)
+					t = app_task_filter(index)
 					index -= 1
 				}
 			}
 
 			if t != nil && t.kanban_rect != {} && use_kanban {
 				// check if larger than kanban size
-				if rect_width(t.kanban_rect) < rect_width(app.mode_panel.bounds) - cam.margin_x * 2 {
+				if rect_width(t.kanban_rect) < rect_width(app.mmpp.bounds) - cam.margin_x * 2 {
 					to_left = t.kanban_rect.l
 					to_right = t.kanban_rect.r
 				} 
 			}
 
-			goal, direction = cam_bounds_check_x(cam, app.mode_panel.bounds, to_left, to_right)
+			goal, direction = cam_bounds_check_x(cam, app.mmpp.bounds, to_left, to_right)
 		}
 	} 
 
@@ -292,7 +293,7 @@ mode_panel_cam_bounds_check_x :: proc(
 			// fmt.eprintln("HAD DIRECTION X", goal, direction)
 		}
 	} else if direction != 0 {
-		element_animation_start(app.mode_panel)
+		element_animation_start(app.mmpp)
 		cam.ax.animating = true
 		cam.ax.direction = direction
 		cam.ax.goal = goal
@@ -312,7 +313,7 @@ cam_center_by_height_state :: proc(
 	height := rect_height(focus)
 	offset_goal: int
 
-	switch app.mode_panel.mode {
+	switch app.mmpp.mode {
 		case .List: {
 			// center by view height max height is lower than view height
 			if max_height != -1 && max_height < height {
@@ -336,7 +337,7 @@ cam_center_by_height_state :: proc(
 		}
 	}
 
-	element_animation_start(app.mode_panel)
+	element_animation_start(app.mmpp)
 	cam.ay.animating = true
 	cam.ay.direction = CAM_CENTER
 	cam.ay.goal = offset_goal

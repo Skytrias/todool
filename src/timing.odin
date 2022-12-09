@@ -601,7 +601,7 @@ menu_date_spawn :: proc(ptr: ^time.Time, x, y: int) {
 	menu_date_time_ptr = ptr
 	menu_date_day_offset = 0
 
-	menu := menu_init(app.mode_panel.window, { .Panel_Expand })
+	menu := menu_init(app.mmpp.window, { .Panel_Expand })
 	menu.x = x
 	menu.y = y
 	menu.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

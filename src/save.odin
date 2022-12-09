@@ -127,132 +127,134 @@ buffer_write_string_u8 :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error
 }
 
 editor_save :: proc(file_path: string) -> (err: io.Error) {
-	buffer: bytes.Buffer
-	bytes.buffer_init_allocator(&buffer, 0, mem.Megabyte)
-	defer bytes.buffer_destroy(&buffer)
+	// buffer: bytes.Buffer
+	// bytes.buffer_init_allocator(&buffer, 0, mem.Megabyte)
+	// defer bytes.buffer_destroy(&buffer)
 
-	// signature
-	bytes.buffer_write_ptr(&buffer, &bytes_file_signature[0], 8) or_return
-	// NOTE 8 bytes only
-	version := "00.02.00"
-	bytes.buffer_write_ptr(&buffer, raw_data(version), 8) or_return
+	// // signature
+	// bytes.buffer_write_ptr(&buffer, &bytes_file_signature[0], 8) or_return
+	// // NOTE 8 bytes only
+	// version := "00.02.00"
+	// bytes.buffer_write_ptr(&buffer, raw_data(version), 8) or_return
 
-	// current version structs
-	Save_Header :: struct #packed {
-		task_head: u32be,
-		task_tail: u32be,
-		// ONLY VALID FOR THE SAME WINDOW SIZE
-		camera_offset_x: i32be,
-		camera_offset_y: i32be,
-		task_count: u32be,
-		task_bytes_min: u16be,
-	}
+	// // current version structs
+	// Save_Header :: struct #packed {
+	// 	task_head: u32be,
+	// 	task_tail: u32be,
+	// 	// ONLY VALID FOR THE SAME WINDOW SIZE
+	// 	camera_offset_x: i32be,
+	// 	camera_offset_y: i32be,
+	// 	task_count: u32be,
+	// 	task_bytes_min: u16be,
+	// }
 
-	Save_Task :: struct #packed {
-		indentation: u8,
-		state: u8,
-		tags: u8,
-		text_size: u16be,
-		// N text content comes after this
-	}
+	// Save_Task :: struct #packed {
+	// 	indentation: u8,
+	// 	state: u8,
+	// 	tags: u8,
+	// 	text_size: u16be,
+	// 	// N text content comes after this
+	// }
 
-	// header block
-	header_size := u32be(size_of(Save_Header))
-	buffer_write_type(&buffer, header_size) or_return
+	// // header block
+	// header_size := u32be(size_of(Save_Header))
+	// buffer_write_type(&buffer, header_size) or_return
 	
-	cam := mode_panel_cam()
-	header := Save_Header {
-		u32be(app.task_head),
-		u32be(app.task_tail),
-		i32be(cam.offset_x),
-		i32be(cam.offset_y),
-		u32be(len(app.mode_panel.children)),
-		size_of(Save_Task),
-	}
-	buffer_write_type(&buffer, header) or_return
+	// cam := mode_panel_cam()
+	// header := Save_Header {
+	// 	u32be(app.task_head),
+	// 	u32be(app.task_tail),
+	// 	i32be(cam.offset_x),
+	// 	i32be(cam.offset_y),
+	// 	// REVIEW 
+	// 	u32be(len(app.pool.list)),
+	// 	size_of(Save_Task),
+	// }
+	// buffer_write_type(&buffer, header) or_return
 	
-	// write all lines
-	for child in app.mode_panel.children {
-		task := cast(^Task) child
-		t := Save_Task {
-			u8(task.indentation),
-			u8(task.state),
-			u8(task.tags),
-			u16be(task.box.ss.length),
-		}
-		buffer_write_type(&buffer, t) or_return
-		bytes.buffer_write_string(&buffer, ss_string(&task.box.ss)) or_return
-	}
+	// // write all lines
+	// // REVIEW
+	// for child in app.mode_panel.children {
+	// 	task := cast(^Task) child
+	// 	t := Save_Task {
+	// 		u8(task.indentation),
+	// 		u8(task.state),
+	// 		u8(task.tags),
+	// 		u16be(task.box.ss.length),
+	// 	}
+	// 	buffer_write_type(&buffer, t) or_return
+	// 	bytes.buffer_write_string(&buffer, ss_string(&task.box.ss)) or_return
+	// }
 
-	editor_save_tag_colors(&buffer) or_return
+	// editor_save_tag_colors(&buffer) or_return
 
-	// write line to buffer if it doesnt exist yet
-	opt_write_line :: proc(buffer: ^bytes.Buffer, state: ^bool, index: int) -> (err: io.Error) {
-		if !state^ {
-			buffer_write_type(buffer, u32be(index)) or_return
-			state^ = true 
-		}
+	// // write line to buffer if it doesnt exist yet
+	// opt_write_line :: proc(buffer: ^bytes.Buffer, state: ^bool, index: int) -> (err: io.Error) {
+	// 	if !state^ {
+	// 		buffer_write_type(buffer, u32be(index)) or_return
+	// 		state^ = true 
+	// 	}
 
-		return
-	}
+	// 	return
+	// }
 
-	// helper to write tag
-	opt_write_tag :: proc(buffer: ^bytes.Buffer, tag: Save_Tag) -> (err: io.Error) {
-		bytes.buffer_write_byte(buffer, transmute(u8) tag) or_return
-		return
-	}
+	// // helper to write tag
+	// opt_write_tag :: proc(buffer: ^bytes.Buffer, tag: Save_Tag) -> (err: io.Error) {
+	// 	bytes.buffer_write_byte(buffer, transmute(u8) tag) or_return
+	// 	return
+	// }
 
-	// write opt data
-	for child, i in app.mode_panel.children {
-		task := cast(^Task) child
-		line_written: bool
+	// // write opt data
+	// for child, i in app.mode_panel.children {
+	// 	task := cast(^Task) child
+	// 	line_written: bool
 
-		// look for opt data
-		if task_bookmark_is_valid(task) {
-			opt_write_line(&buffer, &line_written, i) or_return
-			opt_write_tag(&buffer, .Bookmark) or_return
-		}
+	// 	// look for opt data
+	// 	if task_bookmark_is_valid(task) {
+	// 		opt_write_line(&buffer, &line_written, i) or_return
+	// 		opt_write_tag(&buffer, .Bookmark) or_return
+	// 	}
 
-		if task.folded {
-			opt_write_line(&buffer, &line_written, i) or_return
-			opt_write_tag(&buffer, .Folded) or_return			
-		}
+	// 	if task.folded {
+	// 		opt_write_line(&buffer, &line_written, i) or_return
+	// 		opt_write_tag(&buffer, .Folded) or_return			
+	// 	}
 
-		if image_display_has_path(task.image_display) {
-			opt_write_line(&buffer, &line_written, i) or_return
-			opt_write_tag(&buffer, .Image_Path) or_return
-			buffer_write_string_u16(&buffer, image_path(task.image_display.img)) or_return
-			// fmt.eprintln("SAVE WRITE IMAGE PATH", image_path(task.image_display.img))
-		}
+	// 	if image_display_has_path(task.image_display) {
+	// 		opt_write_line(&buffer, &line_written, i) or_return
+	// 		opt_write_tag(&buffer, .Image_Path) or_return
+	// 		buffer_write_string_u16(&buffer, image_path(task.image_display.img)) or_return
+	// 		// fmt.eprintln("SAVE WRITE IMAGE PATH", image_path(task.image_display.img))
+	// 	}
 
-		if task_link_is_valid(task) {
-			opt_write_line(&buffer, &line_written, i) or_return
-			opt_write_tag(&buffer, .Link_Path) or_return
-			buffer_write_string_u16(&buffer, strings.to_string(task.button_link.builder)) or_return
-		}
+	// 	if task_link_is_valid(task) {
+	// 		opt_write_line(&buffer, &line_written, i) or_return
+	// 		opt_write_tag(&buffer, .Link_Path) or_return
+	// 		buffer_write_string_u16(&buffer, strings.to_string(task.button_link.builder)) or_return
+	// 	}
 
-		if task_seperator_is_valid(task) {
-			opt_write_line(&buffer, &line_written, i) or_return
-			opt_write_tag(&buffer, .Seperator) or_return
-		}
+	// 	if task_seperator_is_valid(task) {
+	// 		opt_write_line(&buffer, &line_written, i) or_return
+	// 		opt_write_tag(&buffer, .Seperator) or_return
+	// 	}
 
-		if task_time_date_is_valid(task) {
-			opt_write_line(&buffer, &line_written, i) or_return
-			opt_write_tag(&buffer, .Timestamp) or_return
-			out := i64be(task.time_date.stamp._nsec)
-			buffer_write_type(&buffer, out) or_return
-		}
+	// 	if task_time_date_is_valid(task) {
+	// 		opt_write_line(&buffer, &line_written, i) or_return
+	// 		opt_write_tag(&buffer, .Timestamp) or_return
+	// 		out := i64be(task.time_date.stamp._nsec)
+	// 		buffer_write_type(&buffer, out) or_return
+	// 	}
 
-		// write finish flag
-		if line_written {
-			opt_write_tag(&buffer, .Finished) or_return
-		}
-	}
+	// 	// write finish flag
+	// 	if line_written {
+	// 		opt_write_tag(&buffer, .Finished) or_return
+	// 	}
+	// }
 
-	ok := gs_write_safely(file_path, buffer.buf[:])
-	if !ok {
-		err = .Invalid_Write
-	}
+	// ok := gs_write_safely(file_path, buffer.buf[:])
+	// if !ok {
+	// 	err = .Invalid_Write
+	// }
 
 	return 
 }
@@ -324,7 +326,9 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 	// read until finished
 	for bytes.reader_length(reader) > 0 {
 		line_index := reader_read_type(reader, u32be) or_return
-		task := cast(^Task) app.mode_panel.children[line_index]
+		// task := cast(^Task) app.mode_panel.children[line_index]
+		// REVIEW
+		task := app_task_filter(int(line_index))
 
 		// read tag + opt data
 		tag: Save_Tag
@@ -637,7 +641,7 @@ json_save_misc :: proc(path: string) -> bool {
 		hidden = {
 			scale = SCALE,
 			task_scale = TASK_SCALE,
-			mode_index = int(app.mode_panel.mode),
+			mode_index = int(app.mmpp.mode),
 			
 			font_regular_path = gs.font_regular_path,
 			font_bold_path = gs.font_bold_path,
@@ -762,7 +766,7 @@ json_load_misc :: proc(path: string) -> bool {
 			misc.hidden.task_scale = 1
 		}
 		scaling_set(misc.hidden.scale, misc.hidden.task_scale)
-		app.mode_panel.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
+		app.mmpp.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
 			total_width, total_height := gs_display_total_bounds()
@@ -872,7 +876,7 @@ json_load_misc :: proc(path: string) -> bool {
 	}
 
 	pomodoro_label_format()
-	element_repaint(app.mode_panel)
+	element_repaint(app.mmpp)
 
 	// archive
 	for text, i in misc.archive.data {

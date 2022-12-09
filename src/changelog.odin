@@ -190,12 +190,13 @@ changelog_text_display_set :: proc(td: ^Changelog_Text_Display) {
 
 	changelog_find()
 
-	count := 1
-	for qtask in changelog.qlist {
-		task := cast(^Task) app.mode_panel.children[qtask.task_index]
-		write(b, task, task.indentation, count)
-		count += 1
-	}
+	// TODO
+	// count := 1
+	// for qtask in changelog.qlist {
+	// 	task := cast(^Task) app.mode_panel.children[qtask.task_index]
+	// 	write(b, task, task.indentation, count)
+	// 	count += 1
+	// }
 }
 
 // pop the wanted changelog tasks
@@ -204,21 +205,22 @@ changelog_result_pop_tasks :: proc() {
 		return
 	}
 
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
+	// TODO
+	// manager := mode_panel_manager_scoped()
+	// task_head_tail_push(manager)
 
-	off: int
-	for qtask in changelog.qlist {
-		task := cast(^Task) app.mode_panel.children[qtask.task_index - off]
-		if qtask.remove {
-			archive_push(ss_string(&task.box.ss))
-			task_remove_at_index(manager, qtask.task_index - off)
-			off += 1
-		}		
-	}
+	// off: int
+	// for qtask in changelog.qlist {
+	// 	task := cast(^Task) app.mode_panel.children[qtask.task_index - off]
+	// 	if qtask.remove {
+	// 		archive_push(ss_string(&task.box.ss))
+	// 		task_remove_at_index(manager, qtask.task_index - off)
+	// 		off += 1
+	// 	}		
+	// }
 
-	app.mode_panel.window.update_next = true
-	changelog_update_safe()
+	// app.mode_panel.window.update_next = true
+	// changelog_update_safe()
 }
 
 changelog_result :: proc() -> string {
@@ -337,45 +339,46 @@ changelog_find :: proc() {
 	include := changelog.checkbox_include_canceled.state
 	skip := changelog.checkbox_skip_folded.state
 
-	for i in 0..<len(app.mode_panel.children) {
-		task := cast(^Task) app.mode_panel.children[i]
+	// TODO
+	// for i in 0..<len(app.mode_panel.children) {
+	// 	task := cast(^Task) app.mode_panel.children[i]
 
-		// skip individual task
-		if skip && (!task.visible || (task.has_children && task.folded)) {
-			continue
-		}
+	// 	// skip individual task
+	// 	if skip && (task.has_children && task.folded) {
+	// 		continue
+	// 	}
 
-		state_matched := include ? task.state != .Normal : task.state == .Done 
+	// 	state_matched := include ? task.state != .Normal : task.state == .Done 
 
-		if state_matched {
-			// TODO could also just push to temp array instead instantly to array
-			// to save up on having to sort
+	// 	if state_matched {
+	// 		// TODO could also just push to temp array instead instantly to array
+	// 		// to save up on having to sort
 
-			// search for unpushed parents
-			p := task.visible_parent
-			parent_search: for p != nil {
-				if p in changelog.qparents {
-					break parent_search
-				}
+	// 		// search for unpushed parents
+	// 		p := task.visible_parent
+	// 		parent_search: for p != nil {
+	// 			if p in changelog.qparents {
+	// 				break parent_search
+	// 			}
 
-				append(&changelog.qlist, Changelog_Task { p.index, false })
-				changelog.qparents[p] = 1
-				p = p.visible_parent
-			}
+	// 			append(&changelog.qlist, Changelog_Task { p.index, false })
+	// 			changelog.qparents[p] = 1
+	// 			p = p.visible_parent
+	// 		}
 
-			// push actual task that will be marked as remove candidate
-			append(&changelog.qlist, Changelog_Task { i, true })
+	// 		// push actual task that will be marked as remove candidate
+	// 		append(&changelog.qlist, Changelog_Task { i, true })
 
-			// push task if its a parent too to avoid duplicates
-			if task.has_children {
-				changelog.qparents[task] = 2
-			}
-		}
-	}
+	// 		// push task if its a parent too to avoid duplicates
+	// 		if task.has_children {
+	// 			changelog.qparents[task] = 2
+	// 		}
+	// 	}
+	// }
 
-	// just sort the unsorted parents that were inserted at some point
-	sort_by :: proc(a, b: Changelog_Task) -> bool {
-		return a.task_index < b.task_index
-	}
-	slice.sort_by(changelog.qlist[:], sort_by)
+	// // just sort the unsorted parents that were inserted at some point
+	// sort_by :: proc(a, b: Changelog_Task) -> bool {
+	// 	return a.task_index < b.task_index
+	// }
+	// slice.sort_by(changelog.qlist[:], sort_by)
 }
