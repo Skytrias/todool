@@ -153,8 +153,8 @@ main :: proc() {
 
 main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: rawptr) -> int {
 	task_head_tail_clamp()
-	if app.task_head != -1 && !task_has_selection() && len(app.tasks_visible) > 0 {
-		box := app.tasks_visible[app.task_head].box
+	if app.task_head != -1 && !task_has_selection() && app_filter_not_empty() {
+		box := app_task(app.task_head).box
 
 		if element_message(box, msg, di, dp) == 1 {
 			cam := mode_panel_cam()
@@ -184,7 +184,7 @@ main_update :: proc(window: ^Window) {
 	}
 
 	task_set_children_info()
-	task_set_visible_tasks()
+	// task_set_visible_tasks()
 	task_check_parent_states(&app.um_task)
 
 	switch app.task_state_progression {
@@ -213,26 +213,29 @@ main_update :: proc(window: ^Window) {
 	app.task_state_progression = .Idle
 
 	// just set the font options once here
-	for task in app.tasks_visible {
+	for index in app.pool.filter {
+		task := app_task(index)
 		task.font_options = task.has_children ? &app.font_options_bold : nil
 	}
 	
-	// find dragging index at
-	if app.drag_running {
-		if !window_mouse_inside(window) {
-			// set index to invalid
-			app.drag_index_at = -1
-		} else {
-			for task, i in app.tasks_visible {
-				if rect_contains(task.bounds, window.cursor_x, window.cursor_y) {
-					app.drag_index_at = task.visible_index
-					break
-				}
-			}
-		}
+	// TODO
+	// // find dragging index at
+	// if app.drag_running {
+	// 	if !window_mouse_inside(window) {
+	// 		// set index to invalid
+	// 		app.drag_index_at = -1
+	// 	} else {
+	// 		for index in app.pool.filter {
+	// 		for task, i in app.tasks_visible {
+	// 			if rect_contains(task.bounds, window.cursor_x, window.cursor_y) {
+	// 				app.drag_index_at = task.visible_index
+	// 				break
+	// 			}
+	// 		}
+	// 	}
 
-		window_set_cursor(window, .Hand_Drag)
-	}
+	// 	window_set_cursor(window, .Hand_Drag)
+	// }
 
 	bookmarks_clear_and_set()
 
@@ -248,28 +251,29 @@ main_update :: proc(window: ^Window) {
 
 	task_head_tail_clamp()
 
-	// NOTE forces the first task to indentation == 0
-	{
-		if len(app.tasks_visible) != 0 {
-			task := app.tasks_visible[0]
+	// TODO
+	// // NOTE forces the first task to indentation == 0
+	// {
+	// 	if len(app.tasks_visible) != 0 {
+	// 		task := app.tasks_visible[0]
 
-			if task.indentation != 0 {
-				manager := mode_panel_manager_scoped()
-				// NOTE continue the first group
-				undo_group_continue(manager) 
+	// 		if task.indentation != 0 {
+	// 			manager := mode_panel_manager_scoped()
+	// 			// NOTE continue the first group
+	// 			undo_group_continue(manager) 
 
-				item := Undo_Item_Task_Indentation_Set {
-					task = task,
-					set = task.indentation,
-				}	
-				undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+	// 			item := Undo_Item_Task_Indentation_Set {
+	// 				task = task,
+	// 				set = task.indentation,
+	// 			}	
+	// 			undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
 
-				task.indentation = 0
-				task.indentation_animating = true
-				element_animation_start(task)
-			}
-		}
-	}
+	// 			task.indentation = 0
+	// 			task.indentation_animating = true
+	// 			element_animation_start(task)
+	// 		}
+	// 	}
+	// }
 
 	// shadow animation
 	{
@@ -288,20 +292,21 @@ main_update :: proc(window: ^Window) {
 		}
 	}
 
-	// line changed
-	if app.old_task_head != app.task_head || app.old_task_tail != app.task_tail {
-		// call box changes immediatly when leaving task head / tail 
-		if len(app.tasks_visible) != 0 && app.old_task_head != -1 && app.old_task_head < len(app.tasks_visible) {
-			cam := mode_panel_cam()
-			cam.freehand = false
+	// TODO
+	// // line changed
+	// if app.old_task_head != app.task_head || app.old_task_tail != app.task_tail {
+	// 	// call box changes immediatly when leaving task head / tail 
+	// 	if len(app.tasks_visible) != 0 && app.old_task_head != -1 && app.old_task_head < len(app.tasks_visible) {
+	// 		cam := mode_panel_cam()
+	// 		cam.freehand = false
 
-			task := app.tasks_visible[app.old_task_head]
-			box_force_changes(&app.um_task, task.box)
+	// 		task := app.tasks_visible[app.old_task_head]
+	// 		box_force_changes(&app.um_task, task.box)
 
-			// add spell checking results to user dictionary
-			spell_check_mapping_words_add(ss_string(&task.box.ss))
-		}
-	}
+	// 		// add spell checking results to user dictionary
+	// 		spell_check_mapping_words_add(ss_string(&task.box.ss))
+	// 	}
+	// }
 
 	app.old_task_head = app.task_head
 	app.old_task_tail = app.task_tail
@@ -362,8 +367,8 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				return 0
 			}
 
-			if app.task_head != -1 {
-				task_focused := app.tasks_visible[app.task_head]
+			if app_filter_not_empty() {
+				task_focused := app_task_head()
 				res := element_message(task_focused.box, msg, di, dp)
 
 				if res == 1 {
@@ -399,7 +404,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				return 0
 			}
 
-			task := app.tasks_visible[app.task_head]
+			task := app_task_head()
 			task_insert_offset := task.index + 1
 			task_indentation := task.indentation
 
@@ -417,13 +422,15 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 						
 						if handle != nil {
 							// find task by mouse intersection
-							task := app.tasks_visible[app.task_head]
+							task := app_task_head()
 							x, y := global_mouse_position()
 							window_x, window_y := window_get_position(window)
 							x -= window_x
 							y -= window_y
 
-							for t in &app.tasks_visible {
+							for index in app.pool.filter {
+								t := app_task(index)
+
 								if rect_contains(t.bounds, x, y) {
 									task = t
 									break

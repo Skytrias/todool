@@ -140,7 +140,7 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 				low, high := task_low_and_high()
 				fmt.sbprintf(b, "Lines %d - %d selected", low + 1, high + 1)
 			} else {
-				task := app.tasks_visible[app.task_head]
+				task := app_task_head()
 
 				if .Hide not_in panel_search.flags {
 					index := search.current_index
@@ -166,54 +166,55 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 		}
 	}
 
-	// count states
-	count: [Task_State]int
-	for task in app.tasks_visible {
-		count[task.state] += 1
-	}
-	task_names := reflect.enum_field_names(Task_State)
+	// TODO
+	// // count states
+	// count: [Task_State]int
+	// for task in app.tasks_visible {
+	// 	count[task.state] += 1
+	// }
+	// task_names := reflect.enum_field_names(Task_State)
 
-	// tasks
-	for state, i in Task_State {
-		label := label_task_state[state]
-		b := &label.builder
-		strings.builder_reset(b)
-		strings.write_string(b, task_names[i])
-		strings.write_byte(b, ' ')
-		strings.write_int(b, count[state])
-	}
+	// // tasks
+	// for state, i in Task_State {
+	// 	label := label_task_state[state]
+	// 	b := &label.builder
+	// 	strings.builder_reset(b)
+	// 	strings.write_string(b, task_names[i])
+	// 	strings.write_byte(b, ' ')
+	// 	strings.write_int(b, count[state])
+	// }
 
-	{
-		total := len(app.mode_panel.children)
-		shown := len(app.tasks_visible)
-		hidden := total - len(app.tasks_visible)
-		deleted := len(app.task_clear_checking)
+	// {
+	// 	total := len(app.mode_panel.children)
+	// 	shown := len(app.tasks_visible)
+	// 	hidden := total - len(app.tasks_visible)
+	// 	deleted := len(app.task_clear_checking)
 
-		// run through list and decrease clear count
-		for task in app.tasks_visible {
-			if task in app.task_clear_checking {
-				deleted -= 1
-			}
-		}
+	// 	// run through list and decrease clear count
+	// 	for task in app.tasks_visible {
+	// 		if task in app.task_clear_checking {
+	// 			deleted -= 1
+	// 		}
+	// 	}
 		
-		b := &label_task_count.builder
-		strings.builder_reset(b)
+	// 	b := &label_task_count.builder
+	// 	strings.builder_reset(b)
 
-		strings.write_string(b, "Total ")
-		strings.write_int(b, total)
-		strings.write_string(b, ", ")
+	// 	strings.write_string(b, "Total ")
+	// 	strings.write_int(b, total)
+	// 	strings.write_string(b, ", ")
 
-		if hidden != 0 {
-			strings.write_string(b, "Shown ")
-			strings.write_int(b, shown)
-			strings.write_string(b, ", ")
+	// 	if hidden != 0 {
+	// 		strings.write_string(b, "Shown ")
+	// 		strings.write_int(b, shown)
+	// 		strings.write_string(b, ", ")
 
-			strings.write_string(b, "Hidden ")
-			strings.write_int(b, hidden)
-			strings.write_string(b, ", ")
-		}
+	// 		strings.write_string(b, "Hidden ")
+	// 		strings.write_int(b, hidden)
+	// 		strings.write_string(b, ", ")
+	// 	}
 
-		strings.write_string(b, "Deleted ")
-		strings.write_int(b, deleted)
-	}
+	// 	strings.write_string(b, "Deleted ")
+	// 	strings.write_int(b, deleted)
+	// }
 }

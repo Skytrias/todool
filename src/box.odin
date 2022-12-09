@@ -418,27 +418,27 @@ box_paste :: proc(
 	if clipboard_has_content() {
 		text := clipboard_get_with_builder_till_newline()
 
-		// only when from task, accept pngs/links
-		if msg_by_task {
-			if strings.has_suffix(text, ".png") {
-				task := app.tasks_visible[app.task_head]
-				handle := image_load_push(text)
+		// // only when from task, accept pngs/links
+		// if msg_by_task {
+		// 	if strings.has_suffix(text, ".png") {
+		// 		task := app.tasks_visible[app.task_head]
+		// 		handle := image_load_push(text)
 				
-				if handle != nil {
-					task_set_img(task, handle)
-					found = true
-					return
-				}
-			}
+		// 		if handle != nil {
+		// 			task_set_img(task, handle)
+		// 			found = true
+		// 			return
+		// 		}
+		// 	}
 
-			// TODO could be sped up probably
-			if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
-				task := app.tasks_visible[app.task_head]
-				task_set_link(task, text)
-				found = true
-				return
-			}
-		}
+		// 	// TODO could be sped up probably
+		// 	if strings.has_prefix(text, "https://") || strings.has_prefix(text, "http://") {
+		// 		task := app.tasks_visible[app.task_head]
+		// 		task_set_link(task, text)
+		// 		found = true
+		// 		return
+		// 	}
+		// }
 
 		box_replace(manager, element, box, text, 0, true, msg_by_task)
 		found = true

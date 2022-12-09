@@ -292,7 +292,7 @@ power_mode_set_caret_color :: proc() {
   using pm_state
 
   if app.task_head != -1 {
-  	task := app.tasks_visible[app.task_head]
+  	task := app_task_head()
   	// TODO make this syntax based instead
   	caret_color = theme_task_text(task.state)
   }	

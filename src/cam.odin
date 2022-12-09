@@ -204,7 +204,7 @@ mode_panel_cam_bounds_check_y :: proc(
 	goal: int
 	direction: int
 	if app.task_head != -1 && use_task {
-		task := app.tasks_visible[app.task_head]
+		task := app_task(app.task_head)
 		to_top = task.bounds.t
 		to_bottom = task.bounds.b
 	}
@@ -240,7 +240,7 @@ mode_panel_cam_bounds_check_x :: proc(
 	switch app.mode_panel.mode {
 		case .List: {
 			if app.task_head != -1 {
-				t := app.tasks_visible[app.task_head]
+				t := app_task(app.task_head)
 
 				// check if one liner
 				if len(t.box.wrapped_lines) == 1 {
@@ -265,7 +265,7 @@ mode_panel_cam_bounds_check_x :: proc(
 			if app.task_head != -1 && use_kanban {
 				index := app.task_head
 				for t == nil || (t.indentation != 0 && index >= 0) {
-					t = app.tasks_visible[index]
+					t = app_task(index)
 					index -= 1
 				}
 			}
