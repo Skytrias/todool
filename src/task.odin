@@ -154,8 +154,6 @@ app_init :: proc() -> (res: ^App) {
 	undo_manager_init(&res.um_goto)
 	undo_manager_init(&res.um_sidebar_tags)
 
-	// res.task_clear_checking = make(map[^Task]u8, 128)
-	// res.tasks_visible = make([dynamic]^Task, 0, 128)
 	res.task_move_stack = make([]^Task, 256)
 	search_state_init()
 
@@ -210,7 +208,7 @@ app_destroy :: proc(a: ^App) {
 	delete(a.last_save_location.buf)
 	copy_state_destroy(a.copy_state)
 
-	task_pool_destroy(a.pool)
+	task_pool_destroy(&a.pool)
 
 	free(a)
 }

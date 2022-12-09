@@ -1262,20 +1262,21 @@ undo_task_timestamp :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 // removes selected region and pushes them to the undo stack
 task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
-	// TODO
-	// iter := ti_init()
+	iter := lh_iter_init()
+	app.task_state_progression = .Update_Animated
 	
-	// app.task_state_progression = .Update_Animated
-	// for i in 0..<iter.range {
-	// 	task := cast(^Task) app.mode_panel.children[iter.offset]
-	// 	archive_push(ss_string(&task.box.ss)) // only valid
-	// 	task_remove_at_index(manager, iter.offset)
-	// }
+	for i in 0..<iter.range {
+		task := app_task_filter(iter.low)
+		archive_push(ss_string(&task.box.ss)) // only valid
 
-	// if move {
-	// 	app.task_head = iter.low - 1
-	// 	app.task_tail = iter.low - 1
-	// }
+		item := Undo_Item_Task_Remove_At { task.filter_index - i, task.list_index }
+		undo_task_remove_at(manager, &item)
+	}
+
+	if move {
+		app.task_head = iter.low - 1
+		app.task_tail = iter.low - 1
+	}
 }
 
 todool_indentation_shift :: proc(du: u32) {
@@ -1717,23 +1718,22 @@ todool_tasks_to_uppercase :: proc(du: u32) {
 }
 
 todool_tasks_to_lowercase :: proc(du: u32) {
-	// TODO
-	// if app_filter_not_empty() {
-	// 	manager := mode_panel_manager_scoped()
-	// 	task_head_tail_push(manager)
-	// 	iter := ti_init()
+	if app_filter_not_empty() {
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+		iter := lh_iter_init()
 
-	// 	for task in ti_step(&iter) {
-	// 		ss := &task.box.ss
+		for task in lh_iter_step(&iter) {
+			ss := &task.box.ss
 	
-	// 		if ss_has_content(ss) {
-	// 			item := Undo_String_Lowercased_Content { ss }
-	// 			undo_box_lowercased_content(manager, &item)
-	// 		}
-	// 	}
+			if ss_has_content(ss) {
+				item := Undo_String_Lowercased_Content { ss }
+				undo_box_lowercased_content(manager, &item)
+			}
+		}
 
-	// 	window_repaint(app.window_main)
-	// }
+		window_repaint(app.window_main)
+	}
 }
 
 todool_new_file :: proc(du: u32) {
@@ -2230,15 +2230,14 @@ todool_toggle_progressbars :: proc(du: u32) {
 }
 
 todool_toggle_timestamp :: proc(du: u32) {
-	// TODO
-	// if app_filter_empty() {
-	// 	return
-	// }
+	if app_filter_empty() {
+		return
+	}
 
-	// iter := ti_init()
-	// for task in ti_step(&iter) {
-	// 	task_set_time_date(task)
-	// }
+	iter := lh_iter_init()
+	for task in lh_iter_step(&iter) {
+		task_set_time_date(task)
+	}
 
-	// window_repaint(app.window_main)
+	window_repaint(app.window_main)
 }

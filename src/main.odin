@@ -218,24 +218,24 @@ main_update :: proc(window: ^Window) {
 		task.font_options = task.has_children ? &app.font_options_bold : nil
 	}
 	
-	// TODO
-	// // find dragging index at
-	// if app.drag_running {
-	// 	if !window_mouse_inside(window) {
-	// 		// set index to invalid
-	// 		app.drag_index_at = -1
-	// 	} else {
-	// 		for index in app.pool.filter {
-	// 		for task, i in app.tasks_visible {
-	// 			if rect_contains(task.bounds, window.cursor_x, window.cursor_y) {
-	// 				app.drag_index_at = task.filter_index
-	// 				break
-	// 			}
-	// 		}
-	// 	}
+	// find dragging index at
+	if app.drag_running {
+		if !window_mouse_inside(window) {
+			// set index to invalid
+			app.drag_index_at = -1
+		} else {
+			for index in app.pool.filter {
+				task := app_task_list(index)
 
-	// 	window_set_cursor(window, .Hand_Drag)
-	// }
+				if rect_contains(task.bounds, window.cursor_x, window.cursor_y) {
+					app.drag_index_at = task.filter_index
+					break
+				}
+			}
+		}
+
+		window_set_cursor(window, .Hand_Drag)
+	}
 
 	bookmarks_clear_and_set()
 
@@ -251,29 +251,28 @@ main_update :: proc(window: ^Window) {
 
 	task_head_tail_clamp()
 
-	// TODO
-	// // NOTE forces the first task to indentation == 0
-	// {
-	// 	if len(app.tasks_visible) != 0 {
-	// 		task := app.tasks_visible[0]
+	// NOTE forces the first task to indentation == 0
+	{
+		if app_filter_not_empty() {
+			task := app_task_filter(0)
 
-	// 		if task.indentation != 0 {
-	// 			manager := mode_panel_manager_scoped()
-	// 			// NOTE continue the first group
-	// 			undo_group_continue(manager) 
+			if task.indentation != 0 {
+				manager := mode_panel_manager_scoped()
+				// NOTE continue the first group
+				undo_group_continue(manager) 
 
-	// 			item := Undo_Item_Task_Indentation_Set {
-	// 				task = task,
-	// 				set = task.indentation,
-	// 			}	
-	// 			undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+				item := Undo_Item_Task_Indentation_Set {
+					task = task,
+					set = task.indentation,
+				}	
+				undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
 
-	// 			task.indentation = 0
-	// 			task.indentation_animating = true
-	// 			element_animation_start(task)
-	// 		}
-	// 	}
-	// }
+				task.indentation = 0
+				task.indentation_animating = true
+				element_animation_start(task)
+			}
+		}
+	}
 
 	// shadow animation
 	{
@@ -292,21 +291,20 @@ main_update :: proc(window: ^Window) {
 		}
 	}
 
-	// TODO
-	// // line changed
-	// if app.old_task_head != app.task_head || app.old_task_tail != app.task_tail {
-	// 	// call box changes immediatly when leaving task head / tail 
-	// 	if len(app.tasks_visible) != 0 && app.old_task_head != -1 && app.old_task_head < len(app.tasks_visible) {
-	// 		cam := mode_panel_cam()
-	// 		cam.freehand = false
+	// line changed
+	if app.old_task_head != app.task_head || app.old_task_tail != app.task_tail {
+		// call box changes immediatly when leaving task head / tail 
+		if app_filter_not_empty() && app.old_task_head != -1 && app.old_task_head < len(app.pool.filter) {
+			cam := mode_panel_cam()
+			cam.freehand = false
 
-	// 		task := app.tasks_visible[app.old_task_head]
-	// 		box_force_changes(&app.um_task, task.box)
+			task := app_task_filter(app.old_task_head)
+			box_force_changes(&app.um_task, task.box)
 
-	// 		// add spell checking results to user dictionary
-	// 		spell_check_mapping_words_add(ss_string(&task.box.ss))
-	// 	}
-	// }
+			// add spell checking results to user dictionary
+			spell_check_mapping_words_add(ss_string(&task.box.ss))
+		}
+	}
 
 	app.old_task_head = app.task_head
 	app.old_task_tail = app.task_tail

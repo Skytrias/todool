@@ -40,18 +40,12 @@ task_pool_push_remove :: proc(pool: ^Task_Pool, index: int, loc := #caller_locat
 	append(&pool.removed_list, index)
 }
 
-task_pool_pop_remove :: proc(pool: ^Task_Pool) -> (index: int) {
-	// index = -1
-
-	// if len(pool.removed_list) > 0 {
-		index = pool.removed_list[len(pool.removed_list) - 1]
-		pop(&pool.removed_list)
-	// }
-
+task_pool_pop_remove :: proc(pool: ^Task_Pool, loc := #caller_location) -> (index: int) {
+	runtime.bounds_check_error_loc(loc, 0, len(pool.removed_list))
+	index = pool.removed_list[len(pool.removed_list) - 1]
+	pop(&pool.removed_list)
 	return
 }
-
-// task_pool_remove
 
 task_pool_init :: proc() -> (res: Task_Pool) {
 	res.list = make([dynamic]Task, 0, 256)
@@ -61,13 +55,23 @@ task_pool_init :: proc() -> (res: Task_Pool) {
 }
 
 task_pool_clear :: proc(pool: ^Task_Pool) {
+	// for task in &pool.list {
+	// 	// element_destroy(&task)
+	// 	element_destroy_and_deallocate(&task)
+	// }
+
 	// TODO clear other data
 	clear(&pool.list)
 	clear(&pool.removed_list)
 	clear(&pool.filter)
 }
 
-task_pool_destroy :: proc(pool: Task_Pool) {
+task_pool_destroy :: proc(pool: ^Task_Pool) {
+	// for task in &pool.list {
+	// 	// element_destroy(&task)
+	// 	element_destroy_and_deallocate(&task)
+	// }
+
 	// TODO clear other data
 	delete(pool.list)
 	delete(pool.removed_list)

@@ -26,28 +26,28 @@ bookmark_state_destroy :: proc() {
 }
 
 bookmark_nearest_index :: proc(backward: bool) -> int {
-	// // on reset set to closest from current
-	// if app.task_head != -1 {
-	// 	// look for anything higher than the current index
-	// 	visible_index := app.tasks_visible[app.task_head].visible_index
-	// 	found: bool
+	// on reset set to closest from current
+	if app_filter_not_empty() {
+		// look for anything higher than the current index
+		filter_index := app_task_head().filter_index
+		found: bool
 
-	// 	if backward {
-	// 		// backward
-	// 		for i := len(bs.rows) - 1; i >= 0; i -= 1 {
-	// 			if bs.rows[i].visible_index < visible_index {
-	// 				return i
-	// 			}
-	// 		}
-	// 	} else {
-	// 		// forward
-	// 		for task, i in &bs.rows {
-	// 			if task.visible_index > visible_index {
-	// 				return i
-	// 			}
-	// 		}
-	// 	}
-	// }	
+		if backward {
+			// backward
+			for i := len(bs.rows) - 1; i >= 0; i -= 1 {
+				if bs.rows[i].filter_index < filter_index {
+					return i
+				}
+			}
+		} else {
+			// forward
+			for task, i in &bs.rows {
+				if task.filter_index > filter_index {
+					return i
+				}
+			}
+		}
+	}	
 
 	return -1
 }
@@ -72,13 +72,15 @@ bookmark_advance :: proc(backward: bool) {
 }
 
 bookmarks_clear_and_set :: proc() {
-	// // count first
-	// clear(&bs.rows)
-	// for task, i in app.tasks_visible {
-	// 	if task_bookmark_is_valid(task) {
-	// 		append(&bs.rows, task)
-	// 	}
-	// }
+	// count first
+	clear(&bs.rows)
+	for index in app.pool.filter {
+		task := app_task_list(index)
+
+		if task_bookmark_is_valid(task) {
+			append(&bs.rows, task)
+		}
+	}
 }
 
 bookmarks_render_connections :: proc(target: ^Render_Target, clip: RectI) {

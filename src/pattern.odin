@@ -19,46 +19,6 @@ pattern_load_content_simple :: proc(
 	indentation: int,
 	index_at: ^int,
 ) -> (found_any: bool) {
-	// temp := content
-	// temp_length := len(temp)
-	// pattern := "// TODO"
-	// pattern_length := len(pattern)
-	// pattern_hash := hash.fnv32a(transmute([]byte) pattern)
-	// b: u8
-
-	// // for line in strings.split_lines_iterator(&temp) {
-	// for i := 0; i < temp_length; i += 1 {
-	// 	b = temp[i]
-
-	// 	if b == '/' {
-	// 		// TODO safety
-	// 		if temp[i + 1] == '/' {
-	// 			if i + pattern_length < temp_length {
-	// 				h := hash.fnv32a(temp[i:i + pattern_length])
-
-	// 				if h == pattern_hash {
-	// 				// if temp[i:i + pattern_length] == pattern {
-	// 					// find end
-	// 					end_index := -1
-	// 					for j in i..<temp_length {
-	// 						if temp[j] == '\n' {
-	// 							end_index = j
-	// 							break
-	// 						}
-	// 					}
-
-	// 					if end_index != -1 {
-	// 						task_push_undoable(manager, indentation, string(temp[i + pattern_length:end_index]), index_at^)
-	// 						index_at^ += 1
-	// 						found_any = true
-	// 						i = end_index
-	// 					}
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
-
 	temp := content
 
 	for line in strings.split_lines_iterator(&temp) {
