@@ -1,5 +1,6 @@
 package src
 
+import "core:runtime"
 import "core:math/bits"
 import "core:image"
 import "core:image/png"
@@ -37,17 +38,12 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // have spall push threaded content based on ids or sdl timers
 
 // main :: proc() {
-// 	Your_Union :: struct #raw_union {
-// 		a: [4]int,
-// 		b: [2][2]int,
-// 	}
+// 	pool := task_pool_init()
+// 	defer task_pool_destroy(pool)
 
-// 	test := Your_Union { a = 1 }
-// 	fmt.eprintln(test.a, test.b)
-// 	test.a.y = 2
-// 	fmt.eprintln(test.a, test.b)
-// 	test.a.z = 3
-// 	fmt.eprintln(test.a, test.b)
+// 	fmt.eprintln(task_pool_push_new(&pool))
+// 	fmt.eprintln(task_pool_push_new(&pool))
+// 	task_pool_push_remove(&pool, 0); fmt.eprintln(len(pool.removed_list))
 // }
 
 main :: proc() {
