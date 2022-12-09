@@ -364,7 +364,7 @@ Task :: struct {
 	top_animation_start: bool,
 	top_animating: bool,
 
-	folded: bool,
+	folded: []int,
 	has_children: bool,
 	children_count: u16, // exclusive count
 	state_count: [Task_State]int,
@@ -472,56 +472,6 @@ tasks_lowest_indentation :: proc(low, high: int) -> (res: int) {
 	return
 }
 
-
-
-// // step through real values from hidden
-
-// Task_Iter :: struct {
-// 	// real
-// 	offset: int,
-// 	index: int,
-// 	range: int,
-
-// 	// visual
-// 	low, high: int,
-// }
-
-// ti_init :: proc() -> (res: Task_Iter) {
-// 	res.low, res.high = task_low_and_high()
-// 	a := app.tasks_visible[res.low].filter_index
-// 	b := app.tasks_visible[res.high].filter_index
-// 	res.offset = a
-// 	res.range = b - a + 1
-// 	return
-// }
-
-// ti_init_children_included :: proc() -> (res: Task_Iter) {
-// 	res.low, res.high = task_low_and_high()
-// 	a := app.tasks_visible[res.low]
-// 	aa := a.filter_index
-// 	aa_count := task_children_count(a)
-	
-// 	// need to jump further till the children end
-// 	b := cast(^Task) app.mode_panel.children[aa + aa_count + 1]
-// 	bb := b.filter_index
-// 	bb_count := task_children_count(b)
-
-// 	res.offset = aa
-// 	res.range = bb_count + aa_count + 2
-// 	return
-// }
-
-// ti_step :: proc(ti: ^Task_Iter) -> (res: ^Task, index: int, ok: bool) {
-// 	if ti.filter_index < ti.range && ti.offset + ti.filter_index < len(app.pool.filter) {
-// 		res = cast(^Task) app.mode_panel.children[ti.offset + ti.filter_index]
-// 		index = ti.offset + ti.filter_index
-// 		ti.filter_index += 1
-// 		ok = true
-// 	}
-
-// 	return
-// }
-
 task_head_tail_check_begin :: proc(shift: bool) ->  bool {
 	if !shift && app.task_head != app.task_tail {
 		app.task_tail = app.task_head
@@ -597,8 +547,10 @@ task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 		case .Clicked: {
 			manager := mode_panel_manager_scoped()
 			task_head_tail_push(manager)
-			item := Undo_Item_Bool_Toggle { &task.folded }
-			undo_bool_toggle(manager, &item)
+
+			// TODO
+			// item := Undo_Item_Bool_Toggle { &task.folded }
+			// undo_bool_toggle(manager, &item)
 
 			app.task_head = task.filter_index
 			app.task_tail = task.filter_index
@@ -608,7 +560,7 @@ task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 		case .Paint_Recursive: {
 			// NOTE only change
-			button.icon = task.folded ? .Simple_Right : .Simple_Down
+			button.icon = len(task.folded) > 0 ? .Simple_Right : .Simple_Down
 
 			pressed := button.window.pressed == button
 			hovered := button.window.hovered == button

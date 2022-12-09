@@ -508,16 +508,35 @@ todool_toggle_folding :: proc(du: u32 = 0) {
 	}
 
 	task := app_task_head()
-	manager := mode_panel_manager_scoped()
-
-	if task.has_children {
+	// if task.has_children {
+		manager := mode_panel_manager_scoped()
 		task_head_tail_push(manager)
-		item := Undo_Item_Bool_Toggle { &task.folded }
-		undo_bool_toggle(manager, &item)
+		
+		if len(task.folded) == 0 {
+			task.folded = make([]int, task.children_count)
+			idx := task.filter_index + 1
+			count := int(task.children_count)
+			copy(task.folded, app.pool.filter[idx:idx + count])
+			copy(app.pool.filter[idx:], app.pool.filter[idx + count:])
+			resize(&app.pool.filter, len(app.pool.filter) - count)
+		} else {
+			fmt.eprintln("TRY")
+			count := len(task.folded)
+			idx := task.filter_index + 1
+			resize(&app.pool.filter, len(app.pool.filter) + count)
+			copy(app.pool.filter[idx:], app.pool.filter[idx + count:])
+			copy(app.pool.filter[idx:], task.folded[:])
+			
+			delete(task.folded)
+			task.folded = nil
+		}
+
+		// item := Undo_Item_Bool_Toggle { &task.folded }
+		// undo_bool_toggle(manager, &item)
 		
 		app.task_tail = app.task_head
 		window_repaint(app.window_main)
-	}
+	// }
 }
 
 todool_insert_sibling :: proc(du: u32) {
@@ -579,13 +598,14 @@ todool_insert_child :: proc(du: u32) {
 			undo_box_uppercased_content(manager, &item)
 		}
 
-		// unfold current task if its folded 
-		if current_task.folded {
-			count := task_children_count(current_task)
-			item := Undo_Item_Bool_Toggle { &current_task.folded }
-			undo_bool_toggle(manager, &item)
-			goal = current_task.filter_index + 1
-		}
+		// TODO
+		// // unfold current task if its folded 
+		// if current_task.folded {
+		// 	count := task_children_count(current_task)
+		// 	item := Undo_Item_Bool_Toggle { &current_task.folded }
+		// 	undo_bool_toggle(manager, &item)
+		// 	goal = current_task.filter_index + 1
+		// }
 	}
 
 	task_push_undoable(manager, indentation, "", goal)
@@ -739,6 +759,13 @@ todool_mode_kanban :: proc(du: u32) {
 // }
 
 todool_shift_up :: proc(du: u32) {
+	x := app.task_head
+	y := app.task_head - 1
+	f := app.pool.filter
+	f[x], f[y] = f[y], f[x]
+	window_repaint(app.window_main)
+
+
 	// if len(app.pool.filter) < 2 {
 	// 	return
 	// }
@@ -823,6 +850,15 @@ todool_shift_up :: proc(du: u32) {
 }
 
 todool_shift_down :: proc(du: u32) {
+	// manager := mode_panel_manager_scoped()
+	// task_head_tail_push(manager)
+	// task_swap(manager, app.task_head, app.task_head + 1)
+	x := app.task_head
+	y := app.task_head + 1
+	f := app.pool.filter
+	f[x], f[y] = f[y], f[x]
+	window_repaint(app.window_main)
+
 	// if len(app.pool.filter) < 2 {
 	// 	return
 	// }
@@ -1001,7 +1037,7 @@ Undo_Item_Task_Swap :: struct {
 	a, b: ^^Task,
 }
 
-task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: int, folded: bool) {
+task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: int) {
 	item := Undo_Item_Task_Indentation_Set {
 		task = task,
 		set = task.indentation,
@@ -1010,7 +1046,10 @@ task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: i
 
 	task.indentation = set
 	task.indentation_animating = true
-	task.folded = folded
+	
+	// TODO
+	// task.folded = folded
+
 	element_animation_start(task)
 }
 
@@ -1304,15 +1343,16 @@ todool_indentation_shift :: proc(du: u32) {
 			continue
 		}
 
-		// unfold lowest parent
-		if amt > 0 && lowest.folded {
-			item := Undo_Item_Bool_Toggle { &lowest.folded }
-			undo_bool_toggle(manager, &item)
-			unfolded = true
-		}
+		// TODO 
+		// // unfold lowest parent
+		// if amt > 0 && lowest.folded {
+		// 	item := Undo_Item_Bool_Toggle { &lowest.folded }
+		// 	undo_bool_toggle(manager, &item)
+		// 	unfolded = true
+		// }
 
 		if task.indentation + amt >= 0 {
-			task_indentation_set_animate(manager, task, task.indentation + amt, task.folded)
+			task_indentation_set_animate(manager, task, task.indentation + amt)
 		}
 	}
 
@@ -1790,11 +1830,12 @@ todool_select_children :: proc(du: u32) {
 		task := app_task_head()
 
 		if task.has_children {
-			if task.folded {
-				todool_toggle_folding()
-				// task_set_visible_tasks()
-				task_check_parent_states(nil)
-			}
+			// TODO
+			// if task.folded {
+			// 	todool_toggle_folding()
+			// 	// task_set_visible_tasks()
+			// 	task_check_parent_states(nil)
+			// }
 
 			app.task_tail = app.task_head
 

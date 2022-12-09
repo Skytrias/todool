@@ -19,7 +19,7 @@ Copy_Task :: struct #packed {
 	indentation: u8,
 	state: Task_State,
 	tags: u8,
-	folded: bool,
+	// folded: bool,
 	bookmarked: bool,
 	timestamp: time.Time,
 	stored_image: ^Stored_Image,
@@ -89,7 +89,7 @@ copy_state_push_task :: proc(state: ^Copy_State, task: ^Task) {
 		u8(task.indentation),
 		task.state,
 		task.tags,
-		task.folded,
+		// task.folded,
 		task_bookmark_is_valid(task),
 		task_time_date_is_valid(task) ? task.time_date.stamp : {},
 		task.image_display == nil ? nil : task.image_display.img,
@@ -122,7 +122,7 @@ copy_state_paste_at :: proc(
 		relative_indentation := indentation + int(t.indentation) - lowest_indentation
 		
 		task := task_push_undoable(manager, relative_indentation, string(text), index_at + i)
-		task.folded = t.folded
+		// task.folded = t.folded
 		task.state = t.state
 		task_set_bookmark(task, t.bookmarked)
 		task.tags = t.tags

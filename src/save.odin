@@ -340,7 +340,10 @@ editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
 				case .Bookmark: {
 					task_set_bookmark(task, true)
 				}
-				case .Folded: task.folded = true
+				case .Folded: {
+					// TODO
+					// task.folded = true
+				}
 				case .Image_Path: {
 					length := reader_read_type(reader, u16be) or_return
 					byte_content := reader_read_bytes_out(reader, int(length)) or_return
