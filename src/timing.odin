@@ -214,7 +214,7 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 			fcs_ahv()
 			task := cast(^Task) element.parent
-			task_color := theme_panel(task.has_children ? .Parent : .Front)
+			task_color := theme_panel(task_has_children(task) ? .Parent : .Front)
 			fcs_color(task_color)
 			fcs_font(font_regular)
 			fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)

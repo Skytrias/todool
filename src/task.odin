@@ -364,9 +364,8 @@ Task :: struct {
 	top_animation_start: bool,
 	top_animating: bool,
 
-	folded: []int,
-	has_children: bool,
-	children_count: u16, // exclusive count
+	filter_folded: bool, // toggle to freeze children
+	filter_children: [dynamic]int, // set every frame except when folded
 	state_count: [Task_State]int,
 
 	// TODO: remove UNUSED
@@ -417,6 +416,10 @@ mode_panel_zoom_animate :: proc() {
 // line has selection
 task_has_selection :: #force_inline proc() -> bool {
 	return app.task_head != app.task_tail
+}
+
+task_has_children :: #force_inline proc(task: ^Task) -> bool {
+	return len(task.filter_children) != 0
 }
 
 // low and high from selection
@@ -548,19 +551,16 @@ task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			manager := mode_panel_manager_scoped()
 			task_head_tail_push(manager)
 
-			// TODO
-			// item := Undo_Item_Bool_Toggle { &task.folded }
-			// undo_bool_toggle(manager, &item)
-
+			task_toggle_folding(manager, task)
 			app.task_head = task.filter_index
 			app.task_tail = task.filter_index
 
-			element_message(element, .Update)
+			element_repaint(element)
 		}
 
 		case .Paint_Recursive: {
 			// NOTE only change
-			button.icon = len(task.folded) > 0 ? .Simple_Right : .Simple_Down
+			button.icon = task.filter_folded ? .Simple_Right : .Simple_Down
 
 			pressed := button.window.pressed == button
 			hovered := button.window.hovered == button
@@ -825,7 +825,6 @@ task_push :: proc(
 	return
 }
 
-
 // push line element to panel middle with indentation
 task_push_undoable :: proc(
 	manager: ^Undo_Manager,
@@ -839,8 +838,7 @@ task_push_undoable :: proc(
 		item := Undo_Item_Task_Append { res.list_index, false }
 		undo_task_append(manager, &item)
 	} else {
-		res.filter_index = index_at
-		item := Undo_Item_Task_Insert_At { res.filter_index, res.list_index, false }
+		item := Undo_Item_Task_Insert_At { index_at, res.list_index, false }
 		undo_task_insert_at(manager, &item)
 	}	
 
@@ -852,36 +850,6 @@ task_box_format_to_lines :: proc(box: ^Task_Box, width: int) {
 	fcs_task(box)
 	fcs_ahv(.Left, .Top)
 	wrapped_lines_push(ss_string(&box.ss), max(f32(width), 200), &box.wrapped_lines)
-}
-
-// iter through visible children
-task_all_children_iter :: proc(
-	indentation: int,
-	index: ^int,
-) -> (res: ^Task, ok: bool) {
-	if index^ > len(app.pool.filter) - 1 {
-		return
-	}
-
-	res = app_task_filter(index^)
-	ok = indentation <= res.indentation
-	index^ += 1
-	return
-}
-
-// iter through visible children
-task_visible_children_iter :: proc(
-	indentation: int,
-	index: ^int,
-) -> (res: ^Task, ok: bool) {
-	if index^ > len(app.pool.filter) - 1 {
-		return
-	}
-
-	res = app_task_filter(index^)
-	ok = indentation <= res.indentation
-	index^ += 1
-	return
 }
 
 // init panel with data
@@ -909,18 +877,11 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 	for p != nil {
 		if p.visible_parent != nil {
-			index := p.visible_parent.filter_index + 1
-			bound_rect: RectI
+			bound_rect := RECT_INF
 
-			// TODO use rect_inf
-			for child in task_visible_children_iter(p.indentation, &index) {
-				rect := child.bounds
-
-				if bound_rect == {} {
-					bound_rect = rect
-				} else {
-					bound_rect = rect_bounding(bound_rect, rect)
-				}
+			for list_index in p.visible_parent.filter_children {
+				task := app_task_list(list_index)
+				rect_inf_push(&bound_rect, task.bounds)
 			}
 
 			bound_rect.l -= tab
@@ -942,79 +903,37 @@ task_set_children_info :: proc() {
 	for list_index, linear_index in app.pool.filter {
 		task := app_task_list(list_index)
 		task.filter_index = linear_index
-		task.has_children = false
+		
+		if !task.filter_folded {
+			clear(&task.filter_children)
+		}
+
 		task.visible_parent = nil
 	}
 
-	// simple check for indentation
-	for i := 0; i < len(app.pool.filter) - 1; i += 1 {
-		a := app_task_filter(i)
-		b := app_task_filter(i + 1)
-
-		if a.indentation < b.indentation {
-			a.has_children = true
-		}
-	}
-
-	// dumb set visible parent to everything coming after
-	// each upcoming has_children will set correctly
+	previous: ^Task
 	for i in 0..<len(app.pool.filter) {
-		a := app_task_filter(i)
+		task := app_task_filter(i)
 
-		if a.has_children {
-			for j in i + 1..<len(app.pool.filter) {
-				b := app_task_filter(j)
+		if previous != nil && previous.indentation < task.indentation && !previous.filter_folded {
+			// fmt.eprintln("INSERT")
+			for j in i..<len(app.pool.filter) {
+				child := app_task_filter(j)
 
-				if a.indentation < b.indentation {
-					b.visible_parent = a
+				if previous.indentation < child.indentation {
+					// fmt.eprintln("\t", previous.list_index, previous.filter_index, "|||", child.list_index, child.filter_index)
+					append(&previous.filter_children, child.list_index)
+
+					child.visible_parent = previous
 				} else {
 					break
 				}
 			}
 		}
+
+		previous = task
 	}
 }
-
-// // set visible flags on task based on folding
-// task_set_visible_tasks :: proc() {
-// 	clear(&app.tasks_visible)
-// 	manager := mode_panel_manager_begin()
-
-// 	// set visible lines based on fold of parents
-// 	for child in app.mode_panel.children {
-// 		task := cast(^Task) child
-// 		p := task.visible_parent
-// 		task.visible = true
-
-// 		// unset folded 
-// 		if !task.has_children && task.folded {
-// 			item := Undo_Item_U8_Set {
-// 				cast(^u8) (&task.folded),
-// 				0,
-// 			}
-
-// 			// continue last undo because this happens manually
-// 			undo_group_continue(manager)
-// 			undo_u8_set(manager, &item)
-// 			undo_group_end(manager)
-// 		}
-
-// 		// recurse up 
-// 		for p != nil {
-// 			if p.folded {
-// 				task.visible = false
-// 			}
-
-// 			p = p.visible_parent
-// 		}
-		
-// 		// just update icon & hide each
-// 		if task.visible {
-// 			task.filter_index = len(app.pool.filter)
-// 			append(&app.tasks_visible, task)
-// 		}
-// 	}
-// }
 
 // automatically set task state of parents based on children counts
 // manager = nil will not push changes to undo
@@ -1023,9 +942,9 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 	for i in 0..<len(app.pool.filter) {
 		task := app_task_filter(i)
 
-		if task.has_children {
+		if !task.filter_folded && task_has_children(task) {
 			task.state_count = {}
-			task.children_count = 0
+			// task.children_count = 0
 		}
 	}
 
@@ -1038,7 +957,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 		task := app_task_filter(i)
 
 		// when has children - set state based on counted result
-		if task.has_children {
+		if !task.filter_folded && task_has_children(task) {
 			if task.state_count[.Normal] == 0 {
 				goal: Task_State = task.state_count[.Done] >= task.state_count[.Canceled] ? .Done : .Canceled
 				
@@ -1071,7 +990,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 		// count parent up based on this state		
 		if task.visible_parent != nil {
 			task.visible_parent.state_count[task.state] += 1
-			task.visible_parent.children_count += 1
+			// task.visible_parent.children_count += 1
 		}
 	}	
 
@@ -1080,38 +999,38 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 	}
 }
 
-// in real indicess
-task_children_count :: proc(parent: ^Task) -> (count: int) {
-	for i in parent.filter_index + 1..<len(app.pool.filter) {
-		task := app_task_filter(i)
+// // in real indicess
+// task_children_count :: proc(parent: ^Task) -> (count: int) {
+// 	for i in parent.filter_index + 1..<len(app.pool.filter) {
+// 		task := app_task_filter(i)
 
-		if task.indentation <= parent.indentation {
-			break
-		}
+// 		if task.indentation <= parent.indentation {
+// 			break
+// 		}
 
-		count += 1
-	}
+// 		count += 1
+// 	}
 
-	return
-}
+// 	return
+// }
 
-// in real indicess
-task_children_range :: proc(parent: ^Task) -> (low, high: int) {
-	low = min(parent.filter_index + 1, len(app.pool.filter) - 1)
-	high = -1
+// // in real indicess
+// task_children_range :: proc(parent: ^Task) -> (low, high: int) {
+// 	low = min(parent.filter_index + 1, len(app.pool.filter) - 1)
+// 	high = -1
 
-	for i in parent.filter_index + 1..<len(app.pool.filter) {
-		task := app_task_filter(i)
+// 	for i in parent.filter_index + 1..<len(app.pool.filter) {
+// 		task := app_task_filter(i)
 
-		if task.indentation <= parent.indentation {
-			break
-		}
+// 		if task.indentation <= parent.indentation {
+// 			break
+// 		}
 
-		high = i
-	}
+// 		high = i
+// 	}
 
-	return
-}
+// 	return
+// }
 
 //////////////////////////////////////////////
 // messages
@@ -1888,8 +1807,8 @@ task_layout :: proc(
 	}
 
 	// fold button
-	element_hide(task.button_fold, !task.has_children)
-	if task.has_children {
+	element_hide(task.button_fold, !task_has_children(task))
+	if task_has_children(task) {
 		rect := rect_cut_left(&cut, int(DEFAULT_FONT_SIZE * TASK_SCALE))
 		cut.l += int(5 * TASK_SCALE)
 
@@ -1995,7 +1914,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			rect := task.bounds
 
 			// render panel front color
-			task_color := theme_panel(task.has_children ? .Parent : .Front)
+			task_color := theme_panel(task_has_children(task) ? .Parent : .Front)
 			render_rect(target, rect, task_color, ROUNDNESS)
 
 			// draw tags at an offset
@@ -2103,12 +2022,12 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			)
 
 			// progress animation on parent
-			if task.has_children && progressbar_show() {
+			if task_has_children(task) && progressbar_show() {
 				for count, i in task.state_count {
 					always := true
 					state := Task_State(i)
 					// in case this gets run too early to avoid divide by 0
-					value := f32(count) / max(f32(task.children_count), 1)
+					value := f32(count) / max(f32(len(task.filter_children)), 1)
 
 					handled |= animate_to(
 						&always,
@@ -2136,7 +2055,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 task_progress_state_set :: proc(task: ^Task) {
 	for count, i in task.state_count {
 		state := Task_State(i)
-		value := f32(count) / f32(task.children_count)
+		value := f32(count) / f32(len(task.filter_children))
 		task.progress_animation[state] = value
 	}
 }
@@ -2981,7 +2900,7 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			continue
 		}
 
-		if task.has_children {
+		if task_has_children(task) {
 			rect := rect_translate(
 				default_rect,
 				rect_xxyy(task.bounds.r - w + off, task.bounds.t + off),
@@ -3003,11 +2922,11 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			}
 
 			strings.builder_reset(&builder)
-			non_normal := int(task.children_count) - task.state_count[.Normal]
+			non_normal := len(task.filter_children) - task.state_count[.Normal]
 			if use_percentage {
-				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(task.children_count) * 100)
+				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(len(task.filter_children)) * 100)
 			} else {
-				fmt.sbprintf(&builder, "%d / %d", non_normal, task.children_count)
+				fmt.sbprintf(&builder, "%d / %d", non_normal, len(task.filter_children))
 			}
 			render_string_rect(target, rect, strings.to_string(builder))
 		}

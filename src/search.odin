@@ -119,63 +119,62 @@ search_update :: proc(pattern: string) {
 	sf := string_finder_init(pattern)
 	defer string_finder_destroy(sf)
 
-	// TODO
-	// if search.persistent.case_insensitive {
-	// 	builder := strings.builder_make(0, 256, context.temp_allocator)
+	if search.persistent.case_insensitive {
+		builder := strings.builder_make(0, 256, context.temp_allocator)
 
-	// 	// find results
-	// 	for i in 0..<len(app.tasks_visible) {
-	// 		task := app.tasks_visible[i]
-	// 		text := ss_string(&task.box.ss)
-	// 		task_pushed: bool
-	// 		index: int
-	// 		strings.builder_reset(&builder)
-	// 		text_lowered := cutf8.to_lower(&builder, text)
+		// find results
+		for index in app.pool.filter {
+			task := app_task_list(index)
+			text := ss_string(&task.box.ss)
+			task_pushed: bool
+			index: int
+			strings.builder_reset(&builder)
+			text_lowered := cutf8.to_lower(&builder, text)
 
-	// 		for {
+			for {
 
-	// 			res := string_finder_next(&sf, text_lowered[index:])
-	// 			if res == -1 {
-	// 				break
-	// 			}
+				res := string_finder_next(&sf, text_lowered[index:])
+				if res == -1 {
+					break
+				}
 
-	// 			if !task_pushed {
-	// 				search_push_task(task)
-	// 				task_pushed = true
-	// 			}
+				if !task_pushed {
+					search_push_task(task)
+					task_pushed = true
+				}
 
-	// 			index += res
-	// 			count := cutf8.count(text_lowered[:index])
-	// 			search_push_result(count, count + search.pattern_length)
-	// 			index += len(pattern)
-	// 		}
-	// 	}
-	// } else {
-	// 	// find results
-	// 	for i in 0..<len(app.tasks_visible) {
-	// 		task := app.tasks_visible[i]
-	// 		text := ss_string(&task.box.ss)
-	// 		task_pushed: bool
-	// 		index: int
+				index += res
+				count := cutf8.count(text_lowered[:index])
+				search_push_result(count, count + search.pattern_length)
+				index += len(pattern)
+			}
+		}
+	} else {
+		// find results
+		for index in app.pool.filter {
+			task := app_task_list(index)
+			text := ss_string(&task.box.ss)
+			task_pushed: bool
+			index: int
 
-	// 		for {
-	// 			res := string_finder_next(&sf, text[index:])
-	// 			if res == -1 {
-	// 				break
-	// 			}
+			for {
+				res := string_finder_next(&sf, text[index:])
+				if res == -1 {
+					break
+				}
 
-	// 			if !task_pushed {
-	// 				search_push_task(task)
-	// 				task_pushed = true
-	// 			}
+				if !task_pushed {
+					search_push_task(task)
+					task_pushed = true
+				}
 
-	// 			index += res
-	// 			count := cutf8.count(text[:index])
-	// 			search_push_result(count, count + search.pattern_length)
-	// 			index += len(pattern)
-	// 		}
-	// 	}
-	// }
+				index += res
+				count := cutf8.count(text[:index])
+				search_push_result(count, count + search.pattern_length)
+				index += len(pattern)
+			}
+		}
+	}
 
 	search_find_next()
 }

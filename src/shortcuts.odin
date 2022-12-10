@@ -502,41 +502,130 @@ todool_escape :: proc(du: u32) {
 	}
 }
 
+Undo_Item_Filter_Fold :: struct {
+	filter_index: int,
+	count: int,
+}
+
+Undo_Item_Filter_Unfold :: struct {
+	filter_index: int,
+	count: int,
+	// count * size_of(int) upcoming
+}
+
+undo_filter_fold :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Filter_Fold) item
+
+	task := app_task_filter(data.filter_index)
+	idx := data.filter_index + 1
+
+	// push upfront
+	output := Undo_Item_Filter_Unfold {
+		data.filter_index,
+		data.count,
+	}
+	bytes := undo_push(
+		manager, 
+		undo_filter_unfold, 
+		&output, 
+		size_of(Undo_Item_Filter_Unfold) + size_of(int) * data.count,
+	)
+	byte_root := &bytes[size_of(Undo_Item_Filter_Unfold)]
+	mem.copy(byte_root, raw_data(task.filter_children), data.count * size_of(int))
+	byte_slice := mem.slice_ptr(cast(^int) byte_root, data.count)
+
+	// push to children, subtract from filter
+	copy(app.pool.filter[idx:], app.pool.filter[idx + data.count:])
+	resize(&app.pool.filter, len(app.pool.filter) - data.count)
+	task.filter_folded = true
+}
+
+undo_filter_unfold :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Filter_Unfold) item
+	byte_root := mem.ptr_offset(cast(^u8) item, size_of(Undo_Item_Filter_Unfold))
+	byte_slice := mem.slice_ptr(cast(^int) byte_root, data.count)
+
+	task := app_task_filter(data.filter_index)
+	idx := data.filter_index + 1
+	// fmt.eprintln("UNFOLD~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+	// fmt.eprintln("\t", byte_slice)
+	// fmt.eprintln("\t", data.filter_index, data.count)
+
+	resize(&app.pool.filter, len(app.pool.filter) + data.count)
+	copy(app.pool.filter[idx + data.count:], app.pool.filter[idx:])
+	copy(app.pool.filter[idx:], byte_slice)
+	task.filter_folded = false
+
+	output := Undo_Item_Filter_Fold {
+		data.filter_index,
+		data.count,
+	}
+	undo_push(manager, undo_filter_fold, &output, size_of(Undo_Item_Filter_Fold))
+}
+
 todool_toggle_folding :: proc(du: u32 = 0) {
 	if app_filter_empty() {
 		return
 	}
 
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+
 	task := app_task_head()
-	// if task.has_children {
-		manager := mode_panel_manager_scoped()
-		task_head_tail_push(manager)
+	task_toggle_folding(manager, task)
 		
-		if len(task.folded) == 0 {
-			task.folded = make([]int, task.children_count)
-			idx := task.filter_index + 1
-			count := int(task.children_count)
-			copy(task.folded, app.pool.filter[idx:idx + count])
-			copy(app.pool.filter[idx:], app.pool.filter[idx + count:])
-			resize(&app.pool.filter, len(app.pool.filter) - count)
+	app.task_tail = app.task_head
+	window_repaint(app.window_main)
+}
+
+task_push_unfold :: proc(task: ^Task) -> ^Undo_Item_Filter_Unfold {
+	root := mem.alloc(
+		size_of(Undo_Item_Filter_Unfold) + size_of(int) * len(task.filter_children), 
+		mem.DEFAULT_ALIGNMENT,
+		context.temp_allocator,
+	)
+
+	// set root
+	data := cast(^Undo_Item_Filter_Unfold) root
+	data.filter_index = task.filter_index
+	data.count = len(task.filter_children)
+
+	// set actual data
+	byte_root := uintptr(root) + size_of(Undo_Item_Filter_Unfold)
+	mem.copy(rawptr(byte_root), raw_data(task.filter_children), data.count * size_of(int))
+
+	return data
+}
+
+task_toggle_folding :: proc(manager: ^Undo_Manager, task: ^Task) -> bool {
+	if task_has_children(task) {
+		if task.filter_folded {
+			item := task_push_unfold(task)
+			undo_filter_unfold(manager, item)
 		} else {
-			fmt.eprintln("TRY")
-			count := len(task.folded)
-			idx := task.filter_index + 1
-			resize(&app.pool.filter, len(app.pool.filter) + count)
-			copy(app.pool.filter[idx:], app.pool.filter[idx + count:])
-			copy(app.pool.filter[idx:], task.folded[:])
-			
-			delete(task.folded)
-			task.folded = nil
+			item := Undo_Item_Filter_Fold {
+				task.filter_index,
+				len(task.filter_children),
+			}
+
+			undo_filter_fold(manager, &item)
 		}
 
-		// item := Undo_Item_Bool_Toggle { &task.folded }
-		// undo_bool_toggle(manager, &item)
-		
-		app.task_tail = app.task_head
-		window_repaint(app.window_main)
-	// }
+		return true
+	}
+
+	return false
+}
+
+task_check_unfold :: proc(manager: ^Undo_Manager, task: ^Task) -> bool {
+	if task_has_children(task) && task.filter_folded {
+		fmt.eprintln("PUSH UNFOLD", len(task.filter_children))
+		item := task_push_unfold(task)
+		undo_filter_unfold(manager, item)
+		return true
+	}
+
+	return false
 }
 
 todool_insert_sibling :: proc(du: u32) {
@@ -576,16 +665,11 @@ todool_insert_sibling :: proc(du: u32) {
 
 todool_insert_child :: proc(du: u32) {
 	indentation: int
-	goal := len(app.pool.filter) // default append
+	goal := app.task_head + 1 // default append
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 	shift := du_shift(du)
 	app.task_state_progression = .Update_Animated
-
-	if app.task_head < len(app.pool.filter) - 1 {
-		goal = app_task_filter(app.task_head + 1).filter_index
-	}
-	jump := 1
 
 	if app_filter_not_empty() {
 		current_task := app_task_head()
@@ -593,23 +677,20 @@ todool_insert_child :: proc(du: u32) {
 		ss := &current_task.box.ss
 
 		// uppercase word
-		if !current_task.has_children && options_uppercase_word() && ss_has_content(ss) {
+		if !task_has_children(current_task) && options_uppercase_word() && ss_has_content(ss) {
 			item := Undo_String_Uppercased_Content { ss }
 			undo_box_uppercased_content(manager, &item)
 		}
 
-		// TODO
-		// // unfold current task if its folded 
-		// if current_task.folded {
-		// 	count := task_children_count(current_task)
-		// 	item := Undo_Item_Bool_Toggle { &current_task.folded }
-		// 	undo_bool_toggle(manager, &item)
-		// 	goal = current_task.filter_index + 1
-		// }
+		// unfold current task if its folded 
+		if task_has_children(current_task) {
+			task_check_unfold(manager, current_task)
+			goal = current_task.filter_index + len(current_task.filter_children) + 1
+		}
 	}
 
 	task_push_undoable(manager, indentation, "", goal)
-	app.task_head += jump
+	app.task_head = goal
 	task_head_tail_check_end(shift)
 	window_repaint(app.window_main)
 }
@@ -765,6 +846,8 @@ todool_shift_up :: proc(du: u32) {
 	f[x], f[y] = f[y], f[x]
 	window_repaint(app.window_main)
 
+	app.task_head -= 1
+	app.task_tail -= 1
 
 	// if len(app.pool.filter) < 2 {
 	// 	return
@@ -858,6 +941,9 @@ todool_shift_down :: proc(du: u32) {
 	f := app.pool.filter
 	f[x], f[y] = f[y], f[x]
 	window_repaint(app.window_main)
+
+	app.task_head += 1
+	app.task_tail += 1
 
 	// if len(app.pool.filter) < 2 {
 	// 	return
@@ -1046,10 +1132,6 @@ task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: i
 
 	task.indentation = set
 	task.indentation_animating = true
-	
-	// TODO
-	// task.folded = folded
-
 	element_animation_start(task)
 }
 
@@ -1064,13 +1146,11 @@ undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
 }
 
 task_swap_animation :: proc(task: ^Task) {
-	// if task.visible {
-		task.top_offset = 0
-		task.top_animation_start = true
-		task.top_animating = true
-		task.top_old = task.bounds.t
-		element_animation_start(task)
-	// }
+	task.top_offset = 0
+	task.top_animation_start = true
+	task.top_animating = true
+	task.top_old = task.bounds.t
+	element_animation_start(task)
 }
 
 // swap with +1 / -1 offset 
@@ -1343,13 +1423,11 @@ todool_indentation_shift :: proc(du: u32) {
 			continue
 		}
 
-		// TODO 
-		// // unfold lowest parent
-		// if amt > 0 && lowest.folded {
-		// 	item := Undo_Item_Bool_Toggle { &lowest.folded }
-		// 	undo_bool_toggle(manager, &item)
-		// 	unfolded = true
-		// }
+		// unfold lowest parent
+		if amt > 0 && lowest.filter_folded {
+			task_check_unfold(manager, lowest) 
+			unfolded = true
+		}
 
 		if task.indentation + amt >= 0 {
 			task_indentation_set_animate(manager, task, task.indentation + amt)
@@ -1358,16 +1436,15 @@ todool_indentation_shift :: proc(du: u32) {
 
 	// hacky way to offset selection by unfolded content
 	if unfolded {
-		l, h := task_children_range(lowest)
-		size := h - l
+		size := len(lowest.filter_children)
 		range := iter.high - iter.low
-		app.task_head += size - range + 1
-		app.task_tail += size - range + 1
+		app.task_tail += size - range
+		app.task_head += size - range
 	}
 
 	// set new indentation based task info and push state changes
-	task_set_children_info()
-	task_check_parent_states(manager)
+	// task_set_children_info()
+	// task_check_parent_states(manager)
 
 	window_repaint(app.window_main)
 }
@@ -1827,31 +1904,32 @@ todool_select_children :: proc(du: u32) {
 	}
 
 	if app.task_head == app.task_tail {
-		task := app_task_head()
+		// task := app_task_head()
 
-		if task.has_children {
-			// TODO
-			// if task.folded {
-			// 	todool_toggle_folding()
-			// 	// task_set_visible_tasks()
-			// 	task_check_parent_states(nil)
-			// }
+		// TODO
+		// if task.has_children {
+		// 	// TODO
+		// 	// if task.folded {
+		// 	// 	todool_toggle_folding()
+		// 	// 	// task_set_visible_tasks()
+		// 	// 	task_check_parent_states(nil)
+		// 	// }
 
-			app.task_tail = app.task_head
+		// 	app.task_tail = app.task_head
 
-			index := task.filter_index + 1
-			for index < len(app.pool.filter) {
-				t := app_task_filter(index)
+		// 	index := task.filter_index + 1
+		// 	for index < len(app.pool.filter) {
+		// 		t := app_task_filter(index)
 
-				if t.indentation <= task.indentation {
-					break
-				}
+		// 		if t.indentation <= task.indentation {
+		// 			break
+		// 		}
 
-				index += 1
-			}
+		// 		index += 1
+		// 	}
 
-			app.task_head = index - 1
-		}		
+		// 	app.task_head = index - 1
+		// }		
 	} else {
 		app.task_head, app.task_tail = app.task_tail, app.task_head
 	}
@@ -2027,12 +2105,13 @@ todool_sort_locals :: proc(du: u32) {
 		to = len(app.pool.filter) - 1
 		// return
 	} else {
-		from, to = task_children_range(task_current.visible_parent)
+		// TODO
+		// from, to = task_children_range(task_current.visible_parent)
 
-		// skip invalid 
-		if from == -1 || to == -1 {
-			return
-		}
+		// // skip invalid 
+		// if from == -1 || to == -1 {
+		// 	return
+		// }
 	}
 
 	manager := mode_panel_manager_scoped()

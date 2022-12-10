@@ -496,7 +496,6 @@ element_deallocate_raw :: proc(element: ^Element) {
 	element_animation_stop(element)
 	// free data
 	delete(element.children)
-	// TODO is everything freed here? even higher memory?
 	free(element, element.allocator)
 }
 
