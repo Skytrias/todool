@@ -1,5 +1,6 @@
 package src
 
+import "core:os"
 import "core:runtime"
 import "core:c/libc"
 import "core:io"
@@ -781,8 +782,9 @@ task_seperator_is_valid :: proc(task: ^Task) -> bool {
 task_init :: proc(
 	indentation: int,
 	text: string,
+	check_freed: bool,
 ) -> (res: ^Task) { 
-	res = task_pool_push_new(&app.pool)
+	res = task_pool_push_new(&app.pool, check_freed)
 
 	allocator := context.allocator
 	element := cast(^Element) res
@@ -814,7 +816,7 @@ task_push :: proc(
 	text := "", 
 	index_at := -1,
 ) -> (res: ^Task) {
-	res = task_init(indentation, text)
+	res = task_init(indentation, text, true)
 
 	if index_at == -1 || index_at >= len(app.pool.filter) {
 		append(&app.pool.filter, res.list_index)
@@ -832,7 +834,7 @@ task_push_undoable :: proc(
 	text := "", 
 	index_at := -1,
 ) -> (res: ^Task) {
-	res = task_init(indentation, text)
+	res = task_init(indentation, text, true)
 
 	if index_at == -1 || index_at >= len(app.pool.filter) {
 		item := Undo_Item_Task_Append { res.list_index, false }
@@ -2302,11 +2304,26 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 
 tasks_load_file :: proc() {
 	spall.scoped("load tasks")
-	err: io.Error = .Empty
+	err: Save_Error = nil
 	
 	if len(app.last_save_location.buf) != 0 {
-		err = editor_load(strings.to_string(app.last_save_location))
-	} 
+		file_path := strings.to_string(app.last_save_location)
+		file_data, ok := os.read_entire_file(file_path)
+		defer delete(file_data)
+
+		if !ok {
+			log.infof("LOAD: File not found %s\n", file_path)
+			return
+		}
+
+		err = load_all(file_data)
+		
+		if err != nil {
+			log.info("LOAD: FAILED =", err, save_loc)
+		}
+	} else {
+		log.info("TODOOL: no default save path set")
+	}
 	
 	// on error reset and load default
 	if err != nil {

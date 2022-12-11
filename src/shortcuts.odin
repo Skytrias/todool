@@ -547,9 +547,6 @@ undo_filter_unfold :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 	task := app_task_filter(data.filter_index)
 	idx := data.filter_index + 1
-	// fmt.eprintln("UNFOLD~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-	// fmt.eprintln("\t", byte_slice)
-	// fmt.eprintln("\t", data.filter_index, data.count)
 
 	resize(&app.pool.filter, len(app.pool.filter) + data.count)
 	copy(app.pool.filter[idx + data.count:], app.pool.filter[idx:])
@@ -578,6 +575,7 @@ todool_toggle_folding :: proc(du: u32 = 0) {
 	window_repaint(app.window_main)
 }
 
+// push memory bits for a task
 task_push_unfold :: proc(task: ^Task) -> ^Undo_Item_Filter_Unfold {
 	root := mem.alloc(
 		size_of(Undo_Item_Filter_Unfold) + size_of(int) * len(task.filter_children), 
@@ -619,7 +617,6 @@ task_toggle_folding :: proc(manager: ^Undo_Manager, task: ^Task) -> bool {
 
 task_check_unfold :: proc(manager: ^Undo_Manager, task: ^Task) -> bool {
 	if task_has_children(task) && task.filter_folded {
-		fmt.eprintln("PUSH UNFOLD", len(task.filter_children))
 		item := task_push_unfold(task)
 		undo_filter_unfold(manager, item)
 		return true
@@ -1506,8 +1503,8 @@ todool_save :: proc(du: u32) {
 			}
 		}
 
-		err := editor_save(strings.to_string(app.last_save_location))
-		if err != .None {
+		err := save_all(strings.to_string(app.last_save_location))
+		if err != nil {
 			log.info("SAVE: save.todool failed saving =", err)
 		}
 
@@ -1568,9 +1565,17 @@ todool_load :: proc(du: u32) {
 	}
 
 	last_save_set(string(output))
-	err := editor_load(strings.to_string(app.last_save_location))
+	file_path := strings.to_string(app.last_save_location)
+	file_data, ok := os.read_entire_file(file_path)
+	defer delete(file_data)
 
-	if err != .None {
+	if !ok {
+		log.infof("LOAD: File not found %s\n", file_path)
+		return
+	}
+
+	err := load_all(file_data)
+	if err != nil {
 		log.info("LOAD: FAILED =", err)
 	}
 

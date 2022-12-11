@@ -23,11 +23,18 @@ import "core:runtime"
 
 Task_Pool :: struct {
 	list: [dynamic]Task, // storage for tasks, never change layout here
-	removed_list: [dynamic]int, // list of removed indices
 	filter: [dynamic]int, // what to use
+	removed_list: [dynamic]int, // list of removed indices
+	free_list: [dynamic]int, // empty indices that are allocated but unused from a save file
 }
 
-task_pool_push_new :: proc(pool: ^Task_Pool) -> (task: ^Task) {
+task_pool_push_new :: proc(pool: ^Task_Pool, check_freed: bool) -> (task: ^Task) {
+	if check_freed && len(pool.free_list) > 0 {
+		freed_index := pool.free_list[len(pool.free_list) - 1]
+		pop(&pool.free_list)
+		return &pool.list[freed_index]
+	}
+
 	index := len(pool.list)
 	append(&pool.list, Task {
 		list_index = index,
@@ -64,6 +71,7 @@ task_pool_clear :: proc(pool: ^Task_Pool) {
 	clear(&pool.list)
 	clear(&pool.removed_list)
 	clear(&pool.filter)
+	clear(&pool.free_list)
 }
 
 task_pool_destroy :: proc(pool: ^Task_Pool) {
@@ -76,4 +84,5 @@ task_pool_destroy :: proc(pool: ^Task_Pool) {
 	delete(pool.list)
 	delete(pool.removed_list)
 	delete(pool.filter)
+	delete(pool.free_list)
 }

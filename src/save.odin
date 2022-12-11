@@ -13,485 +13,562 @@ import "core:log"
 import "core:os"
 import "core:encoding/json"
 import "core:math/bits"
+import "core:runtime"
 import "../cutf8"
 
-// TODO lower the task text size to u8
+save_loc: runtime.Source_Code_Location
 
-/* 
-TODOOL SAVE FILE FORMAT - currently *uncompressed*
+SIGNATURE_LENGTH :: 8 * size_of(u8)
+SAVE_SIGNATURE_TODOOL := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', '_', '_' }
+SAVE_SIGNATURE_VIEWS := [8]u8 { 'V', 'I', 'E', 'W', 'S', '_', '_', '_' }
+SAVE_SIGNATURE_TAGS := [8]u8 { 'T', 'A', 'G', 'S', '_', '_', '_', '_' }
+SAVE_SIGNATURE_DATA := [8]u8 { 'D', 'A', 'T', 'A', '_', '_', '_', '_' }
+SAVE_SIGNATURE_FILTER := [8]u8 { 'F', 'I', 'L', 'T', 'E', 'R', '_', '_' }
+SAVE_SIGNATURE_FLAGS := [8]u8 { 'F', 'L', 'A', 'G', 'S', '_', '_', '_' }
 
-file_signature: "TODOOLFF"
-version: [8]u8 -> version number as a string "00.02.00"
+Save_Flag :: enum u8 {
+	// simple
+	Bookmark,
+	Seperator,
 
-header: 
-	block_size: u32be
-	
-	block read into struct -> based on block_size
-		Version "00.02.00":
-			task_head: u32be -> head line
-			task_tail: u32be -> tail line
-			camera_offset_x: i32be,
-			camera_offset_y: i32be,
-			task_count: u32be -> how many "task lines" to read
-			task_bytes_min: u16be -> size to read per task line in memory
-
-task line: atleast "task_bytes_min" big
-	Version "00.02.00":
-		indentation: u8 -> indentation used, capped to 255
-		folded: u8 -> task folded
-		state: u8 -> task state
-		tags: u8 -> task tags, NO STRING CONTENT!
-		text_size: u16be -> text content amount to read
-		text_content: [N]u8
-
-// hold *N* task lines
-body: 
-	read task line by line -> read opt data till end 
-
-tags: (optional)
-	8 strings (length u8 + []u8)
-	8 colors (u32be)
-
-// Rest of the bytes after body will be read as opt data!
-// holds *N* Task Line index + additional data
-opt data: 
-	line_index: u32be
-	
-	Save_Tag enum -> u8
-*/
-
-save_tag_color_signature := [8]u8 { 'T', 'A', 'G', 'C', 'O', 'L', 'O', 'R' }
-
-Save_Tag_Color_Header :: struct {
-	signature: [8]u8,
-	version: u8,
-	tag_mode: u8,
-}
-
-// additional data can be added later on
-// 8 strings (length u8 + []u8)
-// 8 colors (u32be)
-
-// NOTE should only increase, mark things as deprecated!
-Save_Tag :: enum u8 {
-	None, // Empty flag
-	Finished, // Finished reading all tags + tag data
-	
-	Folded, // NO data included
-	Bookmark, // NO data included
 	Image_Path, // u16be string len + [N]u8 byte data
 	Link_Path, // u16be string len + [N]u8 byte data
-	Seperator, // NO data included
-
 	Timestamp, // i64be included = time.Time
+	Folded, // NO data included u16be length + N * size_of(u32be)
 }
+Save_Flags :: bit_set[Save_Flag]
 
-bytes_file_signature := [8]u8 { 'T', 'O', 'D', 'O', 'O', 'L', 'F', 'F' }
-
-buffer_write_color :: proc(b: ^bytes.Buffer, color: Color) -> (err: io.Error) {
+buffer_write_color :: proc(buffer: ^bytes.Buffer, color: Color) -> (err: io.Error) {
 	// CHECK is this safe endianness?
-	color_u32be := transmute(u32be) color
-	buffer_write_type(b, color_u32be) or_return
+	color := color
+	bytes.buffer_write_ptr(buffer, &color, size_of(u32)) or_return
 	return
 }
 
-buffer_write_type :: proc(b: ^bytes.Buffer, type: $T) -> (err: io.Error) {
-	// NOTE could use pointer ^T instead?
-	type := type
-	byte_slice := mem.byte_slice(&type, size_of(T))
-	bytes.buffer_write(b, byte_slice) or_return
-	return
-}
-
-buffer_write_builder :: proc(b: ^bytes.Buffer, builder: strings.Builder) -> (err: io.Error) {
-	count := u16be(len(builder.buf))
-	buffer_write_type(b, count) or_return
-	bytes.buffer_write_string(b, strings.to_string(builder)) or_return
-	return
-}
-
-buffer_write_string_u16 :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error) {
+buffer_write_string_u16 :: proc(buffer: ^bytes.Buffer, text: string) -> (err: io.Error) {
 	count := u16be(len(text))
-	buffer_write_type(b, count) or_return
+	bytes.buffer_write_ptr(buffer, &count, size_of(u16be)) or_return
 	// TODO is this utf8 safe?
-	bytes.buffer_write_string(b, text[:count]) or_return
+	bytes.buffer_write_string(buffer, text[:count]) or_return
 	return
 }
 
-buffer_write_string_u8 :: proc(b: ^bytes.Buffer, text: string) -> (err: io.Error) {
+buffer_write_string_u8 :: proc(buffer: ^bytes.Buffer, text: string) -> (err: io.Error) {
 	count := u8(len(text))
-	buffer_write_type(b, count) or_return
+	bytes.buffer_write_byte(buffer, count) or_return
 	// TODO is this utf8 safe?
-	bytes.buffer_write_string(b, text[:count]) or_return
+	bytes.buffer_write_string(buffer, text[:count]) or_return
 	return
 }
 
-editor_save :: proc(file_path: string) -> (err: io.Error) {
-	// buffer: bytes.Buffer
-	// bytes.buffer_init_allocator(&buffer, 0, mem.Megabyte)
-	// defer bytes.buffer_destroy(&buffer)
-
-	// // signature
-	// bytes.buffer_write_ptr(&buffer, &bytes_file_signature[0], 8) or_return
-	// // NOTE 8 bytes only
-	// version := "00.02.00"
-	// bytes.buffer_write_ptr(&buffer, raw_data(version), 8) or_return
-
-	// // current version structs
-	// Save_Header :: struct #packed {
-	// 	task_head: u32be,
-	// 	task_tail: u32be,
-	// 	// ONLY VALID FOR THE SAME WINDOW SIZE
-	// 	camera_offset_x: i32be,
-	// 	camera_offset_y: i32be,
-	// 	task_count: u32be,
-	// 	task_bytes_min: u16be,
-	// }
-
-	// Save_Task :: struct #packed {
-	// 	indentation: u8,
-	// 	state: u8,
-	// 	tags: u8,
-	// 	text_size: u16be,
-	// 	// N text content comes after this
-	// }
-
-	// // header block
-	// header_size := u32be(size_of(Save_Header))
-	// buffer_write_type(&buffer, header_size) or_return
-	
-	// cam := mode_panel_cam()
-	// header := Save_Header {
-	// 	u32be(app.task_head),
-	// 	u32be(app.task_tail),
-	// 	i32be(cam.offset_x),
-	// 	i32be(cam.offset_y),
-	// 	// REVIEW 
-	// 	u32be(len(app.pool.list)),
-	// 	size_of(Save_Task),
-	// }
-	// buffer_write_type(&buffer, header) or_return
-	
-	// // write all lines
-	// // REVIEW
-	// for child in app.mode_panel.children {
-	// 	task := cast(^Task) child
-	// 	t := Save_Task {
-	// 		u8(task.indentation),
-	// 		u8(task.state),
-	// 		u8(task.tags),
-	// 		u16be(task.box.ss.length),
-	// 	}
-	// 	buffer_write_type(&buffer, t) or_return
-	// 	bytes.buffer_write_string(&buffer, ss_string(&task.box.ss)) or_return
-	// }
-
-	// editor_save_tag_colors(&buffer) or_return
-
-	// // write line to buffer if it doesnt exist yet
-	// opt_write_line :: proc(buffer: ^bytes.Buffer, state: ^bool, index: int) -> (err: io.Error) {
-	// 	if !state^ {
-	// 		buffer_write_type(buffer, u32be(index)) or_return
-	// 		state^ = true 
-	// 	}
-
-	// 	return
-	// }
-
-	// // helper to write tag
-	// opt_write_tag :: proc(buffer: ^bytes.Buffer, tag: Save_Tag) -> (err: io.Error) {
-	// 	bytes.buffer_write_byte(buffer, transmute(u8) tag) or_return
-	// 	return
-	// }
-
-	// // write opt data
-	// for child, i in app.mode_panel.children {
-	// 	task := cast(^Task) child
-	// 	line_written: bool
-
-	// 	// look for opt data
-	// 	if task_bookmark_is_valid(task) {
-	// 		opt_write_line(&buffer, &line_written, i) or_return
-	// 		opt_write_tag(&buffer, .Bookmark) or_return
-	// 	}
-
-	// 	if task.folded {
-	// 		opt_write_line(&buffer, &line_written, i) or_return
-	// 		opt_write_tag(&buffer, .Folded) or_return			
-	// 	}
-
-	// 	if image_display_has_path(task.image_display) {
-	// 		opt_write_line(&buffer, &line_written, i) or_return
-	// 		opt_write_tag(&buffer, .Image_Path) or_return
-	// 		buffer_write_string_u16(&buffer, image_path(task.image_display.img)) or_return
-	// 		// fmt.eprintln("SAVE WRITE IMAGE PATH", image_path(task.image_display.img))
-	// 	}
-
-	// 	if task_link_is_valid(task) {
-	// 		opt_write_line(&buffer, &line_written, i) or_return
-	// 		opt_write_tag(&buffer, .Link_Path) or_return
-	// 		buffer_write_string_u16(&buffer, strings.to_string(task.button_link.builder)) or_return
-	// 	}
-
-	// 	if task_seperator_is_valid(task) {
-	// 		opt_write_line(&buffer, &line_written, i) or_return
-	// 		opt_write_tag(&buffer, .Seperator) or_return
-	// 	}
-
-	// 	if task_time_date_is_valid(task) {
-	// 		opt_write_line(&buffer, &line_written, i) or_return
-	// 		opt_write_tag(&buffer, .Timestamp) or_return
-	// 		out := i64be(task.time_date.stamp._nsec)
-	// 		buffer_write_type(&buffer, out) or_return
-	// 	}
-
-	// 	// write finish flag
-	// 	if line_written {
-	// 		opt_write_tag(&buffer, .Finished) or_return
-	// 	}
-	// }
-
-	// ok := gs_write_safely(file_path, buffer.buf[:])
-	// if !ok {
-	// 	err = .Invalid_Write
-	// }
-
-	return 
+// Header for a byte blob
+Save_Header :: struct {
+	signature: [8]u8,
+	version: u8,
+	block_size: u32be, // region that data ends at
 }
 
-editor_load_version :: proc(
-	reader: ^bytes.Reader,
-	block_size: u32be, 
-	version: string,
-) -> (err: io.Error) {
-	switch version {
-		case "00.02.00": {
-			Save_Header :: struct #packed {
-				task_head: u32be,
-				task_tail: u32be,
-				// ONLY VALID FOR THE SAME WINDOW SIZE
-				camera_offset_x: i32be,
-				camera_offset_y: i32be,
+Save_RW_Error :: enum {
+	None,
+	Wrong_File_Format,
+	Unexpected_Signature,
+	Unsupported_Version,
+	No_Space_Advance, // + loc
+	
+	Block_Not_Fully_Read,
+	File_Not_Fully_Read,
+}
 
-				task_count: u32be,
-				task_bytes_min: u16be,
-			}
+Save_Error :: union #shared_nil {
+	Save_RW_Error,
+	io.Error,
+}
 
-			if int(block_size) != size_of(Save_Header) {
-				log.error("LOAD: Wrong block size for version: ", version)
-				return
-			}
-
-			// save when size is the same as version based size
-			header := reader_read_type(reader, Save_Header) or_return
-			cam := mode_panel_cam()
-			cam_set_x(cam, int(header.camera_offset_x))
-			cam_set_y(cam, int(header.camera_offset_y))
-
-			Save_Task :: struct #packed {
-				indentation: u8,
-				state: u8,
-				tags: u8,
-				text_size: u16be,
-				// N text content comes after this
-			}
-
-			if int(header.task_bytes_min) != size_of(Save_Task) {
-				log.error("LOAD: Wrong task byte size", size_of(Save_Task), header.task_bytes_min)
-				return
-			}
-
-			// read each task
-			for i in 0..<header.task_count {
-				block_task := reader_read_type(reader, Save_Task) or_return
-				text_byte_content := reader_read_bytes_out(reader, int(block_task.text_size)) or_return
-				word := string(text_byte_content[:])
-
-				spell_check_mapping_words_add(word)
-
-				line := task_push(int(block_task.indentation), word)
-				line.state = Task_State(block_task.state)
-				line.tags = block_task.tags
-			}
-
-			app.task_head = int(header.task_head)
-			app.task_tail = int(header.task_tail)
-		}
+save_push_header :: proc(
+	buffer: ^bytes.Buffer, 
+	signature: [8]u8,
+	version: u8,
+) -> (block_start: int, block_size: ^u32be, err: Save_Error) {
+	header := Save_Header {
+		signature = signature,
+		version = version,
 	}
+
+	old := len(buffer.buf)
+	bytes.buffer_write_ptr(buffer, &header, size_of(Save_Header)) or_return
+	block_start = len(buffer.buf)
+	block_size = cast(^u32be) &buffer.buf[old + int(offset_of(Save_Header, block_size))]
 
 	return
 }
 
-editor_read_opt_tags :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
-	// read until finished
-	for bytes.reader_length(reader) > 0 {
-		line_index := reader_read_type(reader, u32be) or_return
-		// task := cast(^Task) app.mode_panel.children[line_index]
-		// REVIEW
-		task := app_task_filter(int(line_index))
-
-		// read tag + opt data
-		tag: Save_Tag
-		for tag != .Finished {
-			tag = transmute(Save_Tag) bytes.reader_read_byte(reader) or_return
-
-			switch tag {
-				case .None, .Finished: {}
-				case .Bookmark: {
-					task_set_bookmark(task, true)
-				}
-				case .Folded: {
-					// TODO
-					// task.folded = true
-				}
-				case .Image_Path: {
-					length := reader_read_type(reader, u16be) or_return
-					byte_content := reader_read_bytes_out(reader, int(length)) or_return
-
-					path := string(byte_content[:])
-					// fmt.eprintln("LOAD IMAGE PATH", path)
-					handle := image_load_push(path)
-					task_set_img(task, handle)
-				}
-				case .Link_Path: {
-					length := reader_read_type(reader, u16be) or_return
-					byte_content := reader_read_bytes_out(reader, int(length)) or_return					
-
-					link := string(byte_content[:])
-					task_set_link(task, link)
-				}
-				case .Seperator: {
-					task_set_seperator(task, true)
-				}
-				case .Timestamp: {
-					input := reader_read_type(reader, i64be) or_return
-					task_set_time_date(task)
-					task.time_date.stamp = time.Time { i64(input) }
-				}
-			}
-		}
+load_header :: proc(data: ^[]u8, signature: [8]u8) -> (
+	version: u8,
+	output: []byte, 
+	err: Save_Error,
+) {
+	// stop if no space is left
+	if len(data) == 0 {
+		err = .Unexpected_Signature
+		return
 	}
 
-	return 
+	temp := data^
+	header: Save_Header
+	advance_ptr(data, &header, size_of(Save_Header)) or_return
+
+	if header.signature != signature {
+		// reset to old position
+		data^ = temp
+		err = .Unexpected_Signature
+		return
+	}
+
+	version = header.version
+	output = advance_slice(data, int(header.block_size)) or_return
+	return
 }
 
-editor_save_tag_colors :: proc(b: ^bytes.Buffer) -> (err: io.Error) {
-	header := Save_Tag_Color_Header {
-		signature = save_tag_color_signature,
-		version = 1,
-		tag_mode = u8(options_tag_mode()),
-	}
-
-	// write out header with wanted info
-	buffer_write_type(b, header) or_return
+save_tags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
+	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_TAGS, 1) or_return
+	defer block_size^ = u32be(len(buffer.buf) - block_start)
 
 	// write out small string content 
 	for i in 0..<8 {
-		buffer_write_string_u8(b, ss_string(sb.tags.names[i])) or_return
+		buffer_write_string_u8(buffer, ss_string(sb.tags.names[i])) or_return
 	}	
 
 	// write out colors
 	for i in 0..<8 {
-		buffer_write_color(b, theme.tags[i]) or_return
+		buffer_write_color(buffer, theme.tags[i]) or_return
 	}
 
 	return
 }
 
-editor_read_tag_colors :: proc(reader: ^bytes.Reader) -> (err: io.Error) {
-	// peek for tag save color byte signature
-	if bytes.reader_length(reader) > 8 {
-		signature := reader.s[reader.i:reader.i + 8]
+save_views :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
+	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_VIEWS, 1) or_return
+	defer block_size^ = u32be(len(buffer.buf) - block_start)
+	
+	// mode count
+	bytes.buffer_write_byte(buffer, u8(len(Mode)))
 
-		if mem.compare(signature, save_tag_color_signature[:]) != 0 {
-			log.warn("LOAD: Save Tag Color Signature not found")
-		} else {
-			// found, read entire header
-			header := reader_read_type(reader, Save_Tag_Color_Header) or_return
-			
-			switch header.version {
-				case: {
-					log.warn("LOAD: unknown header version")
-				}
+	// camera positions
+	temp: i32be
+	for mode in Mode {
+		cam := &app.mmpp.cam[mode]
+		temp = i32be(cam.offset_x)
+		bytes.buffer_write_ptr(buffer, &temp, size_of(i32be))
+		temp = i32be(cam.offset_y)
+		bytes.buffer_write_ptr(buffer, &temp, size_of(i32be))
+	}
 
-				case 1: {
-					sb.tags.tag_show_mode = int(header.tag_mode)
-					toggle_selector_set(sb.tags.toggle_selector_tag, int(header.tag_mode))
+	return		
+}
 
-					for i in 0..<8 {
-						text_length := reader_read_type(reader, u8) or_return
-						text_content := reader_read_bytes_out(reader, int(text_length)) or_return
-						ss := sb.tags.names[i]
-						ss_set_string(ss, transmute(string) text_content)
-					}
+Save_Task_V1 :: struct {
+	indentation: u8,
+	state: u8,
+	tags: u8,
+	text_length: u8,
+}
 
-					for i in 0..<8 {
-						color := reader_read_type(reader, u32be) or_return
-						// CHECK is this safe to do since endianness?
-						theme.tags[i] = transmute(Color) color
-					}
-				}
+save_data :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
+	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_DATA, 1) or_return
+	defer block_size^ = u32be(len(buffer.buf) - block_start)
+
+	// write count
+	count := u32be(len(app.pool.list))
+	bytes.buffer_write_ptr(buffer, &count, size_of(u32be)) or_return
+
+	// sorted list of removed items
+	removed_sorted := slice.clone(app.pool.removed_list[:], context.temp_allocator)
+	slice.sort(removed_sorted)
+	fmt.eprintln("SORTED", removed_sorted)
+
+	// write all lines
+	removed_index: int
+	t: Save_Task_V1
+	for index in 0..<len(app.pool.list) {
+		skip: b8 = false
+		
+		// skip removed data
+		if removed_index < len(removed_sorted) && removed_sorted[removed_index] == index {
+			removed_index += 1
+			skip = true
+			bytes.buffer_write_ptr(buffer, &skip, size_of(b8)) or_return
+			continue
+		}
+
+		// write skip byte default
+		bytes.buffer_write_ptr(buffer, &skip, size_of(b8)) or_return
+
+		task := &app.pool.list[index]
+		t = {
+			u8(task.indentation),
+			u8(task.state),
+			task.tags,
+			task.box.ss.length,
+		}
+		// write blob
+		bytes.buffer_write_ptr(buffer, &t, size_of(Save_Task_V1)) or_return
+		
+		// write textual content
+		bytes.buffer_write(buffer, task.box.ss.buf[:task.box.ss.length]) or_return
+	}
+
+	return		
+}
+
+save_filter :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
+	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_FILTER, 1) or_return
+	defer block_size^ = u32be(len(buffer.buf) - block_start)
+
+	// write count
+	head := i64be(app.task_head)
+	bytes.buffer_write_ptr(buffer, &head, size_of(i64be)) or_return
+	
+	tail := i64be(app.task_tail)
+	bytes.buffer_write_ptr(buffer, &tail, size_of(i64be)) or_return
+
+	// write count
+	count := u32be(len(app.pool.filter))
+	bytes.buffer_write_ptr(buffer, &count, size_of(u32be)) or_return
+
+	for list_index in app.pool.filter {
+		index := u32be(list_index)
+		bytes.buffer_write_ptr(buffer, &index, size_of(u32be)) or_return
+	}	
+
+	return
+}
+
+// line_index + bit_set of common flags without associated data
+save_flags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
+	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_FLAGS, 1) or_return
+	defer block_size^ = u32be(len(buffer.buf) - block_start)
+
+	flag_count: ^u32be
+	{
+		old := len(buffer.buf)
+		resize(&buffer.buf, old + size_of(u32be))
+		flag_count = cast(^u32be) &buffer.buf[old]
+	}
+
+	for task, list_index in &app.pool.list {
+		flags: Save_Flags
+
+		if task_bookmark_is_valid(&task) {
+			incl(&flags, Save_Flag.Bookmark)
+		}
+		if task_seperator_is_valid(&task) {
+			incl(&flags, Save_Flag.Seperator)
+		}
+		if image_display_has_path(task.image_display) {
+			incl(&flags, Save_Flag.Image_Path)
+		}
+		if task_link_is_valid(&task) {
+			incl(&flags, Save_Flag.Link_Path)
+		}
+		if task_time_date_is_valid(&task) {
+			incl(&flags, Save_Flag.Timestamp)
+		}
+
+		// in case any flag was set, write them linearly in mem
+		if flags != {} {
+			index := u32be(list_index)
+			bytes.buffer_write_ptr(buffer, &index, size_of(u32be)) or_return
+			bytes.buffer_write_byte(buffer, transmute(u8) flags) or_return
+
+			// NOTE dont change the order of writes upcoming
+			if .Image_Path in flags {
+				buffer_write_string_u16(buffer, image_path(task.image_display.img)) or_return
 			}
+			if .Link_Path in flags {
+				buffer_write_string_u16(buffer, strings.to_string(task.button_link.builder)) or_return
+			}
+			if .Timestamp in flags {
+				out := i64be(task.time_date.stamp._nsec)
+				bytes.buffer_write_ptr(buffer, &out, size_of(i64be)) or_return
+			}
+
+			flag_count^ += 1
 		}
 	}
 
 	return
 }
 
-editor_load :: proc(file_path: string) -> (err: io.Error) {
-	file_data, ok := os.read_entire_file(file_path)
-	defer delete(file_data)
+save_all :: proc(file_path: string) -> (err: Save_Error) {
+	buffer: bytes.Buffer
+	bytes.buffer_init_allocator(&buffer, 0, mem.Megabyte * 10)
+	defer bytes.buffer_destroy(&buffer)
 
-	if !ok {
-		log.error("LOAD: File not found")
-		err = .Unknown
-		return
-	}
-
-	reader: bytes.Reader
-	bytes.reader_init(&reader, file_data)
-
-	start := reader_read_bytes_out(&reader, 8) or_return
-	if mem.compare(start, bytes_file_signature[:]) != 0 {
-		log.error("LOAD: Start signature invalid")
-		err = .Unknown
-		return
-	} 
-
-	spell_check_clear_user()
-	tasks_load_reset()
-
-	// header block
-	version_bytes := reader_read_bytes_out(&reader, 8) or_return
-	version := string(version_bytes)
-	block_size := reader_read_type(&reader, u32be) or_return
-	log.info("SAVE FILE FOUND VERSION", version)
-	editor_load_version(&reader, block_size, version) or_return
-	editor_read_tag_colors(&reader) or_return
-	editor_read_opt_tags(&reader) or_return
-
-	return
-}
-
-reader_read_type :: proc(r: ^bytes.Reader, $T: typeid) -> (output: T, err: io.Error) {
-	if r.i + size_of(T) - 1 >= i64(len(r.s)) {
-		err = .EOF
-		return
-	}
-
-	output = (cast(^T) &r.s[r.i])^
-	r.i += i64(size_of(T))
-	return
-}
-
-reader_read_bytes_out :: proc(r: ^bytes.Reader, size: int) -> (output: []byte, err: io.Error) {
-	if r.i + i64(size) - 1 >= i64(len(r.s)) {
-		err = .EOF
-		return
-	}
+	// write start signature
+	bytes.buffer_write(&buffer, SAVE_SIGNATURE_TODOOL[:]) or_return
 	
-	output = r.s[r.i:r.i + i64(size)]
-	r.i += i64(size)
+	save_tags(&buffer) or_return
+	save_views(&buffer) or_return
+	save_data(&buffer) or_return
+	save_filter(&buffer) or_return
+	save_flags(&buffer) or_return
+
+	ok := gs_write_safely(file_path, buffer.buf[:])
+	if !ok {
+		err = .Invalid_Write
+	}
+
+	return
+}
+
+// advance and set the data 
+advance_ptr :: proc(data: ^[]u8, dst: rawptr, size: int, loc := #caller_location) -> (err: Save_Error) {
+	if len(data) < size {
+		err = .No_Space_Advance
+		save_loc = loc
+		return
+	}
+
+	mem.copy(dst, &data[0], size)
+	data^ = data[size:]
+	return
+}
+
+// advance and output a slice for the advanced size
+advance_slice :: proc(data: ^[]u8, size: int, loc := #caller_location) -> (output: []u8, err: Save_Error) {
+	if len(data) < size {
+		err = .No_Space_Advance
+		save_loc = loc
+		return
+	}
+
+	output = data[:size]
+	data^ = data[size:]
+	return
+}
+
+// advance and set the data 
+advance_string_u16 :: proc(data: ^[]u8, loc := #caller_location) -> (output: string, err: Save_Error) {
+	length: u16be
+	advance_ptr(data, &length, size_of(u16be), loc) or_return
+	content := advance_slice(data, int(length), loc) or_return
+	output = string(content)
+	return
+}
+
+// check for done block 
+advance_check_done :: proc(data: []u8) -> (err: Save_Error) {
+	if len(data) != 0 {
+		err = .Block_Not_Fully_Read
+	}
+
+	return
+}
+
+// stop when unexpected signature is hit
+load_optional :: proc(input: Save_Error) -> Save_Error {
+	if input == .Unexpected_Signature {
+		return nil
+	}
+
+	return input
+}
+
+load_tags :: proc(data: ^[]u8) -> (err: Save_Error) {
+	version, input := load_header(data, SAVE_SIGNATURE_TAGS) or_return
+
+	switch version {
+		case 1: {
+			string_length: u8
+			for i in 0..<8 {
+				advance_ptr(&input, &string_length, size_of(u8)) or_return
+				string_bytes := advance_slice(&input, size_of(u8) * int(string_length)) or_return
+				ss := sb.tags.names[i]
+				ss_set_string(ss, transmute(string) string_bytes)
+			}
+
+			color: u32
+			for i in 0..<8 {
+				advance_ptr(&input, &color, size_of(u32)) or_return
+				theme.tags[i] = transmute(Color) color
+			}
+		}
+
+		case: err = .Unsupported_Version
+	}
+
+	advance_check_done(input) or_return
+	return
+}
+
+load_views :: proc(data: ^[]u8) -> (err: Save_Error) {
+	version, input := load_header(data, SAVE_SIGNATURE_VIEWS) or_return
+
+	switch version {
+		case 1: {
+			count: u8
+			advance_ptr(&input, &count, size_of(u8)) or_return
+
+			temp: i32be
+			for i in 0..<count {
+				cam := &app.mmpp.cam[Mode(i)]
+				advance_ptr(&input, &temp, size_of(i32be)) or_return
+				cam_set_x(cam, int(temp))
+				advance_ptr(&input, &temp, size_of(i32be)) or_return
+				cam_set_y(cam, int(temp))
+			}
+		}
+
+		case: err = .Unsupported_Version
+	}
+
+	advance_check_done(input) or_return
+	return
+}
+
+load_data :: proc(data: ^[]u8) -> (err: Save_Error) {
+	version, input := load_header(data, SAVE_SIGNATURE_DATA) or_return
+
+	switch version {
+		case 1: {
+			count: u32be
+			advance_ptr(&input, &count, size_of(u32be)) or_return
+
+			for i in 0..<count {
+				skip: b8
+				advance_ptr(&input, &skip, size_of(b8)) or_return
+
+				// init data but put it on the free list
+				if skip {
+					// fmt.eprintln("\tFREED at", i)
+					task_init(0, "", false)
+					
+					// append to free list
+					append(&app.pool.free_list, int(i))
+					continue
+				}
+
+				// init data as expected
+				t: Save_Task_V1
+				advance_ptr(&input, &t, size_of(Save_Task_V1)) or_return
+
+				string_bytes := advance_slice(&input, int(t.text_length)) or_return
+
+				// push to the pool
+				task := task_init(int(t.indentation), string(string_bytes), false)
+				task.tags = t.tags
+				task.state = Task_State(t.state)
+			}
+
+			// fmt.eprintln("FREE LIST", app.pool.free_list)
+		}
+
+		case: err = .Unsupported_Version
+	}
+
+	advance_check_done(input) or_return
+	return
+}
+
+load_filter :: proc(data: ^[]u8) -> (err: Save_Error) {
+	version, input := load_header(data, SAVE_SIGNATURE_FILTER) or_return
+
+	switch version {
+		case 1: {
+			head: i64be
+			advance_ptr(&input, &head, size_of(i64be)) or_return
+			app.task_head = int(head)
+			
+			tail: i64be
+			advance_ptr(&input, &tail, size_of(i64be)) or_return
+			app.task_tail = int(tail)
+
+			count: u32be
+			advance_ptr(&input, &count, size_of(u32be)) or_return
+
+			index: u32be
+			for i in 0..<count {
+				advance_ptr(&input, &index, size_of(u32be)) or_return
+				append(&app.pool.filter, int(index))
+			}
+		}
+		
+		case: err = .Unsupported_Version
+	}
+
+	advance_check_done(input) or_return
+	return
+}
+
+load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
+	version, input := load_header(data, SAVE_SIGNATURE_FLAGS) or_return
+
+	switch version {
+		case 1: {
+			count: u32be
+			advance_ptr(&input, &count, size_of(u32be)) or_return
+
+			list_index: u32be 
+			flags: Save_Flags
+			for i in 0..<count {
+				advance_ptr(&input, &list_index, size_of(u32be)) or_return
+				advance_ptr(&input, &flags, size_of(u8)) or_return
+				task := app_task_list(int(list_index))
+
+				if .Bookmark in flags {
+					task_set_bookmark(task, true)
+				}
+				if .Seperator in flags {
+					task_set_seperator(task, true)
+				}
+
+				// NOTE advance dependant should not go out of order!
+				if .Image_Path in flags {
+					path := advance_string_u16(data) or_return
+					handle := image_load_push(path)
+					task_set_img(task, handle)
+				}
+				if .Link_Path in flags {
+					link := advance_string_u16(data) or_return
+					task_set_link(task, link)
+				}
+				if .Timestamp in flags {
+					task_set_time_date(task)
+					value: i64be
+					advance_ptr(&input, &value, size_of(i64be)) or_return
+					task.time_date.stamp = time.Time { i64(value) }
+				}
+			}
+		}
+
+		case: err = .Unsupported_Version
+	}
+
+	advance_check_done(input) or_return
+	return
+}
+
+
+load_all :: proc(data: []u8) -> (err: Save_Error) {
+	data := data
+
+	signature := advance_slice(&data, SIGNATURE_LENGTH) or_return
+
+	if mem.compare(signature, SAVE_SIGNATURE_TODOOL[:]) != 0 {
+		err = .Wrong_File_Format
+		return
+	}
+
+	load_optional(load_tags(&data)) or_return
+	load_optional(load_views(&data)) or_return
+	load_optional(load_data(&data)) or_return
+	load_optional(load_filter(&data)) or_return
+	load_optional(load_flags(&data)) or_return
+
+	if len(data) != 0 {
+		err = .File_Not_Fully_Read
+	}
+
 	return
 }
 

@@ -28,7 +28,6 @@ Align_Vertical :: fontstash.Align_Vertical
 DROP_SHADOW :: 20
 DEFAULT_VERTICES :: 1024 * 2
 
-// TODO minimize icofont file to only these
 Icon :: enum {
 	None = 0x00,
 
