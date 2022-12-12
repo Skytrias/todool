@@ -37,6 +37,7 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // rework scrollbar to just float and take and be less intrusive
 // have spall push threaded content based on ids or sdl timers
 
+// fold changes:
 // removed task == 0 forcing indentation 0
 
 // main :: proc() {

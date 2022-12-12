@@ -174,7 +174,7 @@ todool_indent_jump_low_next :: proc(du: u32) {
 }
 
 // -1 means nothing found
-find_same_indentation_backwards :: proc(visible_index: int) -> (res: int) {
+find_same_indentation_backwards :: proc(visible_index: int, allow_lower: bool) -> (res: int) {
 	res = -1
 	task_current := app_task_filter(visible_index)
 
@@ -184,13 +184,17 @@ find_same_indentation_backwards :: proc(visible_index: int) -> (res: int) {
 		if task.indentation == task_current.indentation {
 			res = i
 			return
+		} else if task.indentation < task_current.indentation {
+			if !allow_lower {
+				return
+			}
 		}
 	}
 
 	return
 }
 
-find_same_indentation_forwards :: proc(visible_index: int) -> (res: int) {
+find_same_indentation_forwards :: proc(visible_index: int, allow_lower: bool) -> (res: int) {
 	res = -1
 	task_current := app_task_filter(visible_index)
 
@@ -200,6 +204,10 @@ find_same_indentation_forwards :: proc(visible_index: int) -> (res: int) {
 		if task.indentation == task_current.indentation {
 			res = i
 			return
+		} else if task.indentation < task_current.indentation {
+			if !allow_lower {
+				return
+			}
 		}
 	}
 
@@ -213,7 +221,7 @@ todool_indent_jump_same_prev :: proc(du: u32) {
 
 	task_current := app_task_head()
 	shift := du_shift(du)
-	goal := find_same_indentation_backwards(app.task_head)
+	goal := find_same_indentation_backwards(app.task_head, true)
 	
 	if goal != -1 {
 		if task_head_tail_check_begin(shift) {
@@ -234,7 +242,7 @@ todool_indent_jump_same_next :: proc(du: u32) {
 
 	task_current := app_task_head()
 	shift := du_shift(du)
-	goal := find_same_indentation_forwards(app.task_head)
+	goal := find_same_indentation_forwards(app.task_head, true)
 
 	if goal != -1 {
 		if task_head_tail_check_begin(shift) {
@@ -507,7 +515,6 @@ undo_filter_unfold :: proc(manager: ^Undo_Manager, item: rawptr) {
 		goal := child.indentation - lowest_indentation + task.indentation + 1
 		child.indentation = goal
 		child.indentation_smooth = f32(goal)
-		fmt.eprintln(idx + i, child.indentation)
 	}
 
 	task.filter_folded = false
@@ -782,7 +789,7 @@ todool_shift_up :: proc(du: u32) {
 	}
 
 	if app.task_head == app.task_tail {
-		goal := find_same_indentation_backwards(app.task_head)
+		goal := find_same_indentation_backwards(app.task_head, false)
 		if goal == -1 {
 			return
 		}
@@ -816,7 +823,7 @@ todool_shift_down :: proc(du: u32) {
 	}
 
 	if app.task_head == app.task_tail {
-		goal := find_same_indentation_forwards(app.task_head)
+		goal := find_same_indentation_forwards(app.task_head, false)
 		if goal == -1 {
 			return
 		}
@@ -969,12 +976,8 @@ task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: i
 
 undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Task_Swap) item
-	// a_folded := data.a^.folded
-	// b_folded := data.b^.folded
 	f := app.pool.filter
 	f[data.a], f[data.b] = f[data.b], f[data.a]
-	// data.a^.folded = a_folded
-	// data.b^.folded = a_folded
 	undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
 }
 
