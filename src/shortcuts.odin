@@ -1697,32 +1697,31 @@ todool_select_children :: proc(du: u32) {
 	}
 
 	if app.task_head == app.task_tail {
-		// task := app_task_head()
+		task := app_task_head()
 
-		// TODO
-		// if task.has_children {
-		// 	// TODO
-		// 	// if task.folded {
-		// 	// 	todool_toggle_folding()
-		// 	// 	// task_set_visible_tasks()
-		// 	// 	task_check_parent_states(nil)
-		// 	// }
+		if task_has_children(task) {
+			if task.filter_folded {
+				manager := mode_panel_manager_scoped()
+				task_head_tail_push(manager)
+				item := task_push_unfold(task)
+				undo_filter_unfold(manager, item)
+			}
 
-		// 	app.task_tail = app.task_head
+			app.task_tail = app.task_head
 
-		// 	index := task.filter_index + 1
-		// 	for index < len(app.pool.filter) {
-		// 		t := app_task_filter(index)
+			index := task.filter_index + 1
+			for index < len(app.pool.filter) {
+				t := app_task_filter(index)
 
-		// 		if t.indentation <= task.indentation {
-		// 			break
-		// 		}
+				if t.indentation <= task.indentation {
+					break
+				}
 
-		// 		index += 1
-		// 	}
+				index += 1
+			}
 
-		// 	app.task_head = index - 1
-		// }		
+			app.task_head = index - 1
+		}		
 	} else {
 		app.task_head, app.task_tail = app.task_tail, app.task_head
 	}
