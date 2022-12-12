@@ -1,5 +1,6 @@
 package src
 
+import "core:fmt"
 import "core:strings"
 import "core:mem"
 import "core:time"
@@ -19,12 +20,13 @@ Copy_Task :: struct #packed {
 	indentation: u8,
 	state: Task_State,
 	tags: u8,
-	// folded: bool,
 	bookmarked: bool,
 	timestamp: time.Time,
 	stored_image: ^Stored_Image,
 	link_start: u32,
 	link_end: u32,
+	fold_count: u32,
+	fold_parent: int,
 }
 
 // whats necessary to produce valid copies that can persist or are temporary
@@ -32,6 +34,7 @@ Copy_State :: struct {
 	stored_text: strings.Builder,
 	stored_links: strings.Builder,
 	stored_tasks: [dynamic]Copy_Task,
+	parent_count: int,
 }
 
 // allow to create temporary copy states
@@ -43,6 +46,7 @@ copy_state_init :: proc(
 	res.stored_text = strings.builder_make(0, text_cap, allocator)
 	res.stored_links = strings.builder_make(0, mem.Kilobyte, allocator)
 	res.stored_tasks = make([dynamic]Copy_Task, 0, task_cap, allocator)
+	// res.stored_folded = make([dynamic]int, 0, 128, allocator)
 	return
 }
 
@@ -50,12 +54,14 @@ copy_state_destroy :: proc(state: Copy_State) {
 	delete(state.stored_text.buf)
 	delete(state.stored_links.buf)
 	delete(state.stored_tasks)
+	// delete(state.stored_folded)
 }
 
 // reset copy data
 copy_state_reset :: proc(state: ^Copy_State) {
 	strings.builder_reset(&state.stored_text)
 	clear(&state.stored_tasks)
+	state.parent_count = 0
 }
 
 // just push text, e.g. from archive
@@ -69,8 +75,16 @@ copy_state_push_empty :: proc(state: ^Copy_State, text: string) {
 	})
 }
 
+// copy_state_push_folded :: proc(state: ^Copy_State, list: []int) -> (start, end: int) {
+// 	start = len(state.stored_folded)
+// 	resize(&state.stored_folded, start + len(list))
+// 	copy(state.stored_folded[start:], list)
+// 	end = len(state.stored_folded)
+// 	return
+// }
+
 // push a task to copy list
-copy_state_push_task :: proc(state: ^Copy_State, task: ^Task) {
+copy_state_push_task :: proc(state: ^Copy_State, task: ^Task, fold_parent: int) {
 	// NOTE works with utf8 :) copies task text
 	text_start, text_end := string_list_push(&state.stored_text, ss_string(&task.box.ss))
 	link_start, link_end: int
@@ -80,6 +94,12 @@ copy_state_push_task :: proc(state: ^Copy_State, task: ^Task) {
 			&state.stored_links, 
 			strings.to_string(task.button_link.builder),
 		)
+	}
+
+	// store that the next tasks are children
+	fold_count: int
+	if task.filter_folded {
+		fold_count = len(task.filter_children)
 	}
 
 	// copy crucial info of task
@@ -95,7 +115,21 @@ copy_state_push_task :: proc(state: ^Copy_State, task: ^Task) {
 		task.image_display == nil ? nil : task.image_display.img,
 		u32(link_start),
 		u32(link_end),
+		u32(fold_count),
+		fold_parent,
 	})
+
+	if task.filter_folded {
+		parent := state.parent_count
+		state.parent_count += 1
+		
+		for list_index in task.filter_children {
+			child := app_task_list(list_index)
+			copy_state_push_task(state, child, parent)
+		}
+
+		fmt.eprintln("PUSHED PARENT at", parent)
+	}
 }
 
 copy_state_empty :: proc(state: Copy_State) -> bool {
@@ -107,7 +141,7 @@ copy_state_paste_at :: proc(
 	manager: ^Undo_Manager, 
 	real_index: int, 
 	indentation: int,
-) {
+) -> (insert_count: int) {
 	index_at := real_index
 
 	// find lowest indentation
@@ -116,13 +150,15 @@ copy_state_paste_at :: proc(
 		lowest_indentation = min(lowest_indentation, int(t.indentation))
 	}
 
+	// temp data
+	parents := make([dynamic]^Task, 0, 32, context.temp_allocator)
+
 	// copy into index range
 	for t, i in state.stored_tasks {
 		text := state.stored_text.buf[t.text_start:t.text_end]
 		relative_indentation := indentation + int(t.indentation) - lowest_indentation
 		
-		task := task_push_undoable(manager, relative_indentation, string(text), index_at + i)
-		// task.folded = t.folded
+		task := task_init(relative_indentation, string(text), true)
 		task.state = t.state
 		task_set_bookmark(task, t.bookmarked)
 		task.tags = t.tags
@@ -136,11 +172,29 @@ copy_state_paste_at :: proc(
 			task_set_img(task, t.stored_image)
 		}
 
-		if t.link_start != 0 || t.link_end != 0 {
+		if t.link_end != 0 {
 			link := state.stored_links.buf[t.link_start:t.link_end]
 			task_set_link(task, string(link))
 		}
+
+		if t.fold_count != 0 {
+			append(&parents, task)
+			task.filter_folded = true
+			reserve(&task.filter_children, int(t.fold_count))
+		}
+
+		if t.fold_parent == -1 {
+			task_insert_at(manager, index_at + insert_count, task)
+			insert_count += 1
+		} else {
+			// get the parent at the expected relative index
+			parent := parents[t.fold_parent]
+			// dont insert but append to the parent
+			append(&parent.filter_children, task.list_index)
+		}
 	}
+
+	return
 }
 
 // copy selected task region
@@ -151,7 +205,7 @@ copy_state_copy_selection :: proc(state: ^Copy_State, low, high: int) -> bool {
 		// copy each line
 		for i in low..<high + 1 {
 			task := app_task_filter(i)
-			copy_state_push_task(state, task)
+			copy_state_push_task(state, task, -1)
 		}
 
 		return true

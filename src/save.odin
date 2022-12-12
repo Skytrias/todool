@@ -181,40 +181,27 @@ save_data :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	count := u32be(len(app.pool.list))
 	bytes.buffer_write_ptr(buffer, &count, size_of(u32be)) or_return
 
-	// sorted list of removed items
-	removed_sorted := slice.clone(app.pool.removed_list[:], context.temp_allocator)
-	slice.sort(removed_sorted)
-	fmt.eprintln("SORTED", removed_sorted)
-
 	// write all lines
-	removed_index: int
 	t: Save_Task_V1
-	for index in 0..<len(app.pool.list) {
-		skip: b8 = false
-		
-		// skip removed data
-		if removed_index < len(removed_sorted) && removed_sorted[removed_index] == index {
-			removed_index += 1
-			skip = true
-			bytes.buffer_write_ptr(buffer, &skip, size_of(b8)) or_return
-			continue
-		}
+	for task, index in app.pool.list {
+		if task.removed {
+			// skip removed data
+			bytes.buffer_write_byte(buffer, 1) or_return
+		} else {
+			bytes.buffer_write_byte(buffer, 0) or_return
 
-		// write skip byte default
-		bytes.buffer_write_ptr(buffer, &skip, size_of(b8)) or_return
-
-		task := &app.pool.list[index]
-		t = {
-			u8(task.indentation),
-			u8(task.state),
-			task.tags,
-			task.box.ss.length,
+			t = {
+				u8(task.indentation),
+				u8(task.state),
+				task.tags,
+				task.box.ss.length,
+			}
+			// write blob
+			bytes.buffer_write_ptr(buffer, &t, size_of(Save_Task_V1)) or_return
+			
+			// write textual content
+			bytes.buffer_write(buffer, task.box.ss.buf[:task.box.ss.length]) or_return
 		}
-		// write blob
-		bytes.buffer_write_ptr(buffer, &t, size_of(Save_Task_V1)) or_return
-		
-		// write textual content
-		bytes.buffer_write(buffer, task.box.ss.buf[:task.box.ss.length]) or_return
 	}
 
 	return		
@@ -258,6 +245,10 @@ save_flags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	for task, list_index in &app.pool.list {
 		flags: Save_Flags
 
+		if task.removed {
+			continue
+		}
+
 		if task_bookmark_is_valid(&task) {
 			incl(&flags, Save_Flag.Bookmark)
 		}
@@ -272,6 +263,9 @@ save_flags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 		}
 		if task_time_date_is_valid(&task) {
 			incl(&flags, Save_Flag.Timestamp)
+		}
+		if task.filter_folded {
+			incl(&flags, Save_Flag.Folded)
 		}
 
 		// in case any flag was set, write them linearly in mem
@@ -290,6 +284,16 @@ save_flags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 			if .Timestamp in flags {
 				out := i64be(task.time_date.stamp._nsec)
 				bytes.buffer_write_ptr(buffer, &out, size_of(i64be)) or_return
+			}
+			if .Folded in flags {
+				count := u32be(len(task.filter_children))
+				bytes.buffer_write_ptr(buffer, &count, size_of(u32be)) or_return
+
+				temp: u32be
+				for i in 0..<count {
+					temp = u32be(task.filter_children[i])
+					bytes.buffer_write_ptr(buffer, &temp, size_of(u32be)) or_return
+				}
 			}
 
 			flag_count^ += 1
@@ -310,8 +314,8 @@ save_all :: proc(file_path: string) -> (err: Save_Error) {
 	save_tags(&buffer) or_return
 	save_views(&buffer) or_return
 	save_data(&buffer) or_return
-	save_filter(&buffer) or_return
 	save_flags(&buffer) or_return
+	save_filter(&buffer) or_return
 
 	ok := gs_write_safely(file_path, buffer.buf[:])
 	if !ok {
@@ -538,6 +542,18 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 					advance_ptr(&input, &value, size_of(i64be)) or_return
 					task.time_date.stamp = time.Time { i64(value) }
 				}
+				if .Folded in flags {
+					task.filter_folded = true
+					count: u32be
+					advance_ptr(&input, &count, size_of(u32be)) or_return
+					resize(&task.filter_children, int(count))
+
+					temp: u32be
+					for i in 0..<count {
+						advance_ptr(&input, &temp, size_of(u32be)) or_return
+						task.filter_children[i] = int(temp)
+					}
+				}
 			}
 		}
 
@@ -562,8 +578,8 @@ load_all :: proc(data: []u8) -> (err: Save_Error) {
 	load_optional(load_tags(&data)) or_return
 	load_optional(load_views(&data)) or_return
 	load_optional(load_data(&data)) or_return
-	load_optional(load_filter(&data)) or_return
 	load_optional(load_flags(&data)) or_return
+	load_optional(load_filter(&data)) or_return
 
 	if len(data) != 0 {
 		err = .File_Not_Fully_Read

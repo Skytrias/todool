@@ -48,7 +48,7 @@ DEMO_MODE :: false // wether or not save&load are enabled
 
 main :: proc() {
 	spall.init("test.spall")
-	spall.begin("init all", 0)	
+	spall.begin("init all", 0)
 	defer spall.destroy()
 
 	gs_init()

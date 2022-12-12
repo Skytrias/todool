@@ -24,7 +24,6 @@ import "core:runtime"
 Task_Pool :: struct {
 	list: [dynamic]Task, // storage for tasks, never change layout here
 	filter: [dynamic]int, // what to use
-	removed_list: [dynamic]int, // list of removed indices
 	free_list: [dynamic]int, // empty indices that are allocated but unused from a save file
 }
 
@@ -42,21 +41,8 @@ task_pool_push_new :: proc(pool: ^Task_Pool, check_freed: bool) -> (task: ^Task)
 	return &pool.list[index]
 }
 
-task_pool_push_remove :: proc(pool: ^Task_Pool, index: int, loc := #caller_location) #no_bounds_check {
-	runtime.bounds_check_error_loc(loc, index, len(pool.list))
-	append(&pool.removed_list, index)
-}
-
-task_pool_pop_remove :: proc(pool: ^Task_Pool, loc := #caller_location) -> (index: int) {
-	runtime.bounds_check_error_loc(loc, 0, len(pool.removed_list))
-	index = pool.removed_list[len(pool.removed_list) - 1]
-	pop(&pool.removed_list)
-	return
-}
-
 task_pool_init :: proc() -> (res: Task_Pool) {
 	res.list = make([dynamic]Task, 0, 256)
-	res.removed_list = make([dynamic]int, 0, 64)
 	res.filter = make([dynamic]int, 0, 256)
 	return
 }
@@ -69,7 +55,6 @@ task_pool_clear :: proc(pool: ^Task_Pool) {
 
 	// TODO clear other data
 	clear(&pool.list)
-	clear(&pool.removed_list)
 	clear(&pool.filter)
 	clear(&pool.free_list)
 }
@@ -82,7 +67,6 @@ task_pool_destroy :: proc(pool: ^Task_Pool) {
 
 	// TODO clear other data
 	delete(pool.list)
-	delete(pool.removed_list)
 	delete(pool.filter)
 	delete(pool.free_list)
 }

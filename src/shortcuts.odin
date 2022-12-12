@@ -1241,7 +1241,6 @@ Undo_Item_Task_Remove_At :: struct {
 Undo_Item_Task_Insert_At :: struct {
 	filter_index: int,
 	list_index: int,
-	check_remove: bool,
 }
 
 task_remove_at_index :: proc(manager: ^Undo_Manager, task: ^Task) {
@@ -1255,22 +1254,21 @@ undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 	output := Undo_Item_Task_Insert_At {
 		data.filter_index,
 		data.list_index,
-		true,
 	}
 	
-	task_pool_push_remove(&app.pool, data.list_index)
+	task := app_task_list(data.list_index)
+	task.removed = true
+
 	ordered_remove(&app.pool.filter, data.filter_index)
-	
+
 	undo_push(manager, undo_task_insert_at, &output, size_of(Undo_Item_Task_Insert_At))
 }
 
 undo_task_insert_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Task_Insert_At) item
-
-	if data.check_remove {
-		list_index := task_pool_pop_remove(&app.pool)
-		assert(list_index == data.list_index)
-	}
+	
+	task := app_task_list(data.list_index)
+	task.removed = false
 	inject_at(&app.pool.filter, data.filter_index, data.list_index)
 
 	output := Undo_Item_Task_Remove_At {
@@ -1283,7 +1281,6 @@ undo_task_insert_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 Undo_Item_Task_Append :: struct {
 	list_index: int,
-	check_remove: bool,
 }
 
 Undo_Item_Task_Pop :: struct {
@@ -1293,10 +1290,7 @@ Undo_Item_Task_Pop :: struct {
 undo_task_append :: proc(manager: ^Undo_Manager, item: rawptr) {
 	data := cast(^Undo_Item_Task_Append) item
 
-	if data.check_remove {
-		list_index := task_pool_pop_remove(&app.pool)
-		assert(list_index == data.list_index)
-	}
+	task := app_task_list(data.list_index)
 	append(&app.pool.filter, data.list_index)
 
 	output := Undo_Item_Task_Pop {}
@@ -1305,13 +1299,10 @@ undo_task_append :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 	task := app_task_filter(len(app.pool.filter) - 1)
+	task.removed = true
 	
 	// gather the popped element before
-	task_pool_push_remove(&app.pool, task.list_index)
-	output := Undo_Item_Task_Append {
-		task.list_index,
-		true,
-	}
+	output := Undo_Item_Task_Append { task.list_index }
 	
 	pop(&app.pool.filter)
 	undo_push(manager, undo_task_append, &output, size_of(Undo_Item_Task_Append))
@@ -1697,12 +1688,12 @@ todool_duplicate_line :: proc(du: u32) {
 	// temporarily copy and paste at the current location
 	copy_temp := copy_state_init(mem.Kilobyte, diff + 1, context.temp_allocator)
 	copy_state_copy_selection(&copy_temp, low, high)
-	copy_state_paste_at(&copy_temp, manager, task.filter_index + 1, lowest_indentation)
+	insert_count := copy_state_paste_at(&copy_temp, manager, task.filter_index + 1, lowest_indentation)
 
 	window_repaint(app.window_main)
 
-	app.task_head += len(copy_temp.stored_tasks)
-	app.task_tail += len(copy_temp.stored_tasks)
+	app.task_head += insert_count
+	app.task_tail += insert_count
 }
 
 todool_copy_tasks :: proc(du: u32 = 0) {
@@ -1739,28 +1730,20 @@ todool_paste_tasks :: proc(du: u32 = 0) {
 	// no selection
 	if app.task_head == -1 || app.task_head == app.task_tail {
 		index, indentation := task_head_safe_index_indentation()
-		copy_state_paste_at(&app.copy_state, manager, index + 1, indentation)
+		insert_count := copy_state_paste_at(&app.copy_state, manager, index + 1, indentation)
 		
-		app.task_head = max(app.task_head, 0) + len(app.copy_state.stored_tasks)
+		app.task_head = max(app.task_head, 0) + insert_count
 		app.task_tail = max(app.task_head, 0)
 	} else {
-		indentation := max(int)
-
-		// get lowest indentation of removal selection
-		{
-			iter := lh_iter_init()
-			for task in lh_iter_step(&iter) {
-				indentation = min(indentation, task.indentation)
-			}
-		}
-
+		low, high := task_low_and_high()
+		lowest_indentation := tasks_lowest_indentation(low, high)
 		task_remove_selection(manager, true)
 
 		index, _ := task_head_safe_index_indentation()
 		index += 1
-		copy_state_paste_at(&app.copy_state, manager, index, indentation)
+		insert_count := copy_state_paste_at(&app.copy_state, manager, index, lowest_indentation)
 		
-		app.task_head += len(app.copy_state.stored_tasks)
+		app.task_head += insert_count
 		app.task_tail = app.task_head
 	}
 

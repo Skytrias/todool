@@ -375,6 +375,8 @@ Task :: struct {
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
 	progress_animation: [Task_State]f32,
+
+	removed: bool,
 }
 
 Mode :: enum {
@@ -827,23 +829,25 @@ task_push :: proc(
 	return
 }
 
+task_insert_at :: proc(manager: ^Undo_Manager, index_at: int, res: ^Task) {
+	if index_at == -1 || index_at >= len(app.pool.filter) {
+		item := Undo_Item_Task_Append { res.list_index }
+		undo_task_append(manager, &item)
+	} else {
+		item := Undo_Item_Task_Insert_At { index_at, res.list_index }
+		undo_task_insert_at(manager, &item)
+	}			
+}
+
 // push line element to panel middle with indentation
 task_push_undoable :: proc(
 	manager: ^Undo_Manager,
 	indentation: int, 
-	text := "", 
-	index_at := -1,
+	text: string, 
+	index_at: int,
 ) -> (res: ^Task) {
 	res = task_init(indentation, text, true)
-
-	if index_at == -1 || index_at >= len(app.pool.filter) {
-		item := Undo_Item_Task_Append { res.list_index, false }
-		undo_task_append(manager, &item)
-	} else {
-		item := Undo_Item_Task_Insert_At { index_at, res.list_index, false }
-		undo_task_insert_at(manager, &item)
-	}	
-
+	task_insert_at(manager, index_at, res)
 	return
 }
 
@@ -2665,136 +2669,130 @@ check_collision_point_circles :: proc(
 }
 
 task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool {
-	// TODO TI
-	// if app.task_head == -1 || app.drag_running {
-	// 	return true
-	// }
+	if app.task_head == -1 || app.drag_running {
+		return true
+	}
 
-	// mouse: [2]f32 = { f32(mouse.x), f32(mouse.y) }
-	// pos := [2]f32 { f32(task.window.cursor_x), f32(task.window.cursor_y) }
-	// circle_size := DRAG_CIRCLE * TASK_SCALE
-	// if check_collision_point_circle(mouse, pos, circle_size) {
-	// 	return false
-	// }
+	mouse: [2]f32 = { f32(mouse.x), f32(mouse.y) }
+	pos := [2]f32 { f32(task.window.cursor_x), f32(task.window.cursor_y) }
+	circle_size := DRAG_CIRCLE * TASK_SCALE
+	if check_collision_point_circle(mouse, pos, circle_size) {
+		return false
+	}
 
-	// low, high := task_low_and_high()
-	// selected := low <= task.filter_index && task.filter_index <= high
+	low, high := task_low_and_high()
+	selected := low <= task.filter_index && task.filter_index <= high
 
-	// // on not task != selection just select this one
-	// if !selected {
-	// 	app.task_head = task.filter_index
-	// 	app.task_tail = task.filter_index
-	// 	low, high = task_low_and_high()
-	// }
+	// on not task != selection just select this one
+	if !selected {
+		app.task_head = task.filter_index
+		app.task_tail = task.filter_index
+		low, high = task_low_and_high()
+	}
 
-	// clear(&app.drag_list)
-	// manager := mode_panel_manager_scoped()
-	// task_head_tail_push(manager)
+	clear(&app.drag_list)
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
 
-	// // push removal tasks to array before
-	// iter := ti_init()
-	// for task in ti_step(&iter) {
-	// 	append(&app.drag_list, task)
-	// }
+	// push removal tasks to array before
+	iter := lh_iter_init()
+	for task in lh_iter_step(&iter) {
+		append(&app.drag_list, task)
+	}
 
-	// task_head_tail_push(manager)
-	// task_remove_selection(manager, false)
+	task_head_tail_push(manager)
+	task_remove_selection(manager, false)
 
-	// if low != high {
-	// 	app.task_head = low
-	// 	app.task_tail = low
-	// }
+	if low != high {
+		app.task_head = low
+		app.task_tail = low
+	}
 
-	// app.drag_running = true
-	// app.drag_index_at = -1
-	// element_animation_start(app.mode_panel)
+	app.drag_running = true
+	app.drag_index_at = -1
+	element_animation_start(app.mmpp)
 
-	// // init animation positions
-	// {
-	// 	width := int(TASK_DRAG_SIZE * TASK_SCALE)
-	// 	height := int(TASK_DRAG_SIZE * TASK_SCALE)
-	// 	x := app.window_main.cursor_x - int(f32(width) / 2)
-	// 	y := app.window_main.cursor_y - int(f32(height) / 2)
+	// init animation positions
+	{
+		width := int(TASK_DRAG_SIZE * TASK_SCALE)
+		height := int(TASK_DRAG_SIZE * TASK_SCALE)
+		x := app.window_main.cursor_x - int(f32(width) / 2)
+		y := app.window_main.cursor_y - int(f32(height) / 2)
 
-	// 	for i := len(app.drag_goals) - 1; i >= 0; i -= 1 {
-	// 		pos := &app.drag_goals[i]
-	// 		pos.x = f32(x) + f32(i) * 5 * TASK_SCALE
-	// 		pos.y = f32(y) + f32(i) * 5 * TASK_SCALE
-	// 	}
-	// }
+		for i := len(app.drag_goals) - 1; i >= 0; i -= 1 {
+			pos := &app.drag_goals[i]
+			pos.x = f32(x) + f32(i) * 5 * TASK_SCALE
+			pos.y = f32(y) + f32(i) * 5 * TASK_SCALE
+		}
+	}
 
-	// return true
-	return false
+	return true
 }
 
 task_dragging_end :: proc() -> bool {
-	// TODO
-	// if !app.drag_running {
-	// 	return false
-	// }
+	if !app.drag_running {
+		return false
+	}
 
-	// app.drag_circle = false
-	// app.drag_running = false
-	// element_animation_stop(app.mode_panel)
-	// force_push := app.task_head == -1
+	app.drag_circle = false
+	app.drag_running = false
+	element_animation_stop(app.mmpp)
+	force_push := app.task_head == -1
 
-	// // remove task on invalid
-	// if app.drag_index_at == -1 && !force_push {
-	// 	return true
-	// }
+	// remove task on invalid
+	if app.drag_index_at == -1 && !force_push {
+		return true
+	}
 
-	// // find lowest indentation 
-	// lowest_indentation := max(int)
-	// for i in 0..<len(app.drag_list) {
-	// 	task := app.drag_list[i]
-	// 	lowest_indentation = min(lowest_indentation, task.indentation)
-	// }
+	// find lowest indentation 
+	lowest_indentation := max(int)
+	for i in 0..<len(app.drag_list) {
+		task := app.drag_list[i]
+		lowest_indentation = min(lowest_indentation, task.indentation)
+	}
 
-	// drag_indentation: int
-	// drag_index := -1
+	drag_indentation: int
+	drag_index := -1
 
-	// if app.drag_index_at != -1 {
-	// 	task_drag_at := app.tasks_visible[app.drag_index_at]
-	// 	drag_index = task_drag_at.filter_index
+	if app.drag_index_at != -1 {
+		task_drag_at := app_task_filter(app.drag_index_at)
+		drag_index = task_drag_at.filter_index
 
-	// 	if app.task_head != -1 {
-	// 		drag_indentation = task_drag_at.indentation
+		if app.task_head != -1 {
+			drag_indentation = task_drag_at.indentation
 
-	// 		if task_drag_at.has_children {
-	// 			drag_indentation += 1
-	// 		}
-	// 	}
-	// }
+			if task_has_children(task_drag_at) {
+				drag_indentation += 1
+			}
+		}
+	}
 
-	// manager := mode_panel_manager_scoped()
-	// task_head_tail_push(manager)
-	// app.task_state_progression = .Update_Animated	
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+	app.task_state_progression = .Update_Animated	
 	
-	// // paste lines with indentation change saved
-	// visible_count: int
-	// for i in 0..<len(app.drag_list) {
-	// 	t := app.drag_list[i]
-	// 	visible_count += int(t.visible)
-	// 	relative_indentation := drag_indentation + int(t.indentation) - lowest_indentation
+	// paste lines with indentation change saved
+	for i in 0..<len(app.drag_list) {
+		t := app.drag_list[i]
+		relative_indentation := drag_indentation + int(t.indentation) - lowest_indentation
 		
-	// 	item := Undo_Item_Task_Indentation_Set {
-	// 		task = t,
-	// 		set = t.indentation,
-	// 	}	
-	// 	undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
+		item := Undo_Item_Task_Indentation_Set {
+			task = t,
+			set = t.indentation,
+		}	
+		undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
 
-	// 	t.indentation = relative_indentation
-	// 	t.indentation_smooth = f32(t.indentation)
-	// 	task_insert_at(manager, drag_index + i + 1, t)
-	// }
+		t.indentation = relative_indentation
+		t.indentation_smooth = f32(t.indentation)
+		task_insert_at(manager, drag_index + i + 1, t)
+	}
 
-	// app.task_tail = app.drag_index_at + 1
-	// app.task_head = app.drag_index_at + visible_count
+	app.task_tail = app.drag_index_at + 1
+	app.task_head = app.drag_index_at + len(app.drag_list)
 
-	// element_repaint(app.mode_panel)
-	// window_set_cursor(app.mode_panel.window, .Arrow)
-	// return true
-	return false
+	element_repaint(app.mmpp)
+	window_set_cursor(app.mmpp.window, .Arrow)
+	return true
 }
 
 mode_panel_context_menu_spawn :: proc() {

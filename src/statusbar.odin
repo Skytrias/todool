@@ -185,12 +185,21 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 	}
 
 	{
-		total := len(app.pool.filter) + len(app.pool.removed_list)
+		total := len(app.pool.filter)
 		shown := len(app.pool.filter)
-		// TODO hidden
+
 		hidden := 0
-		// hidden := total - len(app.tasks_visible)
-		deleted := len(app.pool.removed_list)
+		deleted: int
+		for task in app.pool.list {
+			if task.removed {
+				deleted += 1
+			} else {
+				if task.filter_folded {
+					hidden += len(task.filter_children)
+				}
+			}
+		}
+		total += hidden
 		
 		b := &label_task_count.builder
 		strings.builder_reset(b)
