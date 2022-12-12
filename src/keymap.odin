@@ -364,9 +364,10 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	CP1("sort_locals", todool_sort_locals)
 	// v030
 	CP1("toggle_timestamp", todool_toggle_timestamp)
-	
-	CP1("move_up_stack", todool_move_up_stack)
-	CP1("move_down_stack", todool_move_down_stack)
+
+	// v040
+	CP1("move_start", todool_move_start)
+	CP1("move_end", todool_move_end)
 }
 
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {
@@ -422,10 +423,6 @@ keymap_push_todool_combos :: proc(keymap: ^Keymap) {
 
 	// v021
 	CP2("ctrl h", "select_children")
-	CP2("ctrl home", "move_up_stack")
-	CP2("ctrl shift home", "move_up_stack", COMBO_SHIFT)
-	CP2("ctrl end", "move_down_stack")
-	CP2("ctrl shift end", "move_down_stack", COMBO_SHIFT)
 
 	// v030
 	CP2("ctrl r", "toggle_timestamp")
@@ -576,6 +573,12 @@ CP2_CROSS :: proc() {
 	CP2("alt 1", "pomodoro_toggle", COMBO_VALUE + 0x00)
 	CP2("alt 2", "pomodoro_toggle", COMBO_VALUE + 0x01)
 	CP2("alt 3", "pomodoro_toggle", COMBO_VALUE + 0x02)
+
+	// v040
+	CP2("ctrl home", "move_start")
+	CP2("ctrl shift home", "move_start", COMBO_SHIFT)
+	CP2("ctrl end", "move_end")
+	CP2("ctrl shift end", "move_end", COMBO_SHIFT)
 }
 
 keymap_push_vim_insert_commands :: proc(keymap: ^Keymap) {
@@ -606,6 +609,11 @@ keymap_force_push_latest :: proc() {
 	keymap_push = &app.window_main.keymap_custom
 	CP4("alt a", "sort_locals")
 	CP4("ctrl r", "toggle_timestamp")
+
+	CP4("ctrl home", "move_start")
+	CP4("ctrl shift home", "move_start", COMBO_SHIFT)
+	CP4("ctrl end", "move_end")
+	CP4("ctrl shift end", "move_end", COMBO_SHIFT)
 }
 
 keymap_init_comments :: proc() {
@@ -676,8 +684,6 @@ keymap_init_comments :: proc() {
 	CP3(todool_scale, "scales the tasks up, TRUE for down")
 
 	// newer
-	CP3(todool_move_up_stack, "jump up the stack, saving the last position")
-	CP3(todool_move_down_stack, "jump down the stack using the saved positions")
 	CP3(todool_toggle_progressbars, "toggle progressbars from rendering")
 
 	// vim
@@ -690,5 +696,9 @@ keymap_init_comments :: proc() {
 	CP3(vim_visual_move_right, "move to the closest task to the right visually")
 
 	// v030
-	CP3(todool_toggle_timestamp, "temp")
+	CP3(todool_toggle_timestamp, "toggle a timestamp")
+
+	// v040
+	CP3(todool_move_start, "move to the start of the list")
+	CP3(todool_move_end, "move to the end of the list")
 }

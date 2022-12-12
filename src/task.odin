@@ -81,9 +81,6 @@ App :: struct {
 	last_was_task_copy: bool,
 	task_highlight: ^Task,
 
-	// move state
-	task_move_stack: []^Task,
-
 	// goto state
 	panel_goto: ^Panel_Floaty,
 	goto_saved_task_head: int,
@@ -155,7 +152,6 @@ app_init :: proc() -> (res: ^App) {
 	undo_manager_init(&res.um_goto)
 	undo_manager_init(&res.um_sidebar_tags)
 
-	res.task_move_stack = make([]^Task, 256)
 	search_state_init()
 
 	res.font_options_header = {
@@ -184,9 +180,6 @@ app_destroy :: proc(a: ^App) {
 	keymap_destroy_comments()
 	keymap_destroy(&a.keymap_vim_normal)
 	keymap_destroy(&a.keymap_vim_insert)
-
-	// delete(a.task_clear_checking)
-	delete(a.task_move_stack)
 
 	power_mode_destroy()
 	pomodoro_destroy()
@@ -917,27 +910,47 @@ task_set_children_info :: proc() {
 		task.visible_parent = nil
 	}
 
+	folded_insert_from_to :: proc(manager: ^Undo_Manager, root: ^Task, from: int) -> (unfolded: bool) {
+		for j := from; j < len(app.pool.filter); j += 1 {
+			child := app_task_filter(j)
+
+			if root.indentation < child.indentation {
+				// new info popped up, unfold this task
+				if root.filter_folded && !unfolded {
+					unfolded = true
+					undo_group_continue(manager)
+					task_check_unfold(manager, root)
+					app.task_head += len(root.filter_children)
+					app.task_tail += len(root.filter_children)
+					j -= 1
+					continue
+				}
+
+				append(&root.filter_children, child.list_index)
+				child.visible_parent = root
+			} else {
+				break
+			}
+		}
+
+		return
+	}
+
+	manager := mode_panel_manager_begin()
+	unfolds: bool
 	previous: ^Task
 	for i in 0..<len(app.pool.filter) {
 		task := app_task_filter(i)
 
-		if previous != nil && previous.indentation < task.indentation && !previous.filter_folded {
-			// fmt.eprintln("INSERT")
-			for j in i..<len(app.pool.filter) {
-				child := app_task_filter(j)
-
-				if previous.indentation < child.indentation {
-					// fmt.eprintln("\t", previous.list_index, previous.filter_index, "|||", child.list_index, child.filter_index)
-					append(&previous.filter_children, child.list_index)
-
-					child.visible_parent = previous
-				} else {
-					break
-				}
-			}
+		if previous != nil && previous.indentation < task.indentation {
+			unfolds |= folded_insert_from_to(manager, previous, i)
 		}
 
 		previous = task
+	}
+
+	if unfolds {
+		undo_group_end(manager)
 	}
 }
 
@@ -3033,8 +3046,8 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		mbl(p, "Jump Nearby Different State Forward", "jump_nearby")
 		mbl(p, "Jump Nearby Different State Backward", "jump_nearby", COMBO_SHIFT)
 		mbs(p)
-		mbl(p, "Move Up Stack", "move_up_stack")
-		mbl(p, "Move Down Stack", "move_down_stack")
+		mbl(p, "Move Start", "move_start")
+		mbl(p, "Move End", "move_end")
 		mbs(p)
 		mbl(p, "Select All", "select_all")
 		mbl(p, "Select Children", "select_children")

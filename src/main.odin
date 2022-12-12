@@ -34,6 +34,7 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // keymap load newer combos per version by default
 // keymap editor GUI
 
+// changelog window in todool?
 // rework scrollbar to just float and take and be less intrusive
 // have spall push threaded content based on ids or sdl timers
 
