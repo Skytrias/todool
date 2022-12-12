@@ -34,9 +34,10 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // keymap load newer combos per version by default
 // keymap editor GUI
 
-// changelog window in todool?
 // rework scrollbar to just float and take and be less intrusive
 // have spall push threaded content based on ids or sdl timers
+
+// removed task == 0 forcing indentation 0
 
 // main :: proc() {
 // 	pool := task_pool_init()
@@ -251,29 +252,6 @@ main_update :: proc(window: ^Window) {
 	}
 
 	task_head_tail_clamp()
-
-	// NOTE forces the first task to indentation == 0
-	{
-		if app_filter_not_empty() {
-			task := app_task_filter(0)
-
-			if task.indentation != 0 {
-				manager := mode_panel_manager_scoped()
-				// NOTE continue the first group
-				undo_group_continue(manager) 
-
-				item := Undo_Item_Task_Indentation_Set {
-					task = task,
-					set = task.indentation,
-				}	
-				undo_push(manager, undo_task_indentation_set, &item, size_of(Undo_Item_Task_Indentation_Set))
-
-				task.indentation = 0
-				task.indentation_animating = true
-				element_animation_start(task)
-			}
-		}
-	}
 
 	// shadow animation
 	{

@@ -499,6 +499,17 @@ undo_filter_unfold :: proc(manager: ^Undo_Manager, item: rawptr) {
 	resize(&app.pool.filter, len(app.pool.filter) + data.count)
 	copy(app.pool.filter[idx + data.count:], app.pool.filter[idx:])
 	copy(app.pool.filter[idx:], byte_slice)
+
+	// adjust indentation for unfold
+	lowest_indentation := tasks_lowest_indentation(idx, idx + data.count - 1)
+	for i in 0..<data.count {
+		child := app_task_filter(idx + i)
+		goal := child.indentation - lowest_indentation + task.indentation + 1
+		child.indentation = goal
+		child.indentation_smooth = f32(goal)
+		fmt.eprintln(idx + i, child.indentation)
+	}
+
 	task.filter_folded = false
 
 	output := Undo_Item_Filter_Fold {
@@ -513,14 +524,15 @@ todool_toggle_folding :: proc(du: u32 = 0) {
 		return
 	}
 
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
-
 	task := app_task_head()
-	task_toggle_folding(manager, task)
-		
-	app.task_tail = app.task_head
-	window_repaint(app.window_main)
+	if task_has_children(task) {
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+		task_toggle_folding(manager, task)
+
+		app.task_tail = app.task_head
+		window_repaint(app.window_main)
+	}
 }
 
 // push memory bits for a task
@@ -1212,23 +1224,13 @@ todool_indentation_shift :: proc(du: u32) {
 		return
 	}
 
-	// skip first
-	if app.task_head == app.task_tail && app.task_head == 0 {
-		return
-	}
-
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 
 	iter := lh_iter_init()
-	lowest := app_task_filter(max(iter.low - 1, 0))
 	app.task_state_progression = .Update_Animated
 
 	for task in lh_iter_step(&iter) {
-		if task.filter_index == 0 {
-			continue
-		}
-
 		if task.indentation + amt >= 0 {
 			task_indentation_set_animate(manager, task, task.indentation + amt)
 		}

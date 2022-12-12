@@ -910,6 +910,7 @@ task_set_children_info :: proc() {
 		task.visible_parent = nil
 	}
 
+	// insert children, pop previously folded task and move selection automatically
 	folded_insert_from_to :: proc(manager: ^Undo_Manager, root: ^Task, from: int) -> (unfolded: bool) {
 		for j := from; j < len(app.pool.filter); j += 1 {
 			child := app_task_filter(j)
@@ -1256,34 +1257,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					render_push_clip(target, panel.clip)
 					task := app_task_head() 
 					spell_check_render_missing_words(target, task)
-				}
-			}
-
-			// TODO looks shitty when swapping
-			// shadow highlight for non selection
-			if app.task_head != -1 && app.task_shadow_alpha != 0 {
-				render_push_clip(target, panel.clip)
-				low, high := task_low_and_high()
-				color := color_alpha(theme.background[0], app.task_shadow_alpha)
-				
-				for index in app.pool.filter {
-					t := app_task_list(index)
-					if !(low <= t.filter_index && t.filter_index <= high) {
-						rect := t.bounds
-						render_rect(target, rect, color)
-					}
-				}
-			}
-
-			// task outlines
-			if app.task_head != -1 {
-				low, high := task_low_and_high()
-				render_push_clip(target, panel.clip)
-				for i in low..<high + 1 {
-					task := app_task_filter(i)
-					rect := task.bounds
-					color := app.task_head == i ? theme.caret : theme.text_default
-					render_rect_outline(target, rect, color)
 				}
 			}
 
@@ -1968,6 +1941,33 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					field >>= 1
 				}
 			}
+
+			// render sub elements
+			for child in element.children {
+				render_element_clipped(target, child)
+			}
+
+			// TODO speed up with flags?
+			low, high := task_low_and_high()
+			if low == high && task.filter_index == low {
+				// single outline
+				render_push_clip(target, task.parent.bounds)
+				render_rect_outline(target, task.bounds, theme.caret)
+			} else {
+				render_push_clip(target, task.parent.bounds)
+
+				if low <= task.filter_index && task.filter_index <= high {
+					// outline 
+					color := app.task_head == task.filter_index ? theme.caret : theme.text_default
+					render_rect_outline(target, task.bounds, color)
+				} else {
+					// shadow highlight
+					color := color_alpha(theme.background[0], app.task_shadow_alpha)
+					render_rect(target, rect, color)
+				}
+			}
+
+			return 1
 		}
 
 		case .Middle_Down: {
