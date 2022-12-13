@@ -331,8 +331,7 @@ todool_change_task_state :: proc(du: u32) {
 	}
 
 	shift := du_shift(du)
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
+	manager := mode_panel_manager_begin()
 	temp_state: int
 
 	// modify all states
@@ -340,11 +339,19 @@ todool_change_task_state :: proc(du: u32) {
 	task_count: int
 	iter := lh_iter_init()
 	for task in lh_iter_step(&iter) {
-		temp_state = int(task.state)
-		range_advance_index(&temp_state, len(Task_State) - 1, shift)
-		// save old set
-		task_set_state_undoable(manager, task, Task_State(temp_state), task_count)
-		task_count += 1
+		if !task_has_children(task) {
+			temp_state = int(task.state)
+			range_advance_index(&temp_state, len(Task_State) - 1, shift)
+			// save old set
+			task_set_state_undoable(manager, task, Task_State(temp_state), task_count)
+			task_count += 1
+		}
+	}
+
+	// only push on changes
+	if task_count != 0 {
+		task_head_tail_push(manager)
+		undo_group_end(manager)
 	}
 
 	window_repaint(app.window_main)
@@ -770,7 +777,7 @@ shift_complex :: proc(manager: ^Undo_Manager, a, b: int) {
 		task := app_task_filter(i)
 
 		if task.filter_index != i {
-			task_swap_animation(i)
+			task_swap_animation(task.list_index)
 		}
 	}
 
@@ -981,8 +988,9 @@ undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
 	undo_push(manager, undo_task_swap, item, size_of(Undo_Item_Task_Swap))	
 }
 
-task_swap_animation :: proc(index: int) {
-	task := app_task_filter(index)
+// NOTE list index
+task_swap_animation :: proc(list_index: int) {
+	task := app_task_list(list_index)
 	task.top_offset = 0
 	task.top_animation_start = true
 	task.top_animating = true
@@ -996,8 +1004,8 @@ task_swap :: proc(manager: ^Undo_Manager, a, b: int) {
 	undo_task_swap(manager, &item)
 
 	// animate the thing when visible
-	task_swap_animation(a)
-	task_swap_animation(b)
+	task_swap_animation(app.pool.filter[a])
+	task_swap_animation(app.pool.filter[b])
 
 	window_repaint(app.window_main)
 }
@@ -1758,124 +1766,102 @@ todool_jump_nearby :: proc(du: u32) {
 	}
 }
 
-Undo_Item_Task_Sort :: struct {
-	task_current: ^Task,
+Undo_Item_Sort_Indentation :: struct {
+	indentation: int,
 	from, to: int,
 }
 
-undo_task_sort :: proc(manager: ^Undo_Manager, item: rawptr) {
-	// TODO
-	// data := cast(^Undo_Item_Task_Sort) item
-	
-	// Task_Line :: struct {
-	// 	task: ^Task,
-	// 	children_from, children_to: i32,
-	// }
+undo_sort_indentation :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Sort_Indentation) item
 
-	// sort_list := make([dynamic]Task_Line, 0, 64, context.temp_allocator)
-	// children := make([dynamic]^Task, 0, 64, context.temp_allocator)
+	// NOTE we're sorting list indices!
+	count := (data.to - data.from) + 1
+	f := &app.pool.filter
 
-	// for i in data.from..<data.to + 1 {
-	// 	task := app_task_filter(i)
+	cmp1 :: proc(a, b: int) -> bool {
+		aa := app_task_list(a)
+		return !task_has_children(aa)
+	}
+	cmp2 :: proc(a, b: int) -> bool {
+		aa := app_task_list(a)
+		bb := app_task_list(b)
+		return aa.state < bb.state
+	}
 
-	// 	// if the task has the same parent push to sort list
-	// 	if task.visible_parent == data.task_current.visible_parent {
-	// 		append(&sort_list, Task_Line {
-	// 			task,
-	// 			-1, 
-	// 			0,
-	// 		})
-	// 	} else {
-	// 		// set child location info per pushed child on the last task
-	// 		last := &sort_list[len(sort_list) - 1]
-	// 		child_index := i32(len(children))
-	// 		if last.children_from == -1 {
-	// 			last.children_from = child_index
-	// 		}
-	// 		last.children_to = child_index
-	// 		append(&children, task)
-	// 	}
-	// }
+	// add tasks without children, as they wont be sorted!
+	sort_list := make([]int, count, context.temp_allocator)
+	sort_index: int
 
-	// cmp1 :: proc(a, b: Task_Line) -> bool {
-	// 	return a.children_from == -1
-	// }
+	for filter_index in data.from..<data.to + 1 {
+		task := app_task_filter(filter_index)
 
-	// cmp2 :: proc(a, b: Task_Line) -> bool {
-	// 	return a.task.state < b.task.state
-	// }
+		if data.indentation == task.indentation {
+			sort_list[sort_index] = task.list_index
+			sort_index += 1
+		}
+	}
 
-	// slice.stable_sort_by(sort_list[:], cmp1)
-	// slice.stable_sort_by(sort_list[:], cmp2)
+	slice.stable_sort_by(sort_list[:sort_index], cmp1)
+	slice.stable_sort_by(sort_list[:sort_index], cmp2)
 
-	// // prepare reversal
-	// out := Undo_Item_Task_Sort_Original {
-	// 	data.task_current,
-	// 	data.from, 
-	// 	data.to,
-	// }
-	// count := (data.to - data.from) + 1
-	// bytes := undo_push(
-	// 	manager, 
-	// 	undo_task_sort_original, 
-	// 	&out, 
-	// 	size_of(Undo_Item_Task_Sort_Original) + count * size_of(^Task),
-	// )
-	// // actually save the data
-	// bytes_root := cast(^^Task) &bytes[size_of(Undo_Item_Task_Sort_Original)]
+	// save last 
+	{
+		output := Undo_Item_Sort_Reset { data.from, data.to }
+		bytes := undo_push(manager, undo_sort_reset, &output, size_of(Undo_Item_Sort_Reset) + count * size_of(int))
+		bytes_root := cast(^int) &bytes[size_of(Undo_Item_Sort_Reset)]
+		storage := mem.slice_ptr(bytes_root, count)
+		copy(storage, app.pool.filter[data.from:data.to + 1])
+		fmt.eprintln("TEMP", storage)
+	}
+
+	// push back sorted results and insert their children with correct offsets
+	offset: int
+	for i in 0..<sort_index {
+		real_index := data.from + i + offset
+		goal := sort_list[i]
+		f[real_index] = goal
+		task_swap_animation(goal)
+		task := app_task_list(goal)
+
+		if !task.filter_folded && task_has_children(task) {
+			// push children back properly
+			for j in 0..<len(task.filter_children) {
+				goal = task.filter_children[j]
+				f[real_index + j + 1] = goal
+				task_swap_animation(goal)
+			}
+
+			offset += len(task.filter_children)
+		}
+	}
+
+	fmt.eprintln("AFTER", f[data.from:data.to + 1])
+}
+
+Undo_Item_Sort_Reset :: struct {
+	from, to: int,
+	// [N](int) data upcoming
+}
+
+// TODO duplicate code
+undo_sort_reset :: proc(manager: ^Undo_Manager, item: rawptr) {
+	data := cast(^Undo_Item_Sort_Reset) item
+
+	bytes_root := cast(^int) (uintptr(item) + size_of(Undo_Item_Sort_Reset))
+	count := data.to - data.from + 1
 	// storage := mem.slice_ptr(bytes_root, count)
-	// // TODO just slice copy?
-	// for i in 0..<count {
-	// 	storage[i] = cast(^Task) app.mode_panel.children[i + data.from]
-	// }
 
-	// insert_offset: int
-	// for i in 0..<len(sort_list) {
-	// 	line := sort_list[i]
-	// 	index := data.from + i + insert_offset
-	// 	app.mode_panel.children[index] = line.task
+	// revert to unsorted data
+	mem.copy(&app.pool.filter[data.from], bytes_root, count * size_of(int))
 
-	// 	if line.children_from != -1 {
-	// 		local_index := index + 1
-	// 		// fmt.eprintln("line", line.children_from, line.children_to)
-
-	// 		for j in line.children_from..<line.children_to + 1 {
-	// 			app.mode_panel.children[local_index] = children[j]
-	// 			local_index += 1
-	// 			insert_offset += 1
-	// 			// fmt.eprintln("jjj", j)
-	// 		}
-	// 	}
-	// }
-
-	// window_repaint(app.window_main)
-}
-
-Undo_Item_Task_Sort_Original :: struct {
-	task_current: ^Task,
-	from, to: int,
-	// ^Task data upcoming
-}
-
-undo_task_sort_original :: proc(manager: ^Undo_Manager, item: rawptr) {
-	// TODO
-	// data := cast(^Undo_Item_Task_Sort_Original) item
-
-	// bytes_root := cast(^^Task) (uintptr(item) + size_of(Undo_Item_Task_Sort_Original))
-	// count := data.to - data.from + 1
-	// storage := mem.slice_ptr(bytes_root, count)	
-
-	// // revert to unsorted data
-	// for i in 0..<count {
-	// 	app.mode_panel.children[i + data.from] = storage[i]
-	// }
-
-	// out := Undo_Item_Task_Sort {
-	// 	data.task_current,
-	// 	data.from,
-	// 	data.to,
-	// }
-	// undo_push(manager, undo_task_sort, &out, size_of(Undo_Item_Task_Sort))
+	// NOTE safe?
+	task := app_task_filter(data.from)
+	out := Undo_Item_Sort_Indentation {
+		task.indentation,
+		data.from,
+		data.to,
+	}
+	undo_push(manager, undo_sort_indentation, &out, size_of(Undo_Item_Sort_Indentation))
 }
 
 // idea:
@@ -1887,6 +1873,7 @@ todool_sort_locals :: proc(du: u32) {
 		return
 	}
 
+	fmt.eprintln("TRY")
 	app.task_tail = app.task_head
 	task_current := app_task_head()
 
@@ -1895,32 +1882,31 @@ todool_sort_locals :: proc(du: u32) {
 	if task_current.visible_parent == nil {
 		from = 0
 		to = len(app.pool.filter) - 1
-		// return
+		fmt.eprintln("A")
 	} else {
-		// TODO
-		// from, to = task_children_range(task_current.visible_parent)
+		fmt.eprintln("B")
+		from = task_current.visible_parent.filter_index + 1
+		to = task_current.visible_parent.filter_index + len(task_current.visible_parent.filter_children)
 
-		// // skip invalid 
-		// if from == -1 || to == -1 {
-		// 	return
-		// }
+		// skip invalid 
+		if from == -1 || to == -1 {
+			return
+		}
 	}
+
+	fmt.eprintln("TEST", from, to)
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 	
-	item := Undo_Item_Task_Sort {
-		task_current,
-		from,
-		to,
-	}
-	undo_task_sort(manager, &item)
+	item := Undo_Item_Sort_Indentation { task_current.indentation, from, to }
+	undo_sort_indentation(manager, &item)
 
 	// update info and reset to last position
 	task_set_children_info()
-	// task_set_visible_tasks()
 	app.task_head = task_current.filter_index
 	app.task_tail = app.task_head
+	window_repaint(app.window_main)
 }
 
 todool_scale :: proc(du: u32) {

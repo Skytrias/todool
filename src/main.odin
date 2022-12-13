@@ -39,6 +39,7 @@ DEMO_MODE :: false // wether or not save&load are enabled
 
 // fold changes:
 // removed task == 0 forcing indentation 0
+// change_state only push undo on changes
 
 // main :: proc() {
 // 	pool := task_pool_init()
