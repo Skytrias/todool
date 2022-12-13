@@ -76,7 +76,8 @@ Message :: enum {
 	Get_Cursor,
 	Scrolled_X, // wether the element has scrolled
 	Scrolled_Y, // wether the element has scrolled
-	Dropped_Files, // dp = ^string continuos
+	Dropped_Files,
+	Dropped_Text,
 
 	Key_Combination, // dp = ^string, return 1 if handled
 	Unicode_Insertion, // dp = ^rune, return 1 if handled

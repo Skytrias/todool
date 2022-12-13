@@ -206,6 +206,7 @@ Global_State :: struct {
 
 	// only used in iteration, never double iter :)
 	windows_iter: ^Window,
+	dropped_text: bool,
 
 	// logger data
 	logger: log.Logger,
@@ -712,7 +713,7 @@ window_set_cursor :: proc(window: ^Window, cursor: Cursor) {
 
 // handle all os input events
 window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawptr = nil) -> (res: bool) {
-	if msg == .Dropped_Files {
+	if msg == .Dropped_Files || msg == .Dropped_Text {
 		to := window.hovered == nil ? &window.element : window.hovered
 		element_send_msg_until_received(to, msg, di, dp)
 		return
@@ -1139,6 +1140,10 @@ window_try_quit :: proc(window: ^Window) {
 	}
 }
 
+window_dropped_text :: proc(window: ^Window) -> string {
+	return string(window.drop_file_name_builder.buf[:])
+}
+
 window_dropped_iter :: proc(window: ^Window, index: ^int, old_indice: ^int) -> (path: string, ok: bool) {
 	if index^ >= len(window.drop_indices) {
 		return
@@ -1305,7 +1310,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 		}
 
 		// write indices & text content linearly, not send over message!
-		case .DROPBEGIN, .DROPCOMPLETE, .DROPFILE: {
+		case .DROPBEGIN, .DROPCOMPLETE, .DROPFILE, .DROPTEXT: {
 			if e.drop.windowID != window.w_id {
 				return
 			}
@@ -1317,8 +1322,14 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				clear(indices)
 				clear(&b.buf)
 			} else if e.type == .DROPCOMPLETE {
-				window_input_event(window, .Dropped_Files)
+				window_input_event(window, gs.dropped_text ? .Dropped_Text : .Dropped_Files)
+			} else if e.type == .DROPTEXT {
+				gs.dropped_text = true
+				text := string(e.drop.file)
+				strings.write_string(b, text)
+				append(indices, len(b.buf))
 			} else if e.type == .DROPFILE {
+				gs.dropped_text = false
 				text := string(e.drop.file)
 				strings.write_string(b, text)
 				append(indices, len(b.buf))
@@ -1742,6 +1753,7 @@ gs_message_loop :: proc() {
 		}
 	}
 
+	theme_presets_destroy()
 	app_destroy(app)
 	gs_destroy()
 }

@@ -457,6 +457,7 @@ load_data :: proc(data: ^[]u8) -> (err: Save_Error) {
 				advance_ptr(&input, &t, size_of(Save_Task_V1)) or_return
 
 				string_bytes := advance_slice(&input, int(t.text_length)) or_return
+				spell_check_mapping_words_add(string(string_bytes))
 
 				// push to the pool
 				task := task_init(int(t.indentation), string(string_bytes), false)
@@ -681,6 +682,11 @@ Misc_Save_Load :: struct {
 		tail: int,
 		data: []string,
 	},
+
+	search: struct {
+		pattern: string,
+		case_insensitive: bool,
+	},
 }
 
 json_save_misc :: proc(path: string) -> bool {
@@ -822,6 +828,11 @@ json_save_misc :: proc(path: string) -> bool {
 			sb.archive.tail,
 			archive_data,
 		},
+
+		search = {
+			ss_string(&search.text_box.ss),
+			search.case_insensitive,
+		},
 	}
 
 	result, err := json.marshal(
@@ -922,14 +933,7 @@ json_load_misc :: proc(path: string) -> bool {
 	checkbox_set(sb.options.checkbox_progressbar_hover_only, misc.options.progressbar_hover_only)
 
 	// theme
-	{
-		count := size_of(Theme) / size_of(Color)
-		for i in 0..<count {
-			from := mem.ptr_offset(cast(^u32) &misc.theme, i)
-			to := mem.ptr_offset(cast(^Color) &theme, i)
-			to^ = transmute(Color) from^
-		}
-	}
+	theme_load_from(misc.theme)
 
 	// pomodoro
 	pomodoro.index = misc.pomodoro.index
@@ -980,6 +984,12 @@ json_load_misc :: proc(path: string) -> bool {
 	}
 	sb.archive.head = misc.archive.head
 	sb.archive.tail = misc.archive.tail
+
+	// search
+	if misc.search != {} {
+		ss_set_string(&search.text_box.ss, misc.search.pattern)
+		search.case_insensitive = misc.search.case_insensitive
+	}
 
 	// custom sounds path setting
 	sound_path_write(.Timer_Start, misc.custom_sounds.timer_start)

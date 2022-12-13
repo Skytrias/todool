@@ -128,7 +128,7 @@ spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 					y + line_width,
 				}
 				
-				render_sine(target, rect, RED)
+				render_sine(target, rect, theme.text_bad)
 			}
 		}
 	}

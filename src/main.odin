@@ -59,6 +59,7 @@ main :: proc() {
 	context.logger = gs.logger
 	context.allocator = gs_allocator()	
 
+	theme_presets_init()
 	app = app_init()
 
 	window := window_init(nil, {}, "Todool", 900, 900, 256, 256)

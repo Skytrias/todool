@@ -276,7 +276,7 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 	state := fontstash.state_get(&gs.fc)
 	q: fontstash.Quad
 	codepoint_index: int
-	back_color := theme_panel(.Front)
+	back_color := color_alpha(theme_panel(.Front), 1)
 	low, high := box_low_and_high(box)
 
 	// draw each wrapped line

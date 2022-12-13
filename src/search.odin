@@ -9,7 +9,7 @@ import "../spall"
 import "../cutf8"
 
 // THOUGHTS
-// check task validity? or update search results based on validity
+// check task search_updateidity? or update search results based on validity
 // what if the task is now invisible due to folding and search result still includes that
 
 // goals
@@ -49,9 +49,7 @@ Search_State :: struct {
 	text_box: ^Text_Box,
 	
 	// persistent state
-	persistent: struct {
-		case_insensitive: bool,
-	},
+	case_insensitive: bool,
 }
 search: Search_State
 panel_search: ^Panel
@@ -119,7 +117,7 @@ search_update :: proc(pattern: string) {
 	sf := string_finder_init(pattern)
 	defer string_finder_destroy(sf)
 
-	if search.persistent.case_insensitive {
+	if search.case_insensitive {
 		builder := strings.builder_make(0, 256, context.temp_allocator)
 
 		// find results
@@ -311,7 +309,7 @@ search_init :: proc(parent: ^Element) {
 	{
 		button := button_init(p, {}, "aA", button_state_message)
 		button.hover_info = "Case Insensitive Search"
-		button.data = &search.persistent.case_insensitive
+		button.data = &search.case_insensitive
 	}
 
 	box := text_box_init(p, { .HF })
