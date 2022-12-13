@@ -435,6 +435,7 @@ CP2_INSERTION :: proc() {
 	// insertion
 	CP2("return", "insert_sibling")
 	CP2("shift return", "insert_sibling", COMBO_SHIFT)
+	CP2("ctrl shift return", "insert_sibling", COMBO_SHIFT)
 	CP2("ctrl return", "insert_child")
 }
 

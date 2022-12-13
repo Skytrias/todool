@@ -1778,10 +1778,16 @@ undo_sort_indentation :: proc(manager: ^Undo_Manager, item: rawptr) {
 	count := (data.to - data.from) + 1
 	f := &app.pool.filter
 
+	// sort by children lengths
 	cmp1 :: proc(a, b: int) -> bool {
 		aa := app_task_list(a)
-		return !task_has_children(aa)
+		bb := app_task_list(b)
+		count_a := aa.filter_folded ? 1 : len(aa.filter_children) + 1
+		count_b := bb.filter_folded ? 1 : len(bb.filter_children) + 1
+		return count_a < count_b
 	}
+
+	// sort by task state
 	cmp2 :: proc(a, b: int) -> bool {
 		aa := app_task_list(a)
 		bb := app_task_list(b)
@@ -1811,7 +1817,6 @@ undo_sort_indentation :: proc(manager: ^Undo_Manager, item: rawptr) {
 		bytes_root := cast(^int) &bytes[size_of(Undo_Item_Sort_Reset)]
 		storage := mem.slice_ptr(bytes_root, count)
 		copy(storage, app.pool.filter[data.from:data.to + 1])
-		fmt.eprintln("TEMP", storage)
 	}
 
 	// push back sorted results and insert their children with correct offsets
@@ -1834,8 +1839,6 @@ undo_sort_indentation :: proc(manager: ^Undo_Manager, item: rawptr) {
 			offset += len(task.filter_children)
 		}
 	}
-
-	fmt.eprintln("AFTER", f[data.from:data.to + 1])
 }
 
 Undo_Item_Sort_Reset :: struct {
@@ -1849,7 +1852,6 @@ undo_sort_reset :: proc(manager: ^Undo_Manager, item: rawptr) {
 
 	bytes_root := cast(^int) (uintptr(item) + size_of(Undo_Item_Sort_Reset))
 	count := data.to - data.from + 1
-	// storage := mem.slice_ptr(bytes_root, count)
 
 	// revert to unsorted data
 	mem.copy(&app.pool.filter[data.from], bytes_root, count * size_of(int))
@@ -1873,7 +1875,6 @@ todool_sort_locals :: proc(du: u32) {
 		return
 	}
 
-	fmt.eprintln("TRY")
 	app.task_tail = app.task_head
 	task_current := app_task_head()
 
@@ -1882,9 +1883,7 @@ todool_sort_locals :: proc(du: u32) {
 	if task_current.visible_parent == nil {
 		from = 0
 		to = len(app.pool.filter) - 1
-		fmt.eprintln("A")
 	} else {
-		fmt.eprintln("B")
 		from = task_current.visible_parent.filter_index + 1
 		to = task_current.visible_parent.filter_index + len(task_current.visible_parent.filter_children)
 
@@ -1893,8 +1892,6 @@ todool_sort_locals :: proc(du: u32) {
 			return
 		}
 	}
-
-	fmt.eprintln("TEST", from, to)
 
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
