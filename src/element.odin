@@ -602,7 +602,8 @@ window_focused_shown :: proc(window: ^Window) -> bool {
 }
 
 render_hovered_highlight :: #force_inline proc(target: ^Render_Target, bounds: RectI, scale := f32(1)) {
-	color := DARKEN
+	color := theme.shadow
+	color.a = 50
 	color.a = u8((f32(color.a) / 255 * scale) * 255)
 	render_rect(target, bounds, color, ROUNDNESS)
 }
