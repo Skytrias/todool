@@ -99,6 +99,7 @@ App :: struct {
 	task_tail: int,
 	old_task_head: int,
 	old_task_tail: int,
+	keep_task_position: Maybe(^Task),
 
 	// shadowing
 	task_shadow_alpha: f32,
@@ -410,8 +411,21 @@ mode_panel_zoom_animate :: proc() {
 }
 
 // line has selection
-task_has_selection :: #force_inline proc() -> bool {
+app_has_selection :: #force_inline proc() -> bool {
 	return app.task_head != app.task_tail
+}
+
+// no selection
+app_has_no_selection :: #force_inline proc() -> bool {
+	return app.task_head == app.task_tail
+}
+
+// flatten head/tail and keep position the same across changes
+task_head_tail_flatten_keep :: proc() -> (task: ^Task) {
+	app.task_tail = app.task_head
+	task = app_task_head()
+	app.keep_task_position = task
+	return
 }
 
 task_has_children :: #force_inline proc(task: ^Task) -> bool {
@@ -1019,69 +1033,59 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 	}
 }
 
-// // in real indicess
-// task_children_count :: proc(parent: ^Task) -> (count: int) {
-// 	for i in parent.filter_index + 1..<len(app.pool.filter) {
-// 		task := app_task_filter(i)
+// find same indentation with optional lower barier
+find_same_indentation_backwards :: proc(visible_index: int, allow_lower: bool) -> (res: int) {
+	res = -1
+	task_current := app_task_filter(visible_index)
 
-// 		if task.indentation <= parent.indentation {
-// 			break
-// 		}
+	for i := visible_index - 1; i >= 0; i -= 1 {
+		task := app_task_filter(i)
+		
+		if task.indentation == task_current.indentation {
+			res = i
+			return
+		} else if task.indentation < task_current.indentation {
+			if !allow_lower {
+				return
+			}
+		}
+	}
 
-// 		count += 1
-// 	}
+	return
+}
 
-// 	return
-// }
+// find same indentation with optional lower barier
+find_same_indentation_forwards :: proc(visible_index: int, allow_lower: bool) -> (res: int) {
+	res = -1
+	task_current := app_task_filter(visible_index)
 
-// // in real indicess
-// task_children_range :: proc(parent: ^Task) -> (low, high: int) {
-// 	low = min(parent.filter_index + 1, len(app.pool.filter) - 1)
-// 	high = -1
+	for i := visible_index + 1; i < len(app.pool.filter); i += 1 {
+		task := app_task_filter(i)
+		
+		if task.indentation == task_current.indentation {
+			res = i
+			return
+		} else if task.indentation < task_current.indentation {
+			if !allow_lower {
+				return
+			}
+		}
+	}
 
-// 	for i in parent.filter_index + 1..<len(app.pool.filter) {
-// 		task := app_task_filter(i)
-
-// 		if task.indentation <= parent.indentation {
-// 			break
-// 		}
-
-// 		high = i
-// 	}
-
-// 	return
-// }
+	return
+}
 
 //////////////////////////////////////////////
 // messages
 //////////////////////////////////////////////
 
-tasks_eliminate_wanted_clear_tasks :: proc(panel: ^Mode_Panel) {
-	// TODO
-	// // eliminate tasks set up for manual clearing
-	// for i in 0..<len(panel.children) {
-	// 	task := cast(^Task) panel.children[i]
-	// 	if task in app.task_clear_checking {
-	// 		delete_key(&app.task_clear_checking, task)
-	// 	}
-	// }
-}
-
-tasks_clear_left_over :: proc() {
-	// TODO
-	// for key, value in app.task_clear_checking {
-	// 	element_destroy_and_deallocate(key)
-	// }
-	// clear(&app.task_clear_checking)
-}
-	
 mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	panel := cast(^Mode_Panel) element
 	cam := &panel.cam[panel.mode]
 
 	#partial switch msg {
 		case .Destroy: {
-			tasks_eliminate_wanted_clear_tasks(panel)
+			// tasks_eliminate_wanted_clear_tasks(panel)
 		}
 
 		case .Find_By_Point_Recursive: {
@@ -2358,12 +2362,9 @@ tasks_load_reset :: proc() {
 
 	// NOTE TEMP
 	// TODO need to cleanup node data
-	tasks_eliminate_wanted_clear_tasks(app.mmpp)
 	element_destroy_descendents(app.mmpp, false)
 	element_deallocate(&app.window_main.element) // clear mem
-	tasks_clear_left_over()
 
-	// REVIEW
 	task_pool_clear(&app.pool)
 	
 	// mode_panel.flags += { .Destroy_Descendent }
@@ -2819,17 +2820,17 @@ mode_panel_context_menu_spawn :: proc() {
 
 	button_init(p, {}, "Theme Editor").invoke = proc(button: ^Button, data: rawptr) {
 		theme_editor_spawn()
-		menu_close(button.window)
+		menu_close(app.mmpp.window)
 	}
 
 	button_init(p, {}, "Keymap Editor").invoke = proc(button: ^Button, data: rawptr) {
 		keymap_editor_spawn()
-		menu_close(button.window)
+		menu_close(app.mmpp.window)
 	}
 
 	button_init(p, {}, "Changelog Generator").invoke = proc(button: ^Button, data: rawptr) {
 		changelog_spawn()
-		menu_close(button.window)
+		menu_close(app.mmpp.window)
 	}
 	
 	button_init(p, {}, "Load Tutorial").invoke = proc(button: ^Button, data: rawptr) {
@@ -2839,20 +2840,8 @@ mode_panel_context_menu_spawn :: proc() {
 		  tasks_load_tutorial()
 	  }
 
-		menu_close(button.window)
+		menu_close(app.mmpp.window)
 	}
-
-	// button_init(p, {}, "Test").invoke = proc(button: ^Button, data: rawptr) {
-	// 	if focusing {
-	// 		focusing = false
-	// 	} else {
-	// 		focusing = true
-	// 		focus_head = 6
-	// 		focus_tail = 10
-	// 	}
-
-	// 	menu_close(button.window)
-	// }
 }
 
 task_highlight_render :: proc(target: ^Render_Target, after: bool) {

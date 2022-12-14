@@ -158,7 +158,7 @@ main :: proc() {
 
 main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: rawptr) -> int {
 	task_head_tail_clamp()
-	if app.task_head != -1 && !task_has_selection() && app_filter_not_empty() {
+	if app.task_head != -1 && app_has_no_selection() && app_filter_not_empty() {
 		box := app_task_filter(app.task_head).box
 
 		if element_message(box, msg, di, dp) == 1 {
@@ -189,7 +189,6 @@ main_update :: proc(window: ^Window) {
 	}
 
 	task_set_children_info()
-	// task_set_visible_tasks()
 	task_check_parent_states(&app.um_task)
 
 	switch app.task_state_progression {
@@ -222,7 +221,7 @@ main_update :: proc(window: ^Window) {
 		task := app_task_list(index)
 		task.font_options = task_has_children(task) ? &app.font_options_bold : nil
 	}
-	
+
 	// find dragging index at
 	if app.drag_running {
 		if !window_mouse_inside(window) {
@@ -271,6 +270,16 @@ main_update :: proc(window: ^Window) {
 			app.task_shadow_alpha != 0 {
 			window_animate_forced(window, &app.task_shadow_alpha, 0, .Exponential_Out, time.Millisecond * 50)
 		}
+	}
+
+	// keep the head / tail at the position of the task you set it to at some point
+	if task, ok := app.keep_task_position.?; ok {
+		if app_filter_not_empty() && !task.removed {
+			app.task_head = task.filter_index
+			app.task_tail = app.task_head
+		}
+
+		app.keep_task_position = nil
 	}
 
 	// line changed
@@ -470,9 +479,9 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			window_repaint(app.window_main)
 		}
 
-		case .Deallocate: {
-			tasks_clear_left_over()
-		}
+		// case .Deallocate: {
+		// 	tasks_clear_left_over()
+		// }
 	}
 
 	return 0

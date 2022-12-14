@@ -437,7 +437,7 @@ CP2_INSERTION :: proc() {
 	CP2("shift return", "insert_sibling", COMBO_SHIFT)
 	CP2("ctrl shift return", "insert_sibling", COMBO_SHIFT)
 	CP2("ctrl return", "insert_child")
-}
+}	
 
 keymap_push_vim_normal_commands :: proc(keymap: ^Keymap) {
 	commands_push = &keymap.commands
@@ -447,6 +447,7 @@ keymap_push_vim_normal_commands :: proc(keymap: ^Keymap) {
 	CP1("insert_above", vim_insert_above)
 	CP1("insert_below", vim_insert_below)
 	CP1("insert_below", vim_insert_below)
+
 	CP1("visual_move_left", vim_visual_move_left)
 	CP1("visual_move_right", vim_visual_move_right)
 }
@@ -457,8 +458,12 @@ keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
 	// traditional movement & task based
 	CP2("j", "move_down")
 	CP2("shift j", "move_down", COMBO_SHIFT)
+	CP2("ctrl j", "indent_jump_same_next")
+	CP2("ctrl shift j", "indent_jump_same_next")
 	CP2("k", "move_up")
 	CP2("shift k", "move_up", COMBO_SHIFT)
+	CP2("ctrl k", "indent_jump_same_prev")
+	CP2("ctrl shift k", "indent_jump_same_prev")
 	CP2("d", "delete_tasks")
 	CP2("h", "visual_move_left")
 	CP2("l", "visual_move_right")
@@ -514,7 +519,9 @@ CP2_CROSS :: proc() {
 	CP2("left", "selection_stop")
 	CP2("right", "selection_stop")
 	CP2("alt right", "jump_nearby")
-	CP2("alt left", "jump_nearby", COMBO_SHIFT)
+	CP2("shift alt right", "jump_nearby", COMBO_SHIFT)
+	CP2("alt left", "jump_nearby", COMBO_CTRL)
+	CP2("shift alt left", "jump_nearby", COMBO_CTRL |COMBO_SHIFT)
 
 	// movement & selection variants
 	CP2("up", "move_up")

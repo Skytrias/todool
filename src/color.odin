@@ -9,7 +9,6 @@ GREEN :: Color { 0, 255, 0, 255 }
 BLUE :: Color { 0, 0, 255, 255 }
 BLACK :: Color { 0, 0, 0, 255 }
 WHITE :: Color { 255, 255, 255, 255 }
-DARKEN :: Color { 0, 0, 0, 30 }
 TRANSPARENT :: Color { }
 
 color_rand_non_alpha :: proc(gen: ^rand.Rand = nil) -> Color {

@@ -84,6 +84,13 @@ theme_panel :: #force_inline proc(panel: Theme_Panel) -> Color #no_bounds_check 
 	return theme.panel[panel]
 }
 
+theme_shadow :: proc(scale: f32 = 1) -> Color {
+	color := theme.shadow
+	color.a = 50
+	color.a = u8((f32(color.a) / 255 * scale) * 255)
+	return color
+}
+
 Theme_Preset :: struct {
 	theme: Theme,
 	name: string,
@@ -775,6 +782,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 			if msg == .Right_Down {
 				theme_editor_menu_colors()
+				return 1
 			}
 
 			return 0

@@ -173,47 +173,6 @@ todool_indent_jump_low_next :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
-// -1 means nothing found
-find_same_indentation_backwards :: proc(visible_index: int, allow_lower: bool) -> (res: int) {
-	res = -1
-	task_current := app_task_filter(visible_index)
-
-	for i := visible_index - 1; i >= 0; i -= 1 {
-		task := app_task_filter(i)
-		
-		if task.indentation == task_current.indentation {
-			res = i
-			return
-		} else if task.indentation < task_current.indentation {
-			if !allow_lower {
-				return
-			}
-		}
-	}
-
-	return
-}
-
-find_same_indentation_forwards :: proc(visible_index: int, allow_lower: bool) -> (res: int) {
-	res = -1
-	task_current := app_task_filter(visible_index)
-
-	for i := visible_index + 1; i < len(app.pool.filter); i += 1 {
-		task := app_task_filter(i)
-		
-		if task.indentation == task_current.indentation {
-			res = i
-			return
-		} else if task.indentation < task_current.indentation {
-			if !allow_lower {
-				return
-			}
-		}
-	}
-
-	return
-}
-
 todool_indent_jump_same_prev :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -332,24 +291,60 @@ todool_change_task_state :: proc(du: u32) {
 
 	shift := du_shift(du)
 	manager := mode_panel_manager_begin()
-	temp_state: int
+	change_count: int
 
-	// modify all states
-	app.task_state_progression = .Update_Animated
-	task_count: int
-	iter := lh_iter_init()
-	for task in lh_iter_step(&iter) {
-		if !task_has_children(task) {
-			temp_state = int(task.state)
-			range_advance_index(&temp_state, len(Task_State) - 1, shift)
-			// save old set
-			task_set_state_undoable(manager, task, Task_State(temp_state), task_count)
-			task_count += 1
+	if app_has_no_selection() {
+		task := app_task_head()
+
+		// only set all same tasks
+		if task_has_children(task) {
+			state := task.state
+
+			// check for non pass
+			for list_index in task.filter_children {
+				child := app_task_list(list_index)
+
+				if child.state != state {
+					return
+				}
+			}
+
+			// passed!
+			goal := int(task.state)
+			range_advance_index(&goal, len(Task_State) - 1, shift)
+
+			task_set_state_undoable(manager, task, Task_State(goal), change_count)
+			change_count += 1
+	
+			for list_index in task.filter_children {
+				child := app_task_list(list_index)
+				task_set_state_undoable(manager, child, Task_State(goal), change_count)
+				change_count += 1
+			}
+		} else {
+			// single task
+			goal := int(task.state)
+			range_advance_index(&goal, len(Task_State) - 1, shift)
+			task_set_state_undoable(manager, task, Task_State(goal), 0)
+			change_count += 1
+		}
+	} else {
+		// shift all states in direction
+		iter := lh_iter_init()
+		for task in lh_iter_step(&iter) {
+			if !task_has_children(task) {
+				temp_state := int(task.state)
+				range_advance_index(&temp_state, len(Task_State) - 1, shift)
+				// save old set
+				task_set_state_undoable(manager, task, Task_State(temp_state), change_count)
+				change_count += 1
+			}
 		}
 	}
 
 	// only push on changes
-	if task_count != 0 {
+	if change_count != 0 {
+		app.task_state_progression = .Update_Animated
 		task_head_tail_push(manager)
 		undo_group_end(manager)
 	}
@@ -437,7 +432,7 @@ todool_indent_jump_scope :: proc(du: u32) {
 }
 
 todool_selection_stop :: proc(du: u32) {
-	if task_has_selection() {
+	if app_has_selection() {
 		app.task_tail = app.task_head
 		window_repaint(app.window_main)
 	}	
@@ -600,37 +595,62 @@ task_check_unfold :: proc(manager: ^Undo_Manager, task: ^Task) -> bool {
 }
 
 todool_insert_sibling :: proc(du: u32) {
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
-	shift := du_shift(du)
-	
-	app.task_state_progression = .Update_Animated
-	indentation: int
-	goal: int
-	if shift {
-		// above / same line
-		if app.task_head != -1 && app.task_head > 0 {
-			goal = app_task_head().filter_index
-			indentation = app_task_head().indentation
+	// empty? just insert
+	if app_filter_empty() {
+		manager := mode_panel_manager_scoped()
+		task_head_tail_push(manager)
+		app.task_head = 0
+		app.task_tail = 0
+		task_push_undoable(manager, 0, "", -1)
+		return
+	} 
+
+	find_prev :: proc(visible_index: int) -> (res: int) {
+		res = -1
+		task_current := app_task_filter(visible_index)
+
+		for i := visible_index; i >= 0; i -= 1 {
+			task := app_task_filter(i)
+			
+			if task.indentation <= task_current.indentation {
+				res = i
+				return
+			}
 		}
 
-		app.task_tail = app.task_head
-	} else {
-		// next line
-		goal = len(app.pool.filter) // default append
-		if app.task_head < len(app.pool.filter) - 1 {
-			goal = app_task_filter(app.task_head + 1).filter_index
-		}
-
-		if app_filter_not_empty() {
-			indentation = app_task_head().indentation
-		}
-	
-		app.task_head += 1
+		return
 	}
 
+	find_next :: proc(visible_index: int) -> (res: int) {
+		res = -1
+		task_current := app_task_filter(visible_index)
+
+		for i := visible_index + 1; i < len(app.pool.filter); i += 1 {
+			task := app_task_filter(i)
+			
+			if task.indentation <= task_current.indentation {
+				res = i
+				return
+			}
+		}
+
+		return
+	}
+
+	shift := du_shift(du)
+	goal := shift ? find_prev(app.task_head) : find_next(app.task_head)
+	// append if at end
+	if goal == -1 {
+		goal = len(app.pool.filter)
+	}
+	indentation := app_task_filter(app.task_head).indentation
+
+	manager := mode_panel_manager_scoped()
+	task_head_tail_push(manager)
+	app.task_state_progression = .Update_Animated
+	app.task_head = goal
+	app.task_tail = app.task_head
 	task_push_undoable(manager, indentation, "", goal)
-	task_head_tail_check_end(shift)
 	window_repaint(app.window_main)
 }
 
@@ -651,6 +671,11 @@ todool_insert_child :: proc(du: u32) {
 		if !task_has_children(current_task) && options_uppercase_word() && ss_has_content(ss) {
 			item := Undo_String_Uppercased_Content { ss }
 			undo_box_uppercased_content(manager, &item)
+		}
+
+		// append by default
+		if !current_task.filter_folded {
+			goal = current_task.filter_index + len(current_task.filter_children) + 1
 		}
 	}
 
@@ -1739,7 +1764,7 @@ todool_select_children :: proc(du: u32) {
 
 // jumps to nearby state changes
 todool_jump_nearby :: proc(du: u32) {
-	shift := du_shift(du)
+	ctrl, shift := du_ctrl_shift(du)
 
 	if app_filter_empty() {
 		return
@@ -1748,7 +1773,7 @@ todool_jump_nearby :: proc(du: u32) {
 	task_current := app_task_head()
 
 	for i in 0..<len(app.pool.filter) {
-		index := shift ? (app.task_head - i - 1) : (i + app.task_head + 1)
+		index := ctrl ? (app.task_head - i - 1) : (i + app.task_head + 1)
 		// wrap negative
 		if index < 0 {
 			index = len(app.pool.filter) + index
@@ -1875,8 +1900,7 @@ todool_sort_locals :: proc(du: u32) {
 		return
 	}
 
-	app.task_tail = app.task_head
-	task_current := app_task_head()
+	task_current := task_head_tail_flatten_keep()
 
 	// skip high level
 	from, to: int
@@ -1898,11 +1922,6 @@ todool_sort_locals :: proc(du: u32) {
 	
 	item := Undo_Item_Sort_Indentation { task_current.indentation, from, to }
 	undo_sort_indentation(manager, &item)
-
-	// update info and reset to last position
-	task_set_children_info()
-	app.task_head = task_current.filter_index
-	app.task_tail = app.task_head
 	window_repaint(app.window_main)
 }
 
@@ -2066,51 +2085,38 @@ vim_visual_reptition_set :: proc(task: ^Task, direction: int) {
 // repition will break once you move around the tasks 
 // moves to the last repeated task when we keep reversing back and forth
 vim_visual_reptition_check :: proc(task: ^Task, direction: int) -> bool {
-	// fmt.eprintln(vim.rep_direction, direction)
+	if vim.rep_task != nil || vim.rep_direction == 0 {
+		if direction == vim.rep_direction {
+			// need to check if the task is still inside the tasks visible, in case it was deleted
+			if vim.rep_task.removed {
+				return false
+			}
 
-	// TODO clear checked
-	// if vim.rep_task != nil || vim.rep_direction == 0 {
-	// 	if direction == vim.rep_direction {
-	// 		// need to check if the task is still inside the tasks visible, in case it was deleted
-	// 		if vim.rep_task in app.task_clear_checking {
-	// 			found: bool
-	// 			for task in app.tasks_visible {
-	// 				if task == vim.rep_task {
-	// 					found = true
-	// 					break
-	// 				}
-	// 			}
+			vim.rep_direction *= -1
+			app.task_head = vim.rep_task.filter_index
+			app.task_tail = vim.rep_task.filter_index
+			vim.rep_task = task
 
-	// 			if !found {
-	// 				return false
-	// 			}
-	// 		}
-
-	// 		vim.rep_direction *= -1
-	// 		app.task_head = vim.rep_task.filter_index
-	// 		app.task_tail = vim.rep_task.filter_index
-	// 		vim.rep_task = task
-
-	// 		// cam := mode_panel_cam()
-	// 		// if visuals_use_animations() {
-	// 		// 	element_animation_start(app.mode_panel)
-	// 		// 	cam.ax.animating = true
-	// 		// 	cam.ax.direction = CAM_CENTER
-	// 		// 	cam.ax.goal = int(vim.rep_cam_x)
+			// cam := mode_panel_cam()
+			// if visuals_use_animations() {
+			// 	element_animation_start(app.mode_panel)
+			// 	cam.ax.animating = true
+			// 	cam.ax.direction = CAM_CENTER
+			// 	cam.ax.goal = int(vim.rep_cam_x)
 				
-	// 		// 	cam.ay.animating = true
-	// 		// 	cam.ay.direction = CAM_CENTER
-	// 		// 	cam.ay.goal = int(vim.rep_cam_y)
-	// 		// } else {
-	// 		// 	cam.offset_x = vim.rep_cam_x
-	// 		// 	cam.offset_y = vim.rep_cam_y
-	// 		// }
-	// 		// cam.freehand = false
+			// 	cam.ay.animating = true
+			// 	cam.ay.direction = CAM_CENTER
+			// 	cam.ay.goal = int(vim.rep_cam_y)
+			// } else {
+			// 	cam.offset_x = vim.rep_cam_x
+			// 	cam.offset_y = vim.rep_cam_y
+			// }
+			// cam.freehand = false
 
-	// 		window_repaint(app.window_main)
-	// 		return true
-	// 	}
-	// }
+			window_repaint(app.window_main)
+			return true
+		}
+	}
 
 	return false
 }

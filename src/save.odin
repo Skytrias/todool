@@ -152,6 +152,7 @@ save_views :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	
 	// mode count
 	bytes.buffer_write_byte(buffer, u8(len(Mode)))
+	bytes.buffer_write_byte(buffer, u8(app.mmpp.mode))
 
 	// camera positions
 	temp: i32be
@@ -412,6 +413,9 @@ load_views :: proc(data: ^[]u8) -> (err: Save_Error) {
 		case 1: {
 			count: u8
 			advance_ptr(&input, &count, size_of(u8)) or_return
+			mode: u8
+			advance_ptr(&input, &mode, size_of(u8)) or_return
+			app.mmpp.mode = Mode(mode)
 
 			temp: i32be
 			for i in 0..<count {
@@ -565,7 +569,6 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 	return
 }
 
-
 load_all :: proc(data: []u8) -> (err: Save_Error) {
 	data := data
 
@@ -575,6 +578,9 @@ load_all :: proc(data: []u8) -> (err: Save_Error) {
 		err = .Wrong_File_Format
 		return
 	}
+
+	spell_check_clear_user()
+	tasks_load_reset()
 
 	load_optional(load_tags(&data)) or_return
 	load_optional(load_views(&data)) or_return
