@@ -1218,8 +1218,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// check on change
 			if app.task_head != -1 {
-				mode_panel_cam_bounds_check_x(app.caret_rect.r, app.caret_rect.r, false, true)
-				mode_panel_cam_bounds_check_y(app.caret_rect.t, app.caret_rect.b, true)
+				mode_panel_cam_bounds_check_x(cam, app.caret_rect.r, app.caret_rect.r, false, true)
+				mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
 			}
 		}
 
@@ -1443,6 +1443,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					task := app_task_head()
 					diff_y := element.window.cursor_y - (task.bounds.t + rect_height_halfed(task.bounds))
 					todool_insert_sibling(diff_y < 0 ? COMBO_SHIFT : COMBO_EMPTY)
+					cam.check_next_frame = true
 				}
 			}
 		}
@@ -1499,7 +1500,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// check x afterwards
 			// NOTE just check this everytime due to inconsistency
-			mode_panel_cam_bounds_check_x(app.caret_rect.l, app.caret_rect.r, true, true)
+			mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, true, true)
 
 			// fmt.eprintln("animating!", handled, cam.offset_y, cam.offset_x)
 			return int(handled)

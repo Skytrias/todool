@@ -1230,6 +1230,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				return
 			} 
 
+			// TODO support IME
 			// nul search through fixed string
 			nul := -1
 			nul_search: for i in 0..<32 {	
@@ -1395,6 +1396,7 @@ gs_init :: proc() {
 	sdl.StartTextInput()
 	sdl.EnableScreenSaver()
 	sdl.SetHint(sdl.HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0")
+	sdl.SetHint(sdl.HINT_MOUSE_FOCUS_CLICKTHROUGH, "1") // mouse clickable 
 
 	// create cursors
 	cursors[.Arrow] = sdl.CreateSystemCursor(.ARROW)

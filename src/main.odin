@@ -164,8 +164,8 @@ main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: raw
 		if element_message(box, msg, di, dp) == 1 {
 			cam := mode_panel_cam()
 			cam.freehand = false
-			mode_panel_cam_bounds_check_x(app.caret_rect.l, app.caret_rect.r, false, false)
-			mode_panel_cam_bounds_check_y(app.caret_rect.t, app.caret_rect.b, true)
+			mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, false, false)
+			mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
 			return 1
 		}
 	}
@@ -305,6 +305,10 @@ main_update :: proc(window: ^Window) {
 
 	statusbar_update(&statusbar)
 	power_mode_set_caret_color()
+
+	for cam in &app.mmpp.cam {
+		cam_update(&cam)
+	}
 	// task_timestamp_check_hover()
 }
 
@@ -363,8 +367,8 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				if res == 1 {
 					cam := mode_panel_cam()
 					cam.freehand = false
-					mode_panel_cam_bounds_check_x(app.caret_rect.l, app.caret_rect.r, false, true)
-					mode_panel_cam_bounds_check_y(app.caret_rect.t, app.caret_rect.b, true)
+					mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, false, true)
+					mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
 					app.task_tail = app.task_head
 				}
 				return res

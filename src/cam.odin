@@ -22,6 +22,7 @@ Pan_Camera :: struct {
 	margin_x, margin_y: int,
 
 	freehand: bool, // disables auto centering while panning
+	check_next_frame: bool,
 
 	ay: Pan_Camera_Animation,
 	ax: Pan_Camera_Animation,
@@ -54,6 +55,15 @@ cam_update_screenshake :: proc(using cam: ^Pan_Camera, update: bool) {
 		screenshake_y = 0
 		screenshake_counter = 0
 	}
+}
+
+cam_update :: proc(using cam: ^Pan_Camera) {
+	if cam.check_next_frame {
+		cam.freehand = false
+		mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, false, true)
+		mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
+		cam.check_next_frame = false
+	}	
 }
 
 // return offsets + screenshake
@@ -188,12 +198,11 @@ cam_bounds_check_x :: proc(
 
 // check animation on caret bounds
 mode_panel_cam_bounds_check_y :: proc(
+	cam: ^Pan_Camera,
 	to_top: int,
 	to_bottom: int,
 	use_task: bool, // use task boundary
 ) {
-	cam := mode_panel_cam()
-
 	if cam.freehand {
 		return
 	}
@@ -221,13 +230,12 @@ mode_panel_cam_bounds_check_y :: proc(
 
 // check animation on caret bounds
 mode_panel_cam_bounds_check_x :: proc(
+	cam: ^Pan_Camera,
 	to_left: int,
 	to_right: int,
 	check_stop: bool,
 	use_kanban: bool,
 ) {
-	cam := mode_panel_cam()
-
 	if cam.freehand {
 		return
 	}
