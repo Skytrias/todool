@@ -2594,7 +2594,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 
 	// insert link from clipboard to task.button_link
 	if clipboard_has_content() {
-		link := clipboard_get_string(context.temp_allocator)
+		link := clipboard_get_with_builder()
 
 		Task_Set_Link :: struct {
 			link: string,

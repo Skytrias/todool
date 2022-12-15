@@ -243,9 +243,6 @@ Global_State :: struct {
 	font_regular_path: string,
 	font_bold_path: string,
 
-	// checks if the content has changed recently
-	clipboard_content_length: int,
-
 	track: mem.Tracking_Allocator,
 	fc: fontstash.Font_Context,
 }
@@ -1524,7 +1521,6 @@ gs_init :: proc() {
 	strings.builder_init(&cstring_builder, 0, 128)
 
 	stored_images = make([dynamic]Stored_Image, 0, 8)
-	clipboard_content_length = -1
 }
 
 gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {
@@ -2234,13 +2230,6 @@ window_opacity_set :: proc(window: ^Window, value: f32) {
 
 clipboard_has_content :: sdl.HasClipboardText
 
-clipboard_get_string :: proc(allocator := context.allocator) -> string {
-	text := sdl.GetClipboardText()
-	result := strings.clone(string(text), allocator)
-	sdl.free(cast(rawptr) text)
-	return result
-}
-
 // get clipboard string and write it into the builder
 clipboard_get_with_builder :: proc() -> string {
 	text := sdl.GetClipboardText()
@@ -2307,10 +2296,8 @@ clipboard_check_changes :: proc() -> bool {
 
 	if clipboard_has_content() {
 		text := sdl.GetClipboardText()
-		old := gs.clipboard_content_length
-		gs.clipboard_content_length = len(text)
-
-		if old != -1 && old != gs.clipboard_content_length {
+		
+		if string(text) != strings.to_string(gs.copy_builder) {
 			return true
 		}
 	}

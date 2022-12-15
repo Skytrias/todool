@@ -113,12 +113,11 @@ search_update :: proc(pattern: string) {
 		return
 	}
 
-	// lua.pattern_case_insensitive
-	sf := string_finder_init(pattern)
-	defer string_finder_destroy(sf)
-
 	if search.case_insensitive {
+		// TODO any kind of optimization?
 		builder := strings.builder_make(0, 256, context.temp_allocator)
+		sf := string_finder_init(cutf8.to_lower(&builder, pattern))
+		defer string_finder_destroy(sf)
 
 		// find results
 		for index in app.pool.filter {
@@ -148,6 +147,9 @@ search_update :: proc(pattern: string) {
 			}
 		}
 	} else {
+		sf := string_finder_init(pattern)
+		defer string_finder_destroy(sf)
+		
 		// find results
 		for index in app.pool.filter {
 			task := app_task_list(index)

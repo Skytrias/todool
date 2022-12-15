@@ -18,6 +18,7 @@ Keymap_Editor :: struct {
 	issue_removal_panel: ^Panel,
 }
 ke: Keymap_Editor
+keymap_color_pattern := Color { 255, 255, 255, 10 }
 
 keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	window := cast(^Window) element
