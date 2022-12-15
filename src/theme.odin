@@ -626,6 +626,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	theme_editor.theme_previous = theme
 
 	window := window_init(nil, {}, "Todool Theme Editor", i32(700 * SCALE), i32(700 * SCALE), 8, 8)
+	window.name = "Theme Editor"
 	window.element.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		window := cast(^Window) element
 

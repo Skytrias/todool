@@ -116,6 +116,7 @@ keymap_editor_spawn :: proc() {
 	}
 
 	ke.window = window_init(nil, {}, "Keymap Editor", 700, 700, 8, 8)
+	ke.window.name = "KEYMAP"
 	ke.window.element.message_user = keymap_editor_window_message
 	ke.window.update = proc(window: ^Window) {
 		b := &ke.record_label.builder

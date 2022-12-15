@@ -75,6 +75,7 @@ main :: proc() {
 		handled = true
 		return
 	}
+	window.name = "MAIN"
 
 	{
 		spall.scoped("load keymap")
@@ -380,10 +381,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 	
 			// on non handle just destroy all windows
 			if handled == 0 {
-				gs_windows_iter_init()
-				for w in gs_windows_iter_step() {
-					window_destroy(w)
-				}
+				gs_destroy_all_windows()
 			}
 
 			return handled

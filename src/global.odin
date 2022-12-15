@@ -15,6 +15,7 @@ import "core:strings"
 import "core:runtime"
 import "core:unicode"
 import "core:unicode/utf8"
+import dll "core:container/intrusive/list"
 import sdl "vendor:sdl2"
 import mix "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
@@ -107,6 +108,7 @@ Mouse_Coordinates :: [2]int
 
 Window :: struct {
 	element: Element,
+	node: dll.Node,
 	
 	// interactable elements
 	hovered: ^Element,
@@ -188,7 +190,7 @@ Window :: struct {
 	on_focus_gained: proc(window: ^Window),
 
 	// next window
-	window_next: ^Window,
+	name: string,
 }
 
 Cursor :: enum {
@@ -202,10 +204,9 @@ Cursor :: enum {
 }
 
 Global_State :: struct {
-	windows: ^Window,
+	windows_list: dll.List,
 
-	// only used in iteration, never double iter :)
-	windows_iter: ^Window,
+	//  wether dropped was text or file paths
 	dropped_text: bool,
 
 	// logger data
@@ -484,10 +485,11 @@ window_init :: proc(
 	res.height = int(h)
 	res.heightf = f32(h)
 	res.rect = rect_wh(0, 0, int(w), int(h))
-
 	res.element.window = res
-	res.window_next = gs.windows
-	gs.windows = res
+
+	// push back to dll
+	dll.push_back(&gs.windows_list, &res.node)
+
 	keymap_init(&res.keymap_box, 16, 32)
 	keymap_init(&res.keymap_custom, command_cap, combos_cap)
 	res.flux = ease.flux_init(f32, 32)
@@ -1336,19 +1338,8 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 	}
 }
 
-gs_windows_iter_init :: proc() {
-	gs.windows_iter = gs.windows
-}
-
-gs_windows_iter_step :: proc() -> (res: ^Window, ok: bool) {
-	res = gs.windows_iter
-	ok = gs.windows_iter != nil
-	
-	if ok {
-		gs.windows_iter = gs.windows_iter.window_next
-	}
-
-	return
+gs_windows_iter_head :: proc() -> dll.Iterator(Window) {
+	return dll.iterator_head(gs.windows_list,  Window, "node")
 }
 
 gs_allocator :: proc() -> mem.Allocator {
@@ -1461,8 +1452,8 @@ gs_init :: proc() {
 	fc.callback_resize = proc(data: rawptr, w, h: int) {
 		if data != nil {
 			// regenerate the texture on all windows
-			gs_windows_iter_init()
-			for window in gs_windows_iter_step() {
+			iter := gs_windows_iter_head()
+			for window in dll.iterate_next(&iter) {
 				// NOTE dunno if this is safe to be called during glyph calls
 				render_target_fontstash_generate(window.target, w, h)
 			}
@@ -1472,8 +1463,8 @@ gs_init :: proc() {
 		// update the texture on all windows
 		if data != nil {
 			// NOTE need to update all window textures apparently
-			gs_windows_iter_init()
-			for window in gs_windows_iter_step() {
+			iter := gs_windows_iter_head()
+			for window in dll.iterate_next(&iter) {
 				sdl.GL_MakeCurrent(window.w, window.target.opengl_context)
 				t := &window.target.textures[.Fonts]
 				t.data = texture_data
@@ -1508,12 +1499,12 @@ gs_init :: proc() {
 		context = runtime.default_context()
 		context.logger = gs.logger
 
-		window := gs.windows
-		for window != nil {
+		iter := gs_windows_iter_head()
+
+		for window in dll.iterate_next(&iter) {
 			if window_hovered_check(window) {
 				sdl_push_empty_event()
 			}
-			window = window.window_next
 		}
 
 		return interval
@@ -1643,8 +1634,9 @@ gs_process_events :: proc() {
 
 	// prep window state once
 	{
-		gs_windows_iter_init()
-		for w in gs_windows_iter_step() {
+		iter := gs_windows_iter_head()
+
+		for w in dll.iterate_next(&iter) {
 			w.ctrl = ctrl
 			w.shift = shift
 			w.alt = alt
@@ -1660,8 +1652,8 @@ gs_process_events :: proc() {
 			gs.running = false
 			log.warn("~~~QUIT EVENT~~~")
 
-			gs_windows_iter_init()
-			for w in gs_windows_iter_step() {
+			iter := gs_windows_iter_head()
+			for w in dll.iterate_next(&iter) {
 				window_destroy(w)
 				w.dialog_finished = true
 			}
@@ -1669,8 +1661,8 @@ gs_process_events :: proc() {
 			break
 		}
 
-		gs_windows_iter_init()
-		for w in gs_windows_iter_step() {
+		iter := gs_windows_iter_head()
+		for w in dll.iterate_next(&iter) {
 			window_handle_event(w, &event)
 		}
 	}
@@ -1684,16 +1676,16 @@ gs_message_loop :: proc() {
 		free_all(context.temp_allocator)
 
 		// check prior for any window needing updates
-		gs_windows_iter_init()
-		for w in gs_windows_iter_step() {
+		iter := gs_windows_iter_head()
+		for w in dll.iterate_next(&iter) {
 			w.flux_had_animations = len(w.flux.values) != 0 
 			w.update_next |= (w.flux_had_animations || w.flux_render_last_frame)
 			w.flux_render_last_frame = false
 		}
 
 		// forced animation, from exterior animation
-		gs_windows_iter_init()
-		for w in gs_windows_iter_step() {
+		iter = gs_windows_iter_head()
+		for w in dll.iterate_next(&iter) {
 			if w.update_check != nil {
 				w.update_next |= w->update_check()
 			}
@@ -1701,8 +1693,8 @@ gs_message_loop :: proc() {
 
 		// check if any have updates now
 		any_update := len(gs.animating) != 0
-		gs_windows_iter_init()
-		for w in gs_windows_iter_step() {
+		iter = gs_windows_iter_head()
+		for w in dll.iterate_next(&iter) {
 
 			if w.raise_next {
 				w.raise_next = false
@@ -1739,8 +1731,8 @@ gs_message_loop :: proc() {
 			gs.dt = f32(elapsed_ms)
 		}
 
-		gs_windows_iter_init()
-		for w in gs_windows_iter_step() {
+		iter = gs_windows_iter_head()
+		for w in dll.iterate_next(&iter) {
 			// TODO maybe window dt?
 			ease.flux_update(&w.flux, f64(gs.dt))
 	
@@ -1757,8 +1749,8 @@ gs_message_loop :: proc() {
 }
 
 gs_update_all_windows :: proc() {
-	gs_windows_iter_init()
-	for w in gs_windows_iter_step() {
+	iter := gs_windows_iter_head()
+	for w in dll.iterate_next(&iter) {
 		w.update_next = true
 	}
 }
@@ -1834,21 +1826,19 @@ flux_to_restricted :: proc(
 gs_draw_and_cleanup :: proc() {
 	context.logger = gs.logger 
 
-	link := &gs.windows
-	window := gs.windows
 	window_count: int
-
 	spall.scoped("draw&cleanup")
+	iter := gs_windows_iter_head()
 
-	for window != nil {
-		next := window.window_next
+	for window in dll.iterate_next(&iter) {
+		root := &window.node
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
 			window_count -= 1
-			link^ = next
+			// remove the node wanted out of the DLL
+			dll.remove(&gs.windows_list, root)
 		} else if window.update_next {
-			link = &window.window_next
 			spall.scoped("draw window")
 
 			// reset focuse on hidden
@@ -1875,8 +1865,6 @@ gs_draw_and_cleanup :: proc() {
 		}
 		
 		window_count += 1
-		// log.info("W COUNT", window_count, window.name)
-		window = next
 	}
 
 	if window_count == 0 {
@@ -1884,9 +1872,17 @@ gs_draw_and_cleanup :: proc() {
 	}
 }
 
+gs_destroy_all_windows :: proc() {
+	iter := gs_windows_iter_head()
+	
+	for w in dll.iterate_next(&iter) {
+		window_destroy(w)
+	}
+}
+
 gs_window_count :: proc() -> (res: int) {
-	gs_windows_iter_init()
-	for w in gs_windows_iter_step() {
+	iter := gs_windows_iter_head()
+	for w in dll.iterate_next(&iter) {
 		res += 1
 	}
 	return
