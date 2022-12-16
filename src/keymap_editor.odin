@@ -9,16 +9,15 @@ Keymap_Editor :: struct {
 	window: ^Window,
 	panel: ^Panel,
 
-	record_panel: ^Panel,
-	record_label: ^Label,
-	record_accept: ^Button,
+	// record_panel: ^Panel,
+	// record_label: ^Label,
+	// record_accept: ^Button,
+	grids: [4]^Static_Grid,
 
 	combo_edit: ^Combo_Node, // for menu setting
-	issue_removal: bool,
-	issue_removal_panel: ^Panel,
+	issue_removal: ^Static_Grid,
 }
 ke: Keymap_Editor
-keymap_color_pattern := Color { 255, 255, 255, 10 }
 
 keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	window := cast(^Window) element
@@ -31,10 +30,10 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 		case .Layout: {
 			bounds := element.bounds
 
-			if .Hide not_in ke.record_panel.flags {
-				rect := rect_cut_top(&bounds, 50)
-				element_move(ke.record_panel, rect)
-			}
+			// if .Hide not_in ke.record_panel.flags {
+			// 	rect := rect_cut_top(&bounds, 50)
+			// 	element_move(ke.record_panel, rect)
+			// }
 
 			element_move(ke.panel, bounds)
 
@@ -54,24 +53,33 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 		case .Key_Combination: {
 			combo := (cast(^string) dp)^
 
-			if .Hide not_in ke.record_panel.flags {
-				defer window_repaint(window)
-
-				if combo == "escape" {
-					keymap_editor_reset_display()
-					return 1
+			switch combo {
+				case "1"..<"5": {
+					value := strconv.atoi(combo)
+					state := ke.grids[value - 1].hide_cells
+					state^ = !state^
+					window_repaint(window)
 				}
-
-				if combo == "return" {
-					if keymap_editor_accept_display() {
-						return 1
-					}
-				}
-
-				b := &ke.record_label.builder
-				strings.builder_reset(b)
-				strings.write_string(b, combo)
 			}
+
+			// if .Hide not_in ke.record_panel.flags {
+			// 	defer window_repaint(window)
+
+			// 	if combo == "escape" {
+			// 		keymap_editor_reset_display()
+			// 		return 1
+			// 	}
+
+			// 	if combo == "return" {
+			// 		if keymap_editor_accept_display() {
+			// 			return 1
+			// 		}
+			// 	}
+
+			// 	b := &ke.record_label.builder
+			// 	strings.builder_reset(b)
+			// 	strings.write_string(b, combo)
+			// }
 
 			return 1
 		}
@@ -80,34 +88,34 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 	return 0
 }
 
-keymap_editor_reset_display :: proc() {
-	b := &ke.record_label.builder
-	ke.record_label.data = nil
+// keymap_editor_reset_display :: proc() {
+// 	// b := &ke.record_label.builder
+// 	// ke.record_label.data = nil
 
-	if len(b.buf) != 0 {
-		strings.builder_reset(b)
-		window_repaint(ke.window)
-	}
-}
+// 	// if len(b.buf) != 0 {
+// 	// 	strings.builder_reset(b)
+// 	// 	window_repaint(ke.window)
+// 	// }
+// }
 
-keymap_editor_accept_display :: proc() -> bool {
-	b := &ke.record_label.builder
+// keymap_editor_accept_display :: proc() -> bool {
+// 	b := &ke.record_label.builder
 
-	if len(b.buf) != 0 && ke.record_label.data != nil {
-		button := cast(^KE_Button) ke.record_label.data
-		n := button.node
+// 	if len(b.buf) != 0 && ke.record_label.data != nil {
+// 		button := cast(^KE_Button) ke.record_label.data
+// 		n := button.node
 
-		// copy text content over
-		index := min(len(n.combo), len(b.buf))
-		mem.copy(&n.combo[0], &b.buf[0], index)
-		n.combo_index = u8(index)
+// 		// copy text content over
+// 		index := min(len(n.combo), len(b.buf))
+// 		mem.copy(&n.combo[0], &b.buf[0], index)
+// 		n.combo_index = u8(index)
 
-		keymap_editor_reset_display()
-		return true
-	}
+// 		keymap_editor_reset_display()
+// 		return true
+// 	}
 
-	return false
-}
+// 	return false
+// }
 
 keymap_editor_spawn :: proc() {
 	if ke.window != nil {
@@ -119,41 +127,43 @@ keymap_editor_spawn :: proc() {
 	ke.window.name = "KEYMAP"
 	ke.window.element.message_user = keymap_editor_window_message
 	ke.window.update = proc(window: ^Window) {
-		b := &ke.record_label.builder
-		element_hide(ke.record_accept, len(b.buf) == 0)
+		// b := &ke.record_label.builder
+		// element_hide(ke.record_accept, len(b.buf) == 0)
 
 		// reset node pointers
-		if ke.issue_removal {
-			ke.issue_removal = false
-			children := panel_children(ke.issue_removal_panel)
-			keymap := cast(^Keymap) ke.issue_removal_panel.data
+		if ke.issue_removal != nil {
+			children := ke.issue_removal.children
+			keymap := cast(^Keymap) ke.issue_removal.data
 
 			// TODO this feels dirty
 			for c, i in children {
-				keymap_editor_update_combo_data(cast(^Panel) c, &keymap.combos[i])
+				line := cast(^Static_Line) c
+				line.index = i
+				keymap_editor_update_combo_data(line, &keymap.combos[i])
 			}
 
 			window_repaint(ke.window)
+			ke.issue_removal = nil
 		}
 	}
 
-	ke.record_panel = panel_init(
-		&ke.window.element,
-		{ .HF, .Panel_Default_Background, .Panel_Horizontal },
-		5,
-		5,
-	)
-	ke.record_panel.background_index = 1
-	label_init(ke.record_panel, {}, "Recording:")
-	ke.record_label = label_init(ke.record_panel, { .HF, .Label_Center }, "")
-	ke.record_accept = button_init(ke.record_panel, {}, "Accept")
-	ke.record_accept.invoke = proc(button: ^Button, data: rawptr) {
-		keymap_editor_accept_display()
-	}
-	b1 := button_init(ke.record_panel, {}, "Reset")
-	b1.invoke = proc(button: ^Button, data: rawptr) {
-		keymap_editor_reset_display()
-	}
+	// ke.record_panel = panel_init(
+	// 	&ke.window.element,
+	// 	{ .HF, .Panel_Default_Background, .Panel_Horizontal },
+	// 	5,
+	// 	5,
+	// )
+	// ke.record_panel.background_index = 1
+	// label_init(ke.record_panel, {}, "Recording:")
+	// ke.record_label = label_init(ke.record_panel, { .HF, .Label_Center }, "")
+	// ke.record_accept = button_init(ke.record_panel, {}, "Accept")
+	// ke.record_accept.invoke = proc(button: ^Button, data: rawptr) {
+	// 	keymap_editor_accept_display()
+	// }
+	// b1 := button_init(ke.record_panel, {}, "Reset")
+	// b1.invoke = proc(button: ^Button, data: rawptr) {
+	// 	keymap_editor_reset_display()
+	// }
 
 	ke.panel = panel_init(
 		&ke.window.element,
@@ -163,10 +173,10 @@ keymap_editor_spawn :: proc() {
 	)
 	ke.panel.background_index = 0
 
-	keymap_editor_push_keymap(&app.window_main.keymap_box, "Box")
-	keymap_editor_push_keymap(&app.window_main.keymap_custom, "Todool")
-	keymap_editor_push_keymap(&app.keymap_vim_normal, "Vim Normal")
-	keymap_editor_push_keymap(&app.keymap_vim_insert, "Vim Insert")
+	ke.grids[0] = keymap_editor_push_keymap(&app.window_main.keymap_box, "Box", true)
+	ke.grids[1] = keymap_editor_push_keymap(&app.window_main.keymap_custom, "Todool", false)
+	ke.grids[2] = keymap_editor_push_keymap(&app.keymap_vim_normal, "Vim Normal", true)
+	ke.grids[3] = keymap_editor_push_keymap(&app.keymap_vim_insert, "Vim Insert", true)
 }
 
 KE_Button :: struct {
@@ -212,17 +222,25 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			}
 
 			fcs_element(button)
-			fcs_ahv()
+			horizontal: Align_Horizontal = button.show_command ? .Left : .Right
+			fcs_ahv(horizontal, .Middle)
 			fcs_color(text_color)
 
-			if ke.record_label.data != nil {
-				if ke.record_label.data == element {
-					render_rect_outline(target, element.bounds, theme.text_good)
-				}
+			// if ke.record_label.data != nil {
+			// 	if ke.record_label.data == element {
+			// 		render_rect_outline(target, element.bounds, theme.text_good)
+			// 	}
+			// }
+
+			bounds := element.bounds
+
+			// offset left words
+			if button.show_command {
+				bounds.l += int(5 * SCALE)
 			}
 
 			text := ke_button_text(button)
-			render_string_rect(target, element.bounds, text)
+			render_string_rect(target, bounds, text)
 		}
 
 		case .Update: {
@@ -234,14 +252,15 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				keymap := cast(^Keymap) element.data
 				keymap_editor_spawn_floaty_command(keymap, button.node)
 			} else {
-				// select button
-				if ke.record_label.data != element {
-					b := &ke.record_label.builder
-					strings.builder_reset(b)
-					ke.record_label.data = element
-				} else {
-					keymap_editor_reset_display()
-				}
+				// TODO
+				// // select button
+				// if ke.record_label.data != element {
+				// 	b := &ke.record_label.builder
+				// 	strings.builder_reset(b)
+				// 	ke.record_label.data = element
+				// } else {
+				// 	keymap_editor_reset_display()
+				// }
 			}
 		}
 
@@ -269,77 +288,114 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 }
 
 // NOTE this has to be the same as the init code
-keymap_editor_update_combo_data :: proc(panel: ^Panel, combo: ^Combo_Node) {
-	b1 := cast(^KE_Button) panel.children[0]
+keymap_editor_update_combo_data :: proc(line: ^Static_Line, combo: ^Combo_Node) {
+	b1 := cast(^KE_Button) line.children[0]
 	b1.node = combo
-	b2 := cast(^KE_Button) panel.children[1]
+	b2 := cast(^KE_Button) line.children[1]
 	b2.node = combo
-	b3 := cast(^Button) panel.children[2]
+	b3 := cast(^Button) line.children[2]
 	strings.builder_reset(&b3.builder)
 	fmt.sbprintf(&b3.builder, "0x%2x", combo.du)
-	b4 := cast(^Button) panel.children[3]
+	b4 := cast(^Button) line.children[3]
 }
 
-keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string) {
-	toggle := toggle_panel_init(ke.panel, { .HF }, {}, header, false)
-	toggle.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-		toggle := cast(^Toggle_Panel) element
+keymap_editor_remove_call :: proc(button: ^Icon_Button, data: rawptr) {
+	children := &button.parent.parent.children
+	keymap := cast(^Keymap) button.parent.parent.data
 
-		#partial switch msg {
-			case .Layout: {
-				// NOTE expecting each to be a panel
-				for child, i in toggle.panel.children {
-					if child.message_class == panel_message {
-						panel := cast(^Panel) child
-						panel.color = (i % 2) == 0 ? nil : &keymap_color_pattern
-					}
-				}
+	// NOTE find linearly... could be done better
+	// find this node in children
+	combo_index := -1
+	for line, i in children {
+		if line == button.parent {
+			combo_index = i
+			break
+		} 
+	}
+
+	if combo_index != -1 {
+		ordered_remove(&keymap.combos, combo_index)
+		
+		ke.issue_removal = cast(^Static_Grid) button.parent.parent
+
+		element_repaint(button)
+		element_destroy(button.parent)
+	} 
+}
+
+keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool) -> (grid: ^Static_Grid) {
+	cell_sizes := [?]int { 220, 220, 100, 40 }
+	grid = static_grid_init(ke.panel, {}, cell_sizes[:], DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL)
+	grid.data = keymap
+	grid.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		grid := cast(^Static_Grid) element
+
+		if msg == .Paint_Recursive {
+			target := element.window.target
+			shadow := theme_shadow()
+			render_rect_outline(target, element.bounds, shadow, ROUNDNESS)
+
+			height := element_message(element, .Get_Height)
+			r := rect_wh(
+				element.bounds.l, 
+				element.bounds.t + LINE_WIDTH + grid.cell_height, 
+				LINE_WIDTH, 
+				height - LINE_WIDTH * 2,
+			)
+
+			for size in grid.cell_sizes {
+				render_rect(target, r, shadow)
+				r.l += size
+				r.r = r.l + LINE_WIDTH
 			}
 		}
 
 		return 0
 	}
-	panel := toggle.panel
-	panel.data = keymap
 
+	// fold cell with cell setting
+	fold := button_fold_init(grid, {}, header, folded)
+	grid.hide_cells = &fold.state
+
+	// line description
+	{
+		p := static_line_init(grid, &grid.cell_sizes, -1)
+		label_init(p, { .Label_Center }, "Combination")
+		label_init(p, { .Label_Center }, "Command")
+		label_init(p, { .Label_Center }, "Modifiers")
+		label_init(p, { .Label_Center }, "Pop")
+	}
+
+	line_count: int
 	for node in &keymap.combos {
-		p := panel_init(panel, { .HF, .Panel_Horizontal }, 5, 5)
-		p.rounded = true
+		p := static_line_init(grid, &grid.cell_sizes, line_count)
+		p.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			sl := cast(^Static_Line) element
 
-		c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
-		b1 := ke_button_init(p, { .HF }, &node, false)
-		b2 := ke_button_init(p, { .HF }, &node, true)
-		b2.data = keymap
-
-		b3 := button_init(p, { .HF }, "")
-		fmt.sbprintf(&b3.builder, "0x%2x", node.du)
-
-		b4 := button_init(p, {}, "x")
-		b4.invoke = proc(button: ^Button, data: rawptr) {
-			children := panel_children(cast(^Panel) button.parent.parent)
-			keymap := cast(^Keymap) button.parent.parent.data
-
-			// NOTE find linearly... could be done better
-			// find this node in children
-			combo_index := -1
-			for e, i in children {
-				if e == button.parent {
-					combo_index = i
-					break
+			if msg == .Paint_Recursive {
+				// highlight second lines
+				if sl.index % 2 == 1 {
+					render_hovered_highlight(element.window.target, element.bounds, 1)
 				}
 			}
 
-			if combo_index != -1 {
-				ordered_remove(&keymap.combos, combo_index)
-				
-				ke.issue_removal = true
-				ke.issue_removal_panel = cast(^Panel) button.parent.parent
+			return 0
+		} 
+		line_count += 1
 
-				element_repaint(button)
-				element_destroy(button.parent)
-			} 
-		}
+		c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
+		b1 := ke_button_init(p, {}, &node, false)
+		b2 := ke_button_init(p, {}, &node, true)
+		b2.data = keymap
+
+		b3 := button_init(p, {}, "")
+		fmt.sbprintf(&b3.builder, "0x%2x", node.du)
+
+		b4 := icon_button_init(p, {}, .Close)
+		b4.invoke = keymap_editor_remove_call
 	}
+
+	return
 }
 
 keymap_editor_spawn_floaty_command :: proc(
@@ -359,6 +415,8 @@ keymap_editor_spawn_floaty_command :: proc(
 
 	for key, value in keymap.commands {
 		b := button_init(p, {}, key)
+		// b.hover_info = keymap_comments[value]
+		// fmt.eprintln(b.hover_info)
 		b.invoke = proc(button: ^Button, data: rawptr) {
 			n := ke.combo_edit
 
@@ -370,7 +428,5 @@ keymap_editor_spawn_floaty_command :: proc(
 		}
 	}
 
-	// button_init(p, { .HF }, "testing")
-	// button_init(p, { .HF }, "testing")
 	window_repaint(ke.window)
 }

@@ -214,94 +214,6 @@ theme_task_text :: #force_inline proc(state: Task_State) -> Color {
 	return {}
 }
 
-// simple line with internal layout based on parent
-Static_Line :: struct {
-	using element: Element,
-	cell_sizes: ^[]int,
-	index: int,
-}
-
-static_line_init :: proc(
-	parent: ^Element,
-	cell_sizes: ^[]int,
-	index: int = -1,
-) -> (res: ^Static_Line) {
-	res = element_init(Static_Line, parent, {}, static_line_message, context.allocator)
-	res.cell_sizes = cell_sizes
-	res.index = index
-	return
-}
-
-static_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	sl := cast(^Static_Line) element
-	
-	#partial switch msg {
-		case .Layout: {
-			assert(len(sl.cell_sizes) == len(element.children))
-			padding := rect_xxyy(0, int(SCALE * 2))
-			bounds := rect_padding(element.bounds, padding) 
-
-			for child, i in element.children {
-				size := int(f32(sl.cell_sizes[i]) * SCALE)
-				rect := rect_cut_left(&bounds, size)
-				element_move(child, rect)
-			}
-		}
-
-		case .Clicked: {
-			if sl.index != -1 {
-				theme_editor.line_selected = sl.index
-			}
-		}
-
-		case .Get_Cursor: {
-			return int(Cursor.Hand)
-		}
-
-		case .Paint_Recursive: {
-			target := element.window.target
-			hovered := element.window.hovered
-			
-			if 
-				sl.index != -1 && 
-				hovered != nil && 
-				(hovered == element || hovered.parent == element) {
-				render_hovered_highlight(target, element.bounds)
-			}
-				
-			if theme_editor.line_selected == sl.index {
-				render_hovered_highlight(target, element.bounds)
-			}
-		}
-
-		case .Update: {
-			element_repaint(element)
-		}
-	}
-
-	return 0
-}
-
-// layouts children in a grid, where 
-Static_Grid :: struct {
-	using element: Element,
-	cell_sizes: []int,
-	cell_height: int,
-}
-
-static_grid_init :: proc(
-	parent: ^Element,
-	flags: Element_Flags,
-	cell_sizes: []int,
-	cell_height: int,
-) -> (res: ^Static_Grid) {
-	res = element_init(Static_Grid, parent, flags, static_grid_message, context.allocator)
-	assert(len(cell_sizes) > 1)
-	res.cell_sizes = slice.clone(cell_sizes)
-	res.cell_height = cell_height
-	return
-}
-
 theme_editor_lines :: proc() -> []^Element {
 	return theme_editor.lines[:theme_editor.line_index]
 }
@@ -322,61 +234,6 @@ theme_editor_skips_finalize :: proc() {
 			toggle.state = false
 		}
 	}
-}
-
-static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	sg := cast(^Static_Grid) element
-
-	#partial switch msg {
-		case .Layout: {
-			total := element.bounds
-			height := int(f32(sg.cell_height) * SCALE)
-
-			// layout elements
-			for child, i in element.children {
-				h := element_message(child, .Get_Height) 
-				if h == 0 {
-					h = height
-				}
-				element_move(child, rect_cut_top(&total, h))
-			}
-		}
-
-		case .Get_Width: {
-			sum: int
-
-			for i in 0..<len(sg.cell_sizes) {
-				sum += int(f32(sg.cell_sizes[i]) * SCALE)
-			}
-
-			return sum
-		}
-
-		case .Get_Height: {
-			sum: int
-			height := int(f32(sg.cell_height) * SCALE)
-
-			for child, i in element.children {
-				h := element_message(child, .Get_Height) 
-				if h == 0 {
-					h = height
-				}
-				sum += h
-			}
-
-			return sum
-		}
-
-		case .Destroy: {
-			delete(sg.cell_sizes)
-		}
-	}
-
-	return 0
-}
-
-static_grid_line_count :: proc(sg: ^Static_Grid) -> int {
-	return len(sg.children)
 }
 
 // simple toggle with state
@@ -768,6 +625,17 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		variation_value: f32,
 	) {
 		line := static_line_init(parent, cell_sizes, theme_editor.line_index)
+		line.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+			sl := cast(^Static_Line) element
+
+			if msg == .Paint_Recursive {
+				if theme_editor.line_selected == sl.index {
+					render_hovered_highlight(element.window.target, element.bounds)
+				}
+			}
+
+			return 0
+		}
 		theme_editor.lines[theme_editor.line_index] = line
 		theme_editor.line_index += 1
 		label_init(line, { .Label_Right }, name)
@@ -950,6 +818,7 @@ theme_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 		case .Clicked: {
 			theme = button.preset.theme
+			gs_update_all_windows()
 		}
 
 		case .Update: {

@@ -4,15 +4,12 @@ import "core:mem"
 import "core:fmt"
 import "core:strings"
 
-// TODO could do a specialized allocator but it has to reallow memory regions
-// like a memory pool, but needs to allow custom sized strings
-//
+Command :: proc(u32)
+
 // NOTE heap is easier for now
 Keymap :: struct {
-	// move_up = proc(u32) {}
 	commands: map[string]Command,
 	combos: [dynamic]Combo_Node,
-
 	combo_last: ^Combo_Node,
 }
 
@@ -28,8 +25,6 @@ Combo_Node :: struct {
 	command_index: u8,
 	du: u32,
 }
-
-Command :: proc(u32)
 
 // combo extension flags
 COMBO_EMPTY :: 0x00

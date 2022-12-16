@@ -1973,6 +1973,10 @@ scrollbar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 		// 	}
 		// }
 
+		case .Get_Cursor: {
+			return int(Cursor.Arrow)
+		}
+
 		case .Left_Down: {
 			element_animation_start(element)
 		}
@@ -3818,6 +3822,255 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 
 		case .Destroy: {
 			delete(line.builder.buf)
+		}
+	}
+
+	return 0
+}
+
+
+//////////////////////////////////////////////
+// static grid
+//////////////////////////////////////////////
+
+// layouts children in a grid, where 
+Static_Grid :: struct {
+	using element: Element,
+	cell_sizes: []int,
+	cell_height: int,
+	hide_cells: ^bool,
+}
+
+static_grid_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	cell_sizes: []int,
+	cell_height: int,
+) -> (res: ^Static_Grid) {
+	res = element_init(Static_Grid, parent, flags, static_grid_message, context.allocator)
+	assert(len(cell_sizes) > 1)
+	res.cell_sizes = slice.clone(cell_sizes)
+	res.cell_height = cell_height
+	return
+}
+
+static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	sg := cast(^Static_Grid) element
+
+	#partial switch msg {
+		case .Layout: {
+			total := element.bounds
+			height := int(f32(sg.cell_height) * SCALE)
+
+			if sg.hide_cells != nil && sg.hide_cells^ {
+				assert(len(element.children) > 0)
+				// layout only top thing
+				element_move(element.children[0], total)
+			} else {
+				// layout elements
+				for child, i in element.children {
+					h := element_message(child, .Get_Height) 
+					if h == 0 {
+						h = height
+					}
+					element_move(child, rect_cut_top(&total, h))
+				}
+			}
+		}
+
+		case .Find_By_Point_Recursive: {
+			// only interact with the top cell
+			if sg.hide_cells != nil && sg.hide_cells^ {
+				assert(len(element.children) > 0)
+				point := cast(^Find_By_Point) dp
+				chosen := element.children[0]
+				return element_find_by_point_custom(chosen, point)
+				// return 1
+			} 
+		}
+
+		case .Paint_Recursive: {
+			// only draw the top cell
+			if sg.hide_cells != nil && sg.hide_cells^ {
+				assert(len(element.children) > 0)
+				element_message(element.children[0], msg, di, dp)
+				return 1
+			} 
+		}
+
+		case .Get_Width: {
+			sum: int
+
+			for i in 0..<len(sg.cell_sizes) {
+				sum += int(f32(sg.cell_sizes[i]) * SCALE)
+			}
+
+			return sum
+		}
+
+		case .Get_Height: {
+			sum: int
+
+			if sg.hide_cells != nil && sg.hide_cells^ {
+				height := int(f32(sg.cell_height) * SCALE)
+				sum = height
+			} else {
+				height := int(f32(sg.cell_height) * SCALE)
+
+				for child, i in element.children {
+					h := element_message(child, .Get_Height) 
+					if h == 0 {
+						h = height
+					}
+					sum += h
+				}
+			}
+
+			return sum
+		}
+
+		case .Destroy: {
+			delete(sg.cell_sizes)
+		}
+	}
+
+	return 0
+}
+
+static_grid_line_count :: proc(sg: ^Static_Grid) -> int {
+	return len(sg.children)
+}
+
+// simple line with internal layout based on parent
+Static_Line :: struct {
+	using element: Element,
+	cell_sizes: ^[]int,
+	index: int,
+}
+
+static_line_init :: proc(
+	parent: ^Element,
+	cell_sizes: ^[]int,
+	index: int = -1,
+) -> (res: ^Static_Line) {
+	res = element_init(Static_Line, parent, {}, static_line_message, context.allocator)
+	res.cell_sizes = cell_sizes
+	res.index = index
+	return
+}
+
+static_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	sl := cast(^Static_Line) element
+	
+	#partial switch msg {
+		case .Layout: {
+			assert(len(sl.cell_sizes) == len(element.children))
+			padding := rect_xxyy(0, int(SCALE * 2))
+			bounds := rect_padding(element.bounds, padding) 
+
+			for child, i in element.children {
+				size := int(f32(sl.cell_sizes[i]) * SCALE)
+				rect := rect_cut_left(&bounds, size)
+				element_move(child, rect)
+			}
+		}
+
+		case .Clicked: {
+			if sl.index != -1 {
+				theme_editor.line_selected = sl.index
+			}
+		}
+
+		// case .Get_Cursor: {
+		// 	return int(Cursor.Hand)
+		// }
+
+		case .Paint_Recursive: {
+			target := element.window.target
+			hovered := element.window.hovered
+			
+			if 
+				sl.index > 0 && 
+				hovered != nil && 
+				(hovered == element || hovered.parent == element) {
+				render_hovered_highlight(target, element.bounds)
+			}
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+	}
+
+	return 0
+}
+
+Button_Fold :: struct {
+	using element: Element,
+	state: bool,
+	builder: strings.Builder,
+}
+
+button_fold_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	name: string,
+	state: bool,
+) -> (res: ^Button_Fold) {
+	res = element_init(Button_Fold, parent, flags, button_fold_message, context.allocator)
+	res.state = state
+	res.builder = strings.builder_make(0, 32, context.allocator)
+	strings.write_string(&res.builder, name)
+	return
+}
+
+button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^Button_Fold) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, text_color)
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			fcs_ahv()
+			fcs_color(text_color)
+			fcs_icon(SCALE)
+			icon: Icon = button.state ? .Simple_Right : .Simple_Down
+			size := int(DEFAULT_ICON_SIZE * SCALE)
+			bounds := element.bounds
+			bounds.l += TEXT_MARGIN_HORIZONTAL / 2
+			bounds.r = bounds.l + size
+			render_icon_rect(target, bounds, icon)
+
+			bounds.l = bounds.r + TEXT_MARGIN_HORIZONTAL
+			fcs_ahv(.Left, .Middle)
+			fcs_element(element)
+			text := strings.to_string(button.builder)
+			render_string_rect(target, bounds, text)
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Clicked: {
+			button.state = !button.state
+			element_repaint(element)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Destroy: {
+			delete(button.builder.buf)
 		}
 	}
 
