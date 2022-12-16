@@ -436,6 +436,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 						res := dialog_spawn(
 							window,
 							300,
+							nil,
 							"Code Import: Lua Pattern\n%l\n%f\n%t\n%f\n%C%B",
 							strings.to_string(window.dialog_text_box_result),
 							"Cancel",

@@ -271,17 +271,61 @@ todool_change_task_selection_state_to :: proc(state: Task_State) {
 		return
 	}
 
-	manager := mode_panel_manager_scoped()
-	task_head_tail_push(manager)
+	manager := mode_panel_manager_begin()
+	change_count: int
 
-	app.task_state_progression = .Update_Animated
-	task_count: int
-
+	// shift all states in direction
 	iter := lh_iter_init()
 	for task in lh_iter_step(&iter) {
-		task_set_state_undoable(manager, task, state, task_count)
-		task_count += 1
+		if !task_has_children(task) && task.state != state {
+			// save old set
+			task_set_state_undoable(manager, task, state, change_count)
+			change_count += 1
+		}
 	}
+
+	if change_count > 0 {
+		app.task_state_progression = .Update_Animated
+		task_head_tail_push(manager)
+		undo_group_end(manager)
+		window_repaint(app.window_main)
+	}
+}
+
+task_change_state_to :: proc(
+	manager: ^Undo_Manager, 
+	task: ^Task,
+	state_goal: Task_State,
+) -> (change_count: int, failed_multi: bool) {
+	// only set all same tasks
+	if task_has_children(task) {
+		current := task.state
+
+		// check for non pass
+		for list_index in task.filter_children {
+			child := app_task_list(list_index)
+
+			if child.state != current {
+				failed_multi = true
+				return
+			}
+		}
+
+		task_set_state_undoable(manager, task, state_goal, change_count)
+		change_count += 1
+
+		for list_index in task.filter_children {
+			child := app_task_list(list_index)
+			task_set_state_undoable(manager, child, state_goal, change_count)
+			change_count += 1
+		}
+	} else {
+		// single task
+		task_set_state_undoable(manager, task, state_goal, 0)
+		change_count += 1
+	}
+
+	return
 }
 
 todool_change_task_state :: proc(du: u32) {
@@ -295,39 +339,9 @@ todool_change_task_state :: proc(du: u32) {
 
 	if app_has_no_selection() {
 		task := app_task_head()
-
-		// only set all same tasks
-		if task_has_children(task) {
-			state := task.state
-
-			// check for non pass
-			for list_index in task.filter_children {
-				child := app_task_list(list_index)
-
-				if child.state != state {
-					return
-				}
-			}
-
-			// passed!
-			goal := int(task.state)
-			range_advance_index(&goal, len(Task_State) - 1, shift)
-
-			task_set_state_undoable(manager, task, Task_State(goal), change_count)
-			change_count += 1
-	
-			for list_index in task.filter_children {
-				child := app_task_list(list_index)
-				task_set_state_undoable(manager, child, Task_State(goal), change_count)
-				change_count += 1
-			}
-		} else {
-			// single task
-			goal := int(task.state)
-			range_advance_index(&goal, len(Task_State) - 1, shift)
-			task_set_state_undoable(manager, task, Task_State(goal), 0)
-			change_count += 1
-		}
+		state_goal := int(task.state)
+		range_advance_index(&state_goal, len(Task_State) - 1, shift)
+		change_count, _ = task_change_state_to(manager, task, Task_State(state_goal))
 	} else {
 		// shift all states in direction
 		iter := lh_iter_init()
@@ -347,9 +361,8 @@ todool_change_task_state :: proc(du: u32) {
 		app.task_state_progression = .Update_Animated
 		task_head_tail_push(manager)
 		undo_group_end(manager)
+		window_repaint(app.window_main)
 	}
-
-	window_repaint(app.window_main)
 }
 
 todool_indent_jump_scope :: proc(du: u32) {
@@ -1699,6 +1712,7 @@ todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
 			res := dialog_spawn(
 				window, 
 				300,
+				nil,
 				"Save progress?\n%l\n%B%b%C",
 				"Yes",
 				"No",

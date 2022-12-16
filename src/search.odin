@@ -129,8 +129,8 @@ search_update :: proc(pattern: string) {
 			text_lowered := cutf8.to_lower(&builder, text)
 
 			for {
-
 				res := string_finder_next(&sf, text_lowered[index:])
+
 				if res == -1 {
 					break
 				}
@@ -391,7 +391,7 @@ String_Finder :: struct {
 }
 
 string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
-	res.pattern = pattern
+	res.pattern = strings.clone(pattern)
 
 	hash_str_rabin_karp :: proc(s: string) -> (hash: u32 = 0, pow: u32 = 1) {
 		for i := 0; i < len(s); i += 1 {
@@ -411,7 +411,9 @@ string_finder_init :: proc(pattern: string) -> (res: String_Finder) {
 	return
 }
 
-string_finder_destroy :: proc(sf: String_Finder) {}
+string_finder_destroy :: proc(sf: String_Finder) {
+	delete(sf.pattern)
+}
 
 @private PRIME_RABIN_KARP :: 16777619
 

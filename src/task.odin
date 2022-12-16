@@ -1500,7 +1500,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// check x afterwards
 			// NOTE just check this everytime due to inconsistency
-			mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, true, true)
+			mode_panel_cam_bounds_check_x(cam,app.caret_rect.l, app.caret_rect.r, true, true)
 
 			// fmt.eprintln("animating!", handled, cam.offset_y, cam.offset_x)
 			return int(handled)
@@ -2542,11 +2542,23 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		t := toggle_selector_init(p, {}, int(task.state), len(Task_State), names)
 		t.data = task
 		t.changed = proc(toggle: ^Toggle_Selector) {
-			manager := mode_panel_manager_scoped()
-			task_head_tail_push(manager)
+			manager := mode_panel_manager_begin()
 
 			task := cast(^Task) toggle.data
-			task_set_state_undoable(manager, task, Task_State(toggle.value), 0)
+			change_count, failed_multi := task_change_state_to(manager, task, Task_State(toggle.value))
+
+			if change_count > 0 {
+				app.task_state_progression = .Update_Animated
+				task_head_tail_push(manager)
+				undo_group_end(manager)
+				window_repaint(app.window_main)
+			}
+
+			if failed_multi {
+				toggle.value = 0
+			}
+
+			// task_set_state_undoable(manager, task, Task_State(toggle.value), 0)
 		}
 	}
 

@@ -2029,6 +2029,7 @@ dialog_tb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 dialog_spawn :: proc(
 	window: ^Window,
 	width: f32,
+	custom_insertion: proc(panel: ^Panel),
 	format: string,
 	args: ..string,
 ) -> string {
@@ -2165,6 +2166,10 @@ dialog_spawn :: proc(
 		if element != window.dialog {
 			incl(&element.flags, Element_Flag.Disabled)
 		} 
+	}
+
+	if custom_insertion != nil {
+		custom_insertion(panel)
 	}
 
 	window_flush_mouse_state(window)

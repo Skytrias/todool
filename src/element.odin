@@ -1911,7 +1911,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				excl(&c.flags, Element_Flag.Hide)
 
 				// layout each element
-				scrollbar_size := scrollbar.horizontal ? rect_width(element.bounds) : rect_height(element.bounds) 
+				scrollbar_size := scrollbar.horizontal ? rect_width(element.bounds) : rect_height(element.bounds)
 				// if !scrollbar.horizontal && scrollbar.shorted {
 				// 	scrollbar_size -= math.round(SCROLLBAR_SIZE * SCALE)
 				// }
@@ -2133,29 +2133,27 @@ scrollbar_layout_post :: proc(
 // 	bounds: RectI, 
 // 	up: bool,
 // ) {
-// 	side := &scrollbar.sides[side_type]
-// 	scrollbar_size := side_type == .Vertical ? rect_height(scrollbar.bounds) : rect_width(scrollbar.bounds)
+// 	scrollbar_size := scrollbar.horizontal ? rect_widthf(bounds) : rect_heightf(bounds)
+// 	MARGIN :: 50
 
-// 	if !scrollbar_side_inactive(side, scrollbar_size) {
-// 		MARGIN :: 50
-
-// 		if side_type == .Vertical {
-// 			if up && bounds.t - MARGIN <= 0 {
-// 				side.position = bounds.t + side.position - MARGIN
-// 			} 
-
-// 			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
-// 				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
-// 			}
-// 		} else {			
-// 			if up && bounds.t - MARGIN <= 0 {
-// 				side.position = bounds.t + side.position - MARGIN
-// 			} 
-
-// 			if !up && bounds.b + side.position + MARGIN >= scrollbar_size {
-// 				side.position = (bounds.b + side.position) - scrollbar_size + MARGIN
-// 			}
+// 	if !scrollbar.horizontal {
+// 		if up && bounds.t - MARGIN <= 0 {
+// 			scrollbar.position = f32(bounds.t) + scrollbar.position - MARGIN
+// 			return
 // 		}
+
+// 		if !up && f32(bounds.b) + scrollbar.position + MARGIN >= scrollbar_size {
+// 			scrollbar.position = (f32(bounds.b) + scrollbar.position) - scrollbar_size + MARGIN
+// 			return
+// 		}
+// 	} else {			
+// 		// if up && bounds.t - MARGIN <= 0 {
+// 		// 	scrollbar.position = bounds.t + scrollbar.position - MARGIN
+// 		// } 
+
+// 		// if !up && bounds.b + scrollbar.position + MARGIN >= scrollbar_size {
+// 		// 	scrollbar.position = (bounds.b + scrollbar.position) - scrollbar_size + MARGIN
+// 		// }
 // 	}
 // }
 

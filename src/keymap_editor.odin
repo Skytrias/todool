@@ -13,6 +13,7 @@ Keymap_Editor :: struct {
 	// record_label: ^Label,
 	// record_accept: ^Button,
 	grids: [4]^Static_Grid,
+	grid_keep_in_frame: Maybe(^Static_Grid),
 
 	combo_edit: ^Combo_Node, // for menu setting
 	issue_removal: ^Static_Grid,
@@ -56,7 +57,9 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 			switch combo {
 				case "1"..<"5": {
 					value := strconv.atoi(combo)
-					state := ke.grids[value - 1].hide_cells
+					grid := ke.grids[value - 1]
+					ke.grid_keep_in_frame = grid
+					state := grid.hide_cells
 					state^ = !state^
 					window_repaint(window)
 				}
@@ -127,6 +130,14 @@ keymap_editor_spawn :: proc() {
 	ke.window.name = "KEYMAP"
 	ke.window.element.message_user = keymap_editor_window_message
 	ke.window.update = proc(window: ^Window) {
+		// if grid, ok := ke.grid_keep_in_frame.?; ok {
+		// 	bounds := grid.children[0].bounds
+		// 	direction := ke.panel.vscrollbar.position > rect_heightf_halfed(bounds)
+		// 	fmt.eprintln("direction", direction)
+		// 	scrollbar_keep_in_frame(ke.panel.vscrollbar, bounds, direction)
+		// 	ke.grid_keep_in_frame = nil
+		// }
+
 		// b := &ke.record_label.builder
 		// element_hide(ke.record_accept, len(b.buf) == 0)
 
@@ -225,13 +236,6 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			horizontal: Align_Horizontal = button.show_command ? .Left : .Right
 			fcs_ahv(horizontal, .Middle)
 			fcs_color(text_color)
-
-			// if ke.record_label.data != nil {
-			// 	if ke.record_label.data == element {
-			// 		render_rect_outline(target, element.bounds, theme.text_good)
-			// 	}
-			// }
-
 			bounds := element.bounds
 
 			// offset left words
@@ -252,6 +256,48 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				keymap := cast(^Keymap) element.data
 				keymap_editor_spawn_floaty_command(keymap, button.node)
 			} else {
+				res := dialog_spawn(
+					ke.window, 
+					350,
+					nil,
+					"Saving is disabled in Demo Mode\n%l\n%f\n%C%B",
+					"Okay",
+					"Buy Now",
+				)
+				
+				switch res {
+					case "Okay": {}
+					case "Buy Now": {
+						open_link("https://skytrias.itch.io/todool")
+					}
+				}
+
+				// res := dialog_spawn(
+				// 	ke.window,
+				// 	300,
+				// 	nil,
+				// 	// proc(panel: ^Panel) {
+
+				// 	// },
+				// 	"Press a Key Combination\n%l\n%B%C",
+				// 	"Accept",
+				// 	"Cancel",
+				// )
+
+				// switch res {
+				// 	case "Accept": {
+				// 		fmt.eprintln("ACCEPTED")
+				// 	}
+
+				// 	case "Cancel": {
+				// 		fmt.eprintln("CANCEL")
+				// 	}
+
+				// 	case: {
+				// 		fmt.eprintln("DEFAULT", res)
+				// 	}
+				// }
+
 				// TODO
 				// // select button
 				// if ke.record_label.data != element {

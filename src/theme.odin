@@ -899,6 +899,7 @@ theme_load_parse_json :: proc(data: string) {
 		dialog_spawn(
 			theme_editor.window, 
 			300, 
+			nil,
 			"JSON failed loading\n%l\n%f\n%s",
 			text,
 		)
