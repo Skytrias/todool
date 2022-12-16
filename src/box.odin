@@ -134,9 +134,9 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 			}
 
-			// selection & caret
 			if focused {
 				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
+				// selection & caret
 				x := text_bounds.l - int(box.scroll)
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
 				box_render_selection(target, box, x, y, theme.caret_selection)
@@ -146,9 +146,29 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			text_bounds.l -= int(box.scroll)
 
 			// draw each wrapped line
-			render_string_rect(target, text_bounds, text)
+			render_string_rect_store(target, text_bounds, text, &box.rendered_glyphs)
+
+			if focused && box.head != box.tail {
+				// recolor selected glyphs
+				ds: cutf8.Decode_State
+				text := ss_string(&box.ss)
+				low, high := box_low_and_high(box)
+				back_color := theme_panel(.Front)
+
+				for codepoint, i in cutf8.ds_iter(&ds, text) {
+					if (low <= i && i < high) {
+						glyph := box.rendered_glyphs[i]
+						
+						for v in &glyph.vertices {
+							v.color = back_color
+						}
+					}
+				}
+			}
 
 			if focused {
+				// selection := 
+
 				x := text_bounds.l
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
 				caret := rect_wh(
@@ -761,6 +781,7 @@ box_render_selection :: proc(
 		return
 	}
 
+	// back_color := color_alpha(theme_panel(.Front), 1)
 	state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines, box.head, box.tail)
 	scaled_size := f32(state.isize / 10)
 

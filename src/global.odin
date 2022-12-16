@@ -170,6 +170,7 @@ Window :: struct {
 	dialog_width: f32,
 	dialog_um: Undo_Manager,
 	dialog_text_box_result: strings.Builder,
+	dialog_shadow: f32,
 
 	// menu
 	menu: ^Panel_Floaty,
@@ -1668,9 +1669,33 @@ gs_process_events :: proc() {
 	}
 }
 
+window_flux_update_check :: proc(window: ^Window) {
+	window.flux_had_animations = len(window.flux.values) != 0 
+	window.update_next |= (window.flux_had_animations || window.flux_render_last_frame)
+	window.flux_render_last_frame = false
+}
+
+window_flux_update_end :: proc(window: ^Window) {
+	// TODO maybe window dt?
+	ease.flux_update(&window.flux, f64(gs.dt))
+
+	// render last frame
+	if len(window.flux.values) == 0 && window.flux_had_animations {
+		window.flux_render_last_frame = true
+	}
+}
+
+gs_update_dt :: proc() {
+	// TODO could be bad cuz this is for multiple windows?
+	// TODO maybe time the section of time that was waited on?
+	// update frame counter
+	frame_end := sdl.GetPerformanceCounter()
+	elapsed_ms := f64(frame_end - gs.frame_start) / f64(sdl.GetPerformanceFrequency())
+	gs.dt = f32(elapsed_ms)
+}
+
 gs_message_loop :: proc() {
 	context.logger = gs.logger
-	// flux_render_last_frame: bool
 	
 	for gs.running {
 		free_all(context.temp_allocator)
@@ -1678,9 +1703,7 @@ gs_message_loop :: proc() {
 		// check prior for any window needing updates
 		iter := gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {
-			w.flux_had_animations = len(w.flux.values) != 0 
-			w.update_next |= (w.flux_had_animations || w.flux_render_last_frame)
-			w.flux_render_last_frame = false
+			window_flux_update_check(w)
 		}
 
 		// forced animation, from exterior animation
@@ -1721,25 +1744,11 @@ gs_message_loop :: proc() {
 		
 		// repaint all of the window
 		gs_draw_and_cleanup()
-
-		// TODO could be bad cuz this is for multiple windows?
-		// TODO maybe time the section of time that was waited on?
-		// update frame counter
-		{
-			frame_end := sdl.GetPerformanceCounter()
-			elapsed_ms := f64(frame_end - gs.frame_start) / f64(sdl.GetPerformanceFrequency())
-			gs.dt = f32(elapsed_ms)
-		}
+		gs_update_dt()
 
 		iter = gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {
-			// TODO maybe window dt?
-			ease.flux_update(&w.flux, f64(gs.dt))
-	
-			// render last frame
-			if len(w.flux.values) == 0 && w.flux_had_animations {
-				w.flux_render_last_frame = true
-			}
+			window_flux_update_end(w)
 		}
 	}
 
@@ -1894,6 +1903,15 @@ gs_window_count :: proc() -> (res: int) {
 
 dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			render_push_clip(target, element.window.element.bounds)
+			shadow := theme.shadow
+			shadow.a = u8(element.window.dialog_shadow * 0.5 * 255)
+			render_rect(target, element.window.element.bounds, shadow)
+			render_push_clip(target, element.bounds)
+		}
+
 		case .Layout: {
 			w := element.window
 			assert(len(element.children) != 0)
@@ -2021,6 +2039,8 @@ dialog_spawn :: proc(
 	window.dialog_width = max(200, width)
 	menu_close(window)
 	undo_manager_reset(&window.dialog_um)
+
+	window_animate(window, &window.dialog_shadow, 1, .Quadratic_Out, time.Millisecond * 200)
 
 	window.dialog = element_init(Element, &window.element, {}, dialog_message, context.allocator)
 	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
@@ -2154,12 +2174,22 @@ dialog_spawn :: proc(
 	gs_draw_and_cleanup()
 
 	for !window.dialog_finished {
-		// wait for event to arive
-		available := sdl.WaitEvent(nil)
-		gs_process_events()
+		window_flux_update_check(window)
+
+		if window.update_next {
+			gs.frame_start = sdl.GetPerformanceCounter()
+			gs_process_events()
+		} else {
+			// wait for event to arive
+			available := sdl.WaitEvent(nil)
+			gs_process_events()
+		}
 
 		// repaint all of the window
 		gs_draw_and_cleanup()
+		
+		gs_update_dt()
+		window_flux_update_end(window)
 	}
 
 	// check keyboard set
@@ -2188,6 +2218,8 @@ dialog_spawn :: proc(
 	for element in window.element.children {
 		excl(&element.flags, Element_Flag.Disabled)
 	}
+
+	window.dialog_shadow = 0
 
 	element_destroy(window.dialog)
 	window.dialog = nil
