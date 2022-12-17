@@ -2204,7 +2204,12 @@ dialog_spawn :: proc(
 		}
 
 		// repaint all of the window
-		if window.update_next {
+		root := &window.node
+		if element_deallocate(&window.element) {
+			dll.remove(&gs.windows_list, root)
+			fmt.eprintln("TRY HERE")
+			return "DESTROYED"
+		} else if window.update_next {
 			window_draw(window)
 		}
 		
