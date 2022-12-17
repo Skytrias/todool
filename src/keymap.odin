@@ -150,16 +150,13 @@ keymap_destroy :: proc(keymap: ^Keymap) {
 	delete(keymap.combos)
 }
 
-// force push a combo 
-keymap_push_combo :: proc(
-	keymap: ^Keymap, 
+// set a combo internal values
+keymap_combo_set :: proc(
+	node: ^Combo_Node,
 	combo: string,
 	command: string,
 	du: u32,
 ) {
-	append(&keymap.combos, Combo_Node {})
-	node := &keymap.combos[len(keymap.combos) - 1]
-	
 	combo_index := min(len(node.combo), len(combo))
 	mem.copy(&node.combo[0], raw_data(combo), combo_index)
 	node.combo_index = u8(combo_index)
@@ -169,6 +166,18 @@ keymap_push_combo :: proc(
 	node.command_index = u8(command_index)
 
 	node.du = du
+}
+
+// force push a combo 
+keymap_push_combo :: proc(
+	keymap: ^Keymap, 
+	combo: string,
+	command: string,
+	du: u32,
+) {
+	append(&keymap.combos, Combo_Node {})
+	node := &keymap.combos[len(keymap.combos) - 1]
+	keymap_combo_set(node, combo, command, du)
 }
 
 // optionally push combo if it doesnt exist yet
@@ -186,16 +195,7 @@ keymap_push_combo_opt :: proc(
 
 	append(&keymap.combos, Combo_Node {})
 	node := &keymap.combos[len(keymap.combos) - 1]
-	
-	combo_index := min(len(node.combo), len(combo))
-	mem.copy(&node.combo[0], raw_data(combo), combo_index)
-	node.combo_index = u8(combo_index)
-
-	command_index := min(len(node.command), len(command))
-	mem.copy(&node.command[0], raw_data(command), command_index)
-	node.command_index = u8(command_index)
-
-	node.du = du
+	keymap_combo_set(node, combo, command, du)
 }
 
 // free all nodes

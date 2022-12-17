@@ -16,7 +16,10 @@ Keymap_Editor :: struct {
 	grid_keep_in_frame: Maybe(^Static_Grid),
 
 	combo_edit: ^Combo_Node, // for menu setting
-	issue_removal: ^Static_Grid,
+	
+	// interactables
+	issue_update: ^Static_Grid,
+	menu_line: ^Static_Line,
 }
 ke: Keymap_Editor
 
@@ -129,6 +132,9 @@ keymap_editor_spawn :: proc() {
 	ke.window = window_init(nil, {}, "Keymap Editor", 700, 700, 8, 8)
 	ke.window.name = "KEYMAP"
 	ke.window.element.message_user = keymap_editor_window_message
+	ke.window.on_menu_close = proc(window: ^Window) {
+		ke.menu_line = nil
+	}
 	ke.window.update = proc(window: ^Window) {
 		// if grid, ok := ke.grid_keep_in_frame.?; ok {
 		// 	bounds := grid.children[0].bounds
@@ -142,19 +148,20 @@ keymap_editor_spawn :: proc() {
 		// element_hide(ke.record_accept, len(b.buf) == 0)
 
 		// reset node pointers
-		if ke.issue_removal != nil {
-			children := ke.issue_removal.children
-			keymap := cast(^Keymap) ke.issue_removal.data
+		if ke.issue_update != nil {
+			children := ke.issue_update.children
+			keymap := cast(^Keymap) ke.issue_update.data
 
-			// TODO this feels dirty
-			for c, i in children {
-				line := cast(^Static_Line) c
-				line.index = i
-				keymap_editor_update_combo_data(line, &keymap.combos[i])
+			// update combo lines and offsets
+			index: int
+			count: int
+			for line, offset in static_grid_real_lines_iter(ke.issue_update, &index, &count) {
+				keymap_editor_update_combo_data(line, &keymap.combos[offset])
+				line.index = offset
 			}
 
 			window_repaint(ke.window)
-			ke.issue_removal = nil
+			ke.issue_update = nil
 		}
 	}
 
@@ -256,6 +263,10 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				keymap := cast(^Keymap) element.data
 				keymap_editor_spawn_floaty_command(keymap, button.node)
 			} else {
+				fmt.eprintln("TEST")
+				fmt.eprintln("BEFORE", len(element.window.element.children))
+
+				element_repaint(element)
 				res := dialog_spawn(
 					ke.window, 
 					350,
@@ -342,35 +353,49 @@ keymap_editor_update_combo_data :: proc(line: ^Static_Line, combo: ^Combo_Node) 
 	b3 := cast(^Button) line.children[2]
 	strings.builder_reset(&b3.builder)
 	fmt.sbprintf(&b3.builder, "0x%2x", combo.du)
-	b4 := cast(^Button) line.children[3]
+	// b4 := cast(^Button) line.children[3]
 }
 
-keymap_editor_remove_call :: proc(button: ^Icon_Button, data: rawptr) {
-	children := &button.parent.parent.children
-	keymap := cast(^Keymap) button.parent.parent.data
+keymap_editor_remove_call :: proc(line: ^Static_Line) {
+	grid := cast(^Static_Grid) line.parent
+	keymap := cast(^Keymap) grid.data
 
-	// NOTE find linearly... could be done better
-	// find this node in children
-	combo_index := -1
-	for line, i in children {
-		if line == button.parent {
-			combo_index = i
-			break
-		} 
-	}
-
-	if combo_index != -1 {
-		ordered_remove(&keymap.combos, combo_index)
-		
-		ke.issue_removal = cast(^Static_Grid) button.parent.parent
-
-		element_repaint(button)
-		element_destroy(button.parent)
+	if line.index != -1 && len(keymap.combos) != 0 {
+		ordered_remove(&keymap.combos, line.index)
+		ke.issue_update = grid
+		element_repaint(line)
+		element_destroy(line)
 	} 
 }
 
+keymap_editor_static_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	sl := cast(^Static_Line) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+
+			// highlight second lines
+			if sl.index % 2 == 1 {
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			if ke.menu_line == sl {
+				render_rect_outline(target, element.bounds, theme.text_good)
+			}
+		}
+
+		case .Right_Down: {
+			ke_menu_context(sl)
+			return 1
+		}
+	}
+
+	return 0
+}
+
 keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool) -> (grid: ^Static_Grid) {
-	cell_sizes := [?]int { 220, 220, 100, 40 }
+	cell_sizes := [?]int { 220, 220, 100 }
 	grid = static_grid_init(ke.panel, {}, cell_sizes[:], DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL)
 	grid.data = keymap
 	grid.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -409,39 +434,35 @@ keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool)
 		label_init(p, { .Label_Center }, "Combination")
 		label_init(p, { .Label_Center }, "Command")
 		label_init(p, { .Label_Center }, "Modifiers")
-		label_init(p, { .Label_Center }, "Pop")
 	}
 
 	line_count: int
 	for node in &keymap.combos {
-		p := static_line_init(grid, &grid.cell_sizes, line_count)
-		p.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			sl := cast(^Static_Line) element
-
-			if msg == .Paint_Recursive {
-				// highlight second lines
-				if sl.index % 2 == 1 {
-					render_hovered_highlight(element.window.target, element.bounds, 1)
-				}
-			}
-
-			return 0
-		} 
+		keymap_editor_line_append(grid, &node, line_count)
 		line_count += 1
-
-		c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
-		b1 := ke_button_init(p, {}, &node, false)
-		b2 := ke_button_init(p, {}, &node, true)
-		b2.data = keymap
-
-		b3 := button_init(p, {}, "")
-		fmt.sbprintf(&b3.builder, "0x%2x", node.du)
-
-		b4 := icon_button_init(p, {}, .Close)
-		b4.invoke = keymap_editor_remove_call
 	}
 
 	return
+}
+
+keymap_editor_line_append :: proc(
+	grid: ^Static_Grid, 
+	node: ^Combo_Node,
+	line_count: int,
+	) {
+	p := static_line_init(grid, &grid.cell_sizes, line_count)
+	p.message_user = keymap_editor_static_line_message
+
+	// c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
+	b1 := ke_button_init(p, {}, node, false)
+	b2 := ke_button_init(p, {}, node, true)
+	b2.data = grid.data
+
+	b3 := button_init(p, {}, "")
+
+	if node != nil {
+		fmt.sbprintf(&b3.builder, "0x%2x", node.du)  	
+	}
 }
 
 keymap_editor_spawn_floaty_command :: proc(
@@ -475,4 +496,30 @@ keymap_editor_spawn_floaty_command :: proc(
 	}
 
 	window_repaint(ke.window)
+}
+
+ke_menu_context :: proc(line: ^Static_Line) {
+	menu := menu_init(ke.window, {}, 0)
+	defer menu_show(menu)
+
+	p := menu.panel
+	p.shadow = true
+	p.flags |= { .Panel_Expand }
+
+	ke.menu_line = line
+
+	mbc(p, "Add", proc() {
+		grid := cast(^Static_Grid) ke.menu_line.parent
+		keymap := cast(^Keymap) grid.data
+		fmt.eprintln("BEFORE", len(keymap.combos), len(grid.children))
+		inject_at(&keymap.combos, ke.menu_line.index, Combo_Node {})
+		keymap_editor_line_append(grid, nil, 0)
+		fmt.eprintln("BEFORE", len(keymap.combos), len(grid.children))
+		ke.issue_update = grid
+		menu_close(ke.window)
+	}, .Check)
+	mbc(p, "Remove", proc() {
+		keymap_editor_remove_call(ke.menu_line)
+		menu_close(ke.window)
+	}, .Close)
 }

@@ -628,9 +628,17 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		line.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 			sl := cast(^Static_Line) element
 
-			if msg == .Paint_Recursive {
-				if theme_editor.line_selected == sl.index {
-					render_hovered_highlight(element.window.target, element.bounds)
+			#partial switch msg {
+				case .Paint_Recursive: {
+					if theme_editor.line_selected == sl.index {
+						render_hovered_highlight(element.window.target, element.bounds)
+					}
+				}
+
+				case .Clicked: {
+					if sl.index != -1 {
+						theme_editor.line_selected = sl.index
+					}
 				}
 			}
 

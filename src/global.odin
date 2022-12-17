@@ -189,6 +189,7 @@ Window :: struct {
 	// callbacks
 	on_resize: proc(window: ^Window),
 	on_focus_gained: proc(window: ^Window),
+	on_menu_close: proc(window: ^Window),
 
 	// next window
 	name: string,
@@ -793,7 +794,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				if element_is_from_menu(window, hovered) || !menu_close(window) {
 					// if the left mouse button is pressed, start pressing the hovered element
 					window_set_pressed(window, hovered, MOUSE_LEFT)
-					element_message(hovered, msg, window.click_count, dp)
+					element_send_msg_until_received(hovered, msg, window.click_count, dp)
 				}
 			}
 
@@ -809,7 +810,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				if element_is_from_menu(window, hovered) || !menu_close(window) {
 					// if the middle mouse button is pressed, start pressing the hovered element
 					window_set_pressed(window, hovered, MOUSE_RIGHT)
-					element_message(hovered, msg, di, dp)
+					element_send_msg_until_received(hovered, msg, di, dp)
 				}
 			}
 
@@ -1623,6 +1624,9 @@ gs_flush_events :: proc() {
 }
 
 gs_process_events :: proc() {
+	// set frame start after waiting
+	gs.frame_start = sdl.GetPerformanceCounter()
+	
 	// query ctrl, shift, alt state
 	ctrl, shift, alt, super: bool
 	num: i32
@@ -1718,7 +1722,6 @@ gs_message_loop :: proc() {
 		any_update := len(gs.animating) != 0
 		iter = gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {
-
 			if w.raise_next {
 				w.raise_next = false
 				w.update_next = true
@@ -1730,13 +1733,10 @@ gs_message_loop :: proc() {
 
 		if any_update {
 			gs_process_animations()
-			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_events()
 		} else {
 			// wait for event to arive
 			available := sdl.WaitEvent(nil)
-			// set frame start after waiting
-			gs.frame_start = sdl.GetPerformanceCounter()
 			gs_process_events()
 		}
 
@@ -1832,6 +1832,30 @@ flux_to_restricted :: proc(
 	return
 }
 
+window_draw :: proc(window: ^Window) {
+	// reset focuse on hidden
+	if window.focused != nil {
+		if !window_focused_shown(window) {
+			window.focused = nil
+		}
+	}
+
+	if window.update != nil {
+		window->update()
+	}
+
+	fontstash.state_begin(&gs.fc)
+	render_target_begin(window.target, theme.shadow)
+	element_message(&window.element, .Layout)
+	window.paint_clip = window.rect
+	render_element_clipped(window.target, &window.element)
+	fontstash.state_end(&gs.fc)
+	render_target_end(window.target, window.w, window.width, window.height)
+
+	// TODO could use specific update region only
+	window.update_next = false
+}
+
 gs_draw_and_cleanup :: proc() {
 	context.logger = gs.logger 
 
@@ -1849,28 +1873,7 @@ gs_draw_and_cleanup :: proc() {
 			dll.remove(&gs.windows_list, root)
 		} else if window.update_next {
 			spall.scoped("draw window")
-
-			// reset focuse on hidden
-			if window.focused != nil {
-				if !window_focused_shown(window) {
-					window.focused = nil
-				}
-			}
-
-			if window.update != nil {
-				window->update()
-			}
-
-			fontstash.state_begin(&gs.fc)
-			render_target_begin(window.target, theme.shadow)
-			element_message(&window.element, .Layout)
-			window.paint_clip = window.rect
-			render_element_clipped(window.target, &window.element)
-			fontstash.state_end(&gs.fc)
-			render_target_end(window.target, window.w, window.width, window.height)
-
-			// TODO could use specific update region only
-			window.update_next = false
+			window_draw(window)
 		}
 		
 		window_count += 1
@@ -1910,6 +1913,7 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			shadow.a = u8(element.window.dialog_shadow * 0.5 * 255)
 			render_rect(target, element.window.element.bounds, shadow)
 			render_push_clip(target, element.bounds)
+			fmt.eprintln("TRYING")
 		}
 
 		case .Layout: {
@@ -1928,6 +1932,7 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				cy + height / 2,
 			}
 			element_move(panel, bounds)
+			fmt.eprintln("LAYOUT", bounds)
 		}
 
 		case .Update: {
@@ -2153,6 +2158,8 @@ dialog_spawn :: proc(
 		}
 	}
 
+	fmt.eprintln(len(window.element.children))
+
 	window.dialog_finished = false
 	old_focus := window.focused
 	element_focus(window, focus_next == nil ? window.dialog : focus_next)
@@ -2176,13 +2183,13 @@ dialog_spawn :: proc(
 	window.pressed = nil
 	window.hovered = nil
 	window.update_next = true
-	gs_draw_and_cleanup()
+	// gs_draw_and_cleanup()
 
 	for !window.dialog_finished {
 		window_flux_update_check(window)
 
 		if window.update_next {
-			gs.frame_start = sdl.GetPerformanceCounter()
+			fmt.eprintln("KEEP UPDATING")
 			gs_process_events()
 		} else {
 			// wait for event to arive
@@ -2191,7 +2198,11 @@ dialog_spawn :: proc(
 		}
 
 		// repaint all of the window
-		gs_draw_and_cleanup()
+		// fmt.eprintln("RENDERING")
+		if window.update_next {
+			window_draw(window)
+		}
+		// gs_draw_and_cleanup()
 		
 		gs_update_dt()
 		window_flux_update_end(window)
@@ -2397,6 +2408,11 @@ gs_write_safely :: proc(path: string, content: []byte) -> bool {
 menu_close :: proc(window: ^Window) -> bool {
 	if window.menu == nil {
 		return false
+	}
+
+	// in case you need to do anything specific on any menu closing event
+	if window.on_menu_close != nil {
+		window->on_menu_close()
 	}
 
 	element_destroy(window.menu)

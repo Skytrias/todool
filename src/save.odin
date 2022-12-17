@@ -737,12 +737,13 @@ json_save_misc :: proc(path: string) -> bool {
 	// adjust by window border
 	{
 		t, l, b, r := window_border_size(app.window_main)
-		// log.info(t, l, b, r)
-		// log.info(window_x, window_y, window_width, window_height)
+		// fmt.eprintln("BORDER", t, l, b, r)
+		// fmt.eprintln("WINDOW DIMS BEFORE", window_x, window_y, window_width, window_height)
 		window_y -= t
 		window_x -= l
 		window_width += r
 		window_height += b
+		// fmt.eprintln("WINDOW DIMS AFTER", window_x, window_y, window_width, window_height)
 	}
 
 	value := Misc_Save_Load {
@@ -886,9 +887,13 @@ json_load_misc :: proc(path: string) -> bool {
 
 			w := max(misc.hidden.window_width, 200)
 			h := max(misc.hidden.window_height, 200)
+			// fmt.eprintln("WINDOW DIMS LOAD WH", misc.hidden.window_x, misc.hidden.window_y, w, h)
+			// x := misc.hidden.window_x
+			// y := misc.hidden.window_y
 			// clamp window based on total display width/height
 			x := min(max(misc.hidden.window_x, 0) + w, total_width) - w
 			y := min(max(misc.hidden.window_y, 0) + h, total_height) - h
+			// fmt.eprintln("WINDOW DIMS CLAMPED WH", x, y)
 
 			window_set_position(app.window_main, x, y)
 			window_set_size(app.window_main, w, h)

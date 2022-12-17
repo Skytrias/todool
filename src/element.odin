@@ -3619,7 +3619,7 @@ menu_bar_field_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
 			if hovered || pressed || element.window.menu_info == field.menu_info {
-				render_rect(target, element.bounds, { 0, 0, 0, 100 })
+				render_hovered_highlight(target, element.bounds)
 			}
 
 			fcs_element(field)
@@ -3760,7 +3760,7 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
 			if hovered || pressed {
-				render_rect(target, element.bounds, { 0, 0, 0, 100 })
+				render_hovered_highlight(target, element.bounds)
 			}
 
 			icon_width := int(FIXED_ICON_WIDTH * SCALE)
@@ -3939,6 +3939,33 @@ static_grid_line_count :: proc(sg: ^Static_Grid) -> int {
 	return len(sg.children)
 }
 
+// iterate only real lines with valid index > 0
+static_grid_real_lines_iter :: proc(
+	sg: ^Static_Grid,
+	index: ^int, 
+	count: ^int,
+) -> (line: ^Static_Line, offset: int, ok: bool) {
+	for index^ < len(sg.children) {
+		child := sg.children[index^]
+		index^ += 1
+
+		// if a line is found we quit
+		if child.message_class == static_line_message {
+			line = cast(^Static_Line) child
+
+			// only real lines
+			if line.index != -1 {
+				offset = count^
+				count^ += 1
+				ok = true
+				return
+			}
+		}
+	}
+
+	return
+}
+
 // simple line with internal layout based on parent
 Static_Line :: struct {
 	using element: Element,
@@ -3973,16 +4000,6 @@ static_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			}
 		}
 
-		case .Clicked: {
-			if sl.index != -1 {
-				theme_editor.line_selected = sl.index
-			}
-		}
-
-		// case .Get_Cursor: {
-		// 	return int(Cursor.Hand)
-		// }
-
 		case .Paint_Recursive: {
 			target := element.window.target
 			hovered := element.window.hovered
@@ -4003,6 +4020,7 @@ static_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 	return 0
 }
 
+// button with folding icon on the left + text on the rest
 Button_Fold :: struct {
 	using element: Element,
 	state: bool,
