@@ -3,14 +3,32 @@ package src
 import "core:mem"
 import "core:fmt"
 import "core:strings"
+import dll "core:container/intrusive/list"
 
 Command :: proc(u32)
+
+COMBO_MAX :: 48
+COMMAND_MAX :: 32
+
+Combo_Conflict :: struct {
+	using node: dll.Node,
+	color: Color,
+
+	// conflicting string to check for
+	combo: [COMBO_MAX]u8,
+	combo_index: u8,
+
+	count: u16,
+}
+
+Conflict_Node :: dll.Node
 
 // NOTE heap is easier for now
 Keymap :: struct {
 	commands: map[string]Command,
 	combos: [dynamic]Combo_Node,
 	combo_last: ^Combo_Node,
+	conflict_list: dll.List,
 }
 
 keymap_query_info :: proc(using keymap: ^Keymap, name: string) {
@@ -18,12 +36,14 @@ keymap_query_info :: proc(using keymap: ^Keymap, name: string) {
 }
 
 Combo_Node :: struct {
-	combo: [48]u8,
-	command: [32]u8,
+	combo: [COMBO_MAX]u8,
+	command: [COMMAND_MAX]u8,
 	
 	combo_index: u8,
 	command_index: u8,
 	du: u32,
+
+	conflict: ^Combo_Conflict,
 }
 
 // combo extension flags
@@ -146,6 +166,12 @@ keymap_init :: proc(keymap: ^Keymap, commands_cap: int, combos_cap: int) {
 }
 
 keymap_destroy :: proc(keymap: ^Keymap) {
+	// free all nodes
+	iter := dll.iterator_head(keymap.conflict_list, Combo_Conflict, "node")
+	for node in dll.iterate_next(&iter) {
+		free(node)
+	}
+
 	delete(keymap.commands)
 	delete(keymap.combos)
 }

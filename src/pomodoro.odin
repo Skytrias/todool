@@ -47,7 +47,7 @@ pomodoro_celebration_spawn :: proc(x, y: f32) {
 			c.skip = false
 			c.x	= x
 			c.y = y
-			c.color = color_rand_non_alpha()
+			c.color = color_rgb_rand()
 
 			WIDTH :: 400
 			x_goal := x + rand.float32() * WIDTH - WIDTH / 2 

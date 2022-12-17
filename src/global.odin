@@ -190,6 +190,7 @@ Window :: struct {
 	on_resize: proc(window: ^Window),
 	on_focus_gained: proc(window: ^Window),
 	on_menu_close: proc(window: ^Window),
+	on_dialog_finished: proc(window: ^Window, pre_output: string) -> (string, bool),
 
 	// next window
 	name: string,
@@ -841,15 +842,18 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 
 					// NOTE allows arrow based movement on dialog
 					if window.dialog != nil {
-						is_text_box: bool
+						steal_input: bool
 
 						if window.focused != nil {
-							is_text_box = window.focused.message_class == text_box_message
+							steal_input |= window.focused.message_class == text_box_message
+							steal_input |= window.focused.message_class == ke_stealer_message
 						}
 
-						if !is_text_box {
+						if !steal_input {
 							match |= combo == "up" || combo == "down" || combo == "left" || combo == "right"
 							backwards |= combo == "up" || combo == "left" 
+						} else {
+							match = false
 						}
 					}
 
@@ -1913,7 +1917,6 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			shadow.a = u8(element.window.dialog_shadow * 0.5 * 255)
 			render_rect(target, element.window.element.bounds, shadow)
 			render_push_clip(target, element.bounds)
-			fmt.eprintln("TRYING")
 		}
 
 		case .Layout: {
@@ -1932,7 +1935,6 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				cy + height / 2,
 			}
 			element_move(panel, bounds)
-			fmt.eprintln("LAYOUT", bounds)
 		}
 
 		case .Update: {
@@ -2034,7 +2036,7 @@ dialog_tb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 dialog_spawn :: proc(
 	window: ^Window,
 	width: f32,
-	custom_insertion: proc(panel: ^Panel),
+	custom_insertion: proc(panel: ^Panel, text: string) -> (^Element, bool),
 	format: string,
 	args: ..string,
 ) -> string {
@@ -2132,6 +2134,17 @@ dialog_spawn :: proc(
 					arg_index += 1
 					label_init(row, { .HF }, text)
 				}
+
+				case 'x': {
+					assert(custom_insertion != nil, "custom insertion cant be nil")
+					text := args[arg_index]
+					arg_index += 1
+					element, focus := custom_insertion(row, text) 
+
+					if focus && focus_next == nil {
+						focus_next = element
+					}
+				}
 			}
 		} else {
 			byte_start := ds.byte_offset_old
@@ -2158,8 +2171,6 @@ dialog_spawn :: proc(
 		}
 	}
 
-	fmt.eprintln(len(window.element.children))
-
 	window.dialog_finished = false
 	old_focus := window.focused
 	element_focus(window, focus_next == nil ? window.dialog : focus_next)
@@ -2175,21 +2186,16 @@ dialog_spawn :: proc(
 		} 
 	}
 
-	if custom_insertion != nil {
-		custom_insertion(panel)
-	}
-
 	window_flush_mouse_state(window)
 	window.pressed = nil
 	window.hovered = nil
 	window.update_next = true
-	// gs_draw_and_cleanup()
 
 	for !window.dialog_finished {
 		window_flux_update_check(window)
 
 		if window.update_next {
-			fmt.eprintln("KEEP UPDATING")
+			gs_process_animations()
 			gs_process_events()
 		} else {
 			// wait for event to arive
@@ -2198,11 +2204,9 @@ dialog_spawn :: proc(
 		}
 
 		// repaint all of the window
-		// fmt.eprintln("RENDERING")
 		if window.update_next {
 			window_draw(window)
 		}
-		// gs_draw_and_cleanup()
 		
 		gs_update_dt()
 		window_flux_update_end(window)
@@ -2224,6 +2228,15 @@ dialog_spawn :: proc(
 	if output == "_D" && default_button != nil {
 		element_message(default_button, .Clicked)
 		output = strings.to_string(window.dialog_builder)
+	}
+
+	// special event you may want
+	if window.on_dialog_finished != nil {
+		overwrite, ok := window->on_dialog_finished(output)
+		
+		if ok {
+			output = overwrite
+		}
 	}
 
 	// gs_flush_events()

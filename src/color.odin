@@ -11,13 +11,18 @@ BLACK :: Color { 0, 0, 0, 255 }
 WHITE :: Color { 255, 255, 255, 255 }
 TRANSPARENT :: Color { }
 
-color_rand_non_alpha :: proc(gen: ^rand.Rand = nil) -> Color {
+color_rgb_rand :: proc(gen: ^rand.Rand = nil) -> Color {
 	return {
 		u8(rand.float32() * 255),
 		u8(rand.float32() * 255),
 		u8(rand.float32() * 255),
 		255,
 	}
+}
+
+color_hsl_rand :: proc(gen: ^rand.Rand = nil, s := f32(1), l := f32(1)) -> Color {
+	hue := rand.float32()
+	return color_hsv_to_rgb(hue, s, l)
 }
 
 color_alpha :: proc(color: Color, alpha: f32) -> (res: Color) {

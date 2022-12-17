@@ -451,7 +451,7 @@ theme_randomize_all :: proc(tags_only: bool) {
 			}
 
 			if !locked {
-				root_color^ = color_rand_non_alpha()
+				root_color^ = color_rgb_rand()
 			}
 
 			for line_index in other[:other_index] {
@@ -460,7 +460,7 @@ theme_randomize_all :: proc(tags_only: bool) {
 				
 				if !lock.state {
 					button := cast(^Color_Button) line.children[1]
-					newish := color_rand_non_alpha()
+					newish := color_rgb_rand()
 					slider := cast(^Slider) line.children[4]
 					button.color^ = color_blend_amount(newish, root_color^, slider.position)
 				}
