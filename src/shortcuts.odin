@@ -1709,27 +1709,27 @@ todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
 		if options_autosave() {
 			todool_save(COMBO_FALSE)
 		} else if app.dirty != app.dirty_saved {
-			res := dialog_spawn(
-				window, 
-				300,
-				nil,
-				"Save progress?\n%l\n%B%b%C",
-				"Yes",
-				"No",
-				"Cancel",
-			)
+			// res := dialog_spawn(
+			// 	window, 
+			// 	300,
+			// 	nil,
+			// 	"Save progress?\n%l\n%B%b%C",
+			// 	"Yes",
+			// 	"No",
+			// 	"Cancel",
+			// )
 			
-			switch res {
-				case "Yes": {
-					todool_save(COMBO_FALSE)
-				}
+			// switch res {
+			// 	case "Yes": {
+			// 		todool_save(COMBO_FALSE)
+			// 	}
 
-				case "Cancel": {
-					canceled = true
-				}
+			// 	case "Cancel": {
+			// 		canceled = true
+			// 	}
 
-				case "No": {}
-			}
+			// 	case "No": {}
+			// }
 		}
 	}
 

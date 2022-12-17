@@ -904,13 +904,13 @@ theme_load_parse_json :: proc(data: string) {
 			text = fmt.tprint("Try without \"Theme = {...}\"")
 		}
 
-		dialog_spawn(
-			theme_editor.window, 
-			300, 
-			nil,
-			"JSON failed loading\n%l\n%f\n%s",
-			text,
-		)
+		// dialog_spawn(
+		// 	theme_editor.window, 
+		// 	300, 
+		// 	nil,
+		// 	"JSON failed loading\n%l\n%f\n%s",
+		// 	text,
+		// )
 	}
 }
 

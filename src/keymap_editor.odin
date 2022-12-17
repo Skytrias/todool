@@ -60,18 +60,18 @@ keymap_editor_spawn :: proc() {
 	ke.window.on_menu_close = proc(window: ^Window) {
 		ke.menu_line = nil
 	}
-	ke.window.on_dialog_finished = proc(window: ^Window, pre_output: string) -> (overwrite: string, ok: bool) {
-		// stop outputting our actual result
-		if pre_output != "Cancel" {
-			strings.builder_reset(&window.dialog_builder)
-			strings.write_string(&window.dialog_builder, strings.to_string(ke.stealer.builder))
-			overwrite = strings.to_string(window.dialog_builder)
-			ok = true
-		}
+	// ke.window.on_dialog_finished = proc(window: ^Window, pre_output: string) -> (overwrite: string, ok: bool) {
+	// 	// stop outputting our actual result
+	// 	if pre_output != "Cancel" {
+	// 		strings.builder_reset(&window.dialog_builder)
+	// 		strings.write_string(&window.dialog_builder, strings.to_string(ke.stealer.builder))
+	// 		overwrite = strings.to_string(window.dialog_builder)
+	// 		ok = true
+	// 	}
 
-		ke.menu_line = nil
-		return
-	}
+	// 	ke.menu_line = nil
+	// 	return
+	// }
 	ke.window.update = proc(window: ^Window) {
 		// if grid, ok := ke.grid_keep_in_frame.?; ok {
 		// 	bounds := grid.children[0].bounds
@@ -181,13 +181,14 @@ ke_stealer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			combo := (cast(^string) dp)^
 			b := &stealer.builder
 
-			// cancel on double escape
-			if combo == "escape" && strings.to_string(b^) == "escape" {
-				element.window.dialog_finished = true
-				strings.builder_reset(&element.window.dialog_builder)
-				strings.write_string(&element.window.dialog_builder, "Cancel")
-				return 1
-			}
+			// TODO
+			// // cancel on double escape
+			// if combo == "escape" && strings.to_string(b^) == "escape" {
+			// 	element.window.dialog_finished = true
+			// 	strings.builder_reset(&element.window.dialog_builder)
+			// 	strings.write_string(&element.window.dialog_builder, "Cancel")
+			// 	return 1
+			// }
 
 			strings.builder_reset(b)
 			strings.write_string(b, combo)
@@ -343,32 +344,32 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				ke.menu_line = cast(^Static_Line) button.parent
 				combo_name := string(button.node.combo[:button.node.combo_index])
 
-				res := dialog_spawn(
-					ke.window,
-					300,
-					proc(panel: ^Panel, text: string) -> (element: ^Element, focus: bool) {
-						stealer := ke_stealer_init(panel, { .HF }, text)
-						ke.stealer = stealer
-						element = stealer
-						focus = true
-						return
-					},
-					"Press a Key Combination\n%x\n%B%C",
-					combo_name,
-					"Accept",
-					"Cancel",
-				)
+				// res := dialog_spawn(
+				// 	ke.window,
+				// 	300,
+				// 	proc(panel: ^Panel, text: string) -> (element: ^Element, focus: bool) {
+				// 		stealer := ke_stealer_init(panel, { .HF }, text)
+				// 		ke.stealer = stealer
+				// 		element = stealer
+				// 		focus = true
+				// 		return
+				// 	},
+				// 	"Press a Key Combination\n%x\n%B%C",
+				// 	combo_name,
+				// 	"Accept",
+				// 	"Cancel",
+				// )
 
-				switch res {
-					case "Accept": {}
-					case "Cancel": {}
-					case: {
-						mem.copy(&button.node.combo[0], raw_data(res), len(res))
-						button.node.combo_index = u8(len(res))
-						keymap := cast(^Keymap) button.parent.parent.data
-						keymap_editor_check_conflicts(keymap, button.node, res)
-					}
-				}
+				// switch res {
+				// 	case "Accept": {}
+				// 	case "Cancel": {}
+				// 	case: {
+				// 		mem.copy(&button.node.combo[0], raw_data(res), len(res))
+				// 		button.node.combo_index = u8(len(res))
+				// 		keymap := cast(^Keymap) button.parent.parent.data
+				// 		keymap_editor_check_conflicts(keymap, button.node, res)
+				// 	}
+				// }
 			}
 		}
 

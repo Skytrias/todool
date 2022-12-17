@@ -163,14 +163,15 @@ Window :: struct {
 	keymap_box: Keymap,
 	keymap_custom: Keymap,
 
+	dialog: ^Dialog,
 	// wether a dialog is currently showing
-	dialog: ^Element,
-	dialog_finished: bool,
-	dialog_builder: strings.Builder,
-	dialog_width: f32,
-	dialog_um: Undo_Manager,
-	dialog_text_box_result: strings.Builder,
-	dialog_shadow: f32,
+	// dialog: ^Element,
+	// dialog_finished: bool,
+	// dialog_builder: strings.Builder,
+	// dialog_width: f32,
+	// dialog_um: Undo_Manager,
+	// dialog_text_box_result: strings.Builder,
+	// dialog_shadow: f32,
 
 	// menu
 	menu: ^Panel_Floaty,
@@ -471,11 +472,11 @@ window_init :: proc(
 	res.combo_builder = strings.builder_make(0, 32)
 	res.title_builder = strings.builder_make(0, 64)
 	
-	// dialgo
-	res.dialog_builder = strings.builder_make(0, 64)
-	res.dialog_text_box_result = strings.builder_make(0, 128)
-	strings.write_string(&res.dialog_text_box_result, "// TODO(.+)")
-	undo_manager_init(&res.dialog_um, mem.Kilobyte * 2)
+	// // dialgo
+	// res.dialog_builder = strings.builder_make(0, 64)
+	// res.dialog_text_box_result = strings.builder_make(0, 128)
+	// strings.write_string(&res.dialog_text_box_result, "// TODO(.+)")
+	// undo_manager_init(&res.dialog_um, mem.Kilobyte * 2)
 	
 	res.target = render_target_init(window)
 	res.update_next = true
@@ -1076,7 +1077,6 @@ window_deallocate :: proc(window: ^Window) {
 	log.info("WINDOW: Deallocate START")
 	keymap_destroy(&window.keymap_box)
 	keymap_destroy(&window.keymap_custom)
-	undo_manager_destroy(&window.dialog_um)
 
 	ease.flux_destroy(window.flux)
 	delete(window.drop_indices)
@@ -1085,8 +1085,9 @@ window_deallocate :: proc(window: ^Window) {
 	render_target_destroy(window.target)
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
-	delete(window.dialog_builder.buf)
-	delete(window.dialog_text_box_result.buf)
+	// undo_manager_destroy(&window.dialog_um)
+	// delete(window.dialog_builder.buf)
+	// delete(window.dialog_text_box_result.buf)
 	sdl.DestroyWindow(window.w)
 	log.info("WINDOW: Deallocate END")
 }
@@ -1664,7 +1665,6 @@ gs_process_events :: proc() {
 			iter := gs_windows_iter_head()
 			for w in dll.iterate_next(&iter) {
 				window_destroy(w)
-				w.dialog_finished = true
 			}
 
 			break
@@ -1908,357 +1908,357 @@ gs_window_count :: proc() -> (res: int) {
 // dialog
 //////////////////////////////////////////////
 
-dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	#partial switch msg {
-		case .Paint_Recursive: {
-			target := element.window.target
-			render_push_clip(target, element.window.element.bounds)
-			shadow := theme.shadow
-			shadow.a = u8(element.window.dialog_shadow * 0.5 * 255)
-			render_rect(target, element.window.element.bounds, shadow)
-			render_push_clip(target, element.bounds)
-		}
+// dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+// 	#partial switch msg {
+// 		case .Paint_Recursive: {
+// 			target := element.window.target
+// 			render_push_clip(target, element.window.element.bounds)
+// 			shadow := theme.shadow
+// 			shadow.a = u8(element.window.dialog_shadow * 0.5 * 255)
+// 			render_rect(target, element.window.element.bounds, shadow)
+// 			render_push_clip(target, element.bounds)
+// 		}
 
-		case .Layout: {
-			w := element.window
-			assert(len(element.children) != 0)
+// 		case .Layout: {
+// 			w := element.window
+// 			assert(len(element.children) != 0)
 			
-			panel := cast(^Panel) element.children[0]
-			width := int(w.dialog_width * SCALE)
-			height := element_message(panel, .Get_Height, 0)
-			cx := (element.bounds.l + element.bounds.r) / 2
-			cy := (element.bounds.t + element.bounds.b) / 2
-			bounds := RectI {
-				cx - (width + 1) / 2,
-				cx + width / 2, 
-				cy - (height + 1) / 2,
-				cy + height / 2,
-			}
-			element_move(panel, bounds)
-		}
+// 			panel := cast(^Panel) element.children[0]
+// 			width := int(w.dialog_width * SCALE)
+// 			height := element_message(panel, .Get_Height, 0)
+// 			cx := (element.bounds.l + element.bounds.r) / 2
+// 			cy := (element.bounds.t + element.bounds.b) / 2
+// 			bounds := RectI {
+// 				cx - (width + 1) / 2,
+// 				cx + width / 2, 
+// 				cy - (height + 1) / 2,
+// 				cy + height / 2,
+// 			}
+// 			element_move(panel, bounds)
+// 		}
 
-		case .Update: {
-			panel := element.children[0]
-			element_message(panel, .Update, di, dp)
-		}
+// 		case .Update: {
+// 			panel := element.children[0]
+// 			element_message(panel, .Update, di, dp)
+// 		}
 
-		case .Key_Combination: {
-			combo := (cast(^string) dp)^
-			w := element.window
-			b := &w.dialog_builder
+// 		case .Key_Combination: {
+// 			combo := (cast(^string) dp)^
+// 			w := element.window
+// 			b := &w.dialog_builder
 
-			if combo == "escape" {
-				strings.builder_reset(b)
-				strings.write_string(b, "_C") // canceled
-				w.dialog_finished = true
-				return 1
-			} else if combo == "return" {
-				strings.builder_reset(b)
-				strings.write_string(b, "_D") // default 
-				w.dialog_finished = true
-				return 1
-			}
-		}
+// 			if combo == "escape" {
+// 				strings.builder_reset(b)
+// 				strings.write_string(b, "_C") // canceled
+// 				w.dialog_finished = true
+// 				return 1
+// 			} else if combo == "return" {
+// 				strings.builder_reset(b)
+// 				strings.write_string(b, "_D") // default 
+// 				w.dialog_finished = true
+// 				return 1
+// 			}
+// 		}
 
-		// select the element with the starting character
-		case .Unicode_Insertion: {
-			codepoint := (cast(^rune) dp)^
-			codepoint = unicode.to_upper(codepoint)
+// 		// select the element with the starting character
+// 		case .Unicode_Insertion: {
+// 			codepoint := (cast(^rune) dp)^
+// 			codepoint = unicode.to_upper(codepoint)
 
-			// panel
-			row_container := element.children[0]
-			duplicate: bool
-			target: ^Element
+// 			// panel
+// 			row_container := element.children[0]
+// 			duplicate: bool
+// 			target: ^Element
 
-			for i in 0..<len(row_container.children) {
-				row := row_container.children[i]
+// 			for i in 0..<len(row_container.children) {
+// 				row := row_container.children[i]
 
-				for j in 0..<len(row.children) {
-					item := row.children[j]
+// 				for j in 0..<len(row.children) {
+// 					item := row.children[j]
 
-					// matching to button
-					if item.message_class == button_message {
-						button := cast(^Button) item
-						text := strings.to_string(button.builder)
-						// NOTE dangerous due to unicode
-						first := rune(text[0])
+// 					// matching to button
+// 					if item.message_class == button_message {
+// 						button := cast(^Button) item
+// 						text := strings.to_string(button.builder)
+// 						// NOTE dangerous due to unicode
+// 						first := rune(text[0])
 
-						if first == codepoint {
-							if target == nil {
-								target = item
-							} else {
-								duplicate = true
-							}
-						}
-					}
-				}
-			}
+// 						if first == codepoint {
+// 							if target == nil {
+// 								target = item
+// 							} else {
+// 								duplicate = true
+// 							}
+// 						}
+// 					}
+// 				}
+// 			}
 
-			if target != nil {
-				if duplicate {
-					element_focus(element.window, target)
-				} else {
-					element_message(target, .Clicked)
-				}
-			}
-		}
-	}
+// 			if target != nil {
+// 				if duplicate {
+// 					element_focus(element.window, target)
+// 				} else {
+// 					element_message(target, .Clicked)
+// 				}
+// 			}
+// 		}
+// 	}
 
-	return 0
-}
+// 	return 0
+// }
 
-dialog_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	button := cast(^Button) element
+// dialog_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+// 	button := cast(^Button) element
 
-	if msg == .Clicked {
-		window := element.window
-		builder := &window.dialog_builder
-		strings.builder_reset(builder)
-		strings.write_string(builder, strings.to_string(button.builder))
-		window.dialog_finished = true
-	}
+// 	if msg == .Clicked {
+// 		window := element.window
+// 		builder := &window.dialog_builder
+// 		strings.builder_reset(builder)
+// 		strings.write_string(builder, strings.to_string(button.builder))
+// 		window.dialog_finished = true
+// 	}
 
-	return 0
-}
+// 	return 0
+// }
 
-dialog_tb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	box := cast(^Text_Box) element
+// dialog_tb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+// 	box := cast(^Text_Box) element
 
-	if msg == .Value_Changed {
-		b := &element.window.dialog_text_box_result
-		strings.builder_reset(b)
-		strings.write_string(b, ss_string(&box.ss))
-	}
+// 	if msg == .Value_Changed {
+// 		b := &element.window.dialog_text_box_result
+// 		strings.builder_reset(b)
+// 		strings.write_string(b, ss_string(&box.ss))
+// 	}
 
-	return 0
-}
+// 	return 0
+// }
 
-dialog_spawn :: proc(
-	window: ^Window,
-	width: f32,
-	custom_insertion: proc(panel: ^Panel, text: string) -> (^Element, bool),
-	format: string,
-	args: ..string,
-) -> string {
-	if window.dialog != nil {
-		return ""
-	}
+// dialog_spawn :: proc(
+// 	window: ^Window,
+// 	width: f32,
+// 	custom_insertion: proc(panel: ^Panel, text: string) -> (^Element, bool),
+// 	format: string,
+// 	args: ..string,
+// ) -> string {
+// 	if window.dialog != nil {
+// 		return ""
+// 	}
 
-	window.dialog_width = max(200, width)
-	menu_close(window)
-	undo_manager_reset(&window.dialog_um)
+// 	window.dialog_width = max(200, width)
+// 	menu_close(window)
+// 	undo_manager_reset(&window.dialog_um)
 
-	window_animate(window, &window.dialog_shadow, 1, .Quadratic_Out, time.Millisecond * 200)
+// 	window_animate(window, &window.dialog_shadow, 1, .Quadratic_Out, time.Millisecond * 200)
 
-	window.dialog = element_init(Element, &window.element, {}, dialog_message, context.allocator)
-	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
-	panel.background_index = 2
-	panel.shadow = true
-	panel.rounded = true
-	window.dialog.z_index = 255
+// 	window.dialog = element_init(Element, &window.element, {}, dialog_message, context.allocator)
+// 	panel := panel_init(window.dialog, { .Tab_Movement_Allowed, .Panel_Default_Background }, 5, 5)
+// 	panel.background_index = 2
+// 	panel.shadow = true
+// 	panel.rounded = true
+// 	window.dialog.z_index = 255
 
-	// state to be retrieved from iter
-	focus_next: ^Element
-	cancel_button: ^Button
-	default_button: ^Button
-	button_count: int
+// 	// state to be retrieved from iter
+// 	focus_next: ^Element
+// 	cancel_button: ^Button
+// 	default_button: ^Button
+// 	button_count: int
 
-	arg_index: int
-	row: ^Panel = nil
-	ds: cutf8.Decode_State
+// 	arg_index: int
+// 	row: ^Panel = nil
+// 	ds: cutf8.Decode_State
 
-	for codepoint, i in cutf8.ds_iter(&ds, format) {
-		codepoint := codepoint
-		i := i
+// 	for codepoint, i in cutf8.ds_iter(&ds, format) {
+// 		codepoint := codepoint
+// 		i := i
 
-		if i == 0 || codepoint == '\n' {
-			row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)
-		}
+// 		if i == 0 || codepoint == '\n' {
+// 			row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)
+// 		}
 
-		if codepoint == ' ' || codepoint == '\n' {
-			continue
-		}
+// 		if codepoint == ' ' || codepoint == '\n' {
+// 			continue
+// 		}
 
-		if codepoint == '%' {
-			// next
-			codepoint, i, _ = cutf8.ds_iter(&ds, format)
+// 		if codepoint == '%' {
+// 			// next
+// 			codepoint, i, _ = cutf8.ds_iter(&ds, format)
 
-			switch codepoint {
-				case 'b', 'B', 'C': {
-					text := args[arg_index]
-					arg_index += 1
-					b := button_init(row, { .HF }, text)
-					b.message_user = dialog_button_message
+// 			switch codepoint {
+// 				case 'b', 'B', 'C': {
+// 					text := args[arg_index]
+// 					arg_index += 1
+// 					b := button_init(row, { .HF }, text)
+// 					b.message_user = dialog_button_message
 
-					// default
-					if codepoint == 'B' {
-						default_button = b
-					}
+// 					// default
+// 					if codepoint == 'B' {
+// 						default_button = b
+// 					}
 
-					// canceled
-					if codepoint == 'C' {
-						cancel_button = b
-					}
+// 					// canceled
+// 					if codepoint == 'C' {
+// 						cancel_button = b
+// 					}
 
-					// set first focused
-					if focus_next == nil {
-						focus_next = b
-					}
+// 					// set first focused
+// 					if focus_next == nil {
+// 						focus_next = b
+// 					}
 
-					button_count += 1
-				}
+// 					button_count += 1
+// 				}
 
-				case 'f': {
-					spacer_init(row, { .HF }, 0, int(10 * SCALE), .Empty)
-				}
+// 				case 'f': {
+// 					spacer_init(row, { .HF }, 0, int(10 * SCALE), .Empty)
+// 				}
 
-				case 'l': {
-					spacer_init(row, { .HF }, 0, LINE_WIDTH, .Thin)
-				}
+// 				case 'l': {
+// 					spacer_init(row, { .HF }, 0, LINE_WIDTH, .Thin)
+// 				}
 
-				case 't': {
-					text := args[arg_index]
-					arg_index += 1					
-					box := text_box_init(row, { .HF }, text)
-					box.um = &window.dialog_um
-					box.message_user = dialog_tb_message
-					element_message(box, .Value_Changed)
+// 				case 't': {
+// 					text := args[arg_index]
+// 					arg_index += 1					
+// 					box := text_box_init(row, { .HF }, text)
+// 					box.um = &window.dialog_um
+// 					box.message_user = dialog_tb_message
+// 					element_message(box, .Value_Changed)
 
-					if focus_next == nil {
-						focus_next = box
-					}
-				}
+// 					if focus_next == nil {
+// 						focus_next = box
+// 					}
+// 				}
 
-				case 's': {
-					text := args[arg_index]
-					arg_index += 1
-					label_init(row, { .HF }, text)
-				}
+// 				case 's': {
+// 					text := args[arg_index]
+// 					arg_index += 1
+// 					label_init(row, { .HF }, text)
+// 				}
 
-				case 'x': {
-					assert(custom_insertion != nil, "custom insertion cant be nil")
-					text := args[arg_index]
-					arg_index += 1
-					element, focus := custom_insertion(row, text) 
+// 				case 'x': {
+// 					assert(custom_insertion != nil, "custom insertion cant be nil")
+// 					text := args[arg_index]
+// 					arg_index += 1
+// 					element, focus := custom_insertion(row, text) 
 
-					if focus && focus_next == nil {
-						focus_next = element
-					}
-				}
-			}
-		} else {
-			byte_start := ds.byte_offset_old
-			byte_end := ds.byte_offset
-			end_early: bool
+// 					if focus && focus_next == nil {
+// 						focus_next = element
+// 					}
+// 				}
+// 			}
+// 		} else {
+// 			byte_start := ds.byte_offset_old
+// 			byte_end := ds.byte_offset
+// 			end_early: bool
 
-			// advance till empty
-			for other_codepoint in cutf8.ds_iter(&ds, format) {
-				byte_end = ds.byte_offset
+// 			// advance till empty
+// 			for other_codepoint in cutf8.ds_iter(&ds, format) {
+// 				byte_end = ds.byte_offset
 
-				if other_codepoint == '%' || other_codepoint == '\n' {
-					end_early = true
-					break
-				}
-			}
+// 				if other_codepoint == '%' || other_codepoint == '\n' {
+// 					end_early = true
+// 					break
+// 				}
+// 			}
 
-			text := format[byte_start:byte_end - (end_early ? 1 : 0)]
-			label := label_init(row, { .Label_Center, .HF }, text)
-			label.font_options = &app.font_options_bold
+// 			text := format[byte_start:byte_end - (end_early ? 1 : 0)]
+// 			label := label_init(row, { .Label_Center, .HF }, text)
+// 			label.font_options = &app.font_options_bold
 
-			if end_early {
-				row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)
-			}
-		}
-	}
+// 			if end_early {
+// 				row = panel_init(panel, { .Panel_Horizontal, .HF }, 0, 5)
+// 			}
+// 		}
+// 	}
 
-	window.dialog_finished = false
-	old_focus := window.focused
-	element_focus(window, focus_next == nil ? window.dialog : focus_next)
-	defer {
-		if old_focus != nil {
-			element_focus(window, old_focus)
-		}
-	}
+// 	window.dialog_finished = false
+// 	old_focus := window.focused
+// 	element_focus(window, focus_next == nil ? window.dialog : focus_next)
+// 	defer {
+// 		if old_focus != nil {
+// 			element_focus(window, old_focus)
+// 		}
+// 	}
 
-	for element in window.element.children {
-		if element != window.dialog {
-			incl(&element.flags, Element_Flag.Disabled)
-		} 
-	}
+// 	for element in window.element.children {
+// 		if element != window.dialog {
+// 			incl(&element.flags, Element_Flag.Disabled)
+// 		} 
+// 	}
 
-	window_flush_mouse_state(window)
-	window.pressed = nil
-	window.hovered = nil
-	window.update_next = true
+// 	window_flush_mouse_state(window)
+// 	window.pressed = nil
+// 	window.hovered = nil
+// 	window.update_next = true
 
-	for !window.dialog_finished {
-		window_flux_update_check(window)
+// 	for !window.dialog_finished {
+// 		window_flux_update_check(window)
 
-		if window.update_next {
-			gs_process_animations()
-			gs_process_events()
-		} else {
-			// wait for event to arive
-			available := sdl.WaitEvent(nil)
-			gs_process_events()
-		}
+// 		if window.update_next {
+// 			gs_process_animations()
+// 			gs_process_events()
+// 		} else {
+// 			// wait for event to arive
+// 			available := sdl.WaitEvent(nil)
+// 			gs_process_events()
+// 		}
 
-		// repaint all of the window
-		root := &window.node
-		if element_deallocate(&window.element) {
-			dll.remove(&gs.windows_list, root)
-			fmt.eprintln("TRY HERE")
-			return "DESTROYED"
-		} else if window.update_next {
-			window_draw(window)
-		}
+// 		// repaint all of the window
+// 		root := &window.node
+// 		if element_deallocate(&window.element) {
+// 			dll.remove(&gs.windows_list, root)
+// 			fmt.eprintln("TRY HERE")
+// 			return "DESTROYED"
+// 		} else if window.update_next {
+// 			window_draw(window)
+// 		}
 		
-		gs_update_dt()
-		window_flux_update_end(window)
-	}
+// 		gs_update_dt()
+// 		window_flux_update_end(window)
+// 	}
 
-	// check keyboard set
-	output := strings.to_string(window.dialog_builder)
+// 	// check keyboard set
+// 	output := strings.to_string(window.dialog_builder)
 
-	// cancel set to default at 1
-	if button_count == 1 && default_button != nil && cancel_button == nil {
-		cancel_button = default_button
-	}
+// 	// cancel set to default at 1
+// 	if button_count == 1 && default_button != nil && cancel_button == nil {
+// 		cancel_button = default_button
+// 	}
 
-	if output == "_C" && cancel_button != nil {
-		element_message(cancel_button, .Clicked)
-		output = strings.to_string(window.dialog_builder)
-	} 
+// 	if output == "_C" && cancel_button != nil {
+// 		element_message(cancel_button, .Clicked)
+// 		output = strings.to_string(window.dialog_builder)
+// 	} 
 
-	if output == "_D" && default_button != nil {
-		element_message(default_button, .Clicked)
-		output = strings.to_string(window.dialog_builder)
-	}
+// 	if output == "_D" && default_button != nil {
+// 		element_message(default_button, .Clicked)
+// 		output = strings.to_string(window.dialog_builder)
+// 	}
 
-	// special event you may want
-	if window.on_dialog_finished != nil {
-		overwrite, ok := window->on_dialog_finished(output)
+// 	// special event you may want
+// 	if window.on_dialog_finished != nil {
+// 		overwrite, ok := window->on_dialog_finished(output)
 		
-		if ok {
-			output = overwrite
-		}
-	}
+// 		if ok {
+// 			output = overwrite
+// 		}
+// 	}
 
-	// gs_flush_events()
-	window_flush_mouse_state(window)
-	window.pressed = nil
-	window.hovered = nil
+// 	// gs_flush_events()
+// 	window_flush_mouse_state(window)
+// 	window.pressed = nil
+// 	window.hovered = nil
 
-	for element in window.element.children {
-		excl(&element.flags, Element_Flag.Disabled)
-	}
+// 	for element in window.element.children {
+// 		excl(&element.flags, Element_Flag.Disabled)
+// 	}
 
-	window.dialog_shadow = 0
+// 	window.dialog_shadow = 0
 
-	element_destroy(window.dialog)
-	window.dialog = nil
-	return output
-}
+// 	element_destroy(window.dialog)
+// 	window.dialog = nil
+// 	return output
+// }
 
 //////////////////////////////////////////////
 // sdl helpers
