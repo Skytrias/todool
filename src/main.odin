@@ -21,6 +21,7 @@ import "../fontstash"
 import "../spall"
 import "../cutf8"
 import "../btrie"
+import "../fuzz"
 
 TRACK_MEMORY :: false
 TODOOL_RELEASE :: false
@@ -49,19 +50,6 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // 	fmt.eprintln(task_pool_push_new(&pool))
 // 	task_pool_push_remove(&pool, 0); fmt.eprintln(len(pool.removed_list))
 // }
-
-app_dialog_quit :: proc(dialog: ^Dialog, result: string) {
-	#partial switch dialog.result {
-		case .Default: {
-			todool_save(COMBO_FALSE)
-			window_try_quit(app.window_main, true)
-		}
-		
-		case .None: {
-			window_try_quit(app.window_main, true)
-		}
-	}
-}
 
 main :: proc() {
 	spall.init("test.spall")

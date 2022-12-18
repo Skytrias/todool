@@ -659,7 +659,7 @@ keymap_editor_menu_command :: proc(
 	ke.combo_edit = combo
 	offset: int
 	is_current: bool
-	c1 := string(combo.combo[:combo.combo_index])
+	c1 := string(combo.command[:combo.command_index])
 
 	for key, value in keymap.commands {
 		is_current = key == c1

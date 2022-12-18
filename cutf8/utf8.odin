@@ -254,3 +254,16 @@ to_lower :: proc(builder: ^strings.Builder, text: string) -> string {
 
 	return strings.to_string(builder^)
 }
+
+to_runes :: proc(text: string, allocator := context.allocator) -> []rune {
+	temp := make([dynamic]rune, 0, 256, context.temp_allocator)
+	state, codepoint: rune
+
+	for byte_offset in 0..<len(text) {
+		if decode(&state, &codepoint, text[byte_offset]) {
+			append(&temp, codepoint)
+		}
+	}
+
+	return slice.clone(temp[:], allocator)		
+}
