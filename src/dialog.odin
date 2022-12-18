@@ -32,9 +32,6 @@ Dialog :: struct {
 
 	// children
 	panel: ^Panel,
-
-	// wether the dialog blocks closing
-	block_close: bool,
 }
 
 Dialog_Result :: enum {
@@ -220,7 +217,6 @@ dialog_build_elements :: proc(dialog: ^Dialog, format: string, args: ..string) {
 					arg_index += 1
 					box := text_box_init(row, { .HF }, text)
 					box.um = &dialog.um
-					box.message_user = dialog_tb_message
 					element_message(box, .Value_Changed)
 					dialog.text_box = box
 
@@ -331,18 +327,6 @@ dialog_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 		}
 
 		dialog_close(element.window)
-	}
-
-	return 0
-}
-
-dialog_tb_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	box := cast(^Text_Box) element
-
-	if msg == .Value_Changed {
-		// b := &element.window.dialog_text_box_result
-		// strings.builder_reset(b)
-		// strings.write_string(b, ss_string(&box.ss))
 	}
 
 	return 0

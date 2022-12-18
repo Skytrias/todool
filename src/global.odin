@@ -2156,14 +2156,15 @@ menu_show :: proc(menu: ^Panel_Floaty) {
 	height := element_message(menu.panel, .Get_Height)
 	menu.width = width
 	menu.height = height
+	menu_show_position(menu)
+}
 
-	full := menu.window.rect
-
-	// keep x & y in frame with a margin
+menu_show_position :: proc(menu: ^Panel_Floaty) {
 	margin := int(10 * SCALE)
+	full := menu.window.rect
 	menu.x = clamp(menu.x, margin, full.r - menu.width - margin)
 	menu.y = clamp(menu.y, margin, full.b - menu.height - margin)
-	element_repaint(menu)
+	element_repaint(menu)		
 }
 
 // true wether the requested element is from the menu tree

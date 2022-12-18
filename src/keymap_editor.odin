@@ -333,7 +333,7 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		case .Clicked: {
 			if button.show_command {
 				keymap := cast(^Keymap) button.parent.parent.data
-				keymap_editor_spawn_floaty_command(keymap, button.node)
+				keymap_editor_menu_command(keymap, button.node)
 			} else {
 				ke.menu_line = cast(^Static_Line) button.parent
 				combo_name := string(button.node.combo[:button.node.combo_index])
@@ -429,7 +429,7 @@ keymap_editor_static_line_message :: proc(element: ^Element, msg: Message, di: i
 		}
 
 		case .Right_Down: {
-			ke_menu_context(sl)
+			keymap_editor_menu_combo(sl)
 			return 1
 		}
 	}
@@ -565,40 +565,113 @@ keymap_editor_line_append :: proc(
 	}
 }
 
-keymap_editor_spawn_floaty_command :: proc(
+KE_Command :: struct {
+	using element: Element,
+	index: int,
+	text: string,
+	is_current: bool,
+}
+
+ke_command_init :: proc(
+	parent: ^Element, 
+	index: int, 
+	text: string,
+	is_current: bool,
+) -> (res: ^KE_Command) {
+	res = element_init(KE_Command, parent, {}, ke_command_message, context.allocator)
+	res.index = index
+	res.text = text
+	res.is_current = is_current
+	return
+}
+
+ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	cmd := cast(^KE_Command) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			
+			builder := strings.builder_make(0, 64, context.temp_allocator)
+			strings.write_int(&builder, cmd.index)
+			strings.write_string(&builder, ". ")
+			strings.write_string(&builder, cmd.text)
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, theme.text_default)
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			bounds := element.bounds
+			bounds.l += int(5 * SCALE)
+
+			fcs_element(element)
+			fcs_ahv(.Left, .Middle)
+			color := cmd.is_current ? theme.text_good : theme.text_default
+			fcs_color(color)
+			render_string_rect(target, bounds, strings.to_string(builder))
+			// fmt.eprintln("DRAW", strings.to_string(builder))
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Clicked: {
+			n := ke.combo_edit
+
+			index := min(len(n.command), len(cmd.text))
+			mem.copy(&n.command[0], raw_data(cmd.text), index)
+			n.command_index = u8(index)
+			
+			menu_close(element.window)
+		}
+
+		case .Get_Height: {
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+	}
+
+	return 0
+}
+
+keymap_editor_menu_command :: proc(
 	keymap: ^Keymap,
 	combo: ^Combo_Node,
 ) {
 	menu_close(ke.window)
 
 	menu := menu_init(ke.window, { .Panel_Expand, .Panel_Scroll_Vertical })
+	defer menu_show_position(menu)
 	menu.x = ke.window.cursor_x
 	menu.y = ke.window.cursor_y
-	menu.width = 200
+	menu.width = 250
 	menu.height = 300
 	p := menu.panel
 	p.background_index = 2
+	
 	ke.combo_edit = combo
+	offset: int
+	is_current: bool
+	c1 := string(combo.combo[:combo.combo_index])
 
 	for key, value in keymap.commands {
-		b := button_init(p, {}, key)
-		// b.hover_info = keymap_comments[value]
-		// fmt.eprintln(b.hover_info)
-		b.invoke = proc(button: ^Button, data: rawptr) {
-			n := ke.combo_edit
-
-			index := min(len(n.command), len(button.builder.buf))
-			mem.copy(&n.command[0], &button.builder.buf[0], index)
-			n.command_index = u8(index)
-			
-			menu_close(button.window)
-		}
+		is_current = key == c1
+		// button_init(p, {}, key)
+		ke_command_init(p, offset, key, is_current)
+		offset += 1
 	}
 
 	window_repaint(ke.window)
 }
 
-ke_menu_context :: proc(line: ^Static_Line) {
+keymap_editor_menu_combo :: proc(line: ^Static_Line) {
 	menu := menu_init(ke.window, {}, 0)
 	defer menu_show(menu)
 
