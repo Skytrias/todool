@@ -50,6 +50,17 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // 	task_pool_push_remove(&pool, 0); fmt.eprintln(len(pool.removed_list))
 // }
 
+// main :: proc() {
+// 	fmt.eprintln("test")
+// 	fmt.eprintln("test")
+// 	fmt.eprintln("test")
+
+// 	value := 10
+
+// 	runtime.debug_trap()
+// 	value = 20
+// }
+
 main :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)

@@ -13,12 +13,12 @@ Keymap_Editor :: struct {
 
 	grids: [4]^Static_Grid,
 	// grid_keep_in_frame: Maybe(^Static_Grid),
-	combo_edit: ^Combo_Node, // for menu setting
 
 	// interactables
 	issue_update: ^Static_Grid,
 	stealer: ^KE_Stealer,
 
+	menu_combo: ^Combo_Node, // for menu setting
 	menu_sub: ^Panel,
 	menu_line: ^Static_Line,
 	menu_box: ^Text_Box,
@@ -48,6 +48,7 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 					if ke.menu_box != nil {
 						if ke.menu_box.ss.length == 0 {
 							menu_close(window)
+							fmt.eprintln("SHOUld be destroyed")
 						} else {
 							box_head_tail_push(&ke.um, ke.menu_box)
 							box_set_caret_dp(ke.menu_box, BOX_SELECT_ALL, nil)
@@ -72,6 +73,7 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 							}
 						}
 
+						fmt.eprintln("found this", found != nil)
 						if found != nil {
 							cmd := cast(^KE_Command) found
 							ke_command_build(cmd)
@@ -114,6 +116,8 @@ keymap_editor_spawn :: proc() {
 	ke.window.on_menu_close = proc(window: ^Window) {
 		ke.menu_box = nil
 		ke.menu_line = nil
+		ke.menu_combo = nil
+		ke.menu_sub = nil
 	}
 	ke.window.update = proc(window: ^Window) {
 		// if grid, ok := ke.grid_keep_in_frame.?; ok {
@@ -646,7 +650,8 @@ ke_command_init :: proc(
 }
 
 ke_command_build :: proc(cmd: ^KE_Command) {
-	n := ke.combo_edit
+	fmt.eprintln("~~", ke.menu_combo == nil)
+	n := ke.menu_combo
 
 	index := min(len(n.command), len(cmd.text))
 	mem.copy(&n.command[0], raw_data(cmd.text), index)
@@ -721,7 +726,7 @@ keymap_editor_menu_command :: proc(
 	p.background_index = 1
 	p.gap = 5
 	
-	ke.combo_edit = combo
+	ke.menu_combo = combo
 	offset: int
 	is_current: bool
 	c1 := string(combo.command[:combo.command_index])
