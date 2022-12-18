@@ -173,14 +173,17 @@ Element :: struct {
 }
 
 // default way to call clicked event on tab stop element
-key_combination_check_click :: proc(element: ^Element, dp: rawptr) {
+key_combination_check_click :: proc(element: ^Element, dp: rawptr) -> int {
 	combo := (cast(^string) dp)^
 	
 	if element.window.focused == element {
 		if combo == "space" || combo == "return" {
 			element_message(element, .Clicked)
+			return 1
 		}
 	}
+
+	return 0
 }
 
 // toggle hide flag
@@ -582,25 +585,6 @@ element_children_sorted_or_unsorted :: proc(element: ^Element) -> (res: []^Eleme
 	return
 }
 
-// true if the given element is 
-window_focused_shown :: proc(window: ^Window) -> bool {
-	if window.focused == nil || window.focused == &window.element {
-		return false
-	}
-
-	p := window.focused
-	
-	for p != nil {
-		if .Hide in p.flags {
-			return false
-		}
-
-		p = p.parent
-	}
-
-	return true
-}
-
 render_hovered_highlight :: #force_inline proc(target: ^Render_Target, bounds: RectI, scale := f32(1)) {
 	color := theme_shadow(1)
 	render_rect(target, bounds, color, ROUNDNESS)
@@ -677,7 +661,7 @@ button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Key_Combination: {
-			key_combination_check_click(element, dp)
+			return key_combination_check_click(element, dp)
 		}
 	}
 
@@ -749,7 +733,7 @@ color_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Key_Combination: {
-			key_combination_check_click(element, dp)
+			return key_combination_check_click(element, dp)
 		}
 	}
 
@@ -834,7 +818,7 @@ icon_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Key_Combination: {
-			key_combination_check_click(element, dp)
+			return key_combination_check_click(element, dp)
 		}
 	}
 
@@ -918,7 +902,7 @@ image_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 		}
 
 		case .Key_Combination: {
-			key_combination_check_click(element, dp)
+			return key_combination_check_click(element, dp)
 		}
 	}
 
@@ -1283,7 +1267,7 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Key_Combination: {
-			key_combination_check_click(element, dp)
+			return key_combination_check_click(element, dp)
 		}
 
 		case .Destroy: {

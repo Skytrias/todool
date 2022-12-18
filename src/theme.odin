@@ -904,13 +904,19 @@ theme_load_parse_json :: proc(data: string) {
 			text = fmt.tprint("Try without \"Theme = {...}\"")
 		}
 
-		// dialog_spawn(
-		// 	theme_editor.window, 
-		// 	300, 
-		// 	nil,
-		// 	"JSON failed loading\n%l\n%f\n%s",
-		// 	text,
-		// )
+		dialog_spawn(
+			theme_editor.window, 
+			proc(dialog: ^Dialog, result: string) {
+				fmt.eprintln("dialog end todool save")
+				if dialog.result == .Default {
+					open_link("https://skytrias.itch.io/todool")
+				} 
+			},
+			300, 
+			"JSON failed loading\n%l\n%s\n%l\n%C",
+			text,
+			"Okay",
+		)
 	}
 }
 

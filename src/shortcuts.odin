@@ -1314,20 +1314,19 @@ todool_redo :: proc(du: u32) {
 
 todool_save :: proc(du: u32) {
 	when DEMO_MODE {
-		res := dialog_spawn(
+		dialog_spawn(
 			app.window_main, 
+			proc(dialog: ^Dialog, result: string) {
+				fmt.eprintln("dialog end todool save")
+				if dialog.result == .Default {
+					open_link("https://skytrias.itch.io/todool")
+				} 
+			},
 			350,
 			"Saving is disabled in Demo Mode\n%l\n%f\n%C%B",
 			"Okay",
 			"Buy Now",
 		)
-		
-		switch res {
-			case "Okay": {}
-			case "Buy Now": {
-				open_link("https://skytrias.itch.io/todool")
-			}
-		}
 	} else {
 		force_dialog := du_bool(du)
 		
@@ -1400,28 +1399,31 @@ todool_load :: proc(du: u32) {
 		return
 	}
 
+	app.save_string = string(output)
+
 	// ask for save path after choosing the next "open" location
 	// check for canceling loading
-	if todool_check_for_saving(app.window_main) {
-		return
-	}
+	app_save_maybe(
+		app.window_main,
+		proc() {
+			last_save_set(app.save_string)
+			file_path := strings.to_string(app.last_save_location)
+			file_data, ok := os.read_entire_file(file_path)
+			defer delete(file_data)
 
-	last_save_set(string(output))
-	file_path := strings.to_string(app.last_save_location)
-	file_data, ok := os.read_entire_file(file_path)
-	defer delete(file_data)
+			if !ok {
+				log.infof("LOAD: File not found %s\n", file_path)
+				return
+			}
 
-	if !ok {
-		log.infof("LOAD: File not found %s\n", file_path)
-		return
-	}
+			err := load_all(file_data)
+			if err != nil {
+				log.info("LOAD: FAILED =", err)
+			}
 
-	err := load_all(file_data)
-	if err != nil {
-		log.info("LOAD: FAILED =", err)
-	}
-
-	window_repaint(app.window_main)
+			window_repaint(app.window_main)
+		},
+	) 
 }
 
 todool_toggle_bookmark :: proc(du: u32) {
@@ -1693,47 +1695,98 @@ todool_tasks_to_lowercase :: proc(du: u32) {
 }
 
 todool_new_file :: proc(du: u32) {
-  if !todool_check_for_saving(app.window_main) {
-	  tasks_load_reset()
-	  last_save_set("")
-  }
+	app_save_maybe(
+		app.window_main, 
+		proc() {
+			tasks_load_reset()
+			last_save_set("")
+		},
+	)
 }
 
-todool_check_for_saving :: proc(window: ^Window) -> (canceled: bool) {
+// do a callback with optional save dialog
+app_save_maybe :: proc(
+	window: ^Window, 
+	callback: proc(),
+) {
 	// ignore empty file saving
 	if app_filter_empty() {
 		return
+	}
+
+	handled: bool
+
+	when !DEMO_MODE {
+		if options_autosave() {
+			todool_save(COMBO_FALSE)
+		} else if app.dirty != app.dirty_saved {
+			app.save_callback = callback
+
+			dialog := dialog_spawn(
+				window, 
+				proc(dialog: ^Dialog, result: string) {
+					if dialog.result == .Default {
+						todool_save(COMBO_FALSE)
+					} 
+
+					if dialog.result != .Cancel {
+						app.save_callback()
+					}
+				},
+				300,
+				"Save progress?\n%l\n%B%b%C",
+				"Yes",
+				"No",
+				"Cancel",
+			)
+
+			handled = true
+		}
+	}
+
+	if !handled {
+		callback()
+	}
+}
+
+// stop closing or close all windows / optional dialog 
+app_save_close :: proc() -> (handled: bool) {
+	// ignore empty file saving
+	if app_filter_empty() {
+		return 
 	}
 
 	when !DEMO_MODE {
 		if options_autosave() {
 			todool_save(COMBO_FALSE)
 		} else if app.dirty != app.dirty_saved {
-			// res := dialog_spawn(
-			// 	window, 
-			// 	300,
-			// 	nil,
-			// 	"Save progress?\n%l\n%B%b%C",
-			// 	"Yes",
-			// 	"No",
-			// 	"Cancel",
-			// )
-			
-			// switch res {
-			// 	case "Yes": {
-			// 		todool_save(COMBO_FALSE)
-			// 	}
+			dialog := dialog_spawn(
+				app.window_main, 
+				proc(dialog: ^Dialog, result: string) {
+					if dialog.result == .Default {
+						todool_save(COMBO_FALSE)
+						window_try_quit(app.window_main, true)
+					} else if dialog.result != .Cancel {
+						window_try_quit(app.window_main, true)
+					}
+				},
+				300,
+				"Save progress?\n%l\n%B%b%C",
+				"Yes",
+				"No",
+				"Cancel",
+			)
 
-			// 	case "Cancel": {
-			// 		canceled = true
-			// 	}
-
-			// 	case "No": {}
-			// }
+			handled = true
 		}
 	}
 
-	return
+	if !handled {
+		// on non handle just destroy all windows
+		gs_destroy_all_windows()
+	}
+
+	return handled
 }
 
 todool_select_children :: proc(du: u32) {

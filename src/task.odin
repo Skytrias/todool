@@ -124,6 +124,13 @@ App :: struct {
 	rendered_glyphs: [dynamic]Rendered_Glyph,
 	rendered_glyphs_start: int,
 	wrapped_lines: [dynamic]string,
+
+	// pattern loading options
+	pattern_load_pattern: strings.Builder,
+
+	// saving state
+	save_callback: proc(),
+	save_string: string,
 }
 app: ^App
 
@@ -174,6 +181,9 @@ app_init :: proc() -> (res: ^App) {
 	res.rendered_glyphs = make([dynamic]Rendered_Glyph, 0, 1028 * 2)
 	res.wrapped_lines = make([dynamic]string, 0, 1028)
 
+	strings.builder_init(&res.pattern_load_pattern, 0, 128)
+	strings.write_string(&res.pattern_load_pattern, "// TODO(.+)")
+
 	return
 }
 
@@ -204,6 +214,8 @@ app_destroy :: proc(a: ^App) {
 	copy_state_destroy(a.copy_state)
 
 	task_pool_destroy(&a.pool)
+
+	delete(a.pattern_load_pattern.buf)
 
 	free(a)
 }
@@ -2847,11 +2859,14 @@ mode_panel_context_menu_spawn :: proc() {
 	}
 	
 	button_init(p, {}, "Load Tutorial").invoke = proc(button: ^Button, data: rawptr) {
-	  if !todool_check_for_saving(app.window_main) {
-		  tasks_load_reset()
-		  last_save_set("")
-		  tasks_load_tutorial()
-	  }
+		app_save_maybe(
+			app.window_main, 
+			proc() {
+				tasks_load_reset()
+				last_save_set("")
+			  tasks_load_tutorial()
+			}, 
+		)
 
 		menu_close(app.mmpp.window)
 	}
@@ -2954,7 +2969,7 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			strings.builder_reset(&builder)
 			non_normal := len(task.filter_children) - task.state_count[.Normal]
 			if use_percentage {
-				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(len(task.filter_children)) * 100)
+				fmt.sbprintf(&builder, "k.0f%%", f32(non_normal) / f32(len(task.filter_children)) * 100)
 			} else {
 				fmt.sbprintf(&builder, "%d / %d", non_normal, len(task.filter_children))
 			}

@@ -238,6 +238,8 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			if element.window.shift && di == 0 {
 				box.tail = old_tail
 			}
+
+			return 1
 		}
 
 		case .Mouse_Drag: {

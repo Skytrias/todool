@@ -50,6 +50,19 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // 	task_pool_push_remove(&pool, 0); fmt.eprintln(len(pool.removed_list))
 // }
 
+app_dialog_quit :: proc(dialog: ^Dialog, result: string) {
+	#partial switch dialog.result {
+		case .Default: {
+			todool_save(COMBO_FALSE)
+			window_try_quit(app.window_main, true)
+		}
+		
+		case .None: {
+			window_try_quit(app.window_main, true)
+		}
+	}
+}
+
 main :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)
@@ -57,7 +70,7 @@ main :: proc() {
 
 	gs_init()
 	context.logger = gs.logger
-	context.allocator = gs_allocator()	
+	context.allocator = gs_allocator()
 
 	theme_presets_init()
 	app = app_init()
@@ -377,108 +390,98 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Window_Close: {
-			handled := int(todool_check_for_saving(app.window_main))
-	
-			// on non handle just destroy all windows
-			if handled == 0 {
-				gs_destroy_all_windows()
-			}
-
-			return handled
+			return int(app_save_close())
 		}
 
 		case .Dropped_Files: {
-			manager := mode_panel_manager_begin()
-			had_imports := false
-
-			if app.task_head == -1 {
+			if app_filter_empty() {
 				return 0
 			}
 
-			task := app_task_head()
-			task_insert_offset := task.filter_index + 1
-			task_indentation := task.indentation
-
-			pattern_dialog: bool
-			pattern_load_canceled: bool
-
-			spall.scoped("Load Dropped Files")
+			// check the content to load
+			load_images: bool
 			index: int
 			old_indice: int
 			for file_path in window_dropped_iter(window, &index, &old_indice) {
 				// image dropping
 				if strings.has_suffix(file_path, ".png") {
-					if app.task_head != -1 {
-						handle := image_load_push(file_path)
-						
-						if handle != nil {
-							// find task by mouse intersection
-							task := app_task_head()
-							x, y := global_mouse_position()
-							window_x, window_y := window_get_position(window)
-							x -= window_x
-							y -= window_y
-
-							for index in app.pool.filter {
-								t := app_task_list(index)
-
-								if rect_contains(t.bounds, x, y) {
-									task = t
-									break
-								}
-							}
-
-							task_set_img(task, handle)
-						}
-					}
-				} else {
-					if !pattern_dialog {
-						// res := dialog_spawn(
-						// 	window,
-						// 	300,
-						// 	nil,
-						// 	"Code Import: Lua Pattern\n%l\n%f\n%t\n%f\n%C%B",
-						// 	strings.to_string(window.dialog_text_box_result),
-						// 	"Cancel",
-						// 	"Import",
-						// )
-
-						// switch res {
-						// 	case "Cancel": {
-						// 		pattern_load_canceled = true
-						// 	}
-
-						// 	case "Import": {}
-						// }
-
-						pattern_dialog = true
-					}
-
-					// only if non canceled
-					if !pattern_load_canceled {
-						// // TODO
-						// // get text box result
-						// pattern := strings.to_string(window.dialog_text_box_result)
-						// if len(pattern) == 0 {
-						// 	continue
-						// }
-
-						// // import from code
-						// content, ok := os.read_entire_file(file_path)
-						// defer delete(content)
-
-						// if ok {
-						// 	spall.fscoped("%s", file_path)
-						// 	had_imports |= pattern_load_content_simple(manager, string(content), pattern, task_indentation, &task_insert_offset)
-						// }
-					}
+					load_images = true
+					break
 				}
 			}
 
-			if had_imports {
-				task_head_tail_push(manager)
-				undo_group_end(manager)
+			// load images only
+			if load_images {
+				index = 0
+				old_indice = 0
+				for file_path in window_dropped_iter(window, &index, &old_indice) {
+					handle := image_load_push(file_path)
+					
+					if handle != nil {
+						// find task by mouse intersection
+						task := app_task_head()
+						x, y := global_mouse_position()
+						window_x, window_y := window_get_position(window)
+						x -= window_x
+						y -= window_y
+
+						for index in app.pool.filter {
+							t := app_task_list(index)
+
+							if rect_contains(t.bounds, x, y) {
+								task = t
+								break
+							}
+						}
+
+						task_set_img(task, handle)
+					}
+				}
+			} else {
+				// spawn dialog with pattern question
+				dialog_spawn(
+					window,
+					proc(dialog: ^Dialog, result: string) {
+						// on success load with result string
+						if dialog.result == .Default && result != "" {
+							// save last result
+							strings.builder_reset(&app.pattern_load_pattern)
+							strings.write_string(&app.pattern_load_pattern, result)
+
+							task := app_task_head()
+							task_insert_offset := task.filter_index + 1
+							task_indentation := task.indentation
+							had_imports: bool
+							index: int
+							old_indice: int
+							manager := mode_panel_manager_begin()
+
+							// read all files
+							for file_path in window_dropped_iter(app.window_main, &index, &old_indice) {
+								// import from code
+								content, ok := os.read_entire_file(file_path)
+								defer delete(content)
+
+								if ok {
+									spall.fscoped("%s", file_path)
+									had_imports |= pattern_load_content_simple(manager, string(content), result, task_indentation, &task_insert_offset)
+								}
+							}
+				
+							if had_imports {
+								task_head_tail_push(manager)
+								undo_group_end(manager)
+							}
+						}
+					},
+					300,
+					"Code Import: Lua Pattern\n%l\n%f\n%t\n%f\n%C%B",
+					strings.to_string(app.pattern_load_pattern),
+					"Cancel",
+					"Import",
+				)
 			}
+
 
 			window_repaint(app.window_main)
 		}
