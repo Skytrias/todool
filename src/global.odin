@@ -825,7 +825,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 					}
 				}
 
-				if !handled && !window.ctrl && !window.alt {
+				if !handled && !window.ctrl && !window.alt && !window.menu_filter {
 					match := combo == "tab" || combo == "shift tab"
 					backwards := window.shift
 
@@ -986,18 +986,22 @@ window_hovered_check :: proc(window: ^Window) -> bool {
 	}
 
 	if (.Hide in window.hovered_panel.flags) {
-		if e.hover_info != "" && window.pressed_last != e {
+		hover_info := element_hover_info(e)
+		
+		if hover_info != "" && window.pressed_last != e {
 			diff := time.tick_since(window.hovered_start)
 
 			if diff > HOVER_TIME {
-				window_hovered_panel_spawn(window, e, e.hover_info)
+				window_hovered_panel_spawn(window, e, hover_info)
 				window_repaint(window)
 				return true
 			}
 		}
 	} else {
+		hover_info := element_hover_info(e)
+		
 		// hide away again on non info
-		if e.hover_info == "" {
+		if hover_info == "" {
 			element_hide(window.hovered_panel, true)
 			window_repaint(window)
 			return true

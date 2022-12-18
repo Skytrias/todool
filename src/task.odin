@@ -1456,6 +1456,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					diff_y := element.window.cursor_y - (task.bounds.t + rect_height_halfed(task.bounds))
 					todool_insert_sibling(diff_y < 0 ? COMBO_SHIFT : COMBO_EMPTY)
 					cam.check_next_frame = true
+					return 1
 				}
 			}
 		}
@@ -1591,6 +1592,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Left_Down: {
 			task_or_box_left_down(task, di, true)
+			return 1
 		}
 
 		case .Mouse_Drag: {
@@ -2036,6 +2038,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			} else {
 				task_or_box_left_down(task, di, false)
 			}
+			
+			return 1
 		}
 
 		case .Animate: {

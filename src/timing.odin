@@ -253,6 +253,7 @@ time_date_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 			if di > 0 {
 				menu_date_spawn(&td.stamp, td.element.bounds.r, td.element.bounds.t)
+				return 1
 			}
 		}
 

@@ -18,10 +18,14 @@ Keymap_Editor :: struct {
 	issue_update: ^Static_Grid,
 	stealer: ^KE_Stealer,
 
-	menu_combo: ^Combo_Node, // for menu setting
-	menu_sub: ^Panel,
-	menu_line: ^Static_Line,
-	menu_box: ^Text_Box,
+	menu: struct {
+		combo: ^Combo_Node, // for menu setting
+		sub: ^Panel,
+		line: ^Static_Line,
+		box: ^Text_Box,
+		keymap: ^Keymap,
+	},
+
 	um: Undo_Manager,
 }
 ke: Keymap_Editor
@@ -45,16 +49,15 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 				}
 
 				case "escape": {
-					if ke.menu_box != nil {
-						if ke.menu_box.ss.length == 0 {
+					if ke.menu.box != nil {
+						if ke.menu.box.ss.length == 0 {
 							menu_close(window)
-							fmt.eprintln("SHOUld be destroyed")
 						} else {
-							box_head_tail_push(&ke.um, ke.menu_box)
-							box_set_caret_dp(ke.menu_box, BOX_SELECT_ALL, nil)
-							box_replace(&ke.um, ke.menu_box, ke.menu_box, "", -1, true, false)
+							box_head_tail_push(&ke.um, ke.menu.box)
+							box_set_caret_dp(ke.menu.box, BOX_SELECT_ALL, nil)
+							box_replace(&ke.um, ke.menu.box, ke.menu.box, "", -1, true, false)
 							undo_group_end(&ke.um)
-							element_focus(window, ke.menu_box)
+							element_focus(window, ke.menu.box)
 						}
 
 						window_repaint(window)
@@ -63,35 +66,37 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 				}
 
 				case "return": {
-					if ke.menu_box != nil {
+					if ke.menu.box != nil && ke.menu.sub != nil {
 						found: ^Element
+						children := panel_children(ke.menu.sub)
 
-						for child in ke.menu_sub.children {
+						// NOTE force not to use the scrollbar...
+						for child in children {
 							if .Hide not_in child.flags {
 								found = child
 								break
 							}
 						}
 
-						fmt.eprintln("found this", found != nil)
 						if found != nil {
 							cmd := cast(^KE_Command) found
 							ke_command_build(cmd)
+							return 1
 						}
 					}
 				}
 			}
 
-			if ke.menu_box != nil {
-				element_focus(window, ke.menu_box)
-				element_message(ke.menu_box, msg, di, dp)
+			if ke.menu.box != nil {
+				element_focus(window, ke.menu.box)
+				element_message(ke.menu.box, msg, di, dp)
 			}
 		}
 
 		case .Unicode_Insertion: {
-			if ke.menu_box != nil {
-				element_focus(window, ke.menu_box)
-				element_message(ke.menu_box, msg, di, dp)
+			if ke.menu.box != nil {
+				element_focus(window, ke.menu.box)
+				element_message(ke.menu.box, msg, di, dp)
 			}
 		}
 
@@ -114,10 +119,7 @@ keymap_editor_spawn :: proc() {
 	ke.window.name = "KEYMAP"
 	ke.window.element.message_user = keymap_editor_window_message
 	ke.window.on_menu_close = proc(window: ^Window) {
-		ke.menu_box = nil
-		ke.menu_line = nil
-		ke.menu_combo = nil
-		ke.menu_sub = nil
+		ke.menu = {}
 	}
 	ke.window.update = proc(window: ^Window) {
 		// if grid, ok := ke.grid_keep_in_frame.?; ok {
@@ -399,22 +401,22 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				keymap := cast(^Keymap) button.parent.parent.data
 				keymap_editor_menu_command(keymap, button.node)
 			} else {
-				ke.menu_line = cast(^Static_Line) button.parent
+				ke.menu.line = cast(^Static_Line) button.parent
 				combo_name := string(button.node.combo[:button.node.combo_index])
 
 				dialog_spawn(
 					ke.window,
 					proc(dialog: ^Dialog, result: string) {
 						if dialog.result == .Default {
-							keymap := cast(^Keymap) ke.menu_line.parent.data
-							node := &keymap.combos[ke.menu_line.index]
+							keymap := cast(^Keymap) ke.menu.line.parent.data
+							node := &keymap.combos[ke.menu.line.index]
 	
 							mem.copy(&node.combo[0], raw_data(result), len(result))
 							node.combo_index = u8(len(result))
 							keymap_editor_check_conflicts(keymap, node, result)
 						}
 
-						ke.menu_line = nil
+						ke.menu.line = nil
 					},
 					300,
 					"Press a Key Combination\n%x\n%B%C",
@@ -487,7 +489,7 @@ keymap_editor_static_line_message :: proc(element: ^Element, msg: Message, di: i
 				render_hovered_highlight(target, element.bounds)
 			}
 
-			if ke.menu_line == sl {
+			if ke.menu.line == sl {
 				render_rect_outline(target, element.bounds, theme.text_good)
 			}
 		}
@@ -650,8 +652,9 @@ ke_command_init :: proc(
 }
 
 ke_command_build :: proc(cmd: ^KE_Command) {
-	fmt.eprintln("~~", ke.menu_combo == nil)
-	n := ke.menu_combo
+	assert(ke.menu.combo != nil)
+	assert(cmd != nil)
+	n := ke.menu.combo
 
 	index := min(len(n.command), len(cmd.text))
 	mem.copy(&n.command[0], raw_data(cmd.text), index)
@@ -705,6 +708,17 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Get_Cursor: {
 			return int(Cursor.Hand)
 		}
+
+		// case .Hover_Info: {
+		// 	command, ok := ke.menu.keymap.commands[cmd.text]
+		// 	assert(ok)
+		// 	comment, found := keymap_comments[command]
+
+		// 	if found {
+		// 		res := cast(^string) dp
+		// 		res^ = comment 
+		// 	}
+		// }
 	}
 
 	return 0
@@ -726,25 +740,28 @@ keymap_editor_menu_command :: proc(
 	p.background_index = 1
 	p.gap = 5
 	
-	ke.menu_combo = combo
+	ke.menu.combo = combo
 	offset: int
 	is_current: bool
 	c1 := string(combo.command[:combo.command_index])
 
-	ke.menu_box = text_box_init(p, { .HF })
-	ke.menu_box.um = &ke.um
-	ke.menu_box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	ke.menu.keymap = keymap
+	ke.menu.box = text_box_init(p, { .HF })
+	ke.menu.box.um = &ke.um
+	ke.menu.box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 		box := cast(^Text_Box) element
 		
 		if msg == .Value_Changed {
 			pattern := ss_string(&box.ss)
-			children := ke.menu_sub.children
+			children := panel_children(ke.menu.sub)
 			
 			if pattern == "" {
+				// unhide all children
 				for child in children {
 					element_hide(child, false)
 				}
 			} else {
+				// hide all children that arent fuzzd
 				for child in children {
 					if child.message_class == ke_command_message {
 						cmd := cast(^KE_Command) child
@@ -761,14 +778,14 @@ keymap_editor_menu_command :: proc(
 		return 0
 	}
 	undo_manager_reset(&ke.um)
-	element_focus(ke.window, ke.menu_box)
+	element_focus(ke.window, ke.menu.box)
 
-	ke.menu_sub = panel_init(p, { .HF, .VF, .Panel_Expand, .Panel_Scroll_Vertical, .Panel_Default_Background }, 5)
-	ke.menu_sub.background_index = 2
+	ke.menu.sub = panel_init(p, { .HF, .VF, .Panel_Expand, .Panel_Scroll_Vertical, .Panel_Default_Background }, 5)
+	ke.menu.sub.background_index = 2
 
 	for key, value in keymap.commands {
 		is_current = key == c1
-		ke_command_init(ke.menu_sub, offset, key, is_current)
+		ke_command_init(ke.menu.sub, offset, key, is_current)
 		offset += 1
 	}
 
@@ -783,13 +800,13 @@ keymap_editor_menu_combo :: proc(line: ^Static_Line) {
 	p.shadow = true
 	p.flags |= { .Panel_Expand }
 
-	ke.menu_line = line
+	ke.menu.line = line
 
 	mbc(p, "Add", proc() {
-		grid := cast(^Static_Grid) ke.menu_line.parent
+		grid := cast(^Static_Grid) ke.menu.line.parent
 		keymap := cast(^Keymap) grid.data
 		
-		index := ke.menu_line.index + 1
+		index := ke.menu.line.index + 1
 		inject_at(&keymap.combos, index, Combo_Node {})
 
 		keymap_editor_line_append(grid, nil, 0)
@@ -797,7 +814,7 @@ keymap_editor_menu_combo :: proc(line: ^Static_Line) {
 		menu_close(ke.window)
 	}, .Check)
 	mbc(p, "Remove", proc() {
-		keymap_editor_remove_call(ke.menu_line)
+		keymap_editor_remove_call(ke.menu.line)
 		menu_close(ke.window)
 	}, .Close)
 }

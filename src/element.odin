@@ -84,6 +84,7 @@ Message :: enum {
 
 	Find_By_Point_Recursive, // dp = Find_By_Point struct
 	Value_Changed, // whenever an element changes internal value
+	Hover_Info,
 
 	// element specific
 	Box_Set_Caret, // di = const start / end, dp = ^int index to set
@@ -274,6 +275,13 @@ animate_to :: proc(
 		animate^ = false
 	}
 
+	return
+}
+
+// get hover info or optional message based info
+element_hover_info :: proc(element: ^Element) -> (res: string) {
+	res = element.hover_info
+	element_message(element, .Hover_Info, 0, &res)
 	return
 }
 
