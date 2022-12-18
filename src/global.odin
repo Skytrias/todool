@@ -167,6 +167,9 @@ Window :: struct {
 	// menu
 	menu: ^Panel_Floaty,
 	menu_info: int,
+	menu_filter: bool, // accept unicode insertion for menus, writes into menu_builder
+	// menu_builder: strings.Builder,
+	// menu_box: ^Text_Box,
 
 	// proc that gets called before layout & draw
 	update: proc(window: ^Window),
@@ -461,6 +464,7 @@ window_init :: proc(
 	res.hovered = &res.element
 	res.combo_builder = strings.builder_make(0, 32)
 	res.title_builder = strings.builder_make(0, 64)
+	// res.menu_builder = strings.builder_make(0, 64)
 	
 	res.target = render_target_init(window)
 	res.update_next = true
@@ -813,7 +817,7 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 				combo := (cast(^string) dp)^
 
 				if window.focused != nil && combo == "escape" {
-					if window.dialog == nil {
+					if window.dialog == nil && window.menu == nil {
 						element_focus(window, nil)
 						handled = true
 						window.update_next = true
@@ -915,12 +919,11 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			}
 
 			case .Unicode_Insertion: {
-				if menu_close(window) {
+				if !window.menu_filter && menu_close(window) {
 					return false
 				}
 
-				handled := window_send_msg_to_focused_or_parents(window, .Unicode_Insertion, di, dp)
-				res = handled
+				return window_send_msg_to_focused_or_parents(window, .Unicode_Insertion, di, dp)
 			}
 
 			case .Mouse_Scroll_X: {
@@ -1073,6 +1076,7 @@ window_deallocate :: proc(window: ^Window) {
 	render_target_destroy(window.target)
 	delete(window.combo_builder.buf)
 	delete(window.title_builder.buf)
+	// delete(window.menu_builder.buf)
 	sdl.DestroyWindow(window.w)
 	log.info("WINDOW: Deallocate END")
 }
@@ -1205,7 +1209,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				return
 			}
 
-			if menu_close(window) {
+			if !window.menu_filter && menu_close(window) {
 				return
 			}
 
@@ -2085,6 +2089,7 @@ menu_close :: proc(window: ^Window) -> bool {
 	element_destroy(window.menu)
 	window_repaint(window)
 	window.menu = nil
+	window.menu_filter = false
 	window.menu_info = 0
 	return true
 }
@@ -2124,8 +2129,12 @@ menu_init :: proc(
 	window: ^Window, 
 	flags: Element_Flags, 
 	menu_info: int = -1,
+	menu_filter := false,
 ) -> (menu: ^Panel_Floaty) {
+	// strings.builder_reset(&window.menu_builder)
 	window.menu_info = menu_info
+	window.menu_filter = menu_filter
+	
 	menu = panel_floaty_init(&window.element, flags)
 	menu.x = window.cursor_x
 	menu.y = window.cursor_y

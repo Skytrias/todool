@@ -21,7 +21,6 @@ import "../fontstash"
 import "../spall"
 import "../cutf8"
 import "../btrie"
-import "../fuzz"
 
 TRACK_MEMORY :: false
 TODOOL_RELEASE :: false

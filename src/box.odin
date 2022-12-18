@@ -275,7 +275,6 @@ text_box_init :: proc(
 	res = element_init(Text_Box, parent, flags, text_box_message, allocator, index_at)
 	ss_set_string(&res.box.ss, text)
 	box_move_end_simple(&res.box)
-	// log.info("box init", res.head, res.tail, len(res.builder.buf))
 	return	
 }
 
@@ -1406,11 +1405,11 @@ undo_box_head_tail :: proc(manager: ^Undo_Manager, item: rawptr) {
 	undo_push(manager, undo_box_head_tail, item, size_of(Undo_Item_Box_Head_Tail))
 }
 
-box_head_tail_push :: proc(manager: ^Undo_Manager, task: ^Task) {
+box_head_tail_push :: proc(manager: ^Undo_Manager, box: ^Box) {
 	item := Undo_Item_Box_Head_Tail {
-		task.box,
-		task.box.head,
-		task.box.tail,
+		box,
+		box.head,
+		box.tail,
 	}
 	undo_push(manager, undo_box_head_tail, &item, size_of(Undo_Item_Box_Head_Tail))
 }

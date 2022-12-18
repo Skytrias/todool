@@ -11,9 +11,9 @@ Dialog_Callback :: proc(^Dialog, string)
 
 Dialog :: struct {
 	using element: Element,
-	um: Undo_Manager,
 	width: f32,
 	shadow: f32,
+	um: Undo_Manager,
 
 	// resulting state
 	result: Dialog_Result,
@@ -140,15 +140,11 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			combo := (cast(^string) dp)^
 
 			if combo == "escape" && dialog.button_cancel != nil {
-				sdl.FlushEvent(.KEYDOWN)
-				// sdl.FlushEvents(.FIRSTEVENT, .LASTEVENT)
 				dialog_close(dialog.window, .Cancel)
 				return 1
 			} 
 
 			if combo == "return" && dialog.button_default != nil {
-				sdl.FlushEvent(.KEYDOWN)
-				// sdl.FlushEvents(.FIRSTEVENT, .LASTEVENT)
 				dialog_close(dialog.window, .Default)
 				return 1
 			}
@@ -216,7 +212,8 @@ dialog_build_elements :: proc(dialog: ^Dialog, format: string, args: ..string) {
 					text := args[arg_index]
 					arg_index += 1
 					box := text_box_init(row, { .HF }, text)
-					box.um = &dialog.um
+					
+					// box.um = &dialog.um
 					element_message(box, .Value_Changed)
 					dialog.text_box = box
 

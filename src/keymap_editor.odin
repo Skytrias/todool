@@ -5,6 +5,7 @@ import "core:strings"
 import "core:fmt"
 import "core:mem"
 import dll "core:container/intrusive/list"
+import "../fuzz"
 
 Keymap_Editor :: struct {
 	window: ^Window,
@@ -16,8 +17,12 @@ Keymap_Editor :: struct {
 
 	// interactables
 	issue_update: ^Static_Grid,
-	menu_line: ^Static_Line,
 	stealer: ^KE_Stealer,
+
+	menu_sub: ^Panel,
+	menu_line: ^Static_Line,
+	menu_box: ^Text_Box,
+	um: Undo_Manager,
 }
 ke: Keymap_Editor
 
@@ -25,10 +30,6 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 	window := cast(^Window) element
 
 	#partial switch msg {
-		case .Destroy: {
-			ke = {}
-		}
-
 		case .Key_Combination: {
 			combo := (cast(^string) dp)^
 
@@ -40,8 +41,61 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 					state := grid.hide_cells
 					state^ = !state^
 					window_repaint(window)
+					return 1
+				}
+
+				case "escape": {
+					if ke.menu_box != nil {
+						if ke.menu_box.ss.length == 0 {
+							menu_close(window)
+						} else {
+							box_head_tail_push(&ke.um, ke.menu_box)
+							box_set_caret_dp(ke.menu_box, BOX_SELECT_ALL, nil)
+							box_replace(&ke.um, ke.menu_box, ke.menu_box, "", -1, true, false)
+							undo_group_end(&ke.um)
+							element_focus(window, ke.menu_box)
+						}
+
+						window_repaint(window)
+						return 1
+					}
+				}
+
+				case "return": {
+					if ke.menu_box != nil {
+						found: ^Element
+
+						for child in ke.menu_sub.children {
+							if .Hide not_in child.flags {
+								found = child
+								break
+							}
+						}
+
+						if found != nil {
+							cmd := cast(^KE_Command) found
+							ke_command_build(cmd)
+						}
+					}
 				}
 			}
+
+			if ke.menu_box != nil {
+				element_focus(window, ke.menu_box)
+				element_message(ke.menu_box, msg, di, dp)
+			}
+		}
+
+		case .Unicode_Insertion: {
+			if ke.menu_box != nil {
+				element_focus(window, ke.menu_box)
+				element_message(ke.menu_box, msg, di, dp)
+			}
+		}
+
+		case .Destroy: {
+			undo_manager_destroy(&ke.um)
+			ke = {}
 		}
 	}
 
@@ -58,6 +112,7 @@ keymap_editor_spawn :: proc() {
 	ke.window.name = "KEYMAP"
 	ke.window.element.message_user = keymap_editor_window_message
 	ke.window.on_menu_close = proc(window: ^Window) {
+		ke.menu_box = nil
 		ke.menu_line = nil
 	}
 	ke.window.update = proc(window: ^Window) {
@@ -99,6 +154,11 @@ keymap_editor_spawn :: proc() {
 	ke.grids[1] = keymap_editor_push_keymap(&app.window_main.keymap_custom, "Todool", false)
 	ke.grids[2] = keymap_editor_push_keymap(&app.keymap_vim_normal, "Vim Normal", true)
 	ke.grids[3] = keymap_editor_push_keymap(&app.keymap_vim_insert, "Vim Insert", true)
+
+	undo_manager_init(&ke.um, mem.Kilobyte * 2)
+
+	keymap_push_box_commands(&ke.window.keymap_box)
+	keymap_push_box_combos(&ke.window.keymap_box)
 }
 
 KE_Button :: struct {
@@ -585,6 +645,16 @@ ke_command_init :: proc(
 	return
 }
 
+ke_command_build :: proc(cmd: ^KE_Command) {
+	n := ke.combo_edit
+
+	index := min(len(n.command), len(cmd.text))
+	mem.copy(&n.command[0], raw_data(cmd.text), index)
+	n.command_index = u8(index)
+
+	menu_close(cmd.window)
+}
+
 ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	cmd := cast(^KE_Command) element
 
@@ -620,13 +690,7 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		// set combo command name
 		case .Clicked: {
-			n := ke.combo_edit
-
-			index := min(len(n.command), len(cmd.text))
-			mem.copy(&n.command[0], raw_data(cmd.text), index)
-			n.command_index = u8(index)
-			
-			menu_close(element.window)
+			ke_command_build(cmd)
 		}
 
 		case .Get_Height: {
@@ -647,23 +711,59 @@ keymap_editor_menu_command :: proc(
 ) {
 	menu_close(ke.window)
 
-	menu := menu_init(ke.window, { .Panel_Expand, .Panel_Scroll_Vertical })
+	menu := menu_init(ke.window, { .Panel_Expand }, -1, true)
 	defer menu_show_position(menu)
 	menu.x = ke.window.cursor_x
 	menu.y = ke.window.cursor_y
 	menu.width = 250
 	menu.height = 300
 	p := menu.panel
-	p.background_index = 2
+	p.background_index = 1
+	p.gap = 5
 	
 	ke.combo_edit = combo
 	offset: int
 	is_current: bool
 	c1 := string(combo.command[:combo.command_index])
 
+	ke.menu_box = text_box_init(p, { .HF })
+	ke.menu_box.um = &ke.um
+	ke.menu_box.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+		box := cast(^Text_Box) element
+		
+		if msg == .Value_Changed {
+			pattern := ss_string(&box.ss)
+			children := ke.menu_sub.children
+			
+			if pattern == "" {
+				for child in children {
+					element_hide(child, false)
+				}
+			} else {
+				for child in children {
+					if child.message_class == ke_command_message {
+						cmd := cast(^KE_Command) child
+						res, ok := fuzz.match(cmd.text, pattern)
+						hide := res.score > 10 && ok
+						element_hide(cmd, !hide)
+					}
+				}
+			}
+
+			element_repaint(element)
+		}
+
+		return 0
+	}
+	undo_manager_reset(&ke.um)
+	element_focus(ke.window, ke.menu_box)
+
+	ke.menu_sub = panel_init(p, { .HF, .VF, .Panel_Expand, .Panel_Scroll_Vertical, .Panel_Default_Background }, 5)
+	ke.menu_sub.background_index = 2
+
 	for key, value in keymap.commands {
 		is_current = key == c1
-		ke_command_init(p, offset, key, is_current)
+		ke_command_init(ke.menu_sub, offset, key, is_current)
 		offset += 1
 	}
 
