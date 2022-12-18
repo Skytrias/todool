@@ -924,13 +924,17 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 			}
 
 			case .Mouse_Scroll_X: {
-				di := di * options_scroll_x()
-				element_send_msg_until_received(window.hovered, .Mouse_Scroll_X, di, dp)
+				if element_is_from_menu(window, hovered) || !menu_close(window) {
+					di := di * options_scroll_x()
+					element_send_msg_until_received(window.hovered, .Mouse_Scroll_X, di, dp)
+				}
 			}
 
 			case .Mouse_Scroll_Y: {
-				di := di * options_scroll_y()
-				element_send_msg_until_received(window.hovered, .Mouse_Scroll_Y, di, dp)
+				if element_is_from_menu(window, hovered) || !menu_close(window) {
+					di := di * options_scroll_y()
+					element_send_msg_until_received(window.hovered, .Mouse_Scroll_Y, di, dp)
+				}
 			}
 		}
 
@@ -1165,6 +1169,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 					window.heightf = f32(window.height)	
 					window.rect = rect_wh(0, 0, window.width, window.height)
 					window.update_next = true
+					menu_close(window)
 
 					if window.on_resize != nil {
 						window->on_resize()

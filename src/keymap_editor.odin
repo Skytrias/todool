@@ -612,13 +612,13 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			color := cmd.is_current ? theme.text_good : theme.text_default
 			fcs_color(color)
 			render_string_rect(target, bounds, strings.to_string(builder))
-			// fmt.eprintln("DRAW", strings.to_string(builder))
 		}
 
 		case .Update: {
 			element_repaint(element)
 		}
 
+		// set combo command name
 		case .Clicked: {
 			n := ke.combo_edit
 
@@ -663,7 +663,6 @@ keymap_editor_menu_command :: proc(
 
 	for key, value in keymap.commands {
 		is_current = key == c1
-		// button_init(p, {}, key)
 		ke_command_init(p, offset, key, is_current)
 		offset += 1
 	}
