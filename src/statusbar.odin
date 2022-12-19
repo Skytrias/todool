@@ -204,6 +204,22 @@ statusbar_update :: proc(using statusbar: ^Statusbar) {
 		b := &label_task_count.builder
 		strings.builder_reset(b)
 
+		when POOL_DEBUG {
+			strings.write_string(b, "T! ")
+			strings.write_int(b, len(app.pool.list))
+			strings.write_string(b, ", ")
+
+			if len(app.pool.free_list) != 0 {
+				strings.write_string(b, "A! ")
+				strings.write_int(b, len(app.pool.list) - len(app.pool.free_list))
+				strings.write_string(b, ", ")
+
+				strings.write_string(b, "F! ")
+				strings.write_int(b, len(app.pool.free_list))
+				strings.write_string(b, ", ")
+			}
+		}
+
 		strings.write_string(b, "Total ")
 		strings.write_int(b, total)
 		strings.write_string(b, ", ")

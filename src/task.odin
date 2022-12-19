@@ -810,7 +810,6 @@ task_init :: proc(
 	allocator := context.allocator
 	element := cast(^Element) res
 	element.message_class = task_message
-	element.allocator = allocator
 
 	// just assign parent already
 	parent := app.mmpp
@@ -2086,6 +2085,10 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				element_message(child, msg, di, dp)
 			}
 		}
+
+		case .Destroy: {
+			delete(task.filter_children)
+		}
 	}
 
 	return 0
@@ -2390,6 +2393,7 @@ tasks_load_reset :: proc() {
 }
 
 tasks_load_tutorial :: proc() {
+	// TODO add these to spell checker
 	@static load_indent := 0
 
 	@(deferred_none=pop)
@@ -3001,6 +3005,12 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 		}
 
 		strings.builder_reset(b)
+
+		when POOL_DEBUG {
+			strings.write_int(b, list_index)
+			strings.write_string(b, " | ")
+		}
+
 		strings.write_int(b, linear_index + line_offset)
 		text := strings.to_string(app.builder_line_number)
 		width := string_width(text) + TEXT_MARGIN_HORIZONTAL

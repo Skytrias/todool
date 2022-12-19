@@ -22,6 +22,7 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
+POOL_DEBUG :: true
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
@@ -152,9 +153,7 @@ main :: proc() {
 		}
 	}
 
-	// tasks_load_reset()
 	// tasks_load_tutorial()
-	// tasks_load_default()
 	tasks_load_file()
 
 	// do actual loading later because options might change the path

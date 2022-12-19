@@ -174,20 +174,29 @@ Save_Task_V1 :: struct {
 	text_length: u8,
 }
 
-save_data :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
+save_data :: proc(
+	buffer: ^bytes.Buffer, 
+	removed: []int,
+	valid_length: int,
+) -> (err: Save_Error) {
 	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_DATA, 1) or_return
 	defer block_size^ = u32be(len(buffer.buf) - block_start)
 
 	// write count
-	count := u32be(len(app.pool.list))
+	count := u32be(valid_length)
 	bytes.buffer_write_ptr(buffer, &count, size_of(u32be)) or_return
 
 	// write all lines
 	t: Save_Task_V1
-	for task, index in app.pool.list {
-		if task.removed {
+	removed_index: int
+	for list_index in 0..<valid_length {
+		task := &app.pool.list[list_index]
+
+		// dont add any removed line
+		if removed_index < len(removed) && removed[removed_index] == list_index {
 			// skip removed data
 			bytes.buffer_write_byte(buffer, 1) or_return
+			removed_index += 1
 		} else {
 			bytes.buffer_write_byte(buffer, 0) or_return
 
@@ -232,7 +241,11 @@ save_filter :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 }
 
 // line_index + bit_set of common flags without associated data
-save_flags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
+save_flags :: proc(
+	buffer: ^bytes.Buffer, 
+	removed: []int,
+	valid_length: int,
+) -> (err: Save_Error) {
 	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_FLAGS, 1) or_return
 	defer block_size^ = u32be(len(buffer.buf) - block_start)
 
@@ -243,26 +256,30 @@ save_flags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 		flag_count = cast(^u32be) &buffer.buf[old]
 	}
 
-	for task, list_index in &app.pool.list {
+	removed_index: int
+	for list_index in 0..<valid_length {
+		task := &app.pool.list[list_index]
 		flags: Save_Flags
 
-		if task.removed {
+		if removed_index < len(removed) && removed[removed_index] == list_index {
+			// skip removed data
+			removed_index += 1
 			continue
 		}
 
-		if task_bookmark_is_valid(&task) {
+		if task_bookmark_is_valid(task) {
 			incl(&flags, Save_Flag.Bookmark)
 		}
-		if task_seperator_is_valid(&task) {
+		if task_seperator_is_valid(task) {
 			incl(&flags, Save_Flag.Seperator)
 		}
 		if image_display_has_path(task.image_display) {
 			incl(&flags, Save_Flag.Image_Path)
 		}
-		if task_link_is_valid(&task) {
+		if task_link_is_valid(task) {
 			incl(&flags, Save_Flag.Link_Path)
 		}
-		if task_time_date_is_valid(&task) {
+		if task_time_date_is_valid(task) {
 			incl(&flags, Save_Flag.Timestamp)
 		}
 		if task.filter_folded {
@@ -314,8 +331,57 @@ save_all :: proc(file_path: string) -> (err: Save_Error) {
 	
 	save_tags(&buffer) or_return
 	save_views(&buffer) or_return
-	save_data(&buffer) or_return
-	save_flags(&buffer) or_return
+
+	collect_sorted_removed_list :: proc() -> (removed: []int, valid_length: int) {
+		Empty :: struct {}
+
+		// gather all removed lines in a non duplicate map
+		list := make(map[int]Empty, 256, context.temp_allocator)
+		for task, list_index in app.pool.list {
+			if task.removed {
+				list[list_index] = {}
+
+				// gather even children from tasks that were removed
+				// as they are also removed for saving
+				for child_index in task.filter_children {
+					list[child_index] = {}
+				}
+			}
+		}
+
+		// get the non duplicate indicies sorted
+		removed, _ = slice.map_keys(list, context.temp_allocator)
+		slice.sort(removed[:])
+
+		// find lowest removed node
+		last_removed: bool
+		removed_index := len(removed) - 1
+		valid_length = len(app.pool.list)
+		for list_index := len(app.pool.list) - 1; list_index >= 0; list_index -= 1 {
+			if removed_index >= 0 && removed[removed_index] == list_index {
+				last_removed = true
+				removed_index -= 1
+			} else {
+				if last_removed {
+					valid_length = list_index + 1
+				}
+
+				// stop even if length wasnt set
+				break
+			}
+		}
+		
+		// if valid_length != 0 {
+		// 	t := app.pool.list[valid_length - 1]
+		// 	fmt.eprintln("SEE", t.removed, valid_length)
+		// }
+
+		return
+	}
+	
+	removed, valid_length := collect_sorted_removed_list()	
+	save_data(&buffer, removed, valid_length) or_return
+	save_flags(&buffer, removed, valid_length) or_return
 	save_filter(&buffer) or_return
 
 	ok := gs_write_safely(file_path, buffer.buf[:])

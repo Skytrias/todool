@@ -67,10 +67,10 @@ task_pool_init :: proc() -> (res: Task_Pool) {
 }
 
 task_pool_clear :: proc(pool: ^Task_Pool) {
-	// for task in &pool.list {
-	// 	// element_destroy(&task)
-	// 	element_destroy_and_deallocate(&task)
-	// }
+	for task in &pool.list {
+		// element_destroy(&task)
+		element_destroy_and_deallocate(&task.element)
+	}
 
 	// TODO clear other data
 	clear(&pool.list)
@@ -79,10 +79,10 @@ task_pool_clear :: proc(pool: ^Task_Pool) {
 }
 
 task_pool_destroy :: proc(pool: ^Task_Pool) {
-	// for task in &pool.list {
-	// 	// element_destroy(&task)
-	// 	element_destroy_and_deallocate(&task)
-	// }
+	for task in &pool.list {
+		// element_destroy(&task)
+		element_destroy_and_deallocate(&task.element)
+	}
 
 	// TODO clear other data
 	delete(pool.list)
