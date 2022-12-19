@@ -214,8 +214,8 @@ mode_panel_cam_bounds_check_y :: proc(
 	direction: int
 	if app.task_head != -1 && use_task {
 		task := app_task_head()
-		to_top = task.bounds.t
-		to_bottom = task.bounds.b
+		to_top = task.element.bounds.t
+		to_bottom = task.element.bounds.b
 	}
 
 	goal, direction = cam_bounds_check_y(cam, app.mmpp.bounds, to_top, to_bottom)
@@ -252,14 +252,14 @@ mode_panel_cam_bounds_check_x :: proc(
 
 				// check if one liner
 				if len(t.box.wrapped_lines) == 1 {
-					fcs_element(t)
+					fcs_element(&t.element)
 					fcs_ahv(.Left, .Top)
 					text_width := string_width(ss_string(&t.box.ss))
 
 					// if rect_width(mode_panel.bounds) - cam.margin_x * 2 
 
-					to_left = t.bounds.l
-					to_right = t.bounds.l + text_width
+					to_left = t.element.bounds.l
+					to_right = t.element.bounds.l + text_width
 					// rect := rect_wh(t.bounds.l, t.bounds.t, text_width, text_width + LINE_WIDTH, scaled_size)
 				}
 			}

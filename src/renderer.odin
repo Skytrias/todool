@@ -1153,19 +1153,16 @@ render_string_store :: proc(
 	target: ^Render_Target,
 	x, y: int,
 	text: string,
-	glyphs: ^[]Rendered_Glyph,
 ) -> f32 {
 	group := &target.groups[len(target.groups) - 1]
 	state := fontstash.state_get(&gs.fc)
 	iter := fontstash.text_iter_init(&gs.fc, text, f32(x), f32(y))
 	q: fontstash.Quad
 
-	rendered_glyph_start()
 	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
 		rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 		render_glyph_quad_store(target, group, state, &q, rglyph)
 	}
-	rendered_glyph_gather(glyphs)
 
 	return iter.nextx
 }

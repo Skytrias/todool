@@ -108,7 +108,7 @@ spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 
 		// render the result when not found
 		if !exists {
-			fcs_task(task)
+			fcs_task(&task.element)
 			state := fontstash.wrap_state_init(
 				&gs.fc, 
 				task.box.wrapped_lines, 

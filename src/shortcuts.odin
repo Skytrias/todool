@@ -80,7 +80,7 @@ todool_delete_on_empty :: proc(du: u32) {
 			task_remove_at_index(manager, task)
 		}
 
-		element_repaint(task)
+		element_repaint(&task.element)
 		app.task_head -= 1
 		app.task_tail -= 1
 	}
@@ -140,7 +140,7 @@ todool_indent_jump_low_prev :: proc(du: u32) {
 			}
 			task_head_tail_check_end(shift)
 			element_message(task.box, .Box_Set_Caret, BOX_END)
-			element_repaint(task)
+			element_repaint(&task.element)
 			break
 		}
 	}
@@ -164,7 +164,7 @@ todool_indent_jump_low_next :: proc(du: u32) {
 				app.task_head = task.filter_index
 			}
 			task_head_tail_check_end(shift)
-			element_repaint(task)
+			element_repaint(&task.element)
 			element_message(task.box, .Box_Set_Caret, BOX_END)
 			break
 		}
@@ -1016,7 +1016,7 @@ task_indentation_set_animate :: proc(manager: ^Undo_Manager, task: ^Task, set: i
 
 	task.indentation = set
 	task.indentation_animating = true
-	element_animation_start(task)
+	element_animation_start(&task.element)
 }
 
 undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
@@ -1032,8 +1032,8 @@ task_swap_animation :: proc(list_index: int) {
 	task.top_offset = 0
 	task.top_animation_start = true
 	task.top_animating = true
-	task.top_old = task.bounds.t
-	element_animation_start(task)
+	task.top_old = task.element.bounds.t
+	element_animation_start(&task.element)
 }
 
 // swap with +1 / -1 offset 
@@ -1709,15 +1709,15 @@ app_save_maybe :: proc(
 	window: ^Window, 
 	callback: proc(),
 ) {
-	// ignore empty file saving
-	if app_filter_empty() {
-		return
-	}
-
 	handled: bool
 
 	when !DEMO_MODE {
 		if options_autosave() {
+			// ignore empty file saving
+			if app_filter_empty() {
+				return
+			}
+
 			todool_save(COMBO_FALSE)
 		} else if app.dirty != app.dirty_saved {
 			app.save_callback = callback
@@ -2052,7 +2052,7 @@ vim_visual_move_left :: proc(du: u32) {
 	switch app.mmpp.mode {
 		case .Kanban: {
 			current := app_task_head()
-			b := current.bounds
+			b := current.element.bounds
 			closest_task: ^Task
 			closest_distance := max(f32)
 			middle := b.t + rect_height_halfed(b)
@@ -2064,9 +2064,9 @@ vim_visual_move_left :: proc(du: u32) {
 			// find closest distance
 			for index in app.pool.filter {
 				task := app_task_list(index)
-				if task.bounds.r < b.l {
-					dist_x := task.bounds.r - b.l 
-					dist_y := (task.bounds.t + rect_height_halfed(task.bounds)) - middle
+				if task.element.bounds.r < b.l {
+					dist_x := task.element.bounds.r - b.l 
+					dist_y := (task.element.bounds.t + rect_height_halfed(task.element.bounds)) - middle
 					temp := f32(dist_x * dist_x) + f32(dist_y * dist_y)
 
 					if temp < closest_distance {
@@ -2099,7 +2099,7 @@ vim_visual_move_right :: proc(du: u32) {
 	switch app.mmpp.mode {
 		case .Kanban: {
 			current := app_task_head()
-			b := current.bounds
+			b := current.element.bounds
 			closest_task: ^Task
 			closest_distance := max(f32)
 			middle := b.t + rect_height_halfed(b)
@@ -2111,9 +2111,9 @@ vim_visual_move_right :: proc(du: u32) {
 			// find closest distance
 			for index in app.pool.filter {
 				task := app_task_list(index)
-				if b.r < task.bounds.r {
-					dist_x := task.bounds.l - b.r 
-					dist_y := (task.bounds.t + rect_height_halfed(task.bounds)) - middle
+				if b.r < task.element.bounds.r {
+					dist_x := task.element.bounds.l - b.r 
+					dist_y := (task.element.bounds.t + rect_height_halfed(task.element.bounds)) - middle
 					temp := f32(dist_x * dist_x) + f32(dist_y * dist_y)
 
 					if temp < closest_distance {

@@ -219,7 +219,7 @@ main_update :: proc(window: ^Window) {
 				task := app_task_list(index)
 
 				if task_has_children(task) {
-					element_animation_start(task)
+					element_animation_start(&task.element)
 				} else {
 					task.progress_animation = {}
 				}
@@ -231,7 +231,7 @@ main_update :: proc(window: ^Window) {
 	// just set the font options once here
 	for index in app.pool.filter {
 		task := app_task_list(index)
-		task.font_options = task_has_children(task) ? &app.font_options_bold : nil
+		task.element.font_options = task_has_children(task) ? &app.font_options_bold : nil
 	}
 
 	// find dragging index at
@@ -243,7 +243,7 @@ main_update :: proc(window: ^Window) {
 			for index in app.pool.filter {
 				task := app_task_list(index)
 
-				if rect_contains(task.bounds, window.cursor_x, window.cursor_y) {
+				if rect_contains(task.element.bounds, window.cursor_x, window.cursor_y) {
 					app.drag_index_at = task.filter_index
 					break
 				}
@@ -426,7 +426,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 						for index in app.pool.filter {
 							t := app_task_list(index)
 
-							if rect_contains(t.bounds, x, y) {
+							if rect_contains(t.element.bounds, x, y) {
 								task = t
 								break
 							}

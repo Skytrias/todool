@@ -332,11 +332,13 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 	fcs_color(color)
 
 	// draw each wrapped line
+	rendered_glyph_start()
 	y: int
 	for wrap_line, i in box.wrapped_lines {
-		render_string_store(target, box.bounds.l, box.bounds.t + y, wrap_line, &box.rendered_glyphs)
+		render_string_store(target, box.bounds.l, box.bounds.t + y, wrap_line)
 		y += scaled_size
 	}
+	rendered_glyph_gather(&box.rendered_glyphs)
 }
 
 // test sosososo test

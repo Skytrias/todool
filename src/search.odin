@@ -238,7 +238,7 @@ search_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 		length := entry.length
 		top := task.box.bounds.t
 		height := rect_heightf(task.box.bounds)
-		scaled_size := f32(fcs_task(task))
+		scaled_size := f32(fcs_task(&task.element))
 
 		for i in 0..<int(length) {
 			result := search.results[entry.result_offset + i]

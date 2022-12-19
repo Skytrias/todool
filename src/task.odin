@@ -335,7 +335,7 @@ Task_State :: enum u8 {
 } 
 
 Task :: struct {
-	using element: Element,
+	element: Element,
 	
 	list_index: int, // NOTE set once
 	filter_index: int, // NOTE set in update
@@ -374,9 +374,6 @@ Task :: struct {
 	filter_folded: bool, // toggle to freeze children
 	filter_children: [dynamic]int, // set every frame except when folded
 	state_count: [Task_State]int,
-
-	// TODO: remove UNUSED
-	shift_marked: bool,
 
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
@@ -540,6 +537,7 @@ task_image_display_message :: proc(element: ^Element, msg: Message, di: int, dp:
 			display.clip = {}
 			display.bounds = {}
 			element_repaint(display)
+			return 1
 		}
 
 		case .Clicked: {
@@ -558,7 +556,7 @@ task_image_display_message :: proc(element: ^Element, msg: Message, di: int, dp:
 // set img or init display element
 task_set_img :: proc(task: ^Task, handle: ^Stored_Image) {
 	if task.image_display == nil {
-		task.image_display = image_display_init(task, {}, handle, task_image_display_message, context.allocator)
+		task.image_display = image_display_init(&task.element, {}, handle, task_image_display_message, context.allocator)
 	} else {
 		task.image_display.img = handle
 	}
@@ -633,6 +631,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 		case .Right_Up: {
 			strings.builder_reset(&button.builder)
 			element_repaint(element)
+			return 1
 		}
 
 		case .Get_Width: {
@@ -661,7 +660,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			// cut of string text
 			if app.mmpp.mode == .Kanban {
 				task := cast(^Task) element.parent
-				actual_width := rect_width(task.bounds) - 30
+				actual_width := rect_width(task.element.bounds) - 30
 				iter := fontstash.text_iter_init(&gs.fc, text)
 				q: fontstash.Quad
 
@@ -690,7 +689,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 // set link text or init link button
 task_set_link :: proc(task: ^Task, link: string) {
 	if task.button_link == nil {
-		task.button_link = button_init(task, {}, link, task_button_link_message, context.allocator)
+		task.button_link = button_init(&task.element, {}, link, task_button_link_message, context.allocator)
 	} else {
 		b := &task.button_link.builder
 		strings.builder_reset(b)
@@ -705,7 +704,7 @@ task_link_is_valid :: proc(task: ^Task) -> bool {
 
 task_set_time_date :: proc(task: ^Task) {
 	if task.time_date == nil {
-		task.time_date = time_date_init(task, {}, true)
+		task.time_date = time_date_init(&task.element, {}, true)
 	} else {
 		if .Hide in task.time_date.flags {
 			task.time_date.spawn_particles = true
@@ -727,7 +726,7 @@ task_time_date_is_valid :: proc(task: ^Task) -> bool {
 // init bookmark if not yet
 task_bookmark_init_check :: proc(task: ^Task) {
 	if task.button_bookmark == nil {
-		task.button_bookmark = element_init(Element, task, {}, bookmark_message, context.allocator)
+		task.button_bookmark = element_init(Element, &task.element, {}, bookmark_message, context.allocator)
 	} 
 }
 
@@ -747,7 +746,7 @@ task_total_bounds :: proc() -> (bounds: RectI) {
 	bounds = RECT_INF
 	for index in app.pool.filter {
 		task := app_task_list(index)
-		rect_inf_push(&bounds, task.bounds)
+		rect_inf_push(&bounds, task.element.bounds)
 	}
 	return
 }
@@ -778,8 +777,8 @@ task_seperator_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 		case .Right_Up, .Left_Up: {
 			task := cast(^Task) sep.parent
 			task_set_seperator(task, false)
-			element_repaint(task)
-			// fmt.eprintln("right")
+			element_repaint(&task.element)
+			return 1
 		}
 	}
 
@@ -788,7 +787,7 @@ task_seperator_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 
 task_set_seperator :: proc(task: ^Task, show: bool) {
 	if task.seperator == nil {
-		task.seperator = element_init(Task_Seperator, task, {}, task_seperator_message, context.allocator)
+		task.seperator = element_init(Task_Seperator, &task.element, {}, task_seperator_message, context.allocator)
 	} 
 
 	element_hide(task.seperator, !show)
@@ -823,9 +822,9 @@ task_init :: proc(
 	
 	// TODO find better way to change scaling for elements in general?
 	// this is pretty much duplicate of normal icon rendering
-	res.button_fold = icon_button_init(res, {}, .Simple_Down, task_button_fold_message, allocator)
+	res.button_fold = icon_button_init(&res.element, {}, .Simple_Down, task_button_fold_message, allocator)
 
-	res.box = task_box_init(res, {}, text, allocator)
+	res.box = task_box_init(&res.element, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
 
 	return res
@@ -906,7 +905,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 			for list_index in p.visible_parent.filter_children {
 				task := app_task_list(list_index)
-				rect_inf_push(&bound_rect, task.bounds)
+				rect_inf_push(&bound_rect, task.element.bounds)
 			}
 
 			bound_rect.l -= tab
@@ -1019,7 +1018,7 @@ task_check_parent_states :: proc(manager: ^Undo_Manager) {
 					task_count += 1
 
 					color: Color = pm_particle_colored() ? {} : theme_task_text(task.state)
-					power_mode_spawn_rect(task.bounds, 50, color)
+					power_mode_spawn_rect(task.element.bounds, 50, color)
 				}
 			} else if task.state != .Normal {
 				if !undo_pushed {
@@ -1115,7 +1114,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			for i := len(app.pool.filter) - 1; i >= 0; i -= 1 {
 				task := app_task_filter(i)
 
-				if element_message(task, .Find_By_Point_Recursive, 0, dp) == 1 {
+				if element_message(&task.element, .Find_By_Point_Recursive, 0, dp) == 1 {
 					return 1
 				}
 			}
@@ -1153,11 +1152,11 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
-						h := element_message(task, .Get_Height)
+						h := element_message(&task.element, .Get_Height)
 						r := rect_cut_top(&cut, h)
 						r.l = r.l + int(task.indentation_smooth * f32(tab_scaled))
 						r.r = r.l + task_min_width
-						element_move(task, r)
+						element_move(&task.element, r)
 
 						cut.t += gap_vertical_scaled
 					}
@@ -1206,10 +1205,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						box_rect.l += int(f32(task.indentation) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
-						h := element_message(task, .Get_Height)
+						h := element_message(&task.element, .Get_Height)
 						r := rect_cut_top(&kanban_current, h)
 						r.l += int(task.indentation_smooth * f32(tab_scaled))
-						element_move(task, r)
+						element_move(&task.element, r)
 
 						if linear_index - kanban_children_start < kanban_children_count - 1 {
 							kanban_current.t += gap_vertical_scaled
@@ -1221,7 +1220,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// update caret
 			if app.task_head != -1 {
 				task := app_task_head()
-				scaled_size := fcs_task(task)
+				scaled_size := fcs_task(&task.element)
 				x := task.box.bounds.l
 				y := task.box.bounds.t
 				app.caret_rect = box_layout_caret(task.box, scaled_size, TASK_SCALE, x, y,)
@@ -1262,7 +1261,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// custom draw loop!
 			for list_index in app.pool.filter {
 				task := app_task_list(list_index)
-				render_element_clipped(target, task)
+				render_element_clipped(target, &task.element)
 			}
 
 			search_draw_highlights(target, panel)
@@ -1298,7 +1297,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, panel.clip)
 				
 				drag_task := app_task_filter(app.drag_index_at)
-				bounds := drag_task.bounds
+				bounds := drag_task.element.bounds
 				margin := int(4 * TASK_SCALE)
 				bounds.t = bounds.b - margin
 				rect_lerp(&app.drag_rect_lerp, bounds, 0.5)
@@ -1397,6 +1396,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			mode_panel_context_menu_spawn()
+			return 1
 		}
 
 		case .Left_Up: {
@@ -1441,7 +1441,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Update: {
 			for list_index in app.pool.filter {
 				task := app_task_list(list_index)
-				element_message(task, .Update, di, dp)
+				element_message(&task.element, .Update, di, dp)
 			}
 		}
 
@@ -1453,7 +1453,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if clicks == 1 {
 				if app.task_head != -1 {
 					task := app_task_head()
-					diff_y := element.window.cursor_y - (task.bounds.t + rect_height_halfed(task.bounds))
+					diff_y := element.window.cursor_y - (task.element.bounds.t + rect_height_halfed(task.element.bounds))
 					todool_insert_sibling(diff_y < 0 ? COMBO_SHIFT : COMBO_EMPTY)
 					cam.check_next_frame = true
 					return 1
@@ -1550,7 +1550,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			// strike through line
 			if task.state == .Canceled {
-				fcs_task(task)
+				fcs_task(&task.element)
 				state := fontstash.state_get(&gs.fc)
 				font := fontstash.font_get(&gs.fc, state.font)
 				isize := i16(state.size * 10)
@@ -1573,7 +1573,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
  			// paint selection before text
-			scaled_size := fcs_task(task)
+			scaled_size := fcs_task(&task.element)
 			if app.task_head == app.task_tail && task.filter_index == app.task_head {
 				box_render_selection(target, box, x, y, theme.caret_selection)
 				task_box_paint_default_selection(box, scaled_size)
@@ -1606,7 +1606,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					// find hovered task and set till
 					for index in app.pool.filter {
 						t := app_task_list(index)
-						if rect_contains(t.bounds, element.window.cursor_x, element.window.cursor_y) {
+						if rect_contains(t.element.bounds, element.window.cursor_x, element.window.cursor_y) {
 							if app.task_head != t.filter_index {
 								repaint = true
 							}
@@ -1617,14 +1617,14 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 					}
 
 					if repaint {
-						element_repaint(task)
+						element_repaint(&task.element)
 					}
 				} else {
 					if app.task_head == app.task_tail {
-						scaled_size := fcs_task(task)
+						scaled_size := fcs_task(&task.element)
 						fcs_ahv(.Left, .Top)
 						element_box_mouse_selection(task.box, task.box, di, true, 0, scaled_size)
-						element_repaint(task)
+						element_repaint(&task.element)
 						return 1
 					}
 				}
@@ -1649,6 +1649,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			}
 
 			task_context_menu_spawn(task)
+			return 1
 		}
 
 		case .Value_Changed: {
@@ -1745,8 +1746,8 @@ task_layout :: proc(
 		}
 	}
 
-	task.clip = rect_intersection(task.parent.clip, cut)
-	task.bounds = cut
+	task.element.clip = rect_intersection(task.element.parent.clip, cut)
+	task.element.bounds = cut
 
 	// bookmark
 	if task_bookmark_is_valid(task) {
@@ -1843,7 +1844,7 @@ task_layout :: proc(
 		}
 	}
 	
-	task.box.font_options = task.font_options
+	task.box.font_options = task.element.font_options
 	if move {
 		task.box.rendered_glyphs = nil
 		element_move(task.box, cut)
@@ -1874,11 +1875,11 @@ task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 			box_set_caret_dp(task.box, BOX_END, nil)
 		} else {
 			old_tail := task.box.tail
-			scaled_size := fcs_task(task)
+			scaled_size := fcs_task(&task.element)
 			fcs_ahv(.Left, .Top)
 			element_box_mouse_selection(task.box, task.box, clicks, false, 0, scaled_size)
 
-			if task.window.shift && clicks == 0 {
+			if task.element.window.shift && clicks == 0 {
 				task.box.tail = old_tail
 			}
 		}
@@ -1911,7 +1912,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Layout: {
 			if task.top_animation_start {
-				task.top_offset = f32(task.top_old - task.bounds.t)
+				task.top_offset = f32(task.top_old - task.element.bounds.t)
 				task.top_animation_start = false
 			}
 
@@ -1922,7 +1923,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 		case .Paint_Recursive: {
 			target := element.window.target
-			rect := task.bounds
+			rect := task.element.bounds
 
 			// render panel front color
 			task_color := theme_panel(task_has_children(task) ? .Parent : .Front)
@@ -1970,15 +1971,15 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			low, high := task_low_and_high()
 			if low == high && task.filter_index == low {
 				// single outline
-				render_push_clip(target, task.parent.bounds)
-				render_rect_outline(target, task.bounds, theme.caret)
+				render_push_clip(target, task.element.parent.bounds)
+				render_rect_outline(target, task.element.bounds, theme.caret)
 			} else {
-				render_push_clip(target, task.parent.bounds)
+				render_push_clip(target, task.element.parent.bounds)
 
 				if low <= task.filter_index && task.filter_index <= high {
 					// outline 
 					color := app.task_head == task.filter_index ? theme.caret : theme.text_default
-					render_rect_outline(target, task.bounds, color)
+					render_rect_outline(target, task.element.bounds, color)
 				} else {
 					// shadow highlight
 					color := color_alpha(theme.background[0], app.task_shadow_alpha)
@@ -2004,7 +2005,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					r := task.tags_rect[i]
 					
 					if rect_contains(r, p.x, p.y) {
-						p.res = task
+						p.res = &task.element
 						task.tag_hovered = i
 						return 1
 					}
@@ -2016,8 +2017,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			handled := element_find_by_point_custom(element, p)
 
 			if handled == 0 {
-				if rect_contains(task.bounds, p.x, p.y) {
-					p.res = task
+				if rect_contains(task.element.bounds, p.x, p.y) {
+					p.res = &task.element
 					handled = 1
 				}
 			}
@@ -2038,7 +2039,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			} else {
 				task_or_box_left_down(task, di, false)
 			}
-			
+
 			return 1
 		}
 
@@ -2530,96 +2531,83 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	}
 
 	p := menu.panel
-	p.gap = 5
 	p.shadow = true
 	p.background_index = 2
 	header_name := task_multi_context ? "Multi Properties" : "Task Properties"
 	header := label_init(p, { .Label_Center }, header_name)
 	header.font_options = &app.font_options_bold
 
-	if task_multi_context {
-		button_panel := panel_init(p, { .Panel_Horizontal })
-		button_panel.outline = true
-		// button_panel.color = DARKEN
-		b1 := button_init(button_panel, {}, "Normal")
-		b1.invoke = proc(button: ^Button, data: rawptr) {
-			todool_change_task_selection_state_to(.Normal)
-		}
-		b2 := button_init(button_panel, {}, "Done")
-		b2.invoke = proc(button: ^Button, data: rawptr) {
-			todool_change_task_selection_state_to(.Done)
-		}
-		b3 := button_init(button_panel, {}, "Canceled")
-		b3.invoke = proc(button: ^Button, data: rawptr) {
-			todool_change_task_selection_state_to(.Canceled)
-		}
-	} else {
-		names := reflect.enum_field_names(Task_State)
-		t := toggle_selector_init(p, {}, int(task.state), len(Task_State), names)
-		t.data = task
-		t.changed = proc(toggle: ^Toggle_Selector) {
-			manager := mode_panel_manager_begin()
+	// if task_multi_context {
+	// 	button_panel := panel_init(p, { .Panel_Horizontal })
+	// 	button_panel.outline = true
+	// 	// button_panel.color = DARKEN
+	// 	b1 := button_init(button_panel, {}, "Normal")
+	// 	b1.invoke = proc(button: ^Button, data: rawptr) {
+	// 		todool_change_task_selection_state_to(.Normal)
+	// 	}
+	// 	b2 := button_init(button_panel, {}, "Done")
+	// 	b2.invoke = proc(button: ^Button, data: rawptr) {
+	// 		todool_change_task_selection_state_to(.Done)
+	// 	}
+	// 	b3 := button_init(button_panel, {}, "Canceled")
+	// 	b3.invoke = proc(button: ^Button, data: rawptr) {
+	// 		todool_change_task_selection_state_to(.Canceled)
+	// 	}
+	// } else {
+	// 	names := reflect.enum_field_names(Task_State)
+	// 	t := toggle_selector_init(p, {}, int(task.state), len(Task_State), names)
+	// 	t.data = task
+	// 	t.changed = proc(toggle: ^Toggle_Selector) {
+	// 		manager := mode_panel_manager_begin()
 
-			task := cast(^Task) toggle.data
-			change_count, failed_multi := task_change_state_to(manager, task, Task_State(toggle.value))
+	// 		task := cast(^Task) toggle.data
+	// 		change_count, failed_multi := task_change_state_to(manager, task, Task_State(toggle.value))
 
-			if change_count > 0 {
-				app.task_state_progression = .Update_Animated
-				task_head_tail_push(manager)
-				undo_group_end(manager)
-				window_repaint(app.window_main)
-			}
+	// 		if change_count > 0 {
+	// 			app.task_state_progression = .Update_Animated
+	// 			task_head_tail_push(manager)
+	// 			undo_group_end(manager)
+	// 			window_repaint(app.window_main)
+	// 		}
 
-			if failed_multi {
-				toggle.value = 0
-			}
+	// 		if failed_multi {
+	// 			toggle.value = 0
+	// 		}
 
-			// task_set_state_undoable(manager, task, Task_State(toggle.value), 0)
-		}
-	}
+	// 		// task_set_state_undoable(manager, task, Task_State(toggle.value), 0)
+	// 	}
+	// }
 
 	// indentation
-	{
+	if false {
 		panel := panel_init(p, { .Panel_Horizontal })
 		panel.outline = true
 
-		b1 := icon_button_init(panel, { .HF }, .Simple_Left)
+		b1 := icon_button_init(panel, {}, .Simple_Left)
 		b1.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			todool_indentation_shift(COMBO_NEGATIVE)
 		}
-		label := label_init(panel, {  .HF, .Label_Center }, "indent")
-		b2 := icon_button_init(panel, { .HF }, .Simple_Right)
+		label := label_init(panel, { .Label_Center }, "indent")
+		b2 := icon_button_init(panel, {}, .Simple_Right)
 		b2.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			todool_indentation_shift(COMBO_POSITIVE)
 		}
 	}
 
 	// deletion
-	{
-		b2 := button_init(p, {}, "Cut")
-		b2.invoke = proc(button: ^Button, data: rawptr) {
-			todool_cut_tasks()
-			menu_close(button.window)
-		}
-
-		b3 := button_init(p, {}, "Copy")
-		b3.invoke = proc(button: ^Button, data: rawptr) {
-			todool_copy_tasks()
-			menu_close(button.window)
-		}
-
-		b4 := button_init(p, {}, "Paste")
-		b4.invoke = proc(button: ^Button, data: rawptr) {
-			todool_paste_tasks()
-			menu_close(button.window)
-		}
-
-		b1 := button_init(p, {}, "Delete")
-		b1.invoke = proc(button: ^Button, data: rawptr) {
-			todool_delete_tasks()
-			menu_close(button.window)
-		}
-	}
+	mbl(p, "Completion +", "change_task_state")
+	mbl(p, "Completion -", "change_task_state", COMBO_SHIFT)
+	mbs(p)
+	mbl(p, "Cut", "cut_tasks")
+	mbl(p, "Copy", "copy_tasks")
+	mbl(p, "Paste", "paste_tasks")
+	mbl(p, "Delete", "delete_tasks")
+	mbs(p)
+	mbl(p, "Copy To Clipboard", "copy_tasks_to_clipboard")
+	mbl(p, "Paste From Clipboard", "paste_tasks_from_clipboard")
+	mbs(p)
+	mbl(p, "Bookmark", "toggle_bookmark")
+	mbl(p, "Timestamp", "toggle_timestamp")
 
 	// insert link from clipboard to task.button_link
 	if clipboard_has_content() {
@@ -2661,7 +2649,7 @@ task_context_menu_spawn :: proc(task: ^Task) {
 		}
 	}	
 
-	{
+	if false && task != nil {
 		b1_text := task_seperator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
 		b1 := button_init(p, {}, b1_text)
 		b1.invoke = proc(button: ^Button, data: rawptr) {
@@ -2717,7 +2705,7 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 	}
 
 	mouse: [2]f32 = { f32(mouse.x), f32(mouse.y) }
-	pos := [2]f32 { f32(task.window.cursor_x), f32(task.window.cursor_y) }
+	pos := [2]f32 { f32(task.element.window.cursor_x), f32(task.element.window.cursor_y) }
 	circle_size := DRAG_CIRCLE * TASK_SCALE
 	if check_collision_point_circle(mouse, pos, circle_size) {
 		return false
@@ -2843,37 +2831,22 @@ mode_panel_context_menu_spawn :: proc() {
 	defer menu_show(menu)
 
 	p := menu.panel
-	p.gap = 5
 	p.shadow = true
 	p.background_index = 2
 
-	button_init(p, {}, "Theme Editor").invoke = proc(button: ^Button, data: rawptr) {
-		theme_editor_spawn()
-		menu_close(app.mmpp.window)
-	}
-
-	button_init(p, {}, "Keymap Editor").invoke = proc(button: ^Button, data: rawptr) {
-		keymap_editor_spawn()
-		menu_close(app.mmpp.window)
-	}
-
-	button_init(p, {}, "Changelog Generator").invoke = proc(button: ^Button, data: rawptr) {
-		changelog_spawn()
-		menu_close(app.mmpp.window)
-	}
-	
-	button_init(p, {}, "Load Tutorial").invoke = proc(button: ^Button, data: rawptr) {
+	mbl(p, "Theme Editor", "theme_editor")
+	mbc(p, "Keymap Editor", proc() { keymap_editor_spawn() })
+	mbl(p, "Changelog Generator", "changelog")
+	mbc(p, "Load Tutorial", proc() { 
 		app_save_maybe(
-			app.window_main, 
-			proc() {
-				tasks_load_reset()
-				last_save_set("")
-			  tasks_load_tutorial()
-			}, 
-		)
-
-		menu_close(app.mmpp.window)
-	}
+				app.window_main, 
+				proc() {
+					tasks_load_reset()
+					last_save_set("")
+				  tasks_load_tutorial()
+				}, 
+			)
+	 })
 }
 
 task_highlight_render :: proc(target: ^Render_Target, after: bool) {
@@ -2906,13 +2879,13 @@ task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 	switch app.mmpp.mode {
 		case .List: {
 			rect := app.mmpp.bounds
-			rect.t = app.task_highlight.bounds.t
-			rect.b = app.task_highlight.bounds.b
+			rect.t = app.task_highlight.element.bounds.t
+			rect.b = app.task_highlight.element.bounds.b
 			render_rect(target, rect, theme.text_bad)
 		}
 
 		case .Kanban: {
-			rect := app.task_highlight.bounds
+			rect := app.task_highlight.element.bounds
 			rect = rect_margin(rect, int(-10 * TASK_SCALE))
 			render_rect(target, rect, theme.text_bad, ROUNDNESS)
 		}
@@ -2945,14 +2918,14 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	for index in app.pool.filter {
 		task := app_task_list(index)
 		
-		if hover_only && hovered != task && hovered.parent != task {
+		if hover_only && hovered != &task.element && hovered.parent != &task.element {
 			continue
 		}
 
 		if task_has_children(task) {
 			rect := rect_translate(
 				default_rect,
-				rect_xxyy(task.bounds.r - w + off, task.bounds.t + off),
+				rect_xxyy(task.element.bounds.r - w + off, task.element.bounds.t + off),
 			)
 
 			prect := rect
@@ -3113,15 +3086,15 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 		t := app_task_list(list_index)
 
 		// NOTE necessary as the modes could have the tasks at different positions
-		if !rect_overlap(t.bounds, clip) {
+		if !rect_overlap(t.element.bounds, clip) {
 			continue
 		}
 
 		r := RectI {
-			t.bounds.l - 50 - gap,
-			t.bounds.l - gap,
-			t.bounds.t,
-			t.bounds.b,
+			t.element.bounds.l - 50 - gap,
+			t.element.bounds.l - gap,
+			t.element.bounds.t,
+			t.element.bounds.b,
 		}
 
 		if !rect_overlap(r, clip) {
@@ -3173,7 +3146,7 @@ rendered_glyph_start :: #force_inline proc() {
 }
 
 rendered_glyph_gather :: #force_inline proc(output: ^[]Rendered_Glyph) {
-	output^ = app.rendered_glyphs[app.rendered_glyphs_start:len(app.rendered_glyphs)]
+	output^ = app.rendered_glyphs[app.rendered_glyphs_start:]
 }
 
 rendered_glyph_push :: proc(x, y: f32, codepoint: rune) -> ^Rendered_Glyph {
@@ -3183,17 +3156,6 @@ rendered_glyph_push :: proc(x, y: f32, codepoint: rune) -> ^Rendered_Glyph {
 		codepoint = codepoint,
 	})
 	return &app.rendered_glyphs[len(app.rendered_glyphs) - 1]
-}
-
-rendered_glyphs_slice :: proc(start, end: int) -> (res: []Rendered_Glyph, ok: bool) {
-	if start == end || end == 0 {
-		return 
-	} else {
-		res = app.rendered_glyphs[start:end]
-		ok = true
-	}
-
-	return
 }
 
 // wrapped lines equivalent

@@ -1,5 +1,6 @@
 package src
 
+import "core:fmt"
 import "core:runtime"
 
 // TASK LAYOUT DATA
@@ -35,6 +36,12 @@ task_pool_push_new :: proc(pool: ^Task_Pool, check_freed: bool) -> (task: ^Task)
 	}
 
 	index := len(pool.list)
+	
+	// TODO optimize not to do this? update pointers that are shared...
+	if cap(pool.list) < len(pool.list) + 1 {
+		fmt.eprintln("RESIZE")
+	}
+
 	append(&pool.list, Task {
 		list_index = index,
 	})
