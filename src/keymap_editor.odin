@@ -109,7 +109,8 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 	return 0
 }
 
-keymap_editor_spawn :: proc() {
+comment_keymap_editor_spawn :: "spawn the keymap editor window"
+keymap_editor_spawn :: proc(du: u32) {
 	if ke.window != nil {
 		window_raise(ke.window)
 		return
@@ -829,7 +830,7 @@ keymap_editor_menu_combo :: proc(line: ^Static_Line) {
 		keymap_editor_line_append(grid, nil, 0)
 		ke.issue_update = grid
 		menu_close(ke.window)
-	}, .Check)
+	}, .Plus)
 	mbc(p, "Remove", proc() {
 		keymap_editor_remove_call(ke.menu.line)
 		menu_close(ke.window)

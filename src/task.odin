@@ -2533,8 +2533,8 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	p.background_index = 2
 
 	// deletion
-	mbl(p, "Completion +", "change_task_state")
-	mbl(p, "Completion -", "change_task_state", COMBO_SHIFT)
+	mbl(p, "Completion", "change_task_state", COMBO_EMPTY, .Plus)
+	mbl(p, "Completion", "change_task_state", COMBO_SHIFT, .Minus)
 	mbs(p)
 	mbl(p, "Cut", "cut_tasks")
 	mbl(p, "Copy", "copy_tasks")
@@ -2733,7 +2733,7 @@ mode_panel_context_menu_spawn :: proc() {
 	p.background_index = 2
 
 	mbl(p, "Theme Editor", "theme_editor")
-	mbc(p, "Keymap Editor", proc() { keymap_editor_spawn() })
+	mbl(p, "Keymap Editor", "keymap_editor")
 	mbl(p, "Changelog Generator", "changelog")
 	mbc(p, "Load Tutorial", proc() { 
 		app_save_maybe(
@@ -2880,12 +2880,13 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		mbs(p)
 		mbl(p, "Theme Editor", "theme_editor")
 		mbl(p, "Changelog", "changelog")
+		mbl(p, "Keymap Editor", "keymap_editor")
 		mbs(p)
 		mbl(p, "Goto", "goto")
 		mbl(p, "Search", "search")
 		mbs(p)
-		mbl(p, "Scale Tasks Up", "scale_tasks", COMBO_NEGATIVE)
-		mbl(p, "Scale Tasks Down", "scale_tasks", COMBO_POSITIVE)
+		mbl(p, "Scale Tasks Up", "scale_tasks", COMBO_POSITIVE)
+		mbl(p, "Scale Tasks Down", "scale_tasks", COMBO_NEGATIVE)
 		mbl(p, "Center View", "center")
 		mbl(p, "Toggle Progressbars", "toggle_progressbars")
 	}
@@ -2909,8 +2910,8 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		mbl(p, "To Lowercase", "tasks_to_lowercase")
 	}
 	menu_bar_field_init(menu, "Task-State", 4).invoke = proc(p: ^Panel) {
-		mbl(p, "Completion Forward", "change_task_state")
-		mbl(p, "Completion Backward", "change_task_state", COMBO_SHIFT)
+		mbl(p, "Completion", "change_task_state", COMBO_EMPTY, .Plus)
+		mbl(p, "Completion", "change_task_state", COMBO_SHIFT, .Minus)
 		mbs(p)
 		mbl(p, "Folding", "toggle_folding")
 		mbl(p, "Bookmark", "toggle_bookmark")

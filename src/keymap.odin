@@ -352,6 +352,7 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	// windows
 	CP1("theme_editor", theme_editor_spawn)
 	CP1("changelog", changelog_spawn)
+	CP1("keymap_editor", keymap_editor_spawn)
 
 	// file
 	CP1("save", todool_save)
@@ -692,11 +693,8 @@ keymap_init_comments :: proc() {
 	CP3(todool_indentation_shift, comment_todool_indentation_shift)
 	CP3(todool_shift_down, comment_todool_shift_down)
 	CP3(todool_shift_up, comment_todool_shift_up)
-	CP3(pomodoro_stopwatch_hot_toggle, comment_pomodoro_stopwatch_hot_toggle)
 	CP3(todool_mode_list, comment_todool_mode_list)
 	CP3(todool_mode_kanban, comment_todool_mode_kanban)
-	CP3(theme_editor_spawn, comment_theme_editor_spawn)
-	CP3(changelog_spawn, comment_changelog_spawn)
 	CP3(todool_insert_sibling, comment_todool_insert_sibling)
 	CP3(todool_insert_child, comment_todool_insert_child)
 	CP3(todool_undo, comment_todool_undo)
@@ -713,6 +711,12 @@ keymap_init_comments :: proc() {
 	CP3(todool_sort_locals, comment_todool_sort_locals)
 	CP3(todool_scale, comment_todool_scale)
 
+	// external
+	CP3(theme_editor_spawn, comment_theme_editor_spawn)
+	CP3(pomodoro_stopwatch_hot_toggle, comment_pomodoro_stopwatch_hot_toggle)
+	CP3(changelog_spawn, comment_changelog_spawn)
+	CP3(keymap_editor_spawn, comment_keymap_editor_spawn)
+	
 	// newer
 	CP3(todool_toggle_progressbars, comment_todool_toggle_progressbars)
 

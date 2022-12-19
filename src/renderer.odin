@@ -38,14 +38,16 @@ Icon :: enum {
 	Tomato = 0xeb9a,
 	Tag = 0xf004,
 
-	Check = 0xec4b,
-	Close = 0xec4f,
+	Check = 0xeed8,
+	Close = 0xeee4,
 
 	Cog = 0xefb0,
 	Reply = 0xec7f,
 	Archive = 0xeea5,
 
 	Chart = 0xe979,
+	Plus = 0xefc2,
+	Minus = 0xef9a,
 
 	Save = 0xee00,
 	File_Load = 0xec57,

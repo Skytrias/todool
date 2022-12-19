@@ -22,7 +22,7 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
-TRACK_MEMORY :: false
+TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 DEMO_MODE :: false // wether or not save&load are enabled
