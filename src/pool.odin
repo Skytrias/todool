@@ -1,5 +1,6 @@
 package src
 
+import "core:mem"
 import "core:fmt"
 import "core:runtime"
 
@@ -36,15 +37,26 @@ task_pool_push_new :: proc(pool: ^Task_Pool, check_freed: bool) -> (task: ^Task)
 	}
 
 	index := len(pool.list)
-	
-	// TODO optimize not to do this? update pointers that are shared...
+
+	// keep track of resizes
+	resized: bool
 	if cap(pool.list) < len(pool.list) + 1 {
-		fmt.eprintln("RESIZE")
+		resized = true
 	}
 
 	append(&pool.list, Task {
 		list_index = index,
 	})
+
+	if resized {
+		// NOTE stupid fix to keep pointers to task parents sane
+		for task in &pool.list {
+			for child in &task.element.children {
+				child.parent = &task.element
+			}
+		}
+	}
+
 	return &pool.list[index]
 }
 

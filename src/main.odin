@@ -61,6 +61,10 @@ DEMO_MODE :: false // wether or not save&load are enabled
 // 	value = 20
 // }
 
+// main :: proc() {
+// 	fmt.eprintln("size", size_of(Task))	
+// }
+
 main :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)
@@ -321,6 +325,7 @@ main_update :: proc(window: ^Window) {
 	for cam in &app.mmpp.cam {
 		cam_update(&cam)
 	}
+
 	// task_timestamp_check_hover()
 }
 

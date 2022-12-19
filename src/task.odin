@@ -374,11 +374,12 @@ Task :: struct {
 	filter_folded: bool, // toggle to freeze children
 	filter_children: [dynamic]int, // set every frame except when folded
 	state_count: [Task_State]int,
+	progress_animation: [Task_State]f32,
 
 	// visible kanban outline - used for bounds check by kanban 
 	kanban_rect: RectI,
-	progress_animation: [Task_State]f32,
 
+	// flags
 	removed: bool,
 }
 
@@ -819,11 +820,8 @@ task_init :: proc(
 	// insert task results
 	res.indentation = indentation
 	res.indentation_smooth = f32(indentation)
-	
-	// TODO find better way to change scaling for elements in general?
-	// this is pretty much duplicate of normal icon rendering
-	res.button_fold = icon_button_init(&res.element, {}, .Simple_Down, task_button_fold_message, allocator)
 
+	res.button_fold = icon_button_init(&res.element, {}, .Simple_Down, task_button_fold_message, allocator)
 	res.box = task_box_init(&res.element, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
 
@@ -2533,66 +2531,6 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	p := menu.panel
 	p.shadow = true
 	p.background_index = 2
-	header_name := task_multi_context ? "Multi Properties" : "Task Properties"
-	header := label_init(p, { .Label_Center }, header_name)
-	header.font_options = &app.font_options_bold
-
-	// if task_multi_context {
-	// 	button_panel := panel_init(p, { .Panel_Horizontal })
-	// 	button_panel.outline = true
-	// 	// button_panel.color = DARKEN
-	// 	b1 := button_init(button_panel, {}, "Normal")
-	// 	b1.invoke = proc(button: ^Button, data: rawptr) {
-	// 		todool_change_task_selection_state_to(.Normal)
-	// 	}
-	// 	b2 := button_init(button_panel, {}, "Done")
-	// 	b2.invoke = proc(button: ^Button, data: rawptr) {
-	// 		todool_change_task_selection_state_to(.Done)
-	// 	}
-	// 	b3 := button_init(button_panel, {}, "Canceled")
-	// 	b3.invoke = proc(button: ^Button, data: rawptr) {
-	// 		todool_change_task_selection_state_to(.Canceled)
-	// 	}
-	// } else {
-	// 	names := reflect.enum_field_names(Task_State)
-	// 	t := toggle_selector_init(p, {}, int(task.state), len(Task_State), names)
-	// 	t.data = task
-	// 	t.changed = proc(toggle: ^Toggle_Selector) {
-	// 		manager := mode_panel_manager_begin()
-
-	// 		task := cast(^Task) toggle.data
-	// 		change_count, failed_multi := task_change_state_to(manager, task, Task_State(toggle.value))
-
-	// 		if change_count > 0 {
-	// 			app.task_state_progression = .Update_Animated
-	// 			task_head_tail_push(manager)
-	// 			undo_group_end(manager)
-	// 			window_repaint(app.window_main)
-	// 		}
-
-	// 		if failed_multi {
-	// 			toggle.value = 0
-	// 		}
-
-	// 		// task_set_state_undoable(manager, task, Task_State(toggle.value), 0)
-	// 	}
-	// }
-
-	// indentation
-	if false {
-		panel := panel_init(p, { .Panel_Horizontal })
-		panel.outline = true
-
-		b1 := icon_button_init(panel, {}, .Simple_Left)
-		b1.invoke = proc(button: ^Icon_Button, data: rawptr) {
-			todool_indentation_shift(COMBO_NEGATIVE)
-		}
-		label := label_init(panel, { .Label_Center }, "indent")
-		b2 := icon_button_init(panel, {}, .Simple_Right)
-		b2.invoke = proc(button: ^Icon_Button, data: rawptr) {
-			todool_indentation_shift(COMBO_POSITIVE)
-		}
-	}
 
 	// deletion
 	mbl(p, "Completion +", "change_task_state")
@@ -2609,71 +2547,31 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	mbl(p, "Bookmark", "toggle_bookmark")
 	mbl(p, "Timestamp", "toggle_timestamp")
 
-	// insert link from clipboard to task.button_link
-	if clipboard_has_content() {
-		link := clipboard_get_with_builder()
-
-		Task_Set_Link :: struct {
-			link: string,
-			task: ^Task,
-		}
-
-		if strings.has_prefix(link, "https://") || strings.has_prefix(link, "http://") {
-			b1 := button_init(p, {}, "Insert Link")
-
-			// set saved data that will be destroyed by button
-			tsl := new(Task_Set_Link)
-			tsl.task = task
-			tsl.link = strings.clone(link)
-
-			b1.data = tsl
-			b1.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-				button := cast(^Button) element
-
-				#partial switch msg {
-					case .Clicked: {
-						tsl := cast(^Task_Set_Link) element.data
-						task_set_link(tsl.task, tsl.link)
-						menu_close(button.window)
-					}
-
-					case .Destroy: {
-						tsl := cast(^Task_Set_Link) element.data
-						delete(tsl.link)
-						free(tsl)
-					}
-				}
-
-				return 0
-			}
-		}
-	}	
-
-	if false && task != nil {
-		b1_text := task_seperator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
-		b1 := button_init(p, {}, b1_text)
-		b1.invoke = proc(button: ^Button, data: rawptr) {
-			task := app_task_head()
-			valid := task_seperator_is_valid(task)
-			task_set_seperator(task, !valid)
+	// if false && task != nil {
+	// 	b1_text := task_seperator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
+	// 	b1 := button_init(p, {}, b1_text)
+	// 	b1.invoke = proc(button: ^Button, data: rawptr) {
+	// 		task := app_task_head()
+	// 		valid := task_seperator_is_valid(task)
+	// 		task_set_seperator(task, !valid)
 			
-			menu_close(button.window)
-		}
+	// 		menu_close(button.window)
+	// 	}
 
-		b2_text := app.task_highlight == task ? "Remove Highlight" : "Set Highlight"
-		b2 := button_init(p, {}, b2_text)
+	// 	b2_text := app.task_highlight == task ? "Remove Highlight" : "Set Highlight"
+	// 	b2 := button_init(p, {}, b2_text)
 
-		b2.invoke = proc(button: ^Button, data: rawptr) {
-			task := app_task_head()
-			if task == app.task_highlight {
-				app.task_highlight = nil
-			} else {
-				app.task_highlight = task
-			}
+	// 	b2.invoke = proc(button: ^Button, data: rawptr) {
+	// 		task := app_task_head()
+	// 		if task == app.task_highlight {
+	// 			app.task_highlight = nil
+	// 		} else {
+	// 			app.task_highlight = task
+	// 		}
 
-			menu_close(button.window)
-		}
-	}
+	// 		menu_close(button.window)
+	// 	}
+	// }
 }
 
 // Check if point is inside circle

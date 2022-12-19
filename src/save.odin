@@ -533,12 +533,12 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 
 				// NOTE advance dependant should not go out of order!
 				if .Image_Path in flags {
-					path := advance_string_u16(data) or_return
+					path := advance_string_u16(&input) or_return
 					handle := image_load_push(path)
 					task_set_img(task, handle)
 				}
 				if .Link_Path in flags {
-					link := advance_string_u16(data) or_return
+					link := advance_string_u16(&input) or_return
 					task_set_link(task, link)
 				}
 				if .Timestamp in flags {

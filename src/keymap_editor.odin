@@ -445,6 +445,23 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		case .Key_Combination: {
 			key_combination_check_click(element, dp)
 		}
+
+		case .Hover_Info: {
+			if button.show_command {
+				keymap := cast(^Keymap) button.parent.parent.data
+				c1 := string(button.node.command[:button.node.command_index])
+				command, ok := keymap.commands[c1]
+
+				if ok {
+					comment, found := keymap_comments[command]
+
+					if found {
+						res := cast(^string) dp
+						res^ = comment 
+					}
+				}
+			}
+		}
 	}	
 
 	return 0

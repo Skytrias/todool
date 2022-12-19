@@ -168,8 +168,6 @@ Window :: struct {
 	menu: ^Panel_Floaty,
 	menu_info: int,
 	menu_filter: bool, // accept unicode insertion for menus, writes into menu_builder
-	// menu_builder: strings.Builder,
-	// menu_box: ^Text_Box,
 
 	// proc that gets called before layout & draw
 	update: proc(window: ^Window),
@@ -1515,6 +1513,7 @@ gs_init :: proc() {
 	strings.builder_init(&cstring_builder, 0, 128)
 
 	stored_images = make([dynamic]Stored_Image, 0, 8)
+	clipboard_get_with_builder()
 }
 
 gs_check_leaks :: proc(ta: ^mem.Tracking_Allocator) {

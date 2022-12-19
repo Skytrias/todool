@@ -508,7 +508,11 @@ element_deallocate_raw :: proc(element: ^Element) {
 	element_animation_stop(element)
 	// free data
 	delete(element.children)
-	free(element, element.allocator)
+
+	// TODO do we need to do this?
+	if element.allocator != {} {
+		free(element, element.allocator)
+	}
 }
 
 // NOTE used internally

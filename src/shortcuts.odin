@@ -61,6 +61,7 @@ combo_iterate :: proc(text: ^string) -> (res: string, ok: bool) {
 // 	}
 // }
 
+comment_todool_delete_on_empty :: "deletes the task on no text content"
 todool_delete_on_empty :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -86,6 +87,7 @@ todool_delete_on_empty :: proc(du: u32) {
 	}
 }
 
+comment_todool_move_up :: "move to the upper visible task | SHIFT for selection"
 todool_move_up :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -104,6 +106,7 @@ todool_move_up :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
+comment_todool_move_down :: "move to the lower visible task | SHIFT for selection"
 todool_move_down :: proc(du: u32) {
 	if app_filter_empty() {
 		return 
@@ -123,6 +126,7 @@ todool_move_down :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
+comment_todool_indent_jump_low_prev :: "jump through tasks at indentation 0 backwards | SHIFT for selection"
 todool_indent_jump_low_prev :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -148,6 +152,7 @@ todool_indent_jump_low_prev :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
+comment_todool_indent_jump_low_next :: "jump through tasks at indentation 0 forwards | SHIFT for selection"
 todool_indent_jump_low_next :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -173,6 +178,7 @@ todool_indent_jump_low_next :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
+comment_todool_indent_jump_same_prev :: "jump through tasks at the same indentation backwards | SHIFT for selection"
 todool_indent_jump_same_prev :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -194,6 +200,7 @@ todool_indent_jump_same_prev :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
+comment_todool_indent_jump_same_next :: "jump through tasks at the same indentation forwards | SHIFT for selection"
 todool_indent_jump_same_next :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -215,6 +222,7 @@ todool_indent_jump_same_next :: proc(du: u32) {
 	vim.rep_task = nil
 }
 
+comment_todool_bookmark_jump :: "cycle jump to the previous bookmark"
 todool_bookmark_jump :: proc(du: u32) {
 	shift := du_shift(du)
 	
@@ -231,6 +239,7 @@ todool_bookmark_jump :: proc(du: u32) {
 	}
 }
 
+comment_todool_delete_tasks :: "deletes the selected tasks"
 todool_delete_tasks :: proc(du: u32 = 0) {
 	if app_filter_empty() {
 		return
@@ -243,6 +252,7 @@ todool_delete_tasks :: proc(du: u32 = 0) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_copy_tasks_to_clipboard :: "copy the selected tasks STRING content to the clipboard"
 todool_copy_tasks_to_clipboard :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -266,31 +276,31 @@ todool_copy_tasks_to_clipboard :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
-todool_change_task_selection_state_to :: proc(state: Task_State) {
-	if app_filter_empty() {
-		return
-	}
+// todool_change_task_selection_state_to :: proc(state: Task_State) {
+// 	if app_filter_empty() {
+// 		return
+// 	}
 
-	manager := mode_panel_manager_begin()
-	change_count: int
+// 	manager := mode_panel_manager_begin()
+// 	change_count: int
 
-	// shift all states in direction
-	iter := lh_iter_init()
-	for task in lh_iter_step(&iter) {
-		if !task_has_children(task) && task.state != state {
-			// save old set
-			task_set_state_undoable(manager, task, state, change_count)
-			change_count += 1
-		}
-	}
+// 	// shift all states in direction
+// 	iter := lh_iter_init()
+// 	for task in lh_iter_step(&iter) {
+// 		if !task_has_children(task) && task.state != state {
+// 			// save old set
+// 			task_set_state_undoable(manager, task, state, change_count)
+// 			change_count += 1
+// 		}
+// 	}
 
-	if change_count > 0 {
-		app.task_state_progression = .Update_Animated
-		task_head_tail_push(manager)
-		undo_group_end(manager)
-		window_repaint(app.window_main)
-	}
-}
+// 	if change_count > 0 {
+// 		app.task_state_progression = .Update_Animated
+// 		task_head_tail_push(manager)
+// 		undo_group_end(manager)
+// 		window_repaint(app.window_main)
+// 	}
+// }
 
 task_change_state_to :: proc(
 	manager: ^Undo_Manager, 
@@ -328,6 +338,7 @@ task_change_state_to :: proc(
 	return
 }
 
+comment_todool_change_task_state :: "cycles through the task states forwards/backwards"
 todool_change_task_state :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -365,6 +376,7 @@ todool_change_task_state :: proc(du: u32) {
 	}
 }
 
+comment_todool_indent_jump_scope :: "cycle jump between the start/end task of the parents children"
 todool_indent_jump_scope :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -444,6 +456,7 @@ todool_indent_jump_scope :: proc(du: u32) {
 	}
 }
 
+comment_todool_selection_stop :: "stops task selection"
 todool_selection_stop :: proc(du: u32) {
 	if app_has_selection() {
 		app.task_tail = app.task_head
@@ -451,6 +464,7 @@ todool_selection_stop :: proc(du: u32) {
 	}	
 }
 
+comment_todool_escape :: "escape out of prompts or focused elements"
 todool_escape :: proc(du: u32) {
 	if image_display_has_content_now(app.custom_split.image_display) {
 		app.custom_split.image_display.img = nil
@@ -541,6 +555,7 @@ undo_filter_unfold :: proc(manager: ^Undo_Manager, item: rawptr) {
 	undo_push(manager, undo_filter_fold, &output, size_of(Undo_Item_Filter_Fold))
 }
 
+comment_todool_toggle_folding :: "toggle the task folding"
 todool_toggle_folding :: proc(du: u32 = 0) {
 	if app_filter_empty() {
 		return
@@ -607,6 +622,7 @@ task_check_unfold :: proc(manager: ^Undo_Manager, task: ^Task) -> bool {
 	return false
 }
 
+comment_todool_insert_sibling :: "insert a task with the same indentation | SHIFT for above"
 todool_insert_sibling :: proc(du: u32) {
 	// empty? just insert
 	if app_filter_empty() {
@@ -667,6 +683,7 @@ todool_insert_sibling :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_insert_child :: "insert a task below with increased indentation"
 todool_insert_child :: proc(du: u32) {
 	indentation: int
 	goal := app.task_head + 1 // default append
@@ -698,6 +715,7 @@ todool_insert_child :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_mode_list :: "change to the list mode"
 todool_mode_list :: proc(du: u32) {
 	if app.mmpp.mode != .List {
 		app.mmpp.mode = .List
@@ -707,6 +725,7 @@ todool_mode_list :: proc(du: u32) {
 	}
 }
 
+comment_todool_mode_kanban :: "change to the kanban mode"
 todool_mode_kanban :: proc(du: u32) {
 	if app.mmpp.mode != .Kanban {
 		app.mmpp.mode = .Kanban
@@ -828,6 +847,7 @@ shift_complex :: proc(manager: ^Undo_Manager, a, b: int) {
 	}
 }
 
+comment_todool_shift_up :: "shift the selected tasks up while keeping the same indentation"
 todool_shift_up :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -862,6 +882,7 @@ todool_shift_up :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_shift_down :: "shift the selected tasks down while keeping the same indentation"
 todool_shift_down :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -896,6 +917,7 @@ todool_shift_down :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_select_all :: "select all visible tasks"
 todool_select_all :: proc(du: u32) {
 	app.task_tail = 0
 	app.task_head = len(app.pool.filter)
@@ -980,6 +1002,7 @@ u8_xor_push :: proc(manager: ^Undo_Manager, value: ^u8, bit: u8) {
 	undo_u8_xor(manager, &item)
 }
 
+comment_todool_toggle_tag :: "toggle the task tag bit"
 todool_toggle_tag :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -1266,6 +1289,7 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	}
 }
 
+comment_todool_indentation_shift :: "shift the selected tasks to the left/right"
 todool_indentation_shift :: proc(du: u32) {
 	amt := du_pos_neg(du)
 
@@ -1288,6 +1312,7 @@ todool_indentation_shift :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_undo :: "undo the last set of actions"
 todool_undo :: proc(du: u32) {
 	manager := &app.um_task
 	if !undo_is_empty(manager, false) {
@@ -1300,6 +1325,7 @@ todool_undo :: proc(du: u32) {
 	}
 }
 
+comment_todool_redo :: "redo the last set of actions"
 todool_redo :: proc(du: u32) {
 	manager := &app.um_task
 	if !undo_is_empty(manager, true) {
@@ -1312,6 +1338,7 @@ todool_redo :: proc(du: u32) {
 	}
 }
 
+comment_todool_save :: "save everything - will use last task save location if set | TRUE to force prompt"
 todool_save :: proc(du: u32) {
 	when DEMO_MODE {
 		dialog_spawn(
@@ -1367,6 +1394,7 @@ todool_save :: proc(du: u32) {
 }
 
 // load
+comment_todool_load :: "load task content through file prompt"
 todool_load :: proc(du: u32) {
 	default_path: cstring
 
@@ -1426,6 +1454,7 @@ todool_load :: proc(du: u32) {
 	) 
 }
 
+comment_todool_toggle_bookmark :: "toggle the task bookmark"
 todool_toggle_bookmark :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -1456,6 +1485,7 @@ element_find_first_text_box :: proc(parent: ^Element) -> ^Text_Box {
 	return nil
 }
 
+comment_todool_goto :: "spawn the goto prompt"
 todool_goto :: proc(du: u32) {
 	p := app.panel_goto
 
@@ -1478,6 +1508,7 @@ todool_goto :: proc(du: u32) {
 	box.tail = 0
 }
 
+comment_todool_search :: "spawn the search prompt"
 todool_search :: proc(du: u32) {
 	p := panel_search
 	element_hide(p, false)
@@ -1523,6 +1554,7 @@ issue_copy :: proc() {
 	app.last_was_task_copy = true
 }
 
+comment_todool_duplicate_line :: "duplicates the current line"
 todool_duplicate_line :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -1549,6 +1581,7 @@ todool_duplicate_line :: proc(du: u32) {
 	app.task_tail += insert_count
 }
 
+comment_todool_copy_tasks :: "deep copy the selected tasks to the copy buffer"
 todool_copy_tasks :: proc(du: u32 = 0) {
 	low, high := task_low_and_high()
 	if copy_state_copy_selection(&app.copy_state, low, high) {
@@ -1556,6 +1589,7 @@ todool_copy_tasks :: proc(du: u32 = 0) {
 	}
 }
 
+comment_todool_cut_tasks :: "cut the selected tasks to the copy buffer"
 todool_cut_tasks :: proc(du: u32 = 0) {
 	if app_filter_empty() {
 		return 
@@ -1571,6 +1605,7 @@ todool_cut_tasks :: proc(du: u32 = 0) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_paste_tasks :: "paste the content from the copy buffer"
 todool_paste_tasks :: proc(du: u32 = 0) {
 	if copy_state_empty(app.copy_state) {
 		return
@@ -1603,6 +1638,7 @@ todool_paste_tasks :: proc(du: u32 = 0) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_paste_tasks_from_clipboard :: "paste the clipboard content based on the indentation"
 todool_paste_tasks_from_clipboard :: proc(du: u32) {
 	if clipboard_has_content() {
 		clipboard_text := clipboard_get_with_builder()
@@ -1648,6 +1684,7 @@ todool_paste_tasks_from_clipboard :: proc(du: u32) {
 	}
 }
 
+comment_todool_center :: "center the camera vertically"
 todool_center :: proc(du: u32) {
 	if app_filter_not_empty() {
 		cam := mode_panel_cam()
@@ -1656,6 +1693,7 @@ todool_center :: proc(du: u32) {
 	}
 }
 
+comment_todool_tasks_to_uppercase :: "uppercase the starting letters of each word for the selected tasks"
 todool_tasks_to_uppercase :: proc(du: u32) {
 	if app_filter_not_empty() {
 		manager := mode_panel_manager_scoped()
@@ -1675,6 +1713,7 @@ todool_tasks_to_uppercase :: proc(du: u32) {
 	}
 }
 
+comment_todool_tasks_to_lowercase :: "lowercase all the content for the selected tasks"
 todool_tasks_to_lowercase :: proc(du: u32) {
 	if app_filter_not_empty() {
 		manager := mode_panel_manager_scoped()
@@ -1694,6 +1733,7 @@ todool_tasks_to_lowercase :: proc(du: u32) {
 	}
 }
 
+comment_todool_new_file :: "empty the task content - will try to save before"
 todool_new_file :: proc(du: u32) {
 	app_save_maybe(
 		app.window_main, 
@@ -1789,6 +1829,7 @@ app_save_close :: proc() -> (handled: bool) {
 	return handled
 }
 
+comment_todool_select_children :: "select parents children, cycles through start/end on repeat"
 todool_select_children :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -1828,6 +1869,7 @@ todool_select_children :: proc(du: u32) {
 }
 
 // jumps to nearby state changes
+comment_todool_jump_nearby :: "jump to nearest task with different state | SHIFT for backwards"
 todool_jump_nearby :: proc(du: u32) {
 	ctrl, shift := du_ctrl_shift(du)
 
@@ -1960,6 +2002,7 @@ undo_sort_reset :: proc(manager: ^Undo_Manager, item: rawptr) {
 // gather all children to be sorted [from:to] without sub children
 // sort based on wanted properties
 // replace existing tasks by new result + offset by sub children
+comment_todool_sort_locals :: "sorts the local children based on task state"
 todool_sort_locals :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -1990,12 +2033,14 @@ todool_sort_locals :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_scale :: "scales the tasks up, TRUE for down"
 todool_scale :: proc(du: u32) {
 	amt := f32(du_pos_neg(du)) * 0.1
 	scaling_inc(amt)
 	window_repaint(app.window_main)
 }
 
+comment_todool_fullscreen_toggle :: "toggle between (fake) fullscren and windowed"
 todool_fullscreen_toggle :: proc(du: u32) {
 	window_fullscreen_toggle(app.window_main)
 }
@@ -2011,14 +2056,17 @@ VIM :: proc(insert: bool) {
 	}
 }
 
+comment_vim_insert_mode_set :: "enter insert mode"
 vim_insert_mode_set :: proc(du: u32) {
 	VIM(true)
 }
 
+comment_vim_normal_mode_set :: "enter normal mode"
 vim_normal_mode_set :: proc(du: u32) {
 	VIM(false)
 }
 
+comment_vim_insert_mode_beginning :: "enter insert mode and move to start of line"
 // I, insert mode & box to beginning
 vim_insert_mode_beginning :: proc(du: u32) {
 	VIM(true)
@@ -2026,24 +2074,19 @@ vim_insert_mode_beginning :: proc(du: u32) {
 	box_check_shift(kbox.box, false)
 }
 
+comment_vim_insert_below :: "insert a task below the current line"
 vim_insert_below :: proc(du: u32) {
 	VIM(true)
 	todool_insert_sibling(COMBO_EMPTY)
 }
 
+comment_vim_insert_above :: "insert a task above the current line"
 vim_insert_above :: proc(du: u32) {
 	VIM(true)
 	todool_insert_sibling(COMBO_SHIFT)
 }
 
-vim_move_up :: proc(du: u32) {
-	todool_move_up(du)
-}
-
-vim_move_down :: proc(du: u32) {
-	todool_move_down(du)
-}
-
+comment_vim_visual_move_left :: "move to the closest task to the left visually"
 vim_visual_move_left :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -2091,6 +2134,7 @@ vim_visual_move_left :: proc(du: u32) {
 	}
 }
 
+comment_vim_visual_move_right :: "move to the closest task to the right visually"
 vim_visual_move_right :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -2186,6 +2230,7 @@ vim_visual_reptition_check :: proc(task: ^Task, direction: int) -> bool {
 	return false
 }
 
+comment_todool_toggle_progressbars :: "toggle progressbars from rendering"
 todool_toggle_progressbars :: proc(du: u32) {
 	check := sb.options.checkbox_progressbar_show
 	
@@ -2195,6 +2240,7 @@ todool_toggle_progressbars :: proc(du: u32) {
 	}
 }
 
+comment_todool_toggle_timestamp :: "toggle a timestamp"
 todool_toggle_timestamp :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -2208,6 +2254,7 @@ todool_toggle_timestamp :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_move_start :: "move to the start of the list"
 todool_move_start :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -2221,6 +2268,7 @@ todool_move_start :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
+comment_todool_move_end :: "move to the end of the list"
 todool_move_end :: proc(du: u32) {
 	if app_filter_empty() {
 		return
