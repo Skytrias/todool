@@ -6,10 +6,17 @@ import "core:mem"
 import "core:time"
 
 // helper call to build strings linearly
-string_list_push :: proc(builder: ^strings.Builder, text: string) -> (start, end: int) {
+string_list_push_indices :: proc(builder: ^strings.Builder, text: string) -> (start, end: int) {
 	start = len(builder.buf)
 	strings.write_string(builder, text)
 	end = len(builder.buf)
+	return
+}
+
+string_list_push_ptr :: proc(builder: ^strings.Builder, text: string) -> (res: string) {
+	old := len(builder.buf)
+	strings.write_string(builder, text)
+	res = string(builder.buf[old:])
 	return
 }
 
@@ -66,7 +73,7 @@ copy_state_reset :: proc(state: ^Copy_State) {
 
 // just push text, e.g. from archive
 copy_state_push_empty :: proc(state: ^Copy_State, text: string) {
-	start, end := string_list_push(&state.stored_text, text)
+	start, end := string_list_push_indices(&state.stored_text, text)
 
 	// copy crucial info of task
 	append(&state.stored_tasks, Copy_Task {
@@ -86,11 +93,11 @@ copy_state_push_empty :: proc(state: ^Copy_State, text: string) {
 // push a task to copy list
 copy_state_push_task :: proc(state: ^Copy_State, task: ^Task, fold_parent: int) {
 	// NOTE works with utf8 :) copies task text
-	text_start, text_end := string_list_push(&state.stored_text, ss_string(&task.box.ss))
+	text_start, text_end := string_list_push_indices(&state.stored_text, ss_string(&task.box.ss))
 	link_start, link_end: int
 
 	if task_link_is_valid(task) {
-		link_start, link_end = string_list_push(
+		link_start, link_end = string_list_push_indices(
 			&state.stored_links, 
 			strings.to_string(task.button_link.builder),
 		)

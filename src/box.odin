@@ -1429,7 +1429,6 @@ KBox :: struct {
 kbox: KBox
 
 // moves the caret to the left | SHIFT for selection | CTRL for extended moves
-comment_kbox_move_left :: "moves the caret to the left | SHIFT for selection | CTRL for extended moves"
 kbox_move_left :: proc(du: u32) {
 	ctrl, shift := du_ctrl_shift(du)
 	move: Caret_Translation = ctrl ? .Word_Left : .Character_Left
@@ -1437,7 +1436,6 @@ kbox_move_left :: proc(du: u32) {
 	box_check_shift(kbox.box, shift)
 }
 
-comment_kbox_move_right :: "moves the caret to the right | SHIFT for selection | CTRL for extended moves"
 kbox_move_right :: proc(du: u32) {
 	ctrl, shift := du_ctrl_shift(du)
 	move: Caret_Translation = ctrl ? .Word_Right : .Character_Right
@@ -1445,7 +1443,6 @@ kbox_move_right :: proc(du: u32) {
 	box_check_shift(kbox.box, shift)		
 }
 
-comment_kbox_move_home :: "moves the caret to the start | SHIFT for selection"
 kbox_move_home :: proc(du: u32) {
 	shift := du_shift(du)
 	kbox.box.head = 0
@@ -1458,7 +1455,6 @@ box_move_end_simple :: proc(box: ^Box) {
 	box_check_shift(box, false)
 }
 
-comment_kbox_move_end :: "moves the caret to the end | SHIFT for selection"
 kbox_move_end :: proc(du: u32) {
 	shift := du_shift(du)
 	length := cutf8.count(ss_string(&kbox.box.ss))
@@ -1466,14 +1462,12 @@ kbox_move_end :: proc(du: u32) {
 	box_check_shift(kbox.box, shift)
 }
 
-comment_kbox_select_all :: "selects all characters"
 kbox_select_all :: proc(du: u32) {
 	length := cutf8.count(ss_string(&kbox.box.ss))
 	kbox.box.head = length
 	kbox.box.tail = 0
 }
 
-comment_kbox_backspace :: "deletes the character to the left | CTRL for word based"
 kbox_backspace :: proc(du: u32) {
 	old_head := kbox.box.head
 	old_tail := kbox.box.tail
@@ -1505,7 +1499,6 @@ kbox_backspace :: proc(du: u32) {
 	}
 }
 
-comment_kbox_delete :: "deletes the character to the right | CTRL for word based"
 kbox_delete :: proc(du: u32) {
 	ctrl, shift := du_ctrl_shift(du)
 
@@ -1530,13 +1523,11 @@ kbox_delete :: proc(du: u32) {
 	}
 }
 
-comment_kbox_copy :: "pushes selection to the copy buffer"
 kbox_copy :: proc(du: u32) {
 	kbox.failed = !box_copy_selection(kbox.element.window, kbox.box)
 	app.last_was_task_copy = false
 }
 
-comment_kbox_cut :: "cuts selection and pushes to the copy buffer"
 kbox_cut :: proc(du: u32) {
 	if kbox.box.tail != kbox.box.head {
 		kbox.failed = !box_copy_selection(kbox.element.window, kbox.box)
@@ -1547,7 +1538,6 @@ kbox_cut :: proc(du: u32) {
 	}
 }
 
-comment_kbox_paste :: "pastes text from copy buffer"
 kbox_paste :: proc(du: u32) {
 	if clipboard_check_changes() {
 		app.last_was_task_copy = false
@@ -1575,7 +1565,5 @@ kbox_undo_redo :: proc(du: u32, do_redo: bool) {
 	}
 }
 
-comment_kbox_undo :: "undos local changes"
 kbox_undo :: proc(du: u32) { kbox_undo_redo(du, false) }
-comment_kbox_redo :: "redos local changes"
 kbox_redo :: proc(du: u32) { kbox_undo_redo(du, true) }

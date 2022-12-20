@@ -127,7 +127,6 @@ pomodoro_stopwatch_reset :: #force_inline proc() {
 }
 
 // toggle stopwatch on or off based on index
-comment_pomodoro_stopwatch_hot_toggle :: "toggle the pomodoro work/short break/long break timer"
 pomodoro_stopwatch_hot_toggle :: proc(du: u32) {
 	defer {
 		element_hide(sb.stats.button_pomodoro_reset, !pomodoro.stopwatch.running)

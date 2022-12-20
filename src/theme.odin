@@ -471,7 +471,6 @@ theme_randomize_all :: proc(tags_only: bool) {
 	gs_update_all_windows()
 }		
 
-comment_theme_editor_spawn :: "spawn the theme editor window"
 theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 	if !theme_editor.open {
 		theme_editor = {}

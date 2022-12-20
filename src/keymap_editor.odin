@@ -109,7 +109,6 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 	return 0
 }
 
-comment_keymap_editor_spawn :: "spawn the keymap editor window"
 keymap_editor_spawn :: proc(du: u32) {
 	if ke.window != nil {
 		window_raise(ke.window)
@@ -361,11 +360,6 @@ ke_button_combo_text :: proc(button: ^KE_Button_Combo) -> string {
 	return string(button.node.combo[:button.node.combo_index])
 }
 
-// get text per mode
-ke_button_command_text :: proc(button: ^KE_Button_Combo) -> string {
-	return string(button.node.command[:button.node.command_index])
-}
-
 ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	button := cast(^KE_Button_Combo) element
 
@@ -376,28 +370,30 @@ ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			hovered := element.window.hovered == element
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
-			keymap := cast(^Keymap) button.parent.parent.data
-			text := ke_button_command_text(button)
-
 			// find assigned color
-			command, ok := keymap.commands[text]
-			color := keymap.command_colors[command] or_else TRANSPARENT
-			render_rect(target, rect_padding(element.bounds, rect_xxyy(LINE_WIDTH, 0)), color)
+			keymap := cast(^Keymap) button.parent.parent.data
+			if button.node.command_index != -1 {
+				command := keymap_get_command(keymap, button.node.command_index)
+				render_rect(target, rect_padding(element.bounds, rect_xxyy(LINE_WIDTH, 0)), command.color)
+			}
 
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, text_color)
 				render_hovered_highlight(target, element.bounds)
 			}
 
-			fcs_element(button)
-			fcs_ahv(.LEFT, .MIDDLE)
-			fcs_color(text_color)
+			if button.node.command_index != -1 {
+				fcs_element(button)
+				fcs_ahv(.LEFT, .MIDDLE)
+				fcs_color(text_color)
 
-			// offset left words
-			bounds := element.bounds
-			bounds.l += int(TEXT_PADDING * SCALE)
+				// offset left words
+				bounds := element.bounds
+				bounds.l += int(TEXT_PADDING * SCALE)
 
-			render_string_rect(target, bounds, text)
+				command := keymap_get_command(keymap, button.node.command_index)
+				render_string_rect(target, bounds, command.name)
+			}
 		}
 
 		case .Update: {
@@ -415,8 +411,15 @@ ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 
 		case .Get_Width: {
 			fcs_element(element)
-			text := ke_button_command_text(button)
-			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
+			
+			w: int
+			if button.node.command_index != -1 {
+				keymap := cast(^Keymap) button.parent.parent.data
+				command := keymap_get_command(keymap, button.node.command_index)
+				w = string_width(command.name) + int(TEXT_MARGIN_HORIZONTAL * SCALE)
+			}
+
+			width := max(int(50 * SCALE), w)
 			return int(width)
 		}
 
@@ -430,16 +433,11 @@ ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 
 		case .Hover_Info: {
 			keymap := cast(^Keymap) button.parent.parent.data
-			c1 := string(button.node.command[:button.node.command_index])
-			command, ok := keymap.commands[c1]
 
-			if ok {
-				comment, found := keymap_comments[command]
-
-				if found {
-					res := cast(^string) dp
-					res^ = comment 
-				}
+			if button.node.command_index != -1 {
+				command := keymap_get_command(keymap, button.node.command_index)
+				res := cast(^string) dp
+				res^ = command.comment 
 			}
 		}
 	}
@@ -674,10 +672,8 @@ keymap_editor_static_grid_message :: proc(element: ^Element, msg: Message, di: i
 }
 
 keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool) -> (grid: ^Static_Grid) {
-	reserve(&keymap.command_colors, len(keymap.commands))
-	clear(&keymap.command_colors)
-	for key, value in keymap.commands {
-		keymap.command_colors[value] = color_hsl_golden_rand(nil, 0.5, 1)
+	for cmd in &keymap.commands {
+		cmd.color = color_hsl_golden_rand(nil, 0.5, 1)
 	}
 
 	cell_sizes := [?]int { 250, 200, 100 }
@@ -728,19 +724,16 @@ keymap_editor_line_append :: proc(
 KE_Command :: struct {
 	using element: Element,
 	index: int,
-	text: string,
 	is_current: bool,
 }
 
 ke_command_init :: proc(
 	parent: ^Element, 
 	index: int, 
-	text: string,
 	is_current: bool,
 ) -> (res: ^KE_Command) {
 	res = element_init(KE_Command, parent, {}, ke_command_message, context.allocator)
 	res.index = index
-	res.text = text
 	res.is_current = is_current
 	return
 }
@@ -749,11 +742,7 @@ ke_command_build :: proc(cmd: ^KE_Command) {
 	assert(ke.menu.combo != nil)
 	assert(cmd != nil)
 	n := ke.menu.combo
-
-	index := min(len(n.command), len(cmd.text))
-	mem.copy(&n.command[0], raw_data(cmd.text), index)
-	n.command_index = u8(index)
-
+	n.command_index = cmd.index
 	menu_close(cmd.window)
 }
 
@@ -767,14 +756,11 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			hovered := element.window.hovered == element
 			
 			builder := strings.builder_make(0, 64, context.temp_allocator)
-			strings.write_int(&builder, cmd.index)
+			strings.write_int(&builder, int(cmd.index))
 			strings.write_string(&builder, ". ")
-			strings.write_string(&builder, cmd.text)
-
-			// find assigned color
-			command, ok := ke.menu.keymap.commands[cmd.text]
-			color := ke.menu.keymap.command_colors[command] or_else TRANSPARENT
-			render_rect(target, rect_margin(element.bounds, 1), color)
+			command := keymap_get_command(ke.menu.keymap, cmd.index)
+			strings.write_string(&builder, command.name)
+			render_rect(target, rect_margin(element.bounds, 1), command.color)
 
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, theme.text_default)
@@ -786,7 +772,7 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			fcs_element(element)
 			fcs_ahv(.LEFT, .MIDDLE)
-			color = cmd.is_current ? theme.text_good : theme.text_default
+			color := cmd.is_current ? theme.text_good : theme.text_default
 			fcs_color(color)
 			render_string_rect(target, bounds, strings.to_string(builder))
 		}
@@ -807,17 +793,6 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Get_Cursor: {
 			return int(Cursor.Hand)
 		}
-
-		// case .Hover_Info: {
-		// 	command, ok := ke.menu.keymap.commands[cmd.text]
-		// 	assert(ok)
-		// 	comment, found := keymap_comments[command]
-
-		// 	if found {
-		// 		res := cast(^string) dp
-		// 		res^ = comment 
-		// 	}
-		// }
 	}
 
 	return 0
@@ -842,7 +817,6 @@ keymap_editor_menu_command :: proc(
 	ke.menu.combo = combo
 	offset: int
 	is_current: bool
-	c1 := string(combo.command[:combo.command_index])
 
 	ke.menu.keymap = keymap
 	ke.menu.box = text_box_init(p, { .HF })
@@ -864,7 +838,8 @@ keymap_editor_menu_command :: proc(
 				for child in children {
 					if child.message_class == ke_command_message {
 						cmd := cast(^KE_Command) child
-						res, ok := fuzz.match(cmd.text, pattern)
+						command := keymap_get_command(ke.menu.keymap, cmd.index)
+						res, ok := fuzz.match(command.name, pattern)
 						hide := res.score > 10 && ok
 						element_hide(cmd, !hide)
 					}
@@ -882,9 +857,10 @@ keymap_editor_menu_command :: proc(
 	ke.menu.sub = panel_init(p, { .HF, .VF, .Panel_Expand, .Panel_Scroll_Vertical, .Panel_Default_Background }, 5)
 	ke.menu.sub.background_index = 2
 
-	for key, value in keymap.commands {
-		is_current = key == c1
-		ke_command_init(ke.menu.sub, offset, key, is_current)
+	current_index := int(combo.command_index)
+	for i in 0..<len(keymap.commands) {
+		is_current = i == current_index
+		ke_command_init(ke.menu.sub, i, is_current)
 		offset += 1
 	}
 
@@ -906,7 +882,7 @@ keymap_editor_menu_combo :: proc(line: ^Static_Line) {
 		keymap := cast(^Keymap) grid.data
 		
 		index := ke.menu.line.index + 1
-		inject_at(&keymap.combos, index, Combo_Node {})
+		inject_at(&keymap.combos, index, Combo_Node { command_index = -1 })
 
 		keymap_editor_line_append(grid, nil, 0)
 		ke.issue_update = grid

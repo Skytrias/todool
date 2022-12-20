@@ -148,7 +148,6 @@ app_init :: proc() -> (res: ^App) {
 	
 	strings.builder_init(&res.last_save_location, 0, 128)
 
-	keymap_init_comments()
 	keymap_init(&res.keymap_vim_normal, 64, 256)
 	keymap_init(&res.keymap_vim_insert, 32, 32)
 
@@ -188,7 +187,6 @@ app_init :: proc() -> (res: ^App) {
 }
 
 app_destroy :: proc(a: ^App) {
-	keymap_destroy_comments()
 	keymap_destroy(&a.keymap_vim_normal)
 	keymap_destroy(&a.keymap_vim_insert)
 

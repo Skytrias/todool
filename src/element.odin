@@ -3673,9 +3673,8 @@ Menu_Bar_Line :: struct {
 	icon: Icon,
 	builder: strings.Builder,
 	
-	command: string,
+	command_index: int,
 	command_du: u32,
-
 	command_custom: proc(),
 }
 
@@ -3695,6 +3694,7 @@ mbc :: proc(
 	res.builder = strings.builder_make(0, len(text))
 	strings.write_string(&res.builder, text)
 	res.command_custom = command_custom
+	res.command_index = -1
 	res.icon = icon
 	return
 }
@@ -3710,28 +3710,14 @@ menu_bar_line_init :: proc(
 	res = element_init(Menu_Bar_Line, parent, {}, menu_bar_line_message, context.allocator)
 	res.builder = strings.builder_make(0, len(text))
 	strings.write_string(&res.builder, text)
-	res.command = command
+	
+	// TODO assign a custom keymap?
+	keymap := &app.window_main.keymap_custom
+	index := keymap_find_command(keymap, command)
+	res.command_index = index
 	res.command_du = command_du
+	
 	res.icon = icon
-	return
-}
-
-menu_bar_line_combo :: proc(line: ^Menu_Bar_Line) -> (
-	node: ^Combo_Node,
-	combo_text: string,
-) {
-	if line.command != "" {
-		node = keymap_command_find_combo(
-			&app.window_main.keymap_custom, 
-			line.command,
-			line.command_du,
-		)
-
-		if node != nil {
-			combo_text = strings.string_from_ptr(&node.combo[0], int(node.combo_index))
-		}
-	}
-
 	return
 }
 
@@ -3764,11 +3750,14 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 			fcs_element(element)
 			fcs_color(text_color)
 
-			if combo, c1 := menu_bar_line_combo(line); combo != nil {
+			// TODO customizable keymap
+			keymap := &element.window.keymap_custom
+			if combo := keymap_command_find_combo(keymap, line.command_index, line.command_du); combo != nil {
 				fcs_ahv(.RIGHT, .MIDDLE)
 				bounds := bounds
 				bounds.r -= int(TEXT_PADDING * SCALE)
-				render_string_rect(target, bounds, c1)
+				name := string(combo.combo[:combo.combo_index])
+				render_string_rect(target, bounds, name)
 			}
 
 			fcs_ahv(.LEFT, .MIDDLE)
@@ -3786,8 +3775,11 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 			fcs_element(element)
 			line_width += string_width(strings.to_string(line.builder))
 
-			if combo, c1 := menu_bar_line_combo(line); combo != nil {
-				line_width += string_width(c1) + int(FIXED_COMBO_SPACE * SCALE)
+			// TODO customizable keymap
+			keymap := &element.window.keymap_custom
+			if combo := keymap_command_find_combo(keymap, line.command_index, line.command_du); combo != nil {
+				name := string(combo.combo[:combo.combo_index])
+				line_width += string_width(name) + int(FIXED_COMBO_SPACE * SCALE)
 			}
 
 			return max(int(50 * SCALE), line_width + 10)
@@ -3796,10 +3788,13 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 		case .Clicked: {
 			if line.command_custom != nil {
 				line.command_custom()
-			} else {
-				if cmd, ok := app.window_main.keymap_custom.commands[line.command]; ok {
-					cmd(line.command_du)
-				}
+			} else if line.command_index != -1 {
+				// TODO customizable keymap
+				keymap := &element.window.keymap_custom
+
+				// TODO could just store the found command index
+				cmd := keymap_get_command(keymap, line.command_index)
+				cmd.call(line.command_du)
 			}
 
 			menu_close(app.window_main)
@@ -3918,8 +3913,6 @@ static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 					}
 					sum += h
 				}
-
-				sum += height
 			}
 
 			return sum

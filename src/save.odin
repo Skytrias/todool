@@ -1105,24 +1105,21 @@ keymap_save :: proc(path: string) -> bool {
 		count: int
 
 		for node in &keymap.combos {
-			c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
-			c2 := strings.string_from_ptr(&node.command[0], int(node.command_index))
-
-			if cmd, ok1 := keymap.commands[c2]; ok1 {
-				if comment, ok2 := keymap_comments[cmd]; ok2 {
-					strings.write_string(b, "\t// ")
-					strings.write_string(b, comment)
-					strings.write_byte(b, '\n')
-				} else {
-					// NOTE skip non found command
-					continue
-				}
+			if node.command_index == -1 {
+				continue
 			}
+
+			c1 := string(node.combo[:node.combo_index])
+			cmd := keymap_get_command(keymap, node.command_index)
+
+			strings.write_string(b, "\t// ")
+			strings.write_string(b, cmd.comment)
+			strings.write_byte(b, '\n')
 
 			strings.write_byte(b, '\t')
 			strings.write_string(b, c1)
 			strings.write_string(b, " = ")
-			strings.write_string(b, c2)
+			strings.write_string(b, cmd.name)
 
 			// write optional data
 			if node.du != COMBO_EMPTY {

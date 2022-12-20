@@ -1,14 +1,15 @@
 package src
 
+import "core:runtime"
+import "core:hash"
 import "core:mem"
 import "core:fmt"
 import "core:strings"
 import dll "core:container/intrusive/list"
 
 Command :: proc(u32)
-
 COMBO_MAX :: 48
-COMMAND_MAX :: 32
+LUT_SIZE :: 256
 
 Combo_Conflict :: struct {
 	using node: dll.Node,
@@ -23,30 +24,84 @@ Combo_Conflict :: struct {
 
 Conflict_Node :: dll.Node
 
-// NOTE heap is easier for now
-Keymap :: struct {
-	commands: map[string]Command,
-	combos: [dynamic]Combo_Node,
-	combo_last: ^Combo_Node,
-	conflict_list: dll.List,
-
-	// keymap editor colors for each command
-	// reset each time
-	command_colors: map[Command]Color,
+// named version of an executable command
+Keymap_Command :: struct {
+	name: string, // ptr to keymap.command_names
+	comment: string, // ptr to global keymap.command_comments
+	color: Color, // keymap editor color
+	call: Command, 
+	next: int, // next hash
 }
 
-keymap_query_info :: proc(using keymap: ^Keymap, name: string) {
-	fmt.eprintln("MAP", name, ":", len(commands), cap(commands))
+// NOTE heap is easier for now
+Keymap :: struct {
+	// NOTE set once
+	// string storage of all commands
+	command_names: strings.Builder,
+	
+	// NOTE set once
+	// string storage of all command comments
+	command_comments: strings.Builder,
+	
+	// NOTE DOESNT CHANGE AT RUNTIME
+	commands: [dynamic]Keymap_Command,
+
+	// look up table to go from string hash to command
+	command_lut: []int,
+
+	// storage of combos
+	combos: [dynamic]Combo_Node,
+
+	// last used combo
+	combo_last: ^Combo_Node,
+	
+	// list of conflicts
+	conflict_list: dll.List,
+}
+
+keymap_init :: proc(keymap: ^Keymap, commands_cap: int, combos_cap: int) {
+	keymap.command_names = strings.builder_make(0, 2056)
+	keymap.command_comments = strings.builder_make(0, 2056)
+	keymap.commands = make([dynamic]Keymap_Command, 0, commands_cap)
+	keymap.combos = make([dynamic]Combo_Node, 0, combos_cap)
+	keymap.command_lut = make([]int, LUT_SIZE)
+
+	// set to default
+	for i in 0..<len(keymap.command_lut) {
+		keymap.command_lut[i] = -1
+	}
+}
+
+keymap_destroy :: proc(keymap: ^Keymap) {
+	// free all nodes
+	iter := dll.iterator_head(keymap.conflict_list, Combo_Conflict, "node")
+	for node in dll.iterate_next(&iter) {
+		free(node)
+	}
+
+	delete(keymap.command_comments.buf)
+	delete(keymap.command_names.buf)
+	delete(keymap.commands)
+	delete(keymap.command_lut)
+	delete(keymap.combos)
+}
+
+keymap_print_commands :: proc(keymap: ^Keymap) {
+	fmt.eprintln("KEYMAP\t", len(keymap.commands), cap(keymap.commands))
+
+	for cmd in keymap.commands {
+		fmt.eprintf("\tname = %s\tnext = %d\n", cmd.name, cmd.next)
+	}
 }
 
 Combo_Node :: struct {
 	combo: [COMBO_MAX]u8,
-	command: [COMMAND_MAX]u8,
-	
 	combo_index: u8,
-	command_index: u8,
-	du: u32,
 
+	// index into commands
+	command_index: int,
+
+	du: u32,
 	conflict: ^Combo_Conflict,
 }
 
@@ -106,23 +161,25 @@ du_from_string :: proc(text: string) -> u32 {
 	return COMBO_EMPTY		
 }
 
+// find a combo by its desired command string & matching du
 keymap_command_find_combo :: proc(
 	keymap: ^Keymap, 
-	command: string,
+	command_index: int,
 	du: u32 = COMBO_EMPTY,
 ) -> (res: ^Combo_Node) {
-	for node in &keymap.combos {
-		c2 := string(node.command[:node.command_index])
-
-		if c2 == command && node.du == du {
-			res = &node
-			return
-		}
-	}	
+	if command_index != -1 {
+		for node in &keymap.combos {
+			if command_index == node.command_index && node.du == du {
+				res = &node
+				return
+			}
+		}	
+	}
 
 	return
 }
 
+// check if a combo node matches to a combo string
 keymap_combo_match :: proc(
 	keymap: ^Keymap, 
 	node: ^Combo_Node, 
@@ -130,14 +187,10 @@ keymap_combo_match :: proc(
 ) -> (res: Command, ok: bool) {
 	c1 := string(node.combo[:node.combo_index])
 	
-	if combo == c1 {
-		c2 := string(node.command[:node.command_index])
-
-		if cmd, exists := keymap.commands[c2]; exists {
-			res = cmd
-			ok = true
-			return
-		}
+	if node.command_index != -1 && combo == c1 {
+		cmd := keymap_get_command(keymap, node.command_index)
+		res = cmd.call
+		ok = true
 	}
 
 	return
@@ -164,25 +217,58 @@ keymap_combo_execute :: proc(keymap: ^Keymap, combo: string) -> bool {
 	return false
 }
 
-keymap_init :: proc(keymap: ^Keymap, commands_cap: int, combos_cap: int) {
-	keymap.commands = make(map[string]Command, commands_cap)
-	keymap.combos = make([dynamic]Combo_Node, 0, combos_cap)
+keymap_get_command :: proc(
+	keymap: ^Keymap, 
+	command_index: int, 
+	loc := #caller_location,
+) -> ^Keymap_Command #no_bounds_check {
+	runtime.bounds_check_error_loc(loc, command_index, len(keymap.commands))
+	return &keymap.commands[command_index]
 }
 
-keymap_destroy :: proc(keymap: ^Keymap) {
-	// free all nodes
-	iter := dll.iterator_head(keymap.conflict_list, Combo_Conflict, "node")
-	for node in dll.iterate_next(&iter) {
-		free(node)
+// find a command by its string hash
+keymap_find_command :: proc(keymap: ^Keymap, command: string) -> int #no_bounds_check {
+	h := hash.fnv32(transmute([]byte) command) & (LUT_SIZE - 1)
+	index := keymap.command_lut[h]
+
+	for index != -1 {
+		cmd := keymap.commands[index]
+
+		if cmd.name == command {
+			return index
+		}
+
+		index = cmd.next
 	}
 
-	delete(keymap.commands)
-	delete(keymap.combos)
-	delete(keymap.command_colors)
+	return -1
+}
+
+// push a single command & call to a keymap
+keymap_push_command :: proc(
+	keymap: ^Keymap,
+	command: string,
+	call: Command,
+	comment: string,
+) {
+	res := string_list_push_ptr(&keymap.command_names, command)
+	h := hash.fnv32(transmute([]byte) command) & (LUT_SIZE - 1)
+
+	append(&keymap.commands, Keymap_Command {
+		res,
+		comment,
+		RED,
+		call,
+		keymap.command_lut[h],
+	})
+
+	// set this slot to the index
+	keymap.command_lut[h] = len(keymap.commands) - 1
 }
 
 // set a combo internal values
 keymap_combo_set :: proc(
+	keymap: ^Keymap,
 	node: ^Combo_Node,
 	combo: string,
 	command: string,
@@ -192,10 +278,7 @@ keymap_combo_set :: proc(
 	mem.copy(&node.combo[0], raw_data(combo), combo_index)
 	node.combo_index = u8(combo_index)
 
-	command_index := min(len(node.command), len(command))
-	mem.copy(&node.command[0], raw_data(command), command_index)
-	node.command_index = u8(command_index)
-
+	node.command_index = keymap_find_command(keymap, command)
 	node.du = du
 }
 
@@ -208,7 +291,7 @@ keymap_push_combo :: proc(
 ) {
 	append(&keymap.combos, Combo_Node {})
 	node := &keymap.combos[len(keymap.combos) - 1]
-	keymap_combo_set(node, combo, command, du)
+	keymap_combo_set(keymap, node, combo, command, du)
 }
 
 // optionally push combo if it doesnt exist yet
@@ -218,16 +301,20 @@ keymap_push_combo_opt :: proc(
 	command: string,
 	du: u32,
 ) {
-	res := keymap_command_find_combo(keymap, command, du)
+	command_index := keymap_find_command(keymap, command)
+	res := keymap_command_find_combo(keymap, command_index, du)
 	
 	if res != nil {
-		fmt.eprintln("FOUND ALREADY", command)
+		c1 := string(res.combo[:res.combo_index])
+		real_cmd := keymap_get_command(keymap, res.command_index)
+		fmt.eprintln("FOUND ALREADY", command, "|", c1, real_cmd.name)
 		return
 	}
 
+	fmt.eprintln("FORCE INSERTED", command)
 	append(&keymap.combos, Combo_Node {})
 	node := &keymap.combos[len(keymap.combos) - 1]
-	keymap_combo_set(node, combo, command, du)
+	keymap_combo_set(keymap, node, combo, command, du)
 }
 
 // free all nodes
@@ -235,47 +322,38 @@ keymap_clear_combos :: proc(keymap: ^Keymap) {
 	clear(&keymap.combos)
 }
 
-commands_push: ^map[string]Command
-CP1 :: #force_inline proc(command: string, call: Command) {
-	commands_push[command] = call
+__keymap_push: ^Keymap
+CP1 :: #force_inline proc(command: string, call: Command, comment: string) {
+	keymap_push_command(__keymap_push, command, call, comment)
 }
-
-keymap_push: ^Keymap
 CP2 :: #force_inline proc(combo: string, command: string, du: u32 = 0x00) {
-	keymap_push_combo(keymap_push, combo, command, du)
+	keymap_push_combo(__keymap_push, combo, command, du)
 }
-
-// push comment helper
-keymap_comments: map[Command]string
-CP3 :: #force_inline proc(call: Command, comment: string) {
-	keymap_comments[call] = comment
-}
-
 CP4 :: #force_inline proc(combo: string, command: string, du: u32 = 0x00) {
-	keymap_push_combo_opt(keymap_push, combo, command, du)
+	keymap_push_combo_opt(__keymap_push, combo, command, du)
 }
 
 keymap_push_box_commands :: proc(keymap: ^Keymap) {
-	commands_push = &keymap.commands
-	CP1("box_move_left", kbox_move_left)
-	CP1("box_move_right", kbox_move_right)
-	CP1("box_move_home", kbox_move_home)
-	CP1("box_move_end", kbox_move_end)
-	CP1("box_select_all", kbox_select_all)
+	__keymap_push = keymap
+	CP1("box_move_left", kbox_move_left, "moves the caret to the left | SHIFT for selection | CTRL for extended moves")
+	CP1("box_move_right", kbox_move_right, "moves the caret to the right | SHIFT for selection | CTRL for extended moves")
+	CP1("box_move_home", kbox_move_home, "moves the caret to the start | SHIFT for selection")
+	CP1("box_move_end", kbox_move_end, "moves the caret to the end | SHIFT for selection")
+	CP1("box_select_all", kbox_select_all, "selects all characters")
 	
-	CP1("box_backspace", kbox_backspace)
-	CP1("box_delete", kbox_delete)
+	CP1("box_backspace", kbox_backspace, "deletes the character to the left | CTRL for word based")
+	CP1("box_delete", kbox_delete, "deletes the character to the right | CTRL for word based")
 	
-	CP1("box_copy", kbox_copy)
-	CP1("box_cut", kbox_cut)
-	CP1("box_paste", kbox_paste)
+	CP1("box_copy", kbox_copy, "pushes selection to the copy buffer")
+	CP1("box_cut", kbox_cut, "cuts selection and pushes to the copy buffer")
+	CP1("box_paste", kbox_paste, "pastes text from copy buffer")
 
-	CP1("box_undo", kbox_undo)
-	CP1("box_redo", kbox_redo)
+	CP1("box_undo", kbox_undo, "undos local changes")
+	CP1("box_redo", kbox_redo, "redos local changes")
 }
 
 keymap_push_box_combos :: proc(keymap: ^Keymap) {
-	keymap_push = keymap
+	__keymap_push = keymap
 	CP2("left", "box_move_left")
 	CP2("shift left", "box_move_left", COMBO_SHIFT)
 	CP2("ctrl left", "box_move_left", COMBO_CTRL)
@@ -310,97 +388,96 @@ keymap_push_box_combos :: proc(keymap: ^Keymap) {
 }
 
 keymap_push_todool_commands :: proc(keymap: ^Keymap) {
-	commands_push = &keymap.commands
-
-	CP1("move_up", todool_move_up)
-	CP1("move_down", todool_move_down)
-	CP1("bookmark_jump", todool_bookmark_jump)
-	CP1("delete_on_empty", todool_delete_on_empty)
-	CP1("delete_tasks", todool_delete_tasks)
-	CP1("selection_stop", todool_selection_stop)
-	CP1("change_task_state", todool_change_task_state)
-	CP1("toggle_folding", todool_toggle_folding)
-	CP1("toggle_bookmark", todool_toggle_bookmark)
-	CP1("toggle_tag", todool_toggle_tag)
+	__keymap_push = keymap
+	CP1("move_up", todool_move_up, "move to the upper visible task | SHIFT for selection")
+	CP1("move_down", todool_move_down, "move to the lower visible task | SHIFT for selection")
+	CP1("bookmark_jump", todool_bookmark_jump, "cycle jump to the previous bookmark")
+	CP1("delete_on_empty", todool_delete_on_empty, "deletes the task on no text content")
+	CP1("delete_tasks", todool_delete_tasks, "deletes the selected tasks")
+	CP1("selection_stop", todool_selection_stop, "stops task selection")
+	CP1("change_task_state", todool_change_task_state, "cycles through the task states forwards/backwards")
+	CP1("toggle_folding", todool_toggle_folding, "toggle the task folding")
+	CP1("toggle_bookmark", todool_toggle_bookmark, "toggle the task bookmark")
+	CP1("toggle_tag", todool_toggle_tag, "toggle the task tag bit")
 	
 	// misc	
-	CP1("undo", todool_undo)
-	CP1("redo", todool_redo)
+	CP1("undo", todool_undo, "undo the last set of actions")
+	CP1("redo", todool_redo, "redo the last set of actions")
 
-	CP1("copy_tasks", todool_copy_tasks)
-	CP1("duplicate_line", todool_duplicate_line)
-	CP1("cut_tasks", todool_cut_tasks)
-	CP1("paste_tasks", todool_paste_tasks)
+	CP1("copy_tasks", todool_copy_tasks, "deep copy the selected tasks to the copy buffer")
+	CP1("duplicate_line", todool_duplicate_line, "duplicates the selected lines")
+	CP1("cut_tasks", todool_cut_tasks, "cut the selected tasks to the copy buffer")
+	CP1("paste_tasks", todool_paste_tasks, "paste the content from the copy buffer")
 
-	CP1("center", todool_center)
+	CP1("center", todool_center, "center the camera vertically")
 
 	// ALL SHARED, usual default bindings
-	CP1("indent_jump_low_prev", todool_indent_jump_low_prev)
-	CP1("indent_jump_low_next", todool_indent_jump_low_next)
-	CP1("indent_jump_same_prev", todool_indent_jump_same_prev)
-	CP1("indent_jump_same_next", todool_indent_jump_same_next)
-	CP1("indent_jump_scope", todool_indent_jump_scope)
-	CP1("jump_nearby", todool_jump_nearby)
-	CP1("select_all", todool_select_all)
+	CP1("indent_jump_low_prev", todool_indent_jump_low_prev, "jump through tasks at indentation 0 backwards | SHIFT for selection")
+	CP1("indent_jump_low_next", todool_indent_jump_low_next, "jump through tasks at indentation 0 forwards | SHIFT for selection")
+	CP1("indent_jump_same_prev", todool_indent_jump_same_prev, "jump through tasks at the same indentation backwards | SHIFT for selection")
+	CP1("indent_jump_same_next", todool_indent_jump_same_next, "jump through tasks at the same indentation forwards | SHIFT for selection")
+	CP1("indent_jump_scope", todool_indent_jump_scope, "cycle jump between the start/end task of the parents children")
+	CP1("jump_nearby", todool_jump_nearby, "jump to nearest task with different state | SHIFT for backwards")
+	CP1("select_all", todool_select_all, "select all visible tasks")
 
 	// shifts
-	CP1("indentation_shift", todool_indentation_shift)
-	CP1("shift_down", todool_shift_down)
-	CP1("shift_up", todool_shift_up)
+	CP1("indentation_shift", todool_indentation_shift, "shift the selected tasks to the left/right")
+	CP1("shift_down", todool_shift_down, "shift the selected tasks down while keeping the same indentation")
+	CP1("shift_up", todool_shift_up, "shift the selected tasks up while keeping the same indentation")
 
 	// pomodoro
-	CP1("pomodoro_toggle", pomodoro_stopwatch_hot_toggle)
+	CP1("pomodoro_toggle", pomodoro_stopwatch_hot_toggle, "toggle the pomodoro work/short break/long break timer")
 
 	// modes	
-	CP1("mode_list", todool_mode_list)
-	CP1("mode_kanban", todool_mode_kanban)
+	CP1("mode_list", todool_mode_list, "change to the list mode")
+	CP1("mode_kanban", todool_mode_kanban, "change to the kanban mode")
 
 	// windows
-	CP1("theme_editor", theme_editor_spawn)
-	CP1("changelog", changelog_spawn)
-	CP1("keymap_editor", keymap_editor_spawn)
+	CP1("theme_editor", theme_editor_spawn, "spawn the theme editor window")
+	CP1("changelog", changelog_spawn, "spawn the changelog generator window")
+	CP1("keymap_editor", keymap_editor_spawn, "spawn the keymap editor window")
 
 	// file
-	CP1("save", todool_save)
-	CP1("load", todool_load)
-	CP1("new_file", todool_new_file)
-	CP1("escape", todool_escape)
+	CP1("save", todool_save, "save everything - will use last task save location if set | TRUE to force prompt")
+	CP1("load", todool_load, "load task content through file prompt")
+	CP1("new_file", todool_new_file, "empty the task content - will try to save before")
+	CP1("escape", todool_escape, "escape out of prompts or focused elements")
 
 	// drops
-	CP1("goto", todool_goto)
-	CP1("search", todool_search)
+	CP1("goto", todool_goto, "spawn the goto prompt")
+	CP1("search", todool_search, "spawn the search prompt")
 
-	CP1("scale_tasks", todool_scale)
-	CP1("fullscreen_toggle", todool_fullscreen_toggle)
-	CP1("toggle_progressbars", todool_toggle_progressbars)
+	CP1("scale_tasks", todool_scale, "scales the tasks up, TRUE for down")
+	CP1("fullscreen_toggle", todool_fullscreen_toggle, "toggle between (fake) fullscren and windowed")
+	CP1("toggle_progressbars", todool_toggle_progressbars, "toggle progressbars from rendering")
 
 	// movement
-	CP1("tasks_to_uppercase", todool_tasks_to_uppercase)
-	CP1("tasks_to_lowercase", todool_tasks_to_lowercase)
+	CP1("tasks_to_uppercase", todool_tasks_to_uppercase, "uppercase the starting letters of each word for the selected tasks")
+	CP1("tasks_to_lowercase", todool_tasks_to_lowercase, "lowercase all the content for the selected tasks")
 
 	// copy/paste	
-	CP1("copy_tasks_to_clipboard", todool_copy_tasks_to_clipboard)
-	CP1("paste_tasks_from_clipboard", todool_paste_tasks_from_clipboard)
+	CP1("copy_tasks_to_clipboard", todool_copy_tasks_to_clipboard, "copy the selected tasks STRING content to the clipboard")
+	CP1("paste_tasks_from_clipboard", todool_paste_tasks_from_clipboard, "paste the clipboard content based on the indentation")
 
 	// insertion
-	CP1("insert_sibling", todool_insert_sibling)
-	CP1("insert_child", todool_insert_child)
+	CP1("insert_sibling", todool_insert_sibling, "insert a task with the same indentation | SHIFT for above")
+	CP1("insert_child", todool_insert_child, "insert a task below with increased indentation")
 
 	// v021
-	CP1("select_children", todool_select_children)
+	CP1("select_children", todool_select_children, "select parents children, cycles through start/end on repeat")
 	// v022
-	CP1("sort_locals", todool_sort_locals)
+	CP1("sort_locals", todool_sort_locals, "sorts the local children based on task state")
 	// v030
-	CP1("toggle_timestamp", todool_toggle_timestamp)
+	CP1("toggle_timestamp", todool_toggle_timestamp, "toggle timestamp the selected tasks")
 
 	// v040
-	CP1("move_start", todool_move_start)
-	CP1("move_end", todool_move_end)
-	CP1("toggle_highlight", todool_toggle_highlight)
+	CP1("move_start", todool_move_start, "move to the start of the list")
+	CP1("move_end", todool_move_end, "move to the end of the list")
+	CP1("toggle_highlight", todool_toggle_highlight, "toggle highlight the selected tasks")
 }
 
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {
-	keymap_push = keymap
+	__keymap_push = keymap
 	
 	// commands
 	CP2("ctrl tab", "bookmark_jump")
@@ -469,20 +546,18 @@ CP2_INSERTION :: proc() {
 }	
 
 keymap_push_vim_normal_commands :: proc(keymap: ^Keymap) {
-	commands_push = &keymap.commands
+	__keymap_push = keymap
+	CP1("insert_mode", vim_insert_mode_set, "enter insert mode")	
+	CP1("insert_mode_beginning", vim_insert_mode_beginning, "enter insert mode and move to start of line")
+	CP1("insert_above", vim_insert_above, "insert a task above the current line")
+	CP1("insert_below", vim_insert_below, "insert a task below the current line")
 
-	CP1("insert_mode", vim_insert_mode_set)	
-	CP1("insert_mode_beginning", vim_insert_mode_beginning)
-	CP1("insert_above", vim_insert_above)
-	CP1("insert_below", vim_insert_below)
-	CP1("insert_below", vim_insert_below)
-
-	CP1("visual_move_left", vim_visual_move_left)
-	CP1("visual_move_right", vim_visual_move_right)
+	CP1("visual_move_left", vim_visual_move_left, "move to the closest task to the left visually")
+	CP1("visual_move_right", vim_visual_move_right, "move to the closest task to the right visually")
 }
 
 keymap_push_vim_normal_combos :: proc(keymap: ^Keymap) {
-	keymap_push = keymap
+	__keymap_push = keymap
 
 	// traditional movement & task based
 	CP2("j", "move_down")
@@ -619,17 +694,17 @@ CP2_CROSS :: proc() {
 }
 
 keymap_push_vim_insert_commands :: proc(keymap: ^Keymap) {
-	commands_push = &keymap.commands
-	CP1("normal_mode", vim_normal_mode_set)
-	CP1("delete_on_empty", todool_delete_on_empty)
+	__keymap_push = keymap
+	CP1("normal_mode", vim_normal_mode_set, "enter normal mode")
+	CP1("delete_on_empty", todool_delete_on_empty, "deletes the task on no text content")
 
 		// insertion
-	CP1("insert_sibling", todool_insert_sibling)
-	CP1("insert_child", todool_insert_child)
+	CP1("insert_sibling", todool_insert_sibling, "insert a task with the same indentation | SHIFT for above")
+	CP1("insert_child", todool_insert_child, "insert a task below with increased indentation")
 }
 
 keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
-	keymap_push = keymap
+	__keymap_push = keymap
 
 	CP2("escape", "normal_mode")
 	CP2("backspace", "delete_on_empty")
@@ -638,14 +713,10 @@ keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
 	CP2_INSERTION()
 }
 
-keymap_destroy_comments :: proc() {
-	delete(keymap_comments)
-}
-
 keymap_force_push_latest :: proc() {
 	fmt.eprintln("FORCE")
 
-	keymap_push = &app.window_main.keymap_custom
+	__keymap_push = &app.window_main.keymap_custom
 	CP4("alt a", "sort_locals")
 	CP4("ctrl r", "toggle_timestamp")
 
@@ -655,96 +726,4 @@ keymap_force_push_latest :: proc() {
 	CP4("ctrl shift end", "move_end", COMBO_SHIFT)
 	
 	CP4("alt j", "toggle_highlight")
-}
-
-// TODO only way to better do this is with parsing odin files
-keymap_init_comments :: proc() {
-	keymap_comments = make(map[Command]string, 256)
-	
-	// box comments
-	CP3(kbox_move_left, comment_kbox_move_left)
-	CP3(kbox_move_right, comment_kbox_move_right)
-	CP3(kbox_move_home, comment_kbox_move_home)
-	CP3(kbox_move_end, comment_kbox_move_end)
-	CP3(kbox_select_all, comment_kbox_select_all)
-	CP3(kbox_backspace, comment_kbox_backspace)
-	CP3(kbox_delete, comment_kbox_delete)
-	CP3(kbox_copy, comment_kbox_copy)
-	CP3(kbox_cut, comment_kbox_cut)
-	CP3(kbox_paste, comment_kbox_paste)
-	CP3(kbox_undo, comment_kbox_undo)
-	CP3(kbox_redo, comment_kbox_redo)
-
-	CP3(todool_move_up, comment_todool_move_up)
-	CP3(todool_move_down, comment_todool_move_down)
-	CP3(todool_indent_jump_low_prev, comment_todool_indent_jump_low_prev)
-	CP3(todool_indent_jump_low_next, comment_todool_indent_jump_low_next)
-	CP3(todool_indent_jump_same_prev, comment_todool_indent_jump_same_prev)
-	CP3(todool_indent_jump_same_next, comment_todool_indent_jump_same_next)
-	CP3(todool_indent_jump_scope, comment_todool_indent_jump_scope)
-	CP3(todool_select_all, comment_todool_select_all)
-	CP3(todool_bookmark_jump, comment_todool_bookmark_jump)
-	CP3(todool_tasks_to_uppercase, comment_todool_tasks_to_uppercase)
-	CP3(todool_tasks_to_lowercase, comment_todool_tasks_to_lowercase)
-	CP3(todool_delete_on_empty, comment_todool_delete_on_empty)
-	CP3(todool_delete_tasks, comment_todool_delete_tasks)
-	CP3(todool_copy_tasks_to_clipboard, comment_todool_copy_tasks_to_clipboard)
-	CP3(todool_copy_tasks, comment_todool_copy_tasks)
-	CP3(todool_duplicate_line, comment_todool_duplicate_line)
-	CP3(todool_cut_tasks, comment_todool_cut_tasks)
-	CP3(todool_paste_tasks, comment_todool_paste_tasks)
-	CP3(todool_paste_tasks_from_clipboard, comment_todool_paste_tasks_from_clipboard)
-	CP3(todool_center, comment_todool_center)
-
-	CP3(todool_selection_stop, comment_todool_selection_stop)
-	CP3(todool_change_task_state, comment_todool_change_task_state)
-	CP3(todool_toggle_folding, comment_todool_toggle_folding)
-	CP3(todool_toggle_bookmark, comment_todool_toggle_bookmark)
-	CP3(todool_toggle_tag, comment_todool_toggle_tag)
-	CP3(todool_indentation_shift, comment_todool_indentation_shift)
-	CP3(todool_shift_down, comment_todool_shift_down)
-	CP3(todool_shift_up, comment_todool_shift_up)
-	CP3(todool_mode_list, comment_todool_mode_list)
-	CP3(todool_mode_kanban, comment_todool_mode_kanban)
-	CP3(todool_insert_sibling, comment_todool_insert_sibling)
-	CP3(todool_insert_child, comment_todool_insert_child)
-	CP3(todool_undo, comment_todool_undo)
-	CP3(todool_redo, comment_todool_redo)
-	CP3(todool_save, comment_todool_save)
-	CP3(todool_load, comment_todool_load)
-	CP3(todool_new_file, comment_todool_new_file)
-	CP3(todool_escape, comment_todool_escape)
-	CP3(todool_goto, comment_todool_goto)
-	CP3(todool_search, comment_todool_search)
-	CP3(todool_select_children, comment_todool_select_children)
-	CP3(todool_jump_nearby, comment_todool_jump_nearby)
-	CP3(todool_fullscreen_toggle, comment_todool_fullscreen_toggle)
-	CP3(todool_sort_locals, comment_todool_sort_locals)
-	CP3(todool_scale, comment_todool_scale)
-
-	// external
-	CP3(theme_editor_spawn, comment_theme_editor_spawn)
-	CP3(pomodoro_stopwatch_hot_toggle, comment_pomodoro_stopwatch_hot_toggle)
-	CP3(changelog_spawn, comment_changelog_spawn)
-	CP3(keymap_editor_spawn, comment_keymap_editor_spawn)
-	
-	// newer
-	CP3(todool_toggle_progressbars, comment_todool_toggle_progressbars)
-
-	// vim
-	CP3(vim_insert_mode_set, comment_vim_insert_mode_set)
-	CP3(vim_insert_mode_beginning, comment_vim_insert_mode_beginning)
-	CP3(vim_insert_below, comment_vim_insert_below)
-	CP3(vim_insert_above, comment_vim_insert_above)
-	CP3(vim_normal_mode_set, comment_vim_normal_mode_set)
-	CP3(vim_visual_move_left, comment_vim_visual_move_left)
-	CP3(vim_visual_move_right, comment_vim_visual_move_right)
-
-	// v030
-	CP3(todool_toggle_timestamp, comment_todool_toggle_timestamp)
-
-	// v040
-	CP3(todool_move_start, comment_todool_move_start)
-	CP3(todool_move_end, comment_todool_move_end)
-	CP3(todool_toggle_highlight, comment_todool_toggle_highlight)
 }
