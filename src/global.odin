@@ -540,8 +540,8 @@ gs_update_after_load :: proc() {
 	add(font_bold, 20)
 
 	font_icon = fontstash.AddFontMem(ctx, "icons", data_font_icon, false)
-	fmt.eprintln(font_regular, font_bold, font_icon)
 
+	// add fallbacks
 	font_fallback = fontstash.AddFontMem(ctx, "fallback", data_font_fallback, false)
 	fontstash.AddFallbackFont(ctx, font_regular, font_fallback)
 	fontstash.AddFallbackFont(ctx, font_bold, font_fallback) // TODO use bolded fallback?

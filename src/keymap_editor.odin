@@ -382,7 +382,7 @@ ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			// find assigned color
 			command, ok := keymap.commands[text]
 			color := keymap.command_colors[command] or_else TRANSPARENT
-			render_rect(target, element.bounds, color)
+			render_rect(target, rect_padding(element.bounds, rect_xxyy(LINE_WIDTH, 0)), color)
 
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, text_color)
@@ -480,7 +480,9 @@ ke_button_combo_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			fcs_ahv(.RIGHT, .MIDDLE)
 			fcs_color(text_color)
 			text := ke_button_combo_text(button)
-			render_string_rect(target, element.bounds, text)
+			bounds := element.bounds
+			bounds.r -= int(5 * SCALE)
+			render_string_rect(target, bounds, text)
 		}
 
 		case .Update: {
@@ -599,7 +601,7 @@ keymap_editor_static_grid_message :: proc(element: ^Element, msg: Message, di: i
 
 		height := element_message(element, .Get_Height)
 		r := rect_wh(
-			element.bounds.l, 
+			element.bounds.l - LINE_WIDTH / 2, 
 			element.bounds.t + LINE_WIDTH + grid.cell_height, 
 			LINE_WIDTH, 
 			height - LINE_WIDTH * 2,

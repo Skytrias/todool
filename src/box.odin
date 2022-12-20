@@ -103,7 +103,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			color: Color
 			element_message(element, .Box_Text_Color, 0, &color)
 			fcs_color(color)
-			fcs_ahv(.CENTER, .MIDDLE)
+			fcs_ahv(.LEFT, .MIDDLE)
 			caret_x: int
 			text_bounds := element.bounds
 			text_bounds.l += int(5 * SCALE)

@@ -12,6 +12,7 @@ import "core:bytes"
 import "core:log"
 import "core:os"
 import "core:encoding/json"
+import "core:math"
 import "core:math/bits"
 import "core:runtime"
 import "../cutf8"
@@ -153,7 +154,9 @@ save_views :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	// mode count
 	bytes.buffer_write_byte(buffer, u8(len(Mode)))
 	bytes.buffer_write_byte(buffer, u8(app.mmpp.mode))
-	bytes.buffer_write_byte(buffer, u8(app.mmpp.mode))
+	save_scale := u8(math.round(TASK_SCALE * 100))
+	// fmt.eprintln("+++", save_scale, TASK_SCALE)
+	bytes.buffer_write_byte(buffer, save_scale)
 
 	// camera positions
 	temp: i32be
@@ -483,7 +486,11 @@ load_views :: proc(data: ^[]u8) -> (err: Save_Error) {
 			mode: u8
 			advance_ptr(&input, &mode, size_of(u8)) or_return
 			app.mmpp.mode = Mode(mode)
-			// advance_ptr(&input, &mode, size_of(u8)) or_return
+			scale: u8
+			advance_ptr(&input, &scale, size_of(u8)) or_return
+			load_scale := f32(scale) / 100
+			// fmt.eprintln("---", scale, load_scale)
+			scaling_set(SCALE, load_scale)
 
 			temp: i32be
 			for i in 0..<count {

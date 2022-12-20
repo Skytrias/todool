@@ -2370,21 +2370,19 @@ tasks_load_file :: proc() {
 tasks_load_reset :: proc() {
 	app.mmpp.mode = .List
 
-	// NOTE TEMP
-	// TODO need to cleanup node data
-	element_destroy_descendents(app.mmpp, false)
-	element_deallocate(&app.window_main.element) // clear mem
-
 	task_pool_clear(&app.pool)
 	spell_check_clear_user()
 	
-	// mode_panel.flags += { .Destroy_Descendent }
 	undo_manager_reset(&app.um_task)
 	app.dirty = 0
 	app.dirty_saved = 0
 }
 
 tasks_load_tutorial :: proc() {
+	scaling_set(SCALE, 1)
+	cam := mode_panel_cam()
+	cam.check_next_frame = true
+
 	// TODO add these to spell checker
 	@static load_indent := 0
 
