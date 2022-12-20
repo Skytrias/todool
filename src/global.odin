@@ -1494,7 +1494,7 @@ gs_init :: proc() {
 		}
 	}
 
-	window_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
+	window_check_hover_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
 		context = runtime.default_context()
 		context.logger = gs.logger
 
@@ -1509,7 +1509,7 @@ gs_init :: proc() {
 		return interval
 	}
 
-	window_hovering_timer = sdl.AddTimer(500, window_timer_callback, nil)
+	window_hovering_timer = sdl.AddTimer(500, window_check_hover_callback, nil)
 	strings.builder_init(&cstring_builder, 0, 128)
 
 	stored_images = make([dynamic]Stored_Image, 0, 8)

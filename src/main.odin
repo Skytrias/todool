@@ -22,7 +22,7 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
-POOL_DEBUG :: true
+POOL_DEBUG :: false
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
@@ -60,10 +60,6 @@ DEMO_MODE :: false // wether or not save&load are enabled
 
 // 	runtime.debug_trap()
 // 	value = 20
-// }
-
-// main :: proc() {
-// 	fmt.eprintln("size", size_of(Task))	
 // }
 
 main :: proc() {
@@ -323,6 +319,10 @@ main_update :: proc(window: ^Window) {
 
 	for cam in &app.mmpp.cam {
 		cam_update(&cam)
+	}
+
+	if app.pedal != nil {
+		VIM(app.pedal.down)
 	}
 
 	// task_timestamp_check_hover()

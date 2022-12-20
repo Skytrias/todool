@@ -131,6 +131,8 @@ App :: struct {
 	// saving state
 	save_callback: proc(),
 	save_string: string,
+
+	pedal: ^Midi_Pedal,
 }
 app: ^App
 
@@ -184,6 +186,7 @@ app_init :: proc() -> (res: ^App) {
 	strings.builder_init(&res.pattern_load_pattern, 0, 128)
 	strings.write_string(&res.pattern_load_pattern, "// TODO(.+)")
 
+	res.pedal = midi_pedal_init(true)
 	return
 }
 
@@ -216,6 +219,7 @@ app_destroy :: proc(a: ^App) {
 	task_pool_destroy(&a.pool)
 
 	delete(a.pattern_load_pattern.buf)
+	midi_pedal_destroy(a.pedal)
 
 	free(a)
 }
