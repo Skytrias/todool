@@ -321,10 +321,6 @@ main_update :: proc(window: ^Window) {
 		cam_update(&cam)
 	}
 
-	if app.pedal != nil {
-		VIM(app.pedal.down)
-	}
-
 	// task_timestamp_check_hover()
 }
 
