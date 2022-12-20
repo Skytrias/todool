@@ -17,7 +17,7 @@ import "core:unicode"
 import "core:thread"
 import "core:intrinsics"
 import sdl "vendor:sdl2"
-import "../fontstash"
+import "heimdall:fontstash"
 import "../spall"
 import "../cutf8"
 import "../btrie"
@@ -151,6 +151,8 @@ main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: raw
 }
 
 main_update :: proc(window: ^Window) {
+	// fmt.eprintln(font_regular, font_bold, font_icon)
+
 	rendered_glyphs_clear()
 	wrapped_lines_clear()
 

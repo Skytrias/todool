@@ -110,7 +110,7 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 			} else {
 				// render each line, increasingly
 				fcs_color(theme.text_default)
-				fcs_ahv(.Left, .Top)
+				fcs_ahv(.LEFT, .TOP)
 				x := bounds.l - int(td.hscrollbar.position)
 				y := bounds.t - int(td.vscrollbar.position)
 

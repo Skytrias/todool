@@ -12,7 +12,7 @@ import "core:math"
 import "core:time"
 import "core:unicode"
 import "core:strings"
-import "../fontstash"
+import "heimdall:fontstash"
 
 DEBUG_PANEL :: false
 UPDATE_HOVERED :: 1
@@ -961,11 +961,11 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			ah: Align_Horizontal
 			av: Align_Vertical
 			if .Label_Center in element.flags {
-				ah = .Middle
-				av = .Middle
+				ah = .CENTER
+				av = .MIDDLE
 			} else if .Label_Right in element.flags {
-				ah = .Right
-				av = .Middle
+				ah = .RIGHT
+				av = .MIDDLE
 			}
 
 			fcs_element(element)
@@ -1247,7 +1247,7 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			text_bounds.l = box_rect.r + int(BOX_GAP * SCALE)
 
 			fcs_element(element)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			fcs_color(text_color)
 			render_string_rect(target, text_bounds, strings.to_string(box.builder))
 		}
@@ -3392,7 +3392,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			render_rect(target, bounds, theme.background[1], ROUNDNESS)
 
 			top := rect_cut_top(&bounds, text_height)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			fcs_color(theme.text_default)
 			fcs_icon(SCALE)
 
@@ -3766,11 +3766,11 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 			fcs_color(text_color)
 
 			if combo, c1 := menu_bar_line_combo(line); combo != nil {
-				fcs_ahv(.Right, .Middle)
+				fcs_ahv(.RIGHT, .MIDDLE)
 				render_string_rect(target, bounds, c1)
 			}
 
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			text := strings.to_string(line.builder)
 			render_string_rect(target, bounds, text)
 		}	
@@ -4063,7 +4063,7 @@ button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			render_icon_rect(target, bounds, icon)
 
 			bounds.l = bounds.r + TEXT_MARGIN_HORIZONTAL
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			fcs_element(element)
 			text := strings.to_string(button.builder)
 			render_string_rect(target, bounds, text)

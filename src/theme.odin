@@ -802,7 +802,7 @@ theme_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			}
 
 			fcs_element(button)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			fcs_color(text_color)
 			text := text_gen(button)
 			bounds := element.bounds

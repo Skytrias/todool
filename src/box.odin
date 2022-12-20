@@ -10,7 +10,7 @@ import "core:strings"
 import "core:intrinsics"
 import "core:time"
 import "../cutf8"
-import "../fontstash"
+import "heimdall:fontstash"
 
 //////////////////////////////////////////////
 // normal text box
@@ -103,7 +103,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			color: Color
 			element_message(element, .Box_Text_Color, 0, &color)
 			fcs_color(color)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.CENTER, .MIDDLE)
 			caret_x: int
 			text_bounds := element.bounds
 			text_bounds.l += int(5 * SCALE)
@@ -121,7 +121,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					box.scroll = 0
 				}
 
-				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
+				caret_x, _ = wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 				caret_x -= int(box.scroll)
 
 				// check caret x
@@ -131,7 +131,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					box.scroll = f32(caret_x - rect_width(text_bounds)) + box.scroll + 1
 				}
 
-				caret_x, _ = fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
+				caret_x, _ = wrap_layout_caret(&gs.fc, box.wrapped_lines[:], box.head)
 			}
 
 			if focused {
@@ -232,7 +232,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 
 			old_tail := box.tail
 			scaled_size := efont_size(element)
-			fcs_ahv(.Left, .Top)
+			fcs_ahv(.LEFT, .TOP)
 			element_box_mouse_selection(box, box, di, false, box.scroll, scaled_size)
 
 			if element.window.shift && di == 0 {
@@ -245,7 +245,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		case .Mouse_Drag: {
 			if element.window.pressed_button == MOUSE_LEFT {
 				scaled_size := efont_size(element)
-				fcs_ahv(.Left, .Top)
+				fcs_ahv(.LEFT, .TOP)
 				element_box_mouse_selection(box, box, di, true, box.scroll, scaled_size)
 				element_repaint(box)
 			}
@@ -290,11 +290,11 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 	color: Color
 	element_message(box, .Box_Text_Color, 0, &color)
 
-	fcs_ahv(.Left, .Top)
+	fcs_ahv(.LEFT, .TOP)
 	fcs_color(color)
 
 	group := &target.groups[len(target.groups) - 1]
-	state := fontstash.state_get(&gs.fc)
+	state := fontstash.__getState(&gs.fc)
 	q: fontstash.Quad
 	codepoint_index: int
 	back_color := color_alpha(theme_panel(.Front), 1)
@@ -304,9 +304,9 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 	y_offset: int
 	rendered_glyph_start()
 	for wrap_line, i in box.wrapped_lines {
-		iter := fontstash.text_iter_init(&gs.fc, wrap_line, f32(box.bounds.l), f32(box.bounds.t + y_offset))
+		iter := fontstash.TextIterInit(&gs.fc, f32(box.bounds.l), f32(box.bounds.t + y_offset), wrap_line)
 
-		for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+		for fontstash.TextIterNext(&gs.fc, &iter, &q) {
 			rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 			state.color = low <= codepoint_index && codepoint_index < high ? back_color : color
 			render_glyph_quad_store(target, group, state, &q, rglyph)
@@ -328,7 +328,7 @@ task_box_paint_default :: proc(box: ^Task_Box, scaled_size: int) {
 	color: Color
 	element_message(box, .Box_Text_Color, 0, &color)
 
-	fcs_ahv(.Left, .Top)
+	fcs_ahv(.LEFT, .TOP)
 	fcs_color(color)
 
 	// draw each wrapped line
@@ -764,7 +764,7 @@ box_layout_caret :: proc(
 	scaling: f32,
 	x, y: int,
 ) -> RectI {
-	caret_x, line := fontstash.wrap_layout_caret(&gs.fc, box.wrapped_lines, box.head)
+	caret_x, line := wrap_layout_caret(&gs.fc, box.wrapped_lines, box.head)
 	width := int(2 * scaling)
 	return rect_wh(
 		x + caret_x,
@@ -785,10 +785,10 @@ box_render_selection :: proc(
 	}
 
 	// back_color := color_alpha(theme_panel(.Front), 1)
-	state := fontstash.wrap_state_init(&gs.fc, box.wrapped_lines, box.head, box.tail)
+	state := wrap_state_init(&gs.fc, box.wrapped_lines, box.head, box.tail)
 	scaled_size := f32(state.isize / 10)
 
-	for fontstash.wrap_state_iter(&gs.fc, &state) {
+	for wrap_state_iter(&gs.fc, &state) {
 		translated := RectI {
 			x + int(state.x_from),
 			x + int(state.x_to),
@@ -934,18 +934,18 @@ element_box_mouse_selection :: proc(
 				break
 			}
 
-			iter := fontstash.text_iter_init(ctx, text)
+			iter := fontstash.TextIterInit(ctx, 0, 0, text)
 
 			// loop through codepoints
 			index: int
 			quad: fontstash.Quad
-			for fontstash.text_iter_step(ctx, &iter, &quad) {
+			for fontstash.TextIterNext(ctx, &iter, &quad) {
 				old_x = x
 				x = int(iter.nextx)
 
 				// check mouse collision
 				if mcs_check_single(&mcs, b, index + codepoint_offset, dragging) {
-					codepoint_offset += iter.codepoint_count
+					codepoint_offset += iter.codepointCount
 					break search_line
 				}
 
@@ -953,8 +953,8 @@ element_box_mouse_selection :: proc(
 			}
 
 			x += scaled_size
-			mcs_check_single(&mcs, b, iter.codepoint_count + codepoint_offset, dragging)
-			codepoint_offset += iter.codepoint_count
+			mcs_check_single(&mcs, b, iter.codepointCount + codepoint_offset, dragging)
+			codepoint_offset += iter.codepointCount
 
 			// do line end?
 			if relative_x > x && !dragging {
@@ -999,10 +999,10 @@ element_box_mouse_selection :: proc(
 				}
 
 				// loop through codepoints
-				iter := fontstash.text_iter_init(ctx, text)
+				iter := fontstash.TextIterInit(ctx, 0, 0, text)
 				index: int
 				quad: fontstash.Quad
-				for fontstash.text_iter_step(ctx, &iter, &quad) {
+				for fontstash.TextIterNext(ctx, &iter, &quad) {
 					// check for word completion
 					if index_word_start != -1 && iter.codepoint == ' ' {
 						old_x = x_word_start
@@ -1038,17 +1038,17 @@ element_box_mouse_selection :: proc(
 				// finish whitespace and end letter
 				if index_whitespace_start != -1 && codepoint_last == ' ' {
 					old_x = x_whitespace_start
-					mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + iter.codepoint_count)
+					mcs_check_word(&mcs, b, codepoint_offset + index_whitespace_start, codepoint_offset + iter.codepointCount)
 				}
 
 				// finish end word
 				if index_word_start != -1 && !unicode.is_space(codepoint_last) {
 					old_x = x_word_start
-					mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + iter.codepoint_count)
+					mcs_check_word(&mcs, b, codepoint_offset + index_word_start, codepoint_offset + iter.codepointCount)
 				}
 
 				old_y = y
-				codepoint_offset += iter.codepoint_count
+				codepoint_offset += iter.codepointCount
 			}
 
 			mcs_check_line_last(&mcs, b)

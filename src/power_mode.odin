@@ -6,7 +6,7 @@ import "core:strings"
 import "core:math/rand"
 import "core:math/noise"
 import "core:math/ease"
-import "../fontstash"
+import "heimdall:fontstash"
 import "../cutf8"
 
 // NOTE noise return -1 to 1 range
@@ -85,16 +85,16 @@ power_mode_spawn_along_text :: proc(text: string, x, y: f32, color: Color) {
 		return
 	}
 
-	fcs_ahv(.Left, .Top)
+	fcs_ahv(.LEFT, .TOP)
 	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
 	fcs_font(font_regular)
-	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
+	iter := fontstash.TextIterInit(&gs.fc, x, y, text)
 	q: fontstash.Quad
 
 	cam := mode_panel_cam()
 	cam_screenshake_reset(cam)
 
-	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+	for fontstash.TextIterNext(&gs.fc, &iter, &q) {
 		power_mode_spawn_at(iter.x, iter.y, cam.offset_x, cam.offset_y, P_SPAWN_LOW, color)
 	}
 }

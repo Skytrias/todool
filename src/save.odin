@@ -153,6 +153,7 @@ save_views :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	// mode count
 	bytes.buffer_write_byte(buffer, u8(len(Mode)))
 	bytes.buffer_write_byte(buffer, u8(app.mmpp.mode))
+	bytes.buffer_write_byte(buffer, u8(app.mmpp.mode))
 
 	// camera positions
 	temp: i32be
@@ -482,6 +483,7 @@ load_views :: proc(data: ^[]u8) -> (err: Save_Error) {
 			mode: u8
 			advance_ptr(&input, &mode, size_of(u8)) or_return
 			app.mmpp.mode = Mode(mode)
+			// advance_ptr(&input, &mode, size_of(u8)) or_return
 
 			temp: i32be
 			for i in 0..<count {

@@ -13,7 +13,7 @@ import "core:sort"
 import "core:slice"
 import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
-import "../fontstash"
+import "heimdall:fontstash"
 import "../cutf8"
 
 shader_vert := #load("../assets/vert.glsl")
@@ -23,8 +23,8 @@ png_hue := #load("../assets/hue.png")
 png_mode_icon_kanban := #load("../assets/Kanban Mode Icon.png")
 png_mode_icon_list := #load("../assets/List Mode Icon.png")
 png_mode_icon_drag := #load("../assets/Task Drag Icon.png")
-Align_Horizontal :: fontstash.Align_Horizontal
-Align_Vertical :: fontstash.Align_Vertical
+Align_Horizontal :: fontstash.AlignHorizontal
+Align_Vertical :: fontstash.AlignVertical
 DROP_SHADOW :: 20
 DEFAULT_VERTICES :: 1024 * 2
 
@@ -215,7 +215,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 // generate the fontstash atlas texture with the wanted width and height
 render_target_fontstash_generate :: proc(using target: ^Render_Target, width, height: int) {
 	textures[.Fonts] = Render_Texture {
-		data = raw_data(gs.fc.texture_data),
+		data = raw_data(gs.fc.textureData),
 		width = i32(width),
 		height = i32(height),
 		format_a = gl.R8,
@@ -875,30 +875,30 @@ render_string_rect :: proc(
 ) -> f32 {
 	ctx := &gs.fc
 	group := &target.groups[len(target.groups) - 1]
-	state := fontstash.state_get(&gs.fc)
+	state := fontstash.__getState(&gs.fc)
 
 	x: f32
 	y: f32
 	switch state.ah {
-		case .Left: { x = f32(rect.l) }
-		case .Middle: { 
+		case .LEFT: { x = f32(rect.l) }
+		case .CENTER: { 
 			x = f32(rect.l) + rect_widthf_halfed(rect)
 		}
-		case .Right: { x = f32(rect.r) }
+		case .RIGHT: { x = f32(rect.r) }
 	}
 	switch state.av {
-		case .Top: { y = f32(rect.t) }
-		case .Middle: { 
+		case .TOP: { y = f32(rect.t) }
+		case .MIDDLE: { 
 			y = f32(rect.t) + rect_heightf_halfed(rect) 
 		}
-		case .Baseline: { y = f32(rect.t) }
-		case .Bottom: { y = f32(rect.b) }
+		case .BASELINE: { y = f32(rect.t) }
+		case .BOTTOM: { y = f32(rect.b) }
 	}
 
-	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
+	iter := fontstash.TextIterInit(&gs.fc, x, y, text)
 	q: fontstash.Quad
 
-	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+	for fontstash.TextIterNext(&gs.fc, &iter, &q) {
 		render_glyph_quad(target, group, state, &q)
 	}
 
@@ -912,11 +912,11 @@ render_string :: proc(
 	text: string,
 ) -> f32 {
 	group := &target.groups[len(target.groups) - 1]
-	state := fontstash.state_get(&gs.fc)
-	iter := fontstash.text_iter_init(&gs.fc, text, f32(x), f32(y))
+	state := fontstash.__getState(&gs.fc)
+	iter := fontstash.TextIterInit(&gs.fc, f32(x), f32(y), text)
 	q: fontstash.Quad
 
-	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+	for fontstash.TextIterNext(&gs.fc, &iter, &q) {
 		render_glyph_quad(target, group, state, &q)
 	}
 
@@ -929,22 +929,22 @@ render_icon :: proc(
 	icon: Icon,
 ) -> f32 {
 	ctx := &gs.fc
-	state := fontstash.state_get(ctx)
+	state := fontstash.__getState(ctx)
 	group := &target.groups[len(target.groups) - 1]
-	font := fontstash.font_get(ctx, state.font)
+	font := fontstash.__getFont(ctx, state.font)
 	isize := i16(state.size * 10)
-	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
+	scale := fontstash.__getPixelHeightScale(font, f32(isize / 10))
 
 	// get glyph codepoint manually	
 	codepoint := rune(icon)
-	glyph := fontstash.get_glyph(ctx, font, codepoint, isize, 0)
+	glyph := fontstash.__getGlyph(ctx, font, codepoint, isize, 0)
 	q: fontstash.Quad
 	x_origin := x
 	x := x
 	y := y
 
 	if glyph != nil {
-		fontstash.get_quad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
+		fontstash.__getQuad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
 		render_glyph_quad(target, group, state, &q)
 	}
 
@@ -957,38 +957,38 @@ render_icon_rect :: proc(
 	icon: Icon,
 ) -> f32 {
 	ctx := &gs.fc
-	state := fontstash.state_get(&gs.fc)
+	state := fontstash.__getState(&gs.fc)
 	group := &target.groups[len(target.groups) - 1]
-	font := fontstash.font_get(ctx, state.font)
+	font := fontstash.__getFont(ctx, state.font)
 	isize := i16(state.size * 10)
-	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
+	scale := fontstash.__getPixelHeightScale(font, f32(isize / 10))
 
 	x: f32
 	y: f32
 	switch state.ah {
-		case .Left: { x = f32(rect.l) }
-		case .Middle: { 
-			width := fontstash.codepoint_width(font, rune(icon), scale)
+		case .LEFT: { x = f32(rect.l) }
+		case .CENTER: { 
+			width := fontstash.CodepointWidth(font, rune(icon), scale)
 			x = f32(rect.l) + rect_widthf_halfed(rect) - width / 2
 		}
-		case .Right: { x = f32(rect.r) }
+		case .RIGHT: { x = f32(rect.r) }
 	}
 	switch state.av {
-		case .Top: { y = f32(rect.t) }
-		case .Middle: { y = f32(rect.t) + rect_heightf_halfed(rect) }
-		case .Baseline: { y = f32(rect.t) }
-		case .Bottom: { y = f32(rect.b) }
+		case .TOP: { y = f32(rect.t) }
+		case .MIDDLE: { y = f32(rect.t) + rect_heightf_halfed(rect) }
+		case .BASELINE: { y = f32(rect.t) }
+		case .BOTTOM: { y = f32(rect.b) }
 	}
 
-	y += fontstash.get_vertical_align(font, isize, state.av)
+	y += fontstash.__getVerticalAlign(ctx, font, state.av, isize)
 
 	// get glyph codepoint manually	
 	codepoint := rune(icon)
-	glyph := fontstash.get_glyph(ctx, font, codepoint, isize, 0)
+	glyph := fontstash.__getGlyph(ctx, font, codepoint, isize, 0)
 	q: fontstash.Quad
 
 	if glyph != nil {
-		fontstash.get_quad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
+		fontstash.__getQuad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
 		render_glyph_quad(target, group, state, &q)
 	}
 
@@ -1157,11 +1157,11 @@ render_string_store :: proc(
 	text: string,
 ) -> f32 {
 	group := &target.groups[len(target.groups) - 1]
-	state := fontstash.state_get(&gs.fc)
-	iter := fontstash.text_iter_init(&gs.fc, text, f32(x), f32(y))
+	state := fontstash.__getState(&gs.fc)
+	iter := fontstash.TextIterInit(&gs.fc, f32(x), f32(y), text)
 	q: fontstash.Quad
 
-	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+	for fontstash.TextIterNext(&gs.fc, &iter, &q) {
 		rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 		render_glyph_quad_store(target, group, state, &q, rglyph)
 	}
@@ -1178,31 +1178,31 @@ render_string_rect_store :: proc(
 ) -> f32 {
 	ctx := &gs.fc
 	group := &target.groups[len(target.groups) - 1]
-	state := fontstash.state_get(&gs.fc)
+	state := fontstash.__getState(&gs.fc)
 
 	x: f32
 	y: f32
 	switch state.ah {
-		case .Left: { x = f32(rect.l) }
-		case .Middle: { 
+		case .LEFT: { x = f32(rect.l) }
+		case .CENTER: { 
 			x = f32(rect.l) + rect_widthf_halfed(rect)
 		}
-		case .Right: { x = f32(rect.r) }
+		case .RIGHT: { x = f32(rect.r) }
 	}
 	switch state.av {
-		case .Top: { y = f32(rect.t) }
-		case .Middle: { 
+		case .TOP: { y = f32(rect.t) }
+		case .MIDDLE: { 
 			y = f32(rect.t) + rect_heightf_halfed(rect) 
 		}
-		case .Baseline: { y = f32(rect.t) }
-		case .Bottom: { y = f32(rect.b) }
+		case .BASELINE: { y = f32(rect.t) }
+		case .BOTTOM: { y = f32(rect.b) }
 	}
 
-	iter := fontstash.text_iter_init(&gs.fc, text, x, y)
+	iter := fontstash.TextIterInit(&gs.fc, x, y, text)
 	q: fontstash.Quad
 
 	rendered_glyph_start()
-	for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+	for fontstash.TextIterNext(&gs.fc, &iter, &q) {
 		rglyph := rendered_glyph_push(iter.x, iter.y, iter.codepoint)
 		render_glyph_quad_store(target, group, state, &q, rglyph)
 	}

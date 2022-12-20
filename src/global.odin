@@ -19,7 +19,7 @@ import dll "core:container/intrusive/list"
 import sdl "vendor:sdl2"
 import mix "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
-import "../fontstash"
+import "heimdall:fontstash"
 import "../cutf8"
 import "../spall"
 
@@ -29,17 +29,15 @@ SCALE := f32(1)
 TASK_SCALE := f32(1)
 LINE_WIDTH := 2
 ROUNDNESS :: 5
+SCALE_MIN :: 0.25
+SCALE_MAX :: 2
 
-scaling_set :: proc(global_scale, task_scale: f32) {
-	SCALE = global_scale
-	TASK_SCALE = task_scale
+scaling_set :: proc(global_scale: f32, task_scale: f32) {
+	TASK_SCALE = clamp(task_scale, SCALE_MIN, SCALE_MAX)
+	SCALE = clamp(global_scale, SCALE_MIN, SCALE_MAX)
 	LINE_WIDTH = max(int(2 * SCALE), 2)
-}
 
-scaling_inc :: proc(amt: f32) {
-	// scaling_set(clamp(SCALE + amt, 0.05, 10), TASK_SCALE)
-	scaling_set(SCALE, clamp(TASK_SCALE + amt, 0.1, 10))
-	fontstash.reset(&gs.fc)
+	fontstash.Reset(&gs.fc)
 	mode_panel_zoom_animate()
 }
 
@@ -47,9 +45,11 @@ Font :: fontstash.Font
 data_font_icon := #load("../assets/icofont.ttf")
 data_font_regular := #load("../assets/Lato-Regular.ttf")
 data_font_bold := #load("../assets/Lato-Bold.ttf")
+data_font_fallback := #load("../assets/NotoSans-Regular.ttf")
 font_regular: int
 font_bold: int
 font_icon: int
+font_fallback: int
 data_sound_timer_start := #load("../assets/sounds/timer_start.wav")
 data_sound_timer_stop := #load("../assets/sounds/timer_stop.wav")
 data_sound_timer_resume := #load("../assets/sounds/timer_resume.wav")
@@ -88,13 +88,6 @@ sound_path_write :: proc(index: Sound_Index, text: string) {
 	if text != "" {
 		to^ = strings.clone(text)
 	}
-}
-
-fonts_push :: proc() {
-	ctx := &gs.fc
-	font_icon = 0
-	font_regular = 1
-	font_bold = 2
 }
 
 Shortcut_Proc :: proc() -> bool
@@ -240,7 +233,7 @@ Global_State :: struct {
 	font_bold_path: string,
 
 	track: mem.Tracking_Allocator,
-	fc: fontstash.Font_Context,
+	fc: fontstash.FontContext,
 }
 gs: ^Global_State
 
@@ -517,20 +510,41 @@ window_init :: proc(
 
 gs_update_after_load :: proc() {
 	spall.scoped("load after sjson")
+	
 	ctx := &gs.fc
-	fontstash.font_push(ctx, data_font_icon)
+
+	// preload most used characters
+	add :: proc(index: int, pixel_size: int) {
+		font := fontstash.__getFont(&gs.fc, index)
+		isize := i16(pixel_size * 10)
+		scale := fontstash.__getPixelHeightScale(font, f32(isize / 10))
+
+		for i in 0..<95 {
+			fontstash.__getGlyph(&gs.fc, font, rune(32 + i), isize)
+		}
+	}
 
 	if gs.font_regular_path != "" {
-		fontstash.font_push(ctx, gs.font_regular_path, true, 20)
+		font_regular = fontstash.AddFont(ctx, "regular", gs.font_regular_path)
 	} else {
-		fontstash.font_push(ctx, data_font_regular, true, 20)
+		font_regular = fontstash.AddFontMem(ctx, "regular", data_font_regular, false)
 	}
 
 	if gs.font_bold_path != "" {
-		fontstash.font_push(ctx, gs.font_bold_path, true, 20)
+		font_bold = fontstash.AddFont(ctx, "bold", gs.font_bold_path)
 	} else {
-		fontstash.font_push(ctx, data_font_bold, true, 20)
+		font_bold = fontstash.AddFontMem(ctx, "bold", data_font_bold, false)
 	}
+
+	add(font_regular, 20)
+	add(font_bold, 20)
+
+	font_icon = fontstash.AddFontMem(ctx, "icons", data_font_icon, false)
+	fmt.eprintln(font_regular, font_bold, font_icon)
+
+	font_fallback = fontstash.AddFontMem(ctx, "fallback", data_font_fallback, false)
+	fontstash.AddFallbackFont(ctx, font_regular, font_fallback)
+	fontstash.AddFallbackFont(ctx, font_bold, font_fallback) // TODO use bolded fallback?
 
 	if gs.audio_ok {
 		custom_load_wav_opt(.Timer_Start, data_sound_timer_start)
@@ -567,7 +581,7 @@ window_hovered_panel_spawn :: proc(window: ^Window, element: ^Element, text: str
 
 	fcs_size(DEFAULT_FONT_SIZE * SCALE)
 	fcs_font(font_regular)
-	text_width := fontstash.text_bounds(&gs.fc, text)
+	text_width := fontstash.TextBounds(&gs.fc, text)
 	floaty.width = max(int(HOVER_WIDTH * SCALE), int(text_width) + int(TEXT_MARGIN_HORIZONTAL * SCALE) * 2)
 
 	if floaty.x + floaty.width > window.width {
@@ -1231,20 +1245,19 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				return
 			} 
 
-			fmt.eprintln("INPUT:", string(cstring(&e.text.text[0])))
+			text := string(cstring(&e.text.text[0]))
+			state, codepoint: rune
+			length: int
 
-			// TODO support IME
-			// nul search through fixed string
-			nul := -1
-			nul_search: for i in 0..<32 {	
-			if e.text.text[i] == 0 {
-					nul = i
-					break nul_search
+			for i in 0..<len(text) {
+				if cutf8.decode(&state, &codepoint, text[i]) {
+					length = i
+					break
 				}
 			}
 
-			r, size := utf8.decode_rune(e.text.text[:nul])
-			window_input_event(window, .Unicode_Insertion, 0, &r)
+			// NOTE only take the first codepoint
+			window_input_event(window, .Unicode_Insertion, 0, &codepoint)
 		}
 
 		case .MOUSEWHEEL: {
@@ -1449,8 +1462,8 @@ gs_init :: proc() {
 		log.infof("SDL2: Linked Version %d.%d.%d", linked.major, linked.minor, linked.patch)
 	}
 
-	fontstash.init(&fc, 500, 500)
-	fc.callback_resize = proc(data: rawptr, w, h: int) {
+	fontstash.Init(&fc, 500, 500, .TOPLEFT)
+	fc.callbackResize = proc(data: rawptr, w, h: int) {
 		if data != nil {
 			// regenerate the texture on all windows
 			iter := gs_windows_iter_head()
@@ -1460,7 +1473,7 @@ gs_init :: proc() {
 			}
 		}
 	}
-	fc.callback_update = proc(data: rawptr, dirty_rect: [4]f32, texture_data: rawptr) {
+	fc.callbackUpdate = proc(data: rawptr, dirty_rect: [4]f32, texture_data: rawptr) {
 		// update the texture on all windows
 		if data != nil {
 			// NOTE need to update all window textures apparently
@@ -1473,9 +1486,8 @@ gs_init :: proc() {
 			}
 		}
 	}
-	fonts_push()
-	animating = make([dynamic]^Element, 0, 32)
 
+	animating = make([dynamic]^Element, 0, 32)
 	copy_builder = strings.builder_make(0, mem.Kilobyte)
 
 	// audio
@@ -1568,7 +1580,7 @@ gs_destroy :: proc() {
 	}
 
 	mix.Quit()
-	fontstash.destroy(&fc)
+	fontstash.Destroy(&fc)
 
 	// based on mode
 	when TODOOL_RELEASE {
@@ -1862,12 +1874,12 @@ window_draw :: proc(window: ^Window) {
 		window->update()
 	}
 
-	fontstash.state_begin(&gs.fc)
+	fontstash.BeginState(&gs.fc)
 	render_target_begin(window.target, theme.shadow)
 	element_message(&window.element, .Layout)
 	window.paint_clip = window.rect
 	render_element_clipped(window.target, &window.element)
-	fontstash.state_end(&gs.fc)
+	fontstash.EndState(&gs.fc)
 	render_target_end(window.target, window.w, window.width, window.height)
 
 	// TODO could use specific update region only
@@ -2266,60 +2278,60 @@ fcs_element :: proc(element: ^Element) -> int {
 }
 
 string_width :: #force_inline proc(text: string, x: f32 = 0, y: f32 = 0) -> int {
-	return int(fontstash.text_bounds(&gs.fc, text, x, y))
+	return int(fontstash.TextBounds(&gs.fc, text, x, y))
 }
 
 icon_width :: #force_inline proc(icon: Icon, scaling: f32) -> f32 {
-	font := fontstash.font_get(&gs.fc, font_icon)
+	font := fontstash.__getFont(&gs.fc, font_icon)
 	isize := i16(DEFAULT_FONT_SIZE * 10 * scaling)
-	scale := fontstash.scale_for_pixel_height(font, f32(isize / 10))
-	return fontstash.codepoint_width(font, rune(icon), scale)
+	scale := fontstash.__getPixelHeightScale(font, f32(isize / 10))
+	return fontstash.CodepointWidth(font, rune(icon), scale)
 }
 
 fcs_size :: #force_inline proc(size: f32) {
-	fontstash.state_set_size(&gs.fc, size)
+	fontstash.SetSize(&gs.fc, size)
 }
 
 fcs_font :: #force_inline proc(font: int) {
-	fontstash.state_set_font(&gs.fc, font)
+	fontstash.SetFont(&gs.fc, font)
 }
 
 // font context state set color
 fcs_color :: #force_inline proc(color: Color) {
-	fontstash.state_set_color(&gs.fc, color)
+	fontstash.SetColor(&gs.fc, color)
 }
 
 fcs_spacing :: #force_inline proc(spacing: f32) {
-	fontstash.state_set_spacing(&gs.fc, spacing)
+	fontstash.SetSpacing(&gs.fc, spacing)
 }
 
 fcs_blur :: #force_inline proc(blur: f32) {
-	fontstash.state_set_blur(&gs.fc, blur)
+	fontstash.SetBlur(&gs.fc, blur)
 }
 
 fcs_ah :: #force_inline proc(ah: Align_Horizontal) {
-	fontstash.state_set_ah(&gs.fc, ah)
+	fontstash.SetAH(&gs.fc, ah)
 }
 
 fcs_av :: #force_inline proc(av: Align_Vertical) {
-	fontstash.state_set_av(&gs.fc, av)
+	fontstash.SetAV(&gs.fc, av)
 }
 
-fcs_ahv :: #force_inline proc(ah: Align_Horizontal = .Middle, av: Align_Vertical = .Middle) {
-	fontstash.state_set_ah(&gs.fc, ah)
-	fontstash.state_set_av(&gs.fc, av)
+fcs_ahv :: #force_inline proc(ah: Align_Horizontal = .CENTER, av: Align_Vertical = .MIDDLE) {
+	fontstash.SetAH(&gs.fc, ah)
+	fontstash.SetAV(&gs.fc, av)
 }
 
 font_get :: #force_inline proc(font_index: int, loc := #caller_location) -> ^Font {
-	return fontstash.font_get(&gs.fc, font_index, loc)
+	return fontstash.__getFont(&gs.fc, font_index, loc)
 }
 
 fcs_push :: #force_inline proc() {
-	fontstash.state_push(&gs.fc)
+	fontstash.PushState(&gs.fc)
 }
 
 fcs_pop :: #force_inline proc() {
-	fontstash.state_pop(&gs.fc)
+	fontstash.PopState(&gs.fc)
 }
 
 // counts first beginning tabs

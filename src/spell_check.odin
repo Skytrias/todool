@@ -9,7 +9,7 @@ import "core:unicode"
 import "core:strings"
 import "../cutf8"
 import "../spall"
-import "../fontstash"
+import "heimdall:fontstash"
 import "../btrie"
 
 DISABLE_USER :: false
@@ -109,7 +109,7 @@ spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 		// render the result when not found
 		if !exists {
 			fcs_task(&task.element)
-			state := fontstash.wrap_state_init(
+			state := wrap_state_init(
 				&gs.fc, 
 				task.box.wrapped_lines, 
 				word.index_codepoint_start, 
@@ -118,7 +118,7 @@ spell_check_render_missing_words :: proc(target: ^Render_Target, task: ^Task) {
 			scaled_size := f32(state.isize / 10)
 			line_width := LINE_WIDTH + int(4 * TASK_SCALE)
 
-			for fontstash.wrap_state_iter(&gs.fc, &state) {
+			for wrap_state_iter(&gs.fc, &state) {
 				y := task.box.bounds.t + int(f32(state.y) * scaled_size) - line_width / 2
 				
 				rect := RectI {

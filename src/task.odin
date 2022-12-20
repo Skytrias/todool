@@ -17,7 +17,7 @@ import "core:reflect"
 import "core:time"
 import "core:thread"
 import "../cutf8"
-import "../fontstash"
+import "heimdall:fontstash"
 import "../spall"
 
 Task_State_Progression :: enum {
@@ -654,7 +654,7 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 			fcs_color(color)
 			fcs_task(button)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			text := strings.to_string(button.builder)
 			text_render := text
 
@@ -662,12 +662,12 @@ task_button_link_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			if app.mmpp.mode == .Kanban {
 				task := cast(^Task) element.parent
 				actual_width := rect_width(task.element.bounds) - 30
-				iter := fontstash.text_iter_init(&gs.fc, text)
+				iter := fontstash.TextIterInit(&gs.fc, 0, 0, text)
 				q: fontstash.Quad
 
-				for fontstash.text_iter_step(&gs.fc, &iter, &q) {
+				for fontstash.TextIterNext(&gs.fc, &iter, &q) {
 					if actual_width < int(iter.x) {
-						text_render = fmt.tprintf("%s...", text[:iter.byte_offset])
+						text_render = fmt.tprintf("%s...", text[:iter.str])
 						break
 					}
 				}
@@ -869,7 +869,7 @@ task_push_undoable :: proc(
 // format to lines or append a single line only
 task_box_format_to_lines :: proc(box: ^Task_Box, width: int) {
 	fcs_task(box)
-	fcs_ahv(.Left, .Top)
+	fcs_ahv(.LEFT, .TOP)
 	wrapped_lines_push(ss_string(&box.ss), max(f32(width), 200), &box.wrapped_lines)
 }
 
@@ -1405,12 +1405,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Mouse_Scroll_Y: {
 			if element.window.ctrl {
-				res := TASK_SCALE + f32(di) * 0.05
-				TASK_SCALE = clamp(res, 0.1, 10)
-				fontstash.reset(&gs.fc)
-				// fmt.eprintln("TASK SCALE", TASK_SCALE)
-
-				mode_panel_zoom_animate()
+				scaling_set(SCALE, TASK_SCALE + f32(di) * 0.05)
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
 				cam.freehand = true
@@ -1544,8 +1539,8 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			// strike through line
 			if task.state == .Canceled {
 				fcs_task(&task.element)
-				state := fontstash.state_get(&gs.fc)
-				font := fontstash.font_get(&gs.fc, state.font)
+				state := fontstash.__getState(&gs.fc)
+				font := fontstash.__getFont(&gs.fc, state.font)
 				isize := i16(state.size * 10)
 				scaled_size := f32(isize / 10)
 				offset := f32(font.ascender * 3 / 4) * scaled_size
@@ -1615,7 +1610,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				} else {
 					if app.task_head == app.task_tail {
 						scaled_size := fcs_task(&task.element)
-						fcs_ahv(.Left, .Top)
+						fcs_ahv(.LEFT, .TOP)
 						element_box_mouse_selection(task.box, task.box, di, true, 0, scaled_size)
 						element_repaint(&task.element)
 						return 1
@@ -1869,7 +1864,7 @@ task_or_box_left_down :: proc(task: ^Task, clicks: int, only_box: bool) {
 		} else {
 			old_tail := task.box.tail
 			scaled_size := fcs_task(&task.element)
-			fcs_ahv(.Left, .Top)
+			fcs_ahv(.LEFT, .TOP)
 			element_box_mouse_selection(task.box, task.box, clicks, false, 0, scaled_size)
 
 			if task.element.window.shift && clicks == 0 {
@@ -2970,7 +2965,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	render_push_clip(target, clip)
 	
 	b := &app.builder_line_number
-	fcs_ahv(.Right, .Middle)
+	fcs_ahv(.RIGHT, .MIDDLE)
 	fcs_font(font_regular)
 	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
 	fcs_color(color_alpha(theme.text_default, alpha))
@@ -3073,7 +3068,7 @@ wrapped_lines_push :: proc(
 	output: ^[]string,
 ) {
 	start := len(app.wrapped_lines)
-	fontstash.wrap_format_to_lines(
+	wrap_format_to_lines(
 		&gs.fc,
 		text,
 		width,

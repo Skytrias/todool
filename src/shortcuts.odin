@@ -2036,7 +2036,7 @@ todool_sort_locals :: proc(du: u32) {
 comment_todool_scale :: "scales the tasks up, TRUE for down"
 todool_scale :: proc(du: u32) {
 	amt := f32(du_pos_neg(du)) * 0.1
-	scaling_inc(amt)
+	scaling_set(SCALE, TASK_SCALE + amt)
 	window_repaint(app.window_main)
 }
 

@@ -253,7 +253,7 @@ mode_panel_cam_bounds_check_x :: proc(
 				// check if one liner
 				if len(t.box.wrapped_lines) == 1 {
 					fcs_element(&t.element)
-					fcs_ahv(.Left, .Top)
+					fcs_ahv(.LEFT, .TOP)
 					text_width := string_width(ss_string(&t.box.ss))
 
 					// if rect_width(mode_panel.bounds) - cam.margin_x * 2 

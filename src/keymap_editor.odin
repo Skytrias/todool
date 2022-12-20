@@ -390,7 +390,7 @@ ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 			}
 
 			fcs_element(button)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			fcs_color(text_color)
 
 			// offset left words
@@ -468,7 +468,7 @@ ke_button_combo_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			if button.node.conflict != nil {
 				color := button.node.conflict.color
 				fcs_color(color)
-				fcs_ahv(.Left, .Middle)
+				fcs_ahv(.LEFT, .MIDDLE)
 				bounds := element.bounds
 				bounds.l += int(5 * SCALE)
 				render_string_rect(target, bounds, fmt.tprintf("%dx", button.node.conflict.count))
@@ -477,7 +477,7 @@ ke_button_combo_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				render_rect(target, element.bounds, color)
 			}
 
-			fcs_ahv(.Right, .Middle)
+			fcs_ahv(.RIGHT, .MIDDLE)
 			fcs_color(text_color)
 			text := ke_button_combo_text(button)
 			render_string_rect(target, element.bounds, text)
@@ -783,7 +783,7 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.l += int(5 * SCALE)
 
 			fcs_element(element)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			color = cmd.is_current ? theme.text_good : theme.text_default
 			fcs_color(color)
 			render_string_rect(target, bounds, strings.to_string(builder))

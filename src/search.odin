@@ -4,7 +4,7 @@ import "core:math"
 import "core:mem"
 import "core:fmt"
 import "core:strings"
-import "../fontstash"
+import "heimdall:fontstash"
 import "../spall"
 import "../cutf8"
 
@@ -242,10 +242,10 @@ search_draw_highlights :: proc(target: ^Render_Target, panel: ^Mode_Panel) {
 
 		for i in 0..<int(length) {
 			result := search.results[entry.result_offset + i]
-			state := fontstash.wrap_state_init(&gs.fc, task.box.wrapped_lines, int(result.start), int(result.end))
+			state := wrap_state_init(&gs.fc, task.box.wrapped_lines, int(result.start), int(result.end))
 			scaled_size := f32(state.isize / 10)
 
-			for fontstash.wrap_state_iter(&gs.fc, &state) {
+			for wrap_state_iter(&gs.fc, &state) {
 				rect := RectI {
 					task.box.bounds.l + int(state.x_from),
 					task.box.bounds.l + int(state.x_to),

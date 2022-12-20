@@ -696,7 +696,7 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			rect := element.bounds
 			rect.l += int(5 * SCALE)
 			fcs_element(element)
-			fcs_ahv(.Left, .Middle)
+			fcs_ahv(.LEFT, .MIDDLE)
 			fcs_color(text_color)
 			render_string_rect(target, rect, text)
 			// erender_string_aligned(element, text, rect, text_color, .Left, .Middle)
