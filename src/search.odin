@@ -301,7 +301,7 @@ button_state_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 }
 
 search_init :: proc(parent: ^Element) {
-	margin_scaled := int(5 * SCALE)
+	margin_scaled := int(TEXT_PADDING * SCALE)
 	height := int(DEFAULT_FONT_SIZE * SCALE) + margin_scaled * 2
 	p := panel_init(parent, { .Panel_Default_Background, .Panel_Horizontal }, margin_scaled, 5)
 	p.background_index = 2

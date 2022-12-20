@@ -33,12 +33,16 @@ SCALE_MIN :: 0.25
 SCALE_MAX :: 2
 
 scaling_set :: proc(global_scale: f32, task_scale: f32) {
+	old := TASK_SCALE
+
 	TASK_SCALE = clamp(task_scale, SCALE_MIN, SCALE_MAX)
 	SCALE = clamp(global_scale, SCALE_MIN, SCALE_MAX)
 	LINE_WIDTH = max(int(2 * SCALE), 2)
-
 	fontstash.Reset(&gs.fc)
-	mode_panel_zoom_animate()
+
+	if old != TASK_SCALE {
+		mode_panel_zoom_animate()
+	}
 }
 
 Font :: fontstash.Font
@@ -171,6 +175,8 @@ Window :: struct {
 	// drop handling
 	drop_indices: [dynamic]int, // indices into the file name builder
 	drop_file_name_builder: strings.Builder,
+	drop_index: int,
+	drop_indice: int,
 
 	// callbacks
 	on_resize: proc(window: ^Window),
@@ -1155,16 +1161,21 @@ window_dropped_text :: proc(window: ^Window) -> string {
 	return string(window.drop_file_name_builder.buf[:])
 }
 
-window_dropped_iter :: proc(window: ^Window, index: ^int, old_indice: ^int) -> (path: string, ok: bool) {
-	if index^ >= len(window.drop_indices) {
+window_drop_init :: proc(window: ^Window) {
+	window.drop_indice = 0
+	window.drop_index = 0
+}
+
+window_drop_iter :: proc(window: ^Window) -> (path: string, ok: bool) {
+	if window.drop_index >= len(window.drop_indices) {
 		return
 	}
 
-	next := window.drop_indices[index^]
+	next := window.drop_indices[window.drop_index]
 	ok = true
-	path = string(window.drop_file_name_builder.buf[old_indice^:next])
-	old_indice^ = next
-	index^ += 1
+	path = string(window.drop_file_name_builder.buf[window.drop_indice:next])
+	window.drop_indice = next
+	window.drop_index += 1
 	return
 }
 

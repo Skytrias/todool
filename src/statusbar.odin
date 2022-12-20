@@ -92,7 +92,7 @@ statusbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 		case .Layout: {
 			bounds := element.bounds
-			bounds = rect_margin(bounds, int(5 * SCALE))
+			bounds = rect_margin(bounds, int(TEXT_PADDING * SCALE))
 
 			// custom layout based on data
 			for child in element.children {
@@ -101,10 +101,10 @@ statusbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				if .HF in child.flags {
 					// right
 					element_move(child, rect_cut_right(&bounds, w))
-					bounds.r -= int(5 * SCALE)
+					bounds.r -= int(TEXT_PADDING * SCALE)
 				} else {
 					element_move(child, rect_cut_left(&bounds, w))
-					bounds.l += int(5 * SCALE)
+					bounds.l += int(TEXT_PADDING * SCALE)
 				} 
 			}
 		}

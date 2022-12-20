@@ -70,7 +70,7 @@ Changelog_Text_Display :: struct {
 
 changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	td := cast(^Changelog_Text_Display) element
-	margin_scaled := int(5 * SCALE)
+	margin_scaled := int(TEXT_PADDING * SCALE)
 	tab_scaled := int(50 * SCALE)
 
 	#partial switch msg {

@@ -112,7 +112,7 @@ keymap_command_find_combo :: proc(
 	du: u32 = COMBO_EMPTY,
 ) -> (res: ^Combo_Node) {
 	for node in &keymap.combos {
-		c2 := strings.string_from_ptr(&node.command[0], int(node.command_index))
+		c2 := string(node.command[:node.command_index])
 
 		if c2 == command && node.du == du {
 			res = &node
@@ -128,10 +128,10 @@ keymap_combo_match :: proc(
 	node: ^Combo_Node, 
 	combo: string,
 ) -> (res: Command, ok: bool) {
-	c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
+	c1 := string(node.combo[:node.combo_index])
 	
 	if combo == c1 {
-		c2 := strings.string_from_ptr(&node.command[0], int(node.command_index))
+		c2 := string(node.command[:node.command_index])
 
 		if cmd, exists := keymap.commands[c2]; exists {
 			res = cmd
@@ -221,6 +221,7 @@ keymap_push_combo_opt :: proc(
 	res := keymap_command_find_combo(keymap, command, du)
 	
 	if res != nil {
+		fmt.eprintln("FOUND ALREADY", command)
 		return
 	}
 
@@ -395,6 +396,7 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	// v040
 	CP1("move_start", todool_move_start)
 	CP1("move_end", todool_move_end)
+	CP1("toggle_highlight", todool_toggle_highlight)
 }
 
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {
@@ -641,6 +643,8 @@ keymap_destroy_comments :: proc() {
 }
 
 keymap_force_push_latest :: proc() {
+	fmt.eprintln("FORCE")
+
 	keymap_push = &app.window_main.keymap_custom
 	CP4("alt a", "sort_locals")
 	CP4("ctrl r", "toggle_timestamp")
@@ -649,6 +653,8 @@ keymap_force_push_latest :: proc() {
 	CP4("ctrl shift home", "move_start", COMBO_SHIFT)
 	CP4("ctrl end", "move_end")
 	CP4("ctrl shift end", "move_end", COMBO_SHIFT)
+	
+	CP4("alt j", "toggle_highlight")
 }
 
 // TODO only way to better do this is with parsing odin files
@@ -740,4 +746,5 @@ keymap_init_comments :: proc() {
 	// v040
 	CP3(todool_move_start, comment_todool_move_start)
 	CP3(todool_move_end, comment_todool_move_end)
+	CP3(todool_toggle_highlight, comment_todool_toggle_highlight)
 }

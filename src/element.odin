@@ -37,6 +37,7 @@ di_update_pressed :: proc(di: int) -> bool {
 SCROLLBAR_SIZE :: 15
 TEXT_MARGIN_VERTICAL :: 10
 TEXT_MARGIN_HORIZONTAL :: 10
+TEXT_PADDING :: 5
 DEFAULT_FONT_SIZE :: 20
 DEFAULT_ICON_SIZE :: 18
 SPLITTER_SIZE :: 4
@@ -3173,8 +3174,6 @@ linear_gauge_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			render_rect(target, element.bounds, theme.text_bad, ROUNDNESS)
 			slide := element.bounds
-			// slide.t = slide.b - math.round(5 * SCALE)
-			// slide.b = slide.t + math.round(3 * SCALE)
 			slide.r = slide.l + int(min(gauge.position, 1) * rect_widthf(slide))
 			render_rect(target, slide, theme.text_good, ROUNDNESS)
 			// render_rect_outline(target, element.bounds, text_color)
@@ -3404,7 +3403,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 
 			top.l += int(MARGIN * SCALE)
 			icon: Icon = (.Hide in toggle.panel.flags) ? .Simple_Right : .Simple_Down
-			top.l += int(render_icon_rect(target, top, icon)) + int(5 * SCALE)
+			top.l += int(render_icon_rect(target, top, icon)) + int(TEXT_PADDING * SCALE)
 			
 			fcs_element(toggle)
 			text := strings.to_string(toggle.builder)
@@ -3767,6 +3766,8 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 
 			if combo, c1 := menu_bar_line_combo(line); combo != nil {
 				fcs_ahv(.RIGHT, .MIDDLE)
+				bounds := bounds
+				bounds.r -= int(TEXT_PADDING * SCALE)
 				render_string_rect(target, bounds, c1)
 			}
 

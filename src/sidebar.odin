@@ -694,7 +694,7 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 
 			text := strings.to_string(button.builder)
 			rect := element.bounds
-			rect.l += int(5 * SCALE)
+			rect.l += int(TEXT_PADDING * SCALE)
 			fcs_element(element)
 			fcs_ahv(.LEFT, .MIDDLE)
 			fcs_color(text_color)

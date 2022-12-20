@@ -366,9 +366,8 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 
 			// check the content to load
 			load_images: bool
-			index: int
-			old_indice: int
-			for file_path in window_dropped_iter(window, &index, &old_indice) {
+			window_drop_init(window)
+			for file_path in window_drop_iter(window) {
 				// image dropping
 				if strings.has_suffix(file_path, ".png") {
 					load_images = true
@@ -378,9 +377,8 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 
 			// load images only
 			if load_images {
-				index = 0
-				old_indice = 0
-				for file_path in window_dropped_iter(window, &index, &old_indice) {
+				window_drop_init(window)
+				for file_path in window_drop_iter(window) {
 					handle := image_load_push(file_path)
 					
 					if handle != nil {
@@ -418,12 +416,11 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 							task_insert_offset := task.filter_index + 1
 							task_indentation := task.indentation
 							had_imports: bool
-							index: int
-							old_indice: int
 							manager := mode_panel_manager_begin()
 
 							// read all files
-							for file_path in window_dropped_iter(app.window_main, &index, &old_indice) {
+							window_drop_init(app.window_main)
+							for file_path in window_drop_iter(app.window_main) {
 								// import from code
 								content, ok := os.read_entire_file(file_path)
 								defer delete(content)
@@ -451,10 +448,6 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 
 			window_repaint(app.window_main)
 		}
-
-		// case .Deallocate: {
-		// 	tasks_clear_left_over()
-		// }
 	}
 
 	return 0

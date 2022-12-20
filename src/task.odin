@@ -79,7 +79,7 @@ App :: struct {
 	caret_lerp_speed_y: f32,
 	caret_lerp_speed_x: f32,
 	last_was_task_copy: bool,
-	task_highlight: ^Task,
+	// task_highlight: ^Task,
 
 	// goto state
 	panel_goto: ^Panel_Floaty,
@@ -381,6 +381,7 @@ Task :: struct {
 
 	// flags
 	removed: bool,
+	highlight: bool,
 }
 
 Mode :: enum {
@@ -1575,6 +1576,10 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				render_rect(target, app.caret_rect, theme.caret, 0)
 			}
 
+			if task.highlight {
+				render_rect_outline(target, element.bounds, RED)
+			}
+
 			return 1
 		}
 
@@ -2739,46 +2744,46 @@ mode_panel_context_menu_spawn :: proc() {
 }
 
 task_highlight_render :: proc(target: ^Render_Target, after: bool) {
-	if app.task_highlight == nil {
-		return
-	}
-
-	// if 
-	// 	after && mode_panel.mode == .List ||
-	// 	!after && mode_panel.mode == .Kanban {
+	// if app.task_highlight == nil {
 	// 	return
 	// }
 
-	exists := false
+	// // if 
+	// // 	after && mode_panel.mode == .List ||
+	// // 	!after && mode_panel.mode == .Kanban {
+	// // 	return
+	// // }
 
-	for index in app.pool.filter {
-		task := app_task_list(index)
-		if app.task_highlight == task {
-			exists = true
-			continue
-		}
-	}
+	// exists := false
 
-	if !exists {
-		return
-	}
+	// for index in app.pool.filter {
+	// 	task := app_task_list(index)
+	// 	if app.task_highlight == task {
+	// 		exists = true
+	// 		continue
+	// 	}
+	// }
 
-	render_push_clip(target, app.mmpp.clip)
+	// if !exists {
+	// 	return
+	// }
 
-	switch app.mmpp.mode {
-		case .List: {
-			rect := app.mmpp.bounds
-			rect.t = app.task_highlight.element.bounds.t
-			rect.b = app.task_highlight.element.bounds.b
-			render_rect(target, rect, theme.text_bad)
-		}
+	// render_push_clip(target, app.mmpp.clip)
 
-		case .Kanban: {
-			rect := app.task_highlight.element.bounds
-			rect = rect_margin(rect, int(-10 * TASK_SCALE))
-			render_rect(target, rect, theme.text_bad, ROUNDNESS)
-		}
-	}
+	// switch app.mmpp.mode {
+	// 	case .List: {
+	// 		rect := app.mmpp.bounds
+	// 		rect.t = app.task_highlight.element.bounds.t
+	// 		rect.b = app.task_highlight.element.bounds.b
+	// 		render_rect(target, rect, theme.text_bad)
+	// 	}
+
+	// 	case .Kanban: {
+	// 		rect := app.task_highlight.element.bounds
+	// 		rect = rect_margin(rect, int(-10 * TASK_SCALE))
+	// 		render_rect(target, rect, theme.text_bad, ROUNDNESS)
+	// 	}
+	// }
 }
 
 task_render_progressbars :: proc(target: ^Render_Target) {

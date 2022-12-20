@@ -395,7 +395,7 @@ ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: 
 
 			// offset left words
 			bounds := element.bounds
-			bounds.l += int(5 * SCALE)
+			bounds.l += int(TEXT_PADDING * SCALE)
 
 			render_string_rect(target, bounds, text)
 		}
@@ -470,7 +470,7 @@ ke_button_combo_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				fcs_color(color)
 				fcs_ahv(.LEFT, .MIDDLE)
 				bounds := element.bounds
-				bounds.l += int(5 * SCALE)
+				bounds.l += int(TEXT_PADDING * SCALE)
 				render_string_rect(target, bounds, fmt.tprintf("%dx", button.node.conflict.count))
 
 				color.a = 100
@@ -481,7 +481,7 @@ ke_button_combo_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 			fcs_color(text_color)
 			text := ke_button_combo_text(button)
 			bounds := element.bounds
-			bounds.r -= int(5 * SCALE)
+			bounds.r -= int(TEXT_PADDING * SCALE)
 			render_string_rect(target, bounds, text)
 		}
 
@@ -782,7 +782,7 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			bounds := element.bounds
-			bounds.l += int(5 * SCALE)
+			bounds.l += int(TEXT_PADDING * SCALE)
 
 			fcs_element(element)
 			fcs_ahv(.LEFT, .MIDDLE)

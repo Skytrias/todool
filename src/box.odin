@@ -106,8 +106,8 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			fcs_ahv(.LEFT, .MIDDLE)
 			caret_x: int
 			text_bounds := element.bounds
-			text_bounds.l += int(5 * SCALE)
-			text_bounds.r -= int(5 * SCALE)
+			text_bounds.l += int(TEXT_PADDING * SCALE)
+			text_bounds.r -= int(TEXT_PADDING * SCALE)
 			text_width := string_width(text)
 
 			// handle scrolling

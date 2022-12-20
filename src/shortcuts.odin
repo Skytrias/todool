@@ -2281,3 +2281,20 @@ todool_move_end :: proc(du: u32) {
 	task_head_tail_check_end(shift)
 	window_repaint(app.window_main)
 }
+
+comment_todool_toggle_highlight :: "toggle highlight the selected tasks"
+todool_toggle_highlight :: proc(du: u32) {
+	fmt.eprintln("CALLED")
+	if app_filter_empty() {
+		return
+	}
+
+	fmt.eprintln("CALLED")
+
+	iter := lh_iter_init()
+	for task in lh_iter_step(&iter) {
+		task.highlight = !task.highlight
+	}
+
+	window_repaint(app.window_main)
+}
