@@ -645,7 +645,6 @@ load_all :: proc(data: []u8) -> (err: Save_Error) {
 		return
 	}
 
-	spell_check_clear_user()
 	tasks_load_reset()
 
 	load_optional(load_tags(&data)) or_return

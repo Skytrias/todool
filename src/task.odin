@@ -2385,6 +2385,7 @@ tasks_load_reset :: proc() {
 	element_deallocate(&app.window_main.element) // clear mem
 
 	task_pool_clear(&app.pool)
+	spell_check_clear_user()
 	
 	// mode_panel.flags += { .Destroy_Descendent }
 	undo_manager_reset(&app.um_task)
@@ -2398,11 +2399,8 @@ tasks_load_tutorial :: proc() {
 
 	@(deferred_none=pop)
 	push_scoped_task :: #force_inline proc(text: string) {
+		spell_check_mapping_words_add(text)
 		task_push(max(load_indent, 0), text)
-		load_indent	+= 1
-	}
-
-	push_scoped :: #force_inline proc(text: string) {
 		load_indent	+= 1
 	}
 

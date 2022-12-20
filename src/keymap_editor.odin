@@ -168,33 +168,6 @@ keymap_editor_spawn :: proc(du: u32) {
 	keymap_push_box_combos(&ke.window.keymap_box)
 }
 
-KE_Button :: struct {
-	using element: Element,
-	node: ^Combo_Node,
-	show_command: bool,
-}
-
-ke_button_init :: proc(
-	parent: ^Element, 
-	flags: Element_Flags, 
-	node: ^Combo_Node,
-	show_command: bool,
-) -> (res: ^KE_Button) {
-	res = element_init(KE_Button, parent, flags, ke_button_message, context.allocator)
-	res.node = node
-	res.show_command = show_command
-	return	
-}
-
-// get text per mode
-ke_button_text :: proc(button: ^KE_Button) -> string {
-	if button.show_command {
-		return transmute(string) button.node.command[:button.node.command_index]
-	} else {
-		return transmute(string) button.node.combo[:button.node.combo_index]
-	}
-}
-
 KE_Stealer :: struct {
 	using element: Element,
 	builder: strings.Builder,
@@ -349,8 +322,129 @@ keymap_editor_check_conflicts :: proc(keymap: ^Keymap, skip: ^Combo_Node, check:
 	}
 }
 
-ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	button := cast(^KE_Button) element
+KE_Button_Combo :: struct {
+	using element: Element,
+	node: ^Combo_Node,
+}
+
+KE_Button_Command :: struct {
+	using element: Element,
+	node: ^Combo_Node,
+}
+
+ke_button_combo_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	node: ^Combo_Node,
+) -> (res: ^KE_Button_Combo) {
+	res = element_init(KE_Button_Combo, parent, flags, ke_button_combo_message, context.allocator)
+	res.node = node
+	return
+}
+
+ke_button_command_init :: proc(
+	parent: ^Element, 
+	flags: Element_Flags, 
+	node: ^Combo_Node,
+) -> (res: ^KE_Button_Command) {
+	res = element_init(KE_Button_Command, parent, flags, ke_button_command_message, context.allocator)
+	res.node = node
+	return	
+}
+
+// get text per mode
+ke_button_combo_text :: proc(button: ^KE_Button_Combo) -> string {
+	return string(button.node.combo[:button.node.combo_index])
+}
+
+// get text per mode
+ke_button_command_text :: proc(button: ^KE_Button_Combo) -> string {
+	return string(button.node.command[:button.node.command_index])
+}
+
+ke_button_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^KE_Button_Combo) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			keymap := cast(^Keymap) button.parent.parent.data
+			text := ke_button_command_text(button)
+
+			// find assigned color
+			command, ok := keymap.commands[text]
+			color := keymap.command_colors[command] or_else TRANSPARENT
+			render_rect(target, element.bounds, color)
+
+			if hovered || pressed {
+				render_rect_outline(target, element.bounds, text_color)
+				render_hovered_highlight(target, element.bounds)
+			}
+
+			fcs_element(button)
+			fcs_ahv(.Left, .Middle)
+			fcs_color(text_color)
+
+			// offset left words
+			bounds := element.bounds
+			bounds.l += int(5 * SCALE)
+
+			render_string_rect(target, bounds, text)
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Clicked: {
+			keymap := cast(^Keymap) button.parent.parent.data
+			keymap_editor_menu_command(keymap, button.node)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Hand)
+		}
+
+		case .Get_Width: {
+			fcs_element(element)
+			text := ke_button_command_text(button)
+			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
+			return int(width)
+		}
+
+		case .Get_Height: {
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+		}
+
+		case .Key_Combination: {
+			key_combination_check_click(element, dp)
+		}
+
+		case .Hover_Info: {
+			keymap := cast(^Keymap) button.parent.parent.data
+			c1 := string(button.node.command[:button.node.command_index])
+			command, ok := keymap.commands[c1]
+
+			if ok {
+				comment, found := keymap_comments[command]
+
+				if found {
+					res := cast(^string) dp
+					res^ = comment 
+				}
+			}
+		}
+	}
+
+	return 0
+}
+
+ke_button_combo_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	button := cast(^KE_Button_Combo) element
 
 	#partial switch msg {
 		case .Paint_Recursive: {
@@ -367,7 +461,7 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			fcs_element(button)
 
 			// show conflicts
-			if !button.show_command && button.node.conflict != nil {
+			if button.node.conflict != nil {
 				color := button.node.conflict.color
 				fcs_color(color)
 				fcs_ahv(.Left, .Middle)
@@ -379,18 +473,10 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				render_rect(target, element.bounds, color)
 			}
 
-			horizontal: Align_Horizontal = button.show_command ? .Left : .Right
-			fcs_ahv(horizontal, .Middle)
+			fcs_ahv(.Right, .Middle)
 			fcs_color(text_color)
-			bounds := element.bounds
-
-			// offset left words
-			if button.show_command {
-				bounds.l += int(5 * SCALE)
-			}
-
-			text := ke_button_text(button)
-			render_string_rect(target, bounds, text)
+			text := ke_button_combo_text(button)
+			render_string_rect(target, element.bounds, text)
 		}
 
 		case .Update: {
@@ -398,34 +484,29 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		}
 
 		case .Clicked: {
-			if button.show_command {
-				keymap := cast(^Keymap) button.parent.parent.data
-				keymap_editor_menu_command(keymap, button.node)
-			} else {
-				ke.menu.line = cast(^Static_Line) button.parent
-				combo_name := string(button.node.combo[:button.node.combo_index])
+			ke.menu.line = cast(^Static_Line) button.parent
+			combo_name := string(button.node.combo[:button.node.combo_index])
 
-				dialog_spawn(
-					ke.window,
-					proc(dialog: ^Dialog, result: string) {
-						if dialog.result == .Default {
-							keymap := cast(^Keymap) ke.menu.line.parent.data
-							node := &keymap.combos[ke.menu.line.index]
-	
-							mem.copy(&node.combo[0], raw_data(result), len(result))
-							node.combo_index = u8(len(result))
-							keymap_editor_check_conflicts(keymap, node, result)
-						}
+			dialog_spawn(
+				ke.window,
+				proc(dialog: ^Dialog, result: string) {
+					if dialog.result == .Default {
+						keymap := cast(^Keymap) ke.menu.line.parent.data
+						node := &keymap.combos[ke.menu.line.index]
 
-						ke.menu.line = nil
-					},
-					300,
-					"Press a Key Combination\n%x\n%B%C",
-					combo_name,
-					"Accept",
-					"Cancel",
-				)
-			}
+						mem.copy(&node.combo[0], raw_data(result), len(result))
+						node.combo_index = u8(len(result))
+						keymap_editor_check_conflicts(keymap, node, result)
+					}
+
+					ke.menu.line = nil
+				},
+				300,
+				"Press a Key Combination\n%x\n%B%C",
+				combo_name,
+				"Accept",
+				"Cancel",
+			)
 		}
 
 		case .Get_Cursor: {
@@ -434,7 +515,7 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 		case .Get_Width: {
 			fcs_element(element)
-			text := ke_button_text(button)
+			text := ke_button_combo_text(button)
 			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
 			return int(width)
 		}
@@ -446,23 +527,6 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 		case .Key_Combination: {
 			key_combination_check_click(element, dp)
 		}
-
-		case .Hover_Info: {
-			if button.show_command {
-				keymap := cast(^Keymap) button.parent.parent.data
-				c1 := string(button.node.command[:button.node.command_index])
-				command, ok := keymap.commands[c1]
-
-				if ok {
-					comment, found := keymap_comments[command]
-
-					if found {
-						res := cast(^string) dp
-						res^ = comment 
-					}
-				}
-			}
-		}
 	}	
 
 	return 0
@@ -470,9 +534,9 @@ ke_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 // NOTE this has to be the same as the init code
 keymap_editor_update_combo_data :: proc(line: ^Static_Line, combo: ^Combo_Node) {
-	b1 := cast(^KE_Button) line.children[0]
+	b1 := cast(^KE_Button_Combo) line.children[0]
 	b1.node = combo
-	b2 := cast(^KE_Button) line.children[1]
+	b2 := cast(^KE_Button_Command) line.children[1]
 	b2.node = combo
 	b3 := cast(^Button) line.children[2]
 	strings.builder_reset(&b3.builder)
@@ -604,6 +668,12 @@ keymap_editor_static_grid_message :: proc(element: ^Element, msg: Message, di: i
 }
 
 keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool) -> (grid: ^Static_Grid) {
+	reserve(&keymap.command_colors, len(keymap.commands))
+	clear(&keymap.command_colors)
+	for key, value in keymap.commands {
+		keymap.command_colors[value] = color_hsl_golden_rand(nil, 0.5, 1)
+	}
+
 	cell_sizes := [?]int { 250, 200, 100 }
 	grid = static_grid_init(ke.panel, {}, cell_sizes[:], DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL)
 	grid.data = keymap
@@ -639,8 +709,8 @@ keymap_editor_line_append :: proc(
 	p.message_user = keymap_editor_static_line_message
 
 	// c1 := strings.string_from_ptr(&node.combo[0], int(node.combo_index))
-	b1 := ke_button_init(p, {}, node, false)
-	b2 := ke_button_init(p, {}, node, true)
+	b1 := ke_button_combo_init(p, {}, node)
+	b2 := ke_button_command_init(p, {}, node)
 
 	b3 := button_init(p, {}, "")
 
@@ -695,6 +765,11 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			strings.write_string(&builder, ". ")
 			strings.write_string(&builder, cmd.text)
 
+			// find assigned color
+			command, ok := ke.menu.keymap.commands[cmd.text]
+			color := ke.menu.keymap.command_colors[command] or_else TRANSPARENT
+			render_rect(target, rect_margin(element.bounds, 1), color)
+
 			if hovered || pressed {
 				render_rect_outline(target, element.bounds, theme.text_default)
 				render_hovered_highlight(target, element.bounds)
@@ -705,7 +780,7 @@ ke_command_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			fcs_element(element)
 			fcs_ahv(.Left, .Middle)
-			color := cmd.is_current ? theme.text_good : theme.text_default
+			color = cmd.is_current ? theme.text_good : theme.text_default
 			fcs_color(color)
 			render_string_rect(target, bounds, strings.to_string(builder))
 		}

@@ -29,6 +29,10 @@ Keymap :: struct {
 	combos: [dynamic]Combo_Node,
 	combo_last: ^Combo_Node,
 	conflict_list: dll.List,
+
+	// keymap editor colors for each command
+	// reset each time
+	command_colors: map[Command]Color,
 }
 
 keymap_query_info :: proc(using keymap: ^Keymap, name: string) {
@@ -174,6 +178,7 @@ keymap_destroy :: proc(keymap: ^Keymap) {
 
 	delete(keymap.commands)
 	delete(keymap.combos)
+	delete(keymap.command_colors)
 }
 
 // set a combo internal values

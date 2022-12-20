@@ -10,6 +10,7 @@ BLUE :: Color { 0, 0, 255, 255 }
 BLACK :: Color { 0, 0, 0, 255 }
 WHITE :: Color { 255, 255, 255, 255 }
 TRANSPARENT :: Color { }
+GOLDEN_RATIO :: 0.618033988749895
 
 color_rgb_rand :: proc(gen: ^rand.Rand = nil) -> Color {
 	return {
@@ -22,6 +23,11 @@ color_rgb_rand :: proc(gen: ^rand.Rand = nil) -> Color {
 
 color_hsl_rand :: proc(gen: ^rand.Rand = nil, s := f32(1), l := f32(1)) -> Color {
 	hue := rand.float32()
+	return color_hsv_to_rgb(hue, s, l)
+}
+
+color_hsl_golden_rand :: proc(gen: ^rand.Rand = nil, s := f32(1), l := f32(1)) -> Color {
+	hue := math.mod(rand.float32() + GOLDEN_RATIO, 1)
 	return color_hsv_to_rgb(hue, s, l)
 }
 
