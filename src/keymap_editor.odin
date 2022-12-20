@@ -240,6 +240,10 @@ ke_stealer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			element_focus(element.window, element)
 			element_repaint(element)
 		}
+
+		case .Destroy: {
+			delete(stealer.builder.buf)
+		}
 	}
 
 	return 0

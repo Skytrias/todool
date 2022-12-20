@@ -1231,6 +1231,8 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 				return
 			} 
 
+			fmt.eprintln("INPUT:", string(cstring(&e.text.text[0])))
+
 			// TODO support IME
 			// nul search through fixed string
 			nul := -1

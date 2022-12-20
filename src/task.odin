@@ -1092,10 +1092,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 	cam := &panel.cam[panel.mode]
 
 	#partial switch msg {
-		case .Destroy: {
-			// tasks_eliminate_wanted_clear_tasks(panel)
-		}
-
 		case .Find_By_Point_Recursive: {
 			p := cast(^Find_By_Point) dp
 

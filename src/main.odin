@@ -28,40 +28,6 @@ TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 DEMO_MODE :: false // wether or not save&load are enabled
 
-// TODO change string color
-// TODO rendering line break selections
-// KEYMAP REWORK
-// add super key
-// keymap load newer combos per version by default
-// keymap editor GUI
-
-// rework scrollbar to just float and take and be less intrusive
-// have spall push threaded content based on ids or sdl timers
-
-// fold changes:
-// removed task == 0 forcing indentation 0
-// change_state only push undo on changes
-
-// main :: proc() {
-// 	pool := task_pool_init()
-// 	defer task_pool_destroy(pool)
-
-// 	fmt.eprintln(task_pool_push_new(&pool))
-// 	fmt.eprintln(task_pool_push_new(&pool))
-// 	task_pool_push_remove(&pool, 0); fmt.eprintln(len(pool.removed_list))
-// }
-
-// main :: proc() {
-// 	fmt.eprintln("test")
-// 	fmt.eprintln("test")
-// 	fmt.eprintln("test")
-
-// 	value := 10
-
-// 	runtime.debug_trap()
-// 	value = 20
-// }
-
 main :: proc() {
 	spall.init("test.spall")
 	spall.begin("init all", 0)

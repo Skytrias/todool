@@ -509,7 +509,6 @@ element_deallocate_raw :: proc(element: ^Element) {
 	// free data
 	delete(element.children)
 
-	// TODO do we need to do this?
 	if element.allocator != {} {
 		free(element, element.allocator)
 	}
@@ -1319,7 +1318,6 @@ Spacer_Style :: enum {
 	Empty,
 	Thin,
 	Full,
-	Dotted,
 }
 
 Spacer :: struct {
@@ -1358,10 +1356,6 @@ spacer_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 				case .Full: {
 					render_rect(target, element.bounds, color, ROUNDNESS)
-				}
-
-				case .Dotted: {
-					// TODO dotted line
 				}
 			}
 		}
@@ -3876,10 +3870,15 @@ static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			// only interact with the top cell
 			if sg.hide_cells != nil && sg.hide_cells^ {
 				assert(len(element.children) > 0)
-				point := cast(^Find_By_Point) dp
 				chosen := element.children[0]
-				return element_find_by_point_custom(chosen, point)
-				// return 1
+				p := cast(^Find_By_Point) dp
+
+				// just do full bounds of rect
+				if rect_contains(chosen.bounds, p.x, p.y) {
+					p.res = chosen
+				}
+
+				return 1
 			} 
 		}
 
@@ -3918,6 +3917,8 @@ static_grid_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 					}
 					sum += h
 				}
+
+				sum += height
 			}
 
 			return sum
