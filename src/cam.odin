@@ -60,8 +60,8 @@ cam_update_screenshake :: proc(using cam: ^Pan_Camera, update: bool) {
 cam_update :: proc(using cam: ^Pan_Camera) {
 	if cam.check_next_frame {
 		cam.freehand = false
-		mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, false, true)
-		mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
+		mode_panel_cam_bounds_check_x(cam, app.caret.rect.l, app.caret.rect.r, false, true)
+		mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
 		cam.check_next_frame = false
 	}	
 }
@@ -106,7 +106,7 @@ mode_panel_cam :: #force_inline proc() -> ^Pan_Camera #no_bounds_check {
 cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 	a := x ? &cam.ax : &cam.ay
 	off := x ? &cam.offset_x : &cam.offset_y
-	lerp := x ? &app.caret_lerp_speed_x : &app.caret_lerp_speed_y
+	lerp := x ? &app.caret.lerp_speed_x : &app.caret.lerp_speed_y
 	using a
 
 	if cam.freehand || !animating {

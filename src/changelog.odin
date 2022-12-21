@@ -255,7 +255,7 @@ changelog_spawn :: proc(du: u32 = COMBO_EMPTY) {
 
 	changelog.window = window_init(nil, {}, "Changelog Genrator", 700, 700, 8, 8)
 	changelog.window.element.message_user = changelog_window_message
-	changelog.window.update = proc(window: ^Window) {
+	changelog.window.update_before = proc(window: ^Window) {
 		// only check once when window is updating
 		if changelog.check_next {
 			task_check_parent_states(nil)

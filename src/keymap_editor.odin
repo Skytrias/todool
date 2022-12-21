@@ -122,7 +122,7 @@ keymap_editor_spawn :: proc(du: u32) {
 	ke.window.on_menu_close = proc(window: ^Window) {
 		ke.menu = {}
 	}
-	ke.window.update = proc(window: ^Window) {
+	ke.window.update_before = proc(window: ^Window) {
 		// if grid, ok := ke.grid_keep_in_frame.?; ok {
 		// 	bounds := grid.children[0].bounds
 		// 	direction := ke.panel.vscrollbar.position > rect_heightf_halfed(bounds)

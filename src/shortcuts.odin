@@ -1652,7 +1652,7 @@ todool_center :: proc(du: u32) {
 	if app_filter_not_empty() {
 		cam := mode_panel_cam()
 		cam.freehand = false
-		cam_center_by_height_state(cam, app.mmpp.bounds, app.caret_rect.t)
+		cam_center_by_height_state(cam, app.mmpp.bounds, app.caret.rect.t)
 	}
 }
 

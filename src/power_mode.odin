@@ -129,8 +129,8 @@ power_mode_spawn_at_caret :: proc() {
 	}
 
 	cam := mode_panel_cam()
-	x := f32(app.caret_rect.l)
-	y := f32(app.caret_rect.t) + rect_heightf_halfed(app.caret_rect)
+	x := f32(app.caret.rect.l)
+	y := f32(app.caret.rect.t) + rect_heightf_halfed(app.caret.rect)
 	color: Color = pm_particle_colored() ? {} : pm_state.caret_color
 	power_mode_spawn_at(x, y, cam.offset_x, cam.offset_y, P_SPAWN_HIGH, color)
 }

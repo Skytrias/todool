@@ -43,9 +43,23 @@ TASK_DRAG_SIZE :: 80
 TASK_SHADOW_ALPHA :: 0.5
 DRAG_CIRCLE :: 30
 
+Caret_State :: struct {
+	rect: RectI,
+	lerp_speed_y: f32,
+	lerp_speed_x: f32,
+
+	// last frames to render
+	trail_last_x: f32,
+	trail_last_y: f32,
+	trail_count: f32,
+}
+
 App :: struct {
 	pool: Task_Pool,
 	copy_state: Copy_State,
+	last_was_task_copy: bool,
+	caret: Caret_State,
+	// task_highlight: ^Task,
 
 	// progress bars
 	task_state_progression: Task_State_Progression,
@@ -74,12 +88,6 @@ App :: struct {
 	mmpp: ^Mode_Panel,
 	custom_split: ^Custom_Split,
 	window_main: ^Window,
-	caret_rect: RectI,
-
-	caret_lerp_speed_y: f32,
-	caret_lerp_speed_x: f32,
-	last_was_task_copy: bool,
-	// task_highlight: ^Task,
 
 	// goto state
 	panel_goto: ^Panel_Floaty,
@@ -137,13 +145,14 @@ app: ^App
 app_init :: proc() -> (res: ^App) {
 	res = new(App)
 
+	res.caret.trail_count = 50
 	res.pool = task_pool_init()
 
 	res.task_state_progression = .Update_Instant
 	res.copy_state = copy_state_init(mem.Kilobyte * 4, 128, context.allocator)
 	res.main_thread_running = true
-	res.caret_lerp_speed_y = 1
-	res.caret_lerp_speed_x = 1
+	res.caret.lerp_speed_y = 1
+	res.caret.lerp_speed_x = 1
 	res.drag_rect_lerp = RECT_LERP_INIT
 	
 	strings.builder_init(&res.last_save_location, 0, 128)
@@ -1215,14 +1224,14 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				scaled_size := fcs_task(&task.element)
 				x := task.box.bounds.l
 				y := task.box.bounds.t
-				app.caret_rect = box_layout_caret(task.box, scaled_size, TASK_SCALE, x, y,)
+				app.caret.rect = box_layout_caret(task.box, scaled_size, TASK_SCALE, x, y,)
 				power_mode_check_spawn()
 			}
 
 			// check on change
 			if app.task_head != -1 {
-				mode_panel_cam_bounds_check_x(cam, app.caret_rect.r, app.caret_rect.r, false, true)
-				mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
+				mode_panel_cam_bounds_check_x(cam, app.caret.rect.r, app.caret.rect.r, false, true)
+				mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
 			}
 		}
 
@@ -1489,7 +1498,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			handled |= y_handled
 
 			// check y afterwards
-			goal_y, direction_y := cam_bounds_check_y(cam, panel.bounds, app.caret_rect.t, app.caret_rect.b)
+			goal_y, direction_y := cam_bounds_check_y(cam, panel.bounds, app.caret.rect.t, app.caret.rect.b)
 
 			if cam.ay.direction != CAM_CENTER && direction_y == 0 {
 				cam.ay.animating = false
@@ -1500,7 +1509,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// check x afterwards
 			// NOTE just check this everytime due to inconsistency
-			mode_panel_cam_bounds_check_x(cam,app.caret_rect.l, app.caret_rect.r, true, true)
+			mode_panel_cam_bounds_check_x(cam,app.caret.rect.l, app.caret.rect.r, true, true)
 
 			// fmt.eprintln("animating!", handled, cam.offset_y, cam.offset_x)
 			return int(handled)
@@ -1571,7 +1580,15 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			// outline visible selected one
 			if app.task_head == app.task_tail && task.filter_index == app.task_head {
-				render_rect(target, app.caret_rect, theme.caret, 0)
+				// render_rect(target, app.caret.rect, theme.caret, 0)
+				caret_state_render(target, &app.caret)
+				// h := rect_height(app.caret.rect)
+
+				// for pos, i in app.caret.trail {
+				// 	r := rect_wh(int(pos.x), int(pos.y), int(pos.z), h)
+				// 	color := color_alpha(theme.caret, pos.w)
+				// 	render_rect(target, r, color, 0)
+				// }
 			}
 
 			return 1

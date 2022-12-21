@@ -47,7 +47,10 @@ main :: proc() {
 	}
 	app.window_main = window
 	window.element.message_user = window_main_message
-	window.update = main_update
+	window.update_before = main_update
+	// window.update_after = proc(window: ^Window) {
+	// 	caret_state_animate(&app.caret)
+	// }
 	window.update_check = proc(window: ^Window) -> (handled: bool) {
 		handled |= power_mode_running()
 		handled = true
@@ -141,8 +144,8 @@ main_box_key_combination :: proc(window: ^Window, msg: Message, di: int, dp: raw
 		if element_message(box, msg, di, dp) == 1 {
 			cam := mode_panel_cam()
 			cam.freehand = false
-			mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, false, false)
-			mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
+			mode_panel_cam_bounds_check_x(cam, app.caret.rect.l, app.caret.rect.r, false, false)
+			mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
 			return 1
 		}
 	}
@@ -290,7 +293,37 @@ main_update :: proc(window: ^Window) {
 		cam_update(&cam)
 	}
 
-	// task_timestamp_check_hover()
+	// caret_state_animate(&app.caret)
+}
+
+caret_state_render :: proc(target: ^Render_Target, using state: ^Caret_State) {
+	if int(trail_last_x) != rect.l || int(trail_last_y) != rect.t {
+		lx := f32(rect.l)
+		w := rect_widthf(rect)
+		h := rect_height(rect)
+
+		for i in 0..<trail_count {
+			step := f32(i) / trail_count
+			x := math.lerp(f32(rect.l), trail_last_x, step)
+			y := math.lerp(f32(rect.t), trail_last_y, step)
+			z := max(w, math.ceil(math.abs(x - lx)))
+
+			r := rect_wh(int(x), int(y), int(z), h)
+			color := color_alpha(theme.caret, w)
+			render_rect(target, r, color, 0)
+
+			lx = x
+		}
+
+		window_repaint(app.window_main)
+	} else {
+		render_rect(target, app.caret.rect, theme.caret, 0)
+	}
+
+	state := true
+	animate_to(&state, &trail_last_x, f32(rect.l), 4)
+	state = true
+	animate_to(&state, &trail_last_y, f32(rect.t), 4)
 }
 
 window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -348,8 +381,8 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				if res == 1 {
 					cam := mode_panel_cam()
 					cam.freehand = false
-					mode_panel_cam_bounds_check_x(cam, app.caret_rect.l, app.caret_rect.r, false, true)
-					mode_panel_cam_bounds_check_y(cam, app.caret_rect.t, app.caret_rect.b, true)
+					mode_panel_cam_bounds_check_x(cam, app.caret.rect.l, app.caret.rect.r, false, true)
+					mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
 					app.task_tail = app.task_head
 				}
 				return res

@@ -168,7 +168,8 @@ Window :: struct {
 	menu_filter: bool, // accept unicode insertion for menus, writes into menu_builder
 
 	// proc that gets called before layout & draw
-	update: proc(window: ^Window),
+	update_before: proc(window: ^Window),
+	update_after: proc(window: ^Window),
 
 	// title
 	title_builder: strings.Builder,
@@ -1211,12 +1212,16 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 
 				// called on first shown
 				case .EXPOSED: {
-					if window.update != nil {
-						window->update()
+					if window.update_before != nil {
+						window->update_before()
 					}
 
 					window_poll_size(window)
 					window_layout_update(window)
+
+					if window.update_after != nil {
+						window->update_after()
+					}
 				}
 
 				case .FOCUS_GAINED: {
@@ -1893,8 +1898,8 @@ window_draw :: proc(window: ^Window) {
 		}
 	}
 
-	if window.update != nil {
-		window->update()
+	if window.update_before != nil {
+		window->update_before()
 	}
 
 	fontstash.BeginState(&gs.fc)
@@ -1907,6 +1912,10 @@ window_draw :: proc(window: ^Window) {
 
 	// TODO could use specific update region only
 	window.update_next = false
+
+	if window.update_after != nil {
+		window->update_after()
+	}
 }
 
 gs_draw_and_cleanup :: proc() {
