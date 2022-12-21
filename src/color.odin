@@ -21,14 +21,26 @@ color_rgb_rand :: proc(gen: ^rand.Rand = nil) -> Color {
 	}
 }
 
-color_hsl_rand :: proc(gen: ^rand.Rand = nil, s := f32(1), l := f32(1)) -> Color {
-	hue := rand.float32()
-	return color_hsv_to_rgb(hue, s, l)
+// color_hsl_rand :: proc(gen: ^rand.Rand = nil, s := f32(1), v := f32(1)) -> Color {
+// 	hue := rand.float32()
+// 	return color_hsv_to_rgb(hue, s, v)
+// }
+
+// color_hsl_golden_rand :: proc(gen: ^rand.Rand = nil, s := f32(1), v := f32(1)) -> Color {
+// 	hue := math.mod(rand.float32() + GOLDEN_RATIO, 1)
+// 	return color_hsv_to_rgb(hue, s, v)
+// }
+
+color_hsluv_rand :: proc(gen: ^rand.Rand = nil, s := f64(1), l := f64(0.5)) -> Color {
+	hue := rand.float64() * 360
+	r, g, b := hsluv_to_rgb(hue, s * 100, l * 100)
+	return { u8(r * 255), u8(g * 255), u8(b * 255), 255 }
 }
 
-color_hsl_golden_rand :: proc(gen: ^rand.Rand = nil, s := f32(1), l := f32(1)) -> Color {
-	hue := math.mod(rand.float32() + GOLDEN_RATIO, 1)
-	return color_hsv_to_rgb(hue, s, l)
+color_hsluv_golden_rand :: proc(gen: ^rand.Rand = nil, s := f64(1), l := f64(0.5)) -> Color {
+	hue := math.mod(rand.float64() + GOLDEN_RATIO, 1) * 360
+	r, g, b := hsluv_to_rgb(hue, s * 100, l * 100)
+	return { u8(r * 255), u8(g * 255), u8(b * 255), 255 }
 }
 
 color_alpha :: proc(color: Color, alpha: f32) -> (res: Color) {

@@ -1574,10 +1574,6 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				render_rect(target, app.caret_rect, theme.caret, 0)
 			}
 
-			if task.highlight {
-				render_rect_outline(target, element.bounds, RED)
-			}
-
 			return 1
 		}
 
@@ -1976,6 +1972,10 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					color := color_alpha(theme.background[0], app.task_shadow_alpha)
 					render_rect(target, rect, color)
 				}
+			}
+
+			if task.highlight {
+				render_rect_outline(target, element.bounds, RED)
 			}
 
 			return 1

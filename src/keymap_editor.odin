@@ -2,6 +2,7 @@ package src
 
 import "core:strconv"
 import "core:strings"
+import "core:math/rand"
 import "core:fmt"
 import "core:mem"
 import dll "core:container/intrusive/list"
@@ -319,7 +320,7 @@ keymap_editor_check_conflicts :: proc(keymap: ^Keymap, skip: ^Combo_Node, check:
 		skip.conflict = conflict
 		mem.copy(&conflict.combo[0], raw_data(check), len(check))
 		conflict.combo_index = u8(len(check))
-		conflict.color = color_hsl_rand()
+		conflict.color = color_hsluv_golden_rand(nil, 1, 0.75)
 		conflict.count = 2
 		dll.push_back(&keymap.conflict_list, conflict)
 	}
@@ -471,7 +472,7 @@ ke_button_combo_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 				bounds.l += int(TEXT_PADDING * SCALE)
 				render_string_rect(target, bounds, fmt.tprintf("%dx", button.node.conflict.count))
 
-				color.a = 100
+				color.a = 50
 				render_rect(target, element.bounds, color)
 			}
 
@@ -673,10 +674,10 @@ keymap_editor_static_grid_message :: proc(element: ^Element, msg: Message, di: i
 
 keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool) -> (grid: ^Static_Grid) {
 	for cmd in &keymap.commands {
-		cmd.color = color_hsl_golden_rand(nil, 0.5, 1)
+		cmd.color = color_hsluv_golden_rand(nil, 0.5, 0.75)
 	}
 
-	cell_sizes := [?]int { 250, 200, 100 }
+	cell_sizes := [?]int { 250, 250, 100 }
 	grid = static_grid_init(ke.panel, {}, cell_sizes[:], DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL)
 	grid.data = keymap
 	grid.message_user = keymap_editor_static_grid_message

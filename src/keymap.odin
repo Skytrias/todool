@@ -714,8 +714,6 @@ keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
 }
 
 keymap_force_push_latest :: proc() {
-	fmt.eprintln("FORCE")
-
 	__keymap_push = &app.window_main.keymap_custom
 	CP4("alt a", "sort_locals")
 	CP4("ctrl r", "toggle_timestamp")

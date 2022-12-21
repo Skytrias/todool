@@ -2227,12 +2227,9 @@ todool_move_end :: proc(du: u32) {
 }
 
 todool_toggle_highlight :: proc(du: u32) {
-	fmt.eprintln("CALLED")
 	if app_filter_empty() {
 		return
 	}
-
-	fmt.eprintln("CALLED")
 
 	iter := lh_iter_init()
 	for task in lh_iter_step(&iter) {
