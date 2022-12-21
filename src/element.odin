@@ -237,7 +237,7 @@ element_animation_stop :: proc(element: ^Element) -> bool {
 
 // animate an value to a goal 
 // returns true when the value is still lerped
-animate_to :: proc(
+animate_to_state :: proc(
 	animate: ^bool,
 	value: ^f32, 
 	goal: f32,
@@ -249,6 +249,24 @@ animate_to :: proc(
 		return
 	}
 
+	ok = animate_to(value, goal, rate, cuttoff)
+
+	// set animate to false
+	if !ok {
+		animate^ = false
+	}
+
+	return
+}
+
+// animate an value to a goal 
+// returns true when the value is still lerped
+animate_to :: proc(
+	value: ^f32, 
+	goal: f32,
+	rate := f32(1),
+	cuttoff := f32(0.001),
+) -> (ok: bool) {
 	// check animations supported
 	if !visuals_use_animations() {
 		value^ = goal
@@ -269,11 +287,6 @@ animate_to :: proc(
 			value^ = res
 			ok = true
 		}
-	}
-
-	// set animate to false
-	if !ok {
-		animate^ = false
 	}
 
 	return
@@ -1269,7 +1282,7 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 
 		case .Animate: {
-			handled := animate_to(
+			handled := animate_to_state(
 				&box.state_transition,
 				&box.state_unit,
 				box.state ? 1 : 0,
@@ -2530,7 +2543,7 @@ color_picker_hue_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 		case .Animate: {
 			handled := false
-			handled |= animate_to(
+			handled |= animate_to_state(
 				&hue.animating,
 				&hue.animating_unit,
 				hue.animating_goal,
@@ -2606,7 +2619,7 @@ color_picker_sv_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 		case .Animate: {
 			handled := false
-			handled |= animate_to(
+			handled |= animate_to_state(
 				&sv.animating,
 				&sv.animating_unit,
 				sv.animating_goal,
@@ -2787,7 +2800,7 @@ toggle_selector_message :: proc(element: ^Element, msg: Message, di: int, dp: ra
 
 			for i in 0..<toggle.count {
 				state := true
-				handled |= animate_to(
+				handled |= animate_to_state(
 					&state,
 					&toggle.cell_values[i],
 					f32(i == toggle.value ? 1 : 0),

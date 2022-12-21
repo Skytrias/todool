@@ -59,7 +59,7 @@ cam_update_screenshake :: proc(using cam: ^Pan_Camera, update: bool) {
 
 cam_update :: proc(using cam: ^Pan_Camera) {
 	if cam.check_next_frame {
-		cam.freehand = false
+		mode_panel_cam_freehand_off(cam)
 		mode_panel_cam_bounds_check_x(cam, app.caret.rect.l, app.caret.rect.r, false, true)
 		mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
 		cam.check_next_frame = false
@@ -115,7 +115,7 @@ cam_animate :: proc(cam: ^Pan_Camera, x: bool) -> bool {
 
 	real_goal := direction == CAM_CENTER ? f32(goal) : off^ + f32(direction * goal)
 	// fmt.eprintln("real_goal", x ? "x" : "y", direction == 0, real_goal, off^, direction)
-	res := animate_to(
+	res := animate_to_state(
 		&animating,
 		off,
 		real_goal,

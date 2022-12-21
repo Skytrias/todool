@@ -240,6 +240,17 @@ rect_lerp :: proc(a: ^RectF, b: RectI, rate: f32) {
 	}
 }
 
+rect_animate_to :: proc(a: ^RectF, b: RectI, rate: f32 = 1, cuttoff: f32 = 0.001) {
+	if a^ == RECT_LERP_INIT {
+		a^ = rect_itof(b)
+	} else {
+		animate_to(&a.l, f32(b.l), rate, cuttoff)
+		animate_to(&a.r, f32(b.r), rate, cuttoff)
+		animate_to(&a.t, f32(b.t), rate, cuttoff)
+		animate_to(&a.b, f32(b.b), rate, cuttoff)
+	}
+}
+
 rect_ftoi :: proc(a: RectF) -> RectI {
 	return {
 		int(a.l),

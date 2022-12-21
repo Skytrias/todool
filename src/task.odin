@@ -45,13 +45,23 @@ DRAG_CIRCLE :: 30
 
 Caret_State :: struct {
 	rect: RectI,
+
 	lerp_speed_y: f32,
 	lerp_speed_x: f32,
 
 	// last frames to render
-	trail_last_x: f32,
-	trail_last_y: f32,
-	trail_count: f32,
+	motion_last_x: f32,
+	motion_last_y: f32,
+	motion_count: int,
+	motion_skip: bool,
+	motion_last_frame: bool,
+
+	// outline follow
+	outline_current: RectF,
+	outline_goal: RectF,
+
+	alpha_forwards: bool,
+	alpha: f32,
 }
 
 App :: struct {
@@ -145,7 +155,9 @@ app: ^App
 app_init :: proc() -> (res: ^App) {
 	res = new(App)
 
-	res.caret.trail_count = 50
+	res.caret.motion_count = 50
+	res.caret.outline_goal = RECT_LERP_INIT
+
 	res.pool = task_pool_init()
 
 	res.task_state_progression = .Update_Instant
@@ -1265,6 +1277,61 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_element_clipped(target, &task.element)
 			}
 
+			low, high := task_low_and_high()
+			if low == high {
+				task := app_task_head()
+				render_push_clip(target, app.mmpp.clip)
+				real_alpha := caret_state_real_alpha(&app.caret)
+
+				// only render the selected one
+				if app.task_head == app.task_tail && task.filter_index == app.task_head {
+					caret_state_render(target, &app.caret)
+				}
+
+				task_rect := task.element.bounds
+				app.caret.outline_current = rect_itof(task_rect)
+				rect_animate_to(&app.caret.outline_goal, task_rect, 4, 0.1)
+				if caret_state_update_outline(&app.caret) {
+					rect := rect_ftoi(app.caret.outline_goal)
+
+					// rect := rect_wh(
+					// 	int(app.caret.motion_outline_last_x), 
+					// 	int(app.caret.motion_outline_last_y),
+					// 	rect_width(task.element.bounds),
+					// 	rect_height(task.element.bounds),
+					// )
+
+					color := color_alpha(theme.caret, real_alpha)
+					render_rect_outline(target, rect, color)
+				} else {
+					// single outline
+					render_rect_outline(target, task.element.bounds, color_alpha(theme.caret, real_alpha))
+				}
+			} else {
+				render_push_clip(target, app.mmpp.clip)
+				shadow_color := color_alpha(theme.background[0], app.task_shadow_alpha)
+
+				// shadow first
+				for i in 0..<low {
+					task := app_task_filter(i)
+					render_rect(target, task.element.bounds, shadow_color)
+				}
+
+				// no shadow inbetween
+				for i in low..<high + 1 {
+					// outline 
+					task := app_task_filter(i)
+					color := app.task_head == i ? theme.caret : theme.text_default
+					render_rect_outline(target, task.element.bounds, color)
+				}
+
+				// shadow last
+				for i in high + 1..<len(app.pool.filter) {
+					task := app_task_filter(i)
+					render_rect(target, task.element.bounds, shadow_color)
+				}
+			}
+
 			search_draw_highlights(target, panel)
 
 			// word error highlight
@@ -1330,11 +1397,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				for i := len(app.drag_goals) - 1; i >= 0; i -= 1 {
 					pos := &app.drag_goals[i]
-					state := true
 					goal_x := x + int(f32(i) * 5 * TASK_SCALE)
 					goal_y := y + int(f32(i) * 5 * TASK_SCALE)
-					animate_to(&state, &pos.x, f32(goal_x), 1 - f32(i) * 0.1)
-					animate_to(&state, &pos.y, f32(goal_y), 1 - f32(i) * 0.1)
+					animate_to(&pos.x, f32(goal_x), 1 - f32(i) * 0.1)
+					animate_to(&pos.y, f32(goal_y), 1 - f32(i) * 0.1)
 					r := rect_wh(int(pos.x), int(pos.y), width, height)
 					render_texture_from_kind(target, .Drag, r, theme_panel(.Front))
 				}
@@ -1374,7 +1440,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 				cam_set_x(cam, cam.start_x + diff_x)
 				cam_set_y(cam, cam.start_y + diff_y)
-				cam.freehand = true
+				mode_panel_cam_freehand_on(cam)
 
 				window_set_cursor(element.window, .Crosshair)
 				element_repaint(element)
@@ -1416,7 +1482,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				scaling_set(SCALE, TASK_SCALE + f32(di) * 0.05)
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
-				cam.freehand = true
+				mode_panel_cam_freehand_on(cam)
 			}
 
 			element_repaint(element)
@@ -1427,7 +1493,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			if element.window.ctrl {
 			} else {
 				cam_inc_x(cam, f32(di) * 20)
-				cam.freehand = true
+				mode_panel_cam_freehand_on(cam)
 			}
 
 			element_repaint(element)
@@ -1476,8 +1542,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				if ydirection != 0 && 
 					(ydirection == 1 && top < cam.margin_y * 2) ||
 					(ydirection == -1 && bottom > panel.bounds.b - cam.margin_y * 4) { 
-					cam.freehand = true
 					cam_inc_y(cam, f32(ygoal) * 0.1 * f32(ydirection))
+					mode_panel_cam_freehand_on(cam)
 				}
 
 				// need to offset by mode panel
@@ -1487,7 +1553,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				if xdirection != 0 && 
 					(xdirection == 1 && left < cam.margin_x * 2) ||
 					(xdirection == -1 && right > panel.bounds.r - cam.margin_x * 4) {
-					cam.freehand = true
+					mode_panel_cam_freehand_on(cam)
 					cam_inc_x(cam, f32(xgoal) * 0.1 * f32(xdirection))
 				}
 
@@ -1571,24 +1637,13 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
  			// paint selection before text
 			scaled_size := fcs_task(&task.element)
 			if app.task_head == app.task_tail && task.filter_index == app.task_head {
-				box_render_selection(target, box, x, y, theme.caret_selection)
-				task_box_paint_default_selection(box, scaled_size)
+				real_alpha := caret_state_real_alpha(&app.caret)
+				box_render_selection(target, box, x, y, theme.caret_selection, real_alpha)
+				
+				task_box_paint_default_selection(box, scaled_size, real_alpha)
 				// task_box_paint_default(box)
 			} else {
 				task_box_paint_default(box, scaled_size)
-			}
-
-			// outline visible selected one
-			if app.task_head == app.task_tail && task.filter_index == app.task_head {
-				// render_rect(target, app.caret.rect, theme.caret, 0)
-				caret_state_render(target, &app.caret)
-				// h := rect_height(app.caret.rect)
-
-				// for pos, i in app.caret.trail {
-				// 	r := rect_wh(int(pos.x), int(pos.y), int(pos.z), h)
-				// 	color := color_alpha(theme.caret, pos.w)
-				// 	render_rect(target, r, color, 0)
-				// }
 			}
 
 			return 1
@@ -1971,25 +2026,44 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				render_element_clipped(target, child)
 			}
 
-			// TODO speed up with flags?
-			low, high := task_low_and_high()
-			if low == high && task.filter_index == low {
-				// single outline
-				render_push_clip(target, task.element.parent.bounds)
-				render_rect_outline(target, task.element.bounds, theme.caret)
-			} else {
-				render_push_clip(target, task.element.parent.bounds)
+			// // TODO speed up with flags?
+			// low, high := task_low_and_high()
+			// if low == high && task.filter_index == low {
+			// 	render_push_clip(target, task.element.parent.bounds)
+			// 	real_alpha := caret_state_real_alpha(&app.caret)
 
-				if low <= task.filter_index && task.filter_index <= high {
-					// outline 
-					color := app.task_head == task.filter_index ? theme.caret : theme.text_default
-					render_rect_outline(target, task.element.bounds, color)
-				} else {
-					// shadow highlight
-					color := color_alpha(theme.background[0], app.task_shadow_alpha)
-					render_rect(target, rect, color)
-				}
-			}
+			// 	if caret_state_update_motion(&app.caret, false) {
+			// 		iter := motion_rect_init(task.element.bounds, app.caret.motion_outline_last_x, app.caret.motion_outline_last_y, app.caret.motion_count)
+					
+
+			// 		for rect, step in motion_rect_iter(&iter) {
+			// 			r := rect_ftoi(rect)
+			// 			color := color_alpha(theme.caret, step * 0.25 * real_alpha)
+			// 			render_rect_outline(target, r, color)
+			// 		}
+
+			// 		// for i in 0..<50 {
+			// 		// 	step := f32(i) / motion_count
+			// 		// 	res := motion_rect(x, y, w, motion_last_x, motion_last_y, previous_x, step)
+
+			// 		// }
+			// 	} else {
+			// 		// single outline
+			// 		render_rect_outline(target, task.element.bounds, color_alpha(theme.caret, real_alpha))
+			// 	}
+			// } else {
+			// 	render_push_clip(target, task.element.parent.bounds)
+
+			// 	if low <= task.filter_index && task.filter_index <= high {
+			// 		// outline 
+			// 		color := app.task_head == task.filter_index ? theme.caret : theme.text_default
+			// 		render_rect_outline(target, task.element.bounds, color)
+			// 	} else {
+			// 		// shadow highlight
+			// 		color := color_alpha(theme.background[0], app.task_shadow_alpha)
+			// 		render_rect(target, rect, color)
+			// 	}
+			// }
 
 			if task.highlight {
 				render_rect_outline(target, element.bounds, RED)
@@ -2054,7 +2128,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 		case .Animate: {
 			handled := false
 
-			handled |= animate_to(
+			handled |= animate_to_state(
 				&task.indentation_animating,
 				&task.indentation_smooth, 
 				f32(task.indentation),
@@ -2062,7 +2136,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				0.01,
 			)
 			
-			handled |= animate_to(
+			handled |= animate_to_state(
 				&task.top_animating,
 				&task.top_offset, 
 				0, 
@@ -2078,7 +2152,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					// in case this gets run too early to avoid divide by 0
 					value := f32(count) / max(f32(len(task.filter_children)), 1)
 
-					handled |= animate_to(
+					handled |= animate_to_state(
 						&always,
 						&task.progress_animation[state],
 						value,
@@ -2132,7 +2206,7 @@ goto_init :: proc(window: ^Window) {
 
 		#partial switch msg {
 			case .Animate: {
-				handled := animate_to(
+				handled := animate_to_state(
 					&app.goto_transition_animating,
 					&app.goto_transition_unit,
 					app.goto_transition_hide ? 1 : 0,
@@ -2301,7 +2375,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			if split.hscrollbar != nil {
 				cam.offset_x = math.round(-split.hscrollbar.position)
 			}
-			cam.freehand = true
+			mode_panel_cam_freehand_on(cam)
 		}
 
 		case .Scrolled_Y: {
@@ -2309,7 +2383,7 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			if split.vscrollbar != nil {
 				cam.offset_y = math.round(-split.vscrollbar.position)
 			}	
-			cam.freehand = true
+			mode_panel_cam_freehand_on(cam)
 		}
 	}
 
@@ -2758,6 +2832,17 @@ mode_panel_context_menu_spawn :: proc() {
 	 })
 }
 
+// make sure cam is forced and skips trail
+mode_panel_cam_freehand_on :: proc(cam: ^Pan_Camera) {
+	cam.freehand = true
+	app.caret.motion_skip = true
+}
+
+mode_panel_cam_freehand_off :: proc(cam: ^Pan_Camera) {
+	cam.freehand = false
+	app.caret.alpha = 0
+}
+
 task_highlight_render :: proc(target: ^Render_Target, after: bool) {
 	// if app.task_highlight == nil {
 	// 	return
@@ -3133,4 +3218,115 @@ open_folder :: proc(path: string) {
 	strings.write_string(b, path)
 	strings.write_byte(b, '\x00')
 	libc.system(cstring(raw_data(b.buf)))		
+}
+
+caret_state_update_motion :: proc(using state: ^Caret_State, allow_last: bool) -> bool {
+	return caret_animate() && 
+		caret_motion() && 
+		!motion_skip && 
+		(int(motion_last_x) != rect.l || int(motion_last_y) != rect.t || (allow_last && motion_last_frame))
+}
+
+caret_state_update_alpha :: proc(using state: ^Caret_State) -> bool {
+	return caret_animate() && caret_alpha()
+}
+
+caret_state_real_alpha :: proc(state: ^Caret_State) -> f32 {
+	return caret_state_update_alpha(state) ? 1 - clamp(state.alpha * state.alpha * state.alpha, 0, 1) : 1
+}
+
+caret_state_update_outline :: proc(using state: ^Caret_State) -> bool {
+	return caret_animate() && 
+		caret_motion() && 
+		outline_goal != outline_current
+}
+
+Motion_Rect_Iter :: struct {
+	x, y: f32,
+	width, height: f32,
+	
+	last_x, last_y: f32,
+	previous_x: f32,
+	
+	count: int,
+	index: int,
+	step_unit: f32,
+}
+
+motion_rect_init :: proc(rect: RectI, last_x, last_y: f32, count: int) -> (res: Motion_Rect_Iter) {
+	res.last_x = last_x
+	res.last_y = last_y
+	res.count = count
+	res.x = f32(rect.l)
+	res.y = f32(rect.t)
+	res.height = rect_heightf(rect)
+	res.width = rect_widthf(rect)
+	return
+}
+
+motion_rect_iter :: proc(iter: ^Motion_Rect_Iter) -> (res: RectF, step: f32, ok: bool) {
+	if iter.index < iter.count {
+		step = iter.step_unit
+		iter.index += 1
+		iter.step_unit = f32(iter.index) / f32(iter.count)
+
+		x := math.lerp(iter.x, iter.last_x, iter.step_unit)
+		y := math.lerp(iter.y, iter.last_y, iter.step_unit)
+		z := max(iter.width, math.ceil(math.abs(x - iter.previous_x)))
+		res = { x, x + z, y, y + iter.height }
+		iter.previous_x = x
+		ok = true
+	}
+
+	return
+}
+
+// draw an animated caret rect
+caret_state_render :: proc(target: ^Render_Target, using state: ^Caret_State) {
+	real_alpha := caret_state_real_alpha(state)
+	motion_last_frame = false
+
+	if caret_state_update_motion(state, false) {
+		iter := motion_rect_init(rect, motion_last_x, motion_last_y, motion_count)
+
+		for rect, step in motion_rect_iter(&iter) {
+			r := rect_ftoi(rect)
+			color := color_alpha(theme.caret, step * 0.25 * real_alpha)
+			render_rect(target, r, color, 0)
+		}
+
+		motion_last_frame = true
+	} else {
+		motion_last_x = f32(rect.l)
+		motion_last_y = f32(rect.t)
+
+		color := color_alpha(theme.caret, real_alpha)
+		render_rect(target, app.caret.rect, color, 0)
+	}
+
+	// skip trail rendering
+	if motion_skip {
+		motion_last_x = f32(rect.l)
+		motion_last_y = f32(rect.t)
+		motion_skip = false
+	} else {
+		animate_to(&motion_last_x, f32(rect.l), 4, 0.1)
+		animate_to(&motion_last_y, f32(rect.t), 4, 0.1)
+	}
+
+	if caret_state_update_alpha(state) {
+		if alpha_forwards {
+			if alpha <= 1 {
+				alpha += gs.dt
+			} else {
+				alpha_forwards = false
+			}
+		} else {
+			if alpha >= 0 {
+				alpha -= gs.dt
+			} else {
+				alpha_forwards = true
+			}
+		}
+	}
 }

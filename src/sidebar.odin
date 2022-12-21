@@ -124,6 +124,12 @@ Sidebar_Options :: struct {
 		s_amount: ^Slider,
 		s_lifetime: ^Slider,
 	},
+
+	caret: struct {
+		animate: ^Checkbox,
+		motion: ^Checkbox,
+		alpha: ^Checkbox,
+	},
 }
 
 TAG_SHOW_TEXT_AND_COLOR :: 0
@@ -448,10 +454,26 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			checkbox_progressbar_hover_only = checkbox_init(panel, flags, "Hover Only", false)
 		}
 
+		// caret
+		{
+			temp2 := &sb.options.caret
+			using temp2
+			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
+			header := label_init(panel, { .HF, .Label_Center }, "Caret")
+			header.font_options = &app.font_options_header
+
+			animate = checkbox_init(panel, flags, "Use Animations", true)
+			animate.hover_info = "Toggle all caret animations"
+			motion = checkbox_init(panel, flags, "Animate Motion", true)
+			motion.hover_info = "Animate the movement motion of the caret"
+			alpha = checkbox_init(panel, flags, "Animate Alpha", true)
+			alpha.hover_info = "Animate the alpha fading of the caret - will redraw every frame"
+		}
+
 		// line highlight
 		{
 			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
-			header := label_init(panel, { .HF, .Label_Center }, "Line Highlight")
+			header := label_init(panel, { .HF, .Label_Center }, "Line Numbers")
 			header.font_options = &app.font_options_header
 
 			checkbox_line_highlight_use = checkbox_init(panel, flags, "Show", false)
@@ -459,7 +481,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			slider_line_highlight_alpha.formatting = proc(builder: ^strings.Builder, position: f32) {
 				fmt.sbprintf(builder, "Alpha: %.3f", position)
 			}
-			slider_line_highlight_alpha.hover_info = "Alpha for line highlight text"
+			slider_line_highlight_alpha.hover_info = "Alpha for line numbers"
 		}
 
 		// power mode
@@ -864,6 +886,18 @@ pm_screenshake_amount :: #force_inline proc() -> f32 {
 }
 pm_screenshake_lifetime :: #force_inline proc() -> f32 {
 	return sb.options.pm.s_lifetime.position
+}
+
+// caret options
+
+caret_animate :: #force_inline proc() -> bool {
+	return sb.options.caret.animate.state
+}
+caret_motion :: #force_inline proc() -> bool {
+	return sb.options.caret.motion.state
+}
+caret_alpha :: #force_inline proc() -> bool {
+	return sb.options.caret.alpha.state
 }
 
 mode_based_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

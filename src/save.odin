@@ -743,6 +743,12 @@ Misc_Save_Load :: struct {
 		screenshake_lifetime: f32,
 	},
 
+	caret: struct {
+		use_animations: bool,
+		use_motion: bool,
+		use_alpha: bool,
+	},
+
 	statistics: struct {
 		accumulated: int, // time.Duration
 		work_goal: int,
@@ -914,6 +920,12 @@ json_save_misc :: proc(path: string) -> bool {
 			ss_string(&search.text_box.ss),
 			search.case_insensitive,
 		},
+
+		caret = {
+			caret_animate(),
+			caret_motion(),
+			caret_alpha(),
+		},
 	}
 
 	result, err := json.marshal(
@@ -1037,7 +1049,7 @@ json_load_misc :: proc(path: string) -> bool {
 		temp := &sb.options.pm	
 		using temp
 
-		if sb.options.pm != {} {
+		if misc.power_mode != {} {
 			checkbox_set(ps_show, misc.power_mode.show)
 			slider_set(p_lifetime, misc.power_mode.particle_lifetime)
 			slider_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
@@ -1045,6 +1057,18 @@ json_load_misc :: proc(path: string) -> bool {
 			checkbox_set(s_use, misc.power_mode.screenshake_use)
 			slider_set(s_amount, misc.power_mode.screenshake_amount)
 			slider_set(s_lifetime, misc.power_mode.screenshake_lifetime)
+		}
+	}
+	
+	// caret
+	{
+		temp := &sb.options.caret
+		using temp
+
+		if misc.caret != {} {
+			checkbox_set(animate, misc.caret.use_animations)
+			checkbox_set(motion, misc.caret.use_motion)
+			checkbox_set(alpha, misc.caret.use_alpha)
 		}
 	}
 	

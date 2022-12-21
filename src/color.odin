@@ -37,6 +37,12 @@ color_hsluv_rand :: proc(gen: ^rand.Rand = nil, s := f64(1), l := f64(0.5)) -> C
 	return { u8(r * 255), u8(g * 255), u8(b * 255), 255 }
 }
 
+color_hsluv_to_rgb :: proc(hue, s, l: f64) -> Color {
+	hue := hue * 360
+	r, g, b := hsluv_to_rgb(hue, s * 100, l * 100)
+	return { u8(r * 255), u8(g * 255), u8(b * 255), 255 }
+}
+
 color_hsluv_golden_rand :: proc(gen: ^rand.Rand = nil, s := f64(1), l := f64(0.5)) -> Color {
 	hue := math.mod(rand.float64() + GOLDEN_RATIO, 1) * 360
 	r, g, b := hsluv_to_rgb(hue, s * 100, l * 100)

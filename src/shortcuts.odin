@@ -1651,7 +1651,7 @@ todool_paste_tasks_from_clipboard :: proc(du: u32) {
 todool_center :: proc(du: u32) {
 	if app_filter_not_empty() {
 		cam := mode_panel_cam()
-		cam.freehand = false
+		mode_panel_cam_freehand_off(cam)
 		cam_center_by_height_state(cam, app.mmpp.bounds, app.caret.rect.t)
 	}
 }

@@ -40,6 +40,7 @@ scaling_set :: proc(global_scale: f32, task_scale: f32) {
 	SCALE = clamp(global_scale, SCALE_MIN, SCALE_MAX)
 	LINE_WIDTH = max(int(2 * SCALE), 2)
 	fontstash.Reset(&gs.fc)
+	app.caret.motion_skip = true
 
 	if old != TASK_SCALE {
 		mode_panel_zoom_animate()
@@ -1702,22 +1703,6 @@ gs_process_events :: proc() {
 	}
 }
 
-window_flux_update_check :: proc(window: ^Window) {
-	window.flux_had_animations = len(window.flux.values) != 0 
-	window.update_next |= (window.flux_had_animations || window.flux_render_last_frame)
-	window.flux_render_last_frame = false
-}
-
-window_flux_update_end :: proc(window: ^Window) {
-	// TODO maybe window dt?
-	ease.flux_update(&window.flux, f64(gs.dt))
-
-	// render last frame
-	if len(window.flux.values) == 0 && window.flux_had_animations {
-		window.flux_render_last_frame = true
-	}
-}
-
 gs_update_dt :: proc() {
 	// TODO could be bad cuz this is for multiple windows?
 	// TODO maybe time the section of time that was waited on?
@@ -1736,7 +1721,11 @@ gs_message_loop :: proc() {
 		// check prior for any window needing updates
 		iter := gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {
-			window_flux_update_check(w)
+			// fmt.eprintln("\tSTART?", w.update_next)
+			w.flux_had_animations = len(w.flux.values) != 0 
+			w.update_next |= (w.flux_had_animations || w.flux_render_last_frame)
+			w.flux_render_last_frame = false
+			// fmt.eprintln("\tFLUX?", w.update_next)
 		}
 
 		// forced animation, from exterior animation
@@ -1744,6 +1733,7 @@ gs_message_loop :: proc() {
 		for w in dll.iterate_next(&iter) {
 			if w.update_check != nil {
 				w.update_next |= w->update_check()
+				// fmt.eprintln("\tCHECK?", w.update_next)
 			}
 		}
 
@@ -1759,6 +1749,8 @@ gs_message_loop :: proc() {
 
 			any_update |= w.update_next
 		}
+
+		// fmt.eprintln("UPD?", any_update)
 
 		if any_update {
 			gs_process_animations()
@@ -1777,7 +1769,13 @@ gs_message_loop :: proc() {
 
 		iter = gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {
-			window_flux_update_end(w)
+			// TODO maybe window dt?
+			ease.flux_update(&w.flux, f64(gs.dt))
+
+			// render last frame
+			if len(w.flux.values) == 0 && w.flux_had_animations {
+				w.flux_render_last_frame = true
+			}
 		}
 
 		// do this at last, makes sure the window runs at wanted FPS if not vsynced

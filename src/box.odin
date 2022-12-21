@@ -139,7 +139,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 				// selection & caret
 				x := text_bounds.l - int(box.scroll)
 				y := text_bounds.t + rect_height_halfed(text_bounds) - scaled_size / 2
-				box_render_selection(target, box, x, y, theme.caret_selection)
+				box_render_selection(target, box, x, y, theme.caret_selection, 1)
 			}
 
 			render_rect_outline(target, element.bounds, color)
@@ -283,7 +283,7 @@ text_box_init :: proc(
 //////////////////////////////////////////////
 
 // just paints the text based on text color
-task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
+task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int, blend: f32) {
 	focused := box.window.focused == box
 	target := box.window.target
 
@@ -297,7 +297,7 @@ task_box_paint_default_selection :: proc(box: ^Task_Box, scaled_size: int) {
 	state := fontstash.__getState(&gs.fc)
 	q: fontstash.Quad
 	codepoint_index: int
-	back_color := color_alpha(theme_panel(.Front), 1)
+	back_color := color_blend(theme_panel(.Front), color, blend, false)
 	low, high := box_low_and_high(box)
 
 	// draw each wrapped line
@@ -779,6 +779,7 @@ box_render_selection :: proc(
 	box: ^Box,
 	x, y: int,
 	color: Color,
+	alpha: f32,
 ) {
 	if box.head == box.tail {
 		return
@@ -787,6 +788,7 @@ box_render_selection :: proc(
 	// back_color := color_alpha(theme_panel(.Front), 1)
 	state := wrap_state_init(&gs.fc, box.wrapped_lines, box.head, box.tail)
 	scaled_size := f32(state.isize / 10)
+	color := color_alpha(color, alpha)
 
 	for wrap_state_iter(&gs.fc, &state) {
 		translated := RectI {
