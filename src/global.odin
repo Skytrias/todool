@@ -23,6 +23,7 @@ import "heimdall:fontstash"
 import "../cutf8"
 import "../spall"
 
+FPS :: f32(1) / f32(10)
 LETTER_SPACING :: 0
 HOVER_WIDTH :: 100
 SCALE := f32(1)
@@ -218,6 +219,7 @@ Global_State :: struct {
 	running: bool,
 	frame_start: u64,
 	dt: f32,
+	accumulator: f32,
 
 	// animating elements
 	animating: [dynamic]^Element,
@@ -1771,6 +1773,16 @@ gs_message_loop :: proc() {
 		iter = gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {
 			window_flux_update_end(w)
+		}
+
+		// do this at last, makes sure the window runs at wanted FPS if not vsynced
+		gs.accumulator += gs.dt
+		for gs.accumulator > FPS {
+			gs.accumulator -= FPS
+			
+			if gs.accumulator < 0 {
+				gs.accumulator = 0
+			}
 		}
 	}
 

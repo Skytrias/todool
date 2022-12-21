@@ -229,6 +229,7 @@ main_update :: proc(window: ^Window) {
 		strings.write_string(b, "Todool: ")
 		strings.write_string(b, strings.to_string(app.last_save_location))
 		strings.write_string(b, app.dirty != app.dirty_saved ? " * " : " ")
+		// fmt.sbprintf(b, "| acc %.3f | dt %.3f ", gs.accumulator, gs.dt)
 		window_title_push_builder(window, b)
 	}
 

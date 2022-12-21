@@ -958,7 +958,8 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		case .Paint_Recursive: {
 			target := element.window.target
 			text := strings.to_string(label.builder)
-			
+			bounds := element.bounds
+
 			ah: Align_Horizontal
 			av: Align_Vertical
 			if .Label_Center in element.flags {
@@ -967,12 +968,13 @@ label_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 			} else if .Label_Right in element.flags {
 				ah = .RIGHT
 				av = .MIDDLE
+				bounds.r -= int(TEXT_PADDING * SCALE)
 			}
 
 			fcs_element(element)
 			fcs_ahv(ah, av)
 			fcs_color(label.color == nil ? theme.text_default : label.color^)
-			render_string_rect(target, element.bounds, text)
+			render_string_rect(target, bounds, text)
 		}
 		
 		case .Update: {
