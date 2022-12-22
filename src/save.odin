@@ -677,8 +677,7 @@ Misc_Save_Load :: struct {
 	// not shown directly to the user,
 	hidden: struct {
 		scale: f32,
-		task_scale: f32,
-		mode_index: int,
+		fps: f32,
 
 		font_regular_path: string,
 		font_bold_path: string,
@@ -829,9 +828,8 @@ json_save_misc :: proc(path: string) -> bool {
 	value := Misc_Save_Load {
 		hidden = {
 			scale = SCALE,
-			task_scale = TASK_SCALE,
-			mode_index = int(app.mmpp.mode),
-			
+			fps = FPS,
+
 			font_regular_path = gs.font_regular_path,
 			font_bold_path = gs.font_bold_path,
 
@@ -961,12 +959,11 @@ json_load_misc :: proc(path: string) -> bool {
 
 	// hidden
 	{
-		// TODO hook this up properly?
-		if misc.hidden.task_scale == 0 {
-			misc.hidden.task_scale = 1
+		// cap to defaults
+		if misc.hidden.fps >= 30 {
+			FPS = clamp(misc.hidden.fps, 30, 240)
+			fmt.eprintln(FPS, misc.hidden.fps)
 		}
-		scaling_set(misc.hidden.scale, misc.hidden.task_scale)
-		app.mmpp.mode = Mode(clamp(misc.hidden.mode_index, 0, len(Mode)))
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
 			total_width, total_height := gs_display_total_bounds()
@@ -1004,7 +1001,8 @@ json_load_misc :: proc(path: string) -> bool {
 		checkbox_set(sb.options.checkbox_hide_menubar, misc.hidden.hide_menubar)
 		element_hide(app.task_menu_bar, misc.hidden.hide_menubar)
 
-		slider_set(sb.options.slider_opacity, misc.hidden.window_opacity)
+		opacity := misc.hidden.window_opacity == 0 ? 1 : misc.hidden.window_opacity
+		slider_set(sb.options.slider_opacity, opacity)
 		slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
 	}
 

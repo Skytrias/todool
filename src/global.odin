@@ -23,15 +23,14 @@ import "heimdall:fontstash"
 import "../cutf8"
 import "../spall"
 
-FPS :: f32(1) / f32(10)
-LETTER_SPACING :: 0
-HOVER_WIDTH :: 100
+FPS := f32(60) // 60fps
 SCALE := f32(1)
 TASK_SCALE := f32(1)
 LINE_WIDTH := 2
 ROUNDNESS :: 5
 SCALE_MIN :: 0.25
 SCALE_MAX :: 2
+HOVER_WIDTH :: 100
 
 scaling_set :: proc(global_scale: f32, task_scale: f32) {
 	old := TASK_SCALE
@@ -1779,9 +1778,10 @@ gs_message_loop :: proc() {
 		}
 
 		// do this at last, makes sure the window runs at wanted FPS if not vsynced
+		step := f32(1) / FPS
 		gs.accumulator += gs.dt
-		for gs.accumulator > FPS {
-			gs.accumulator -= FPS
+		for gs.accumulator > step {
+			gs.accumulator -= step
 			
 			if gs.accumulator < 0 {
 				gs.accumulator = 0

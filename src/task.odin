@@ -1278,6 +1278,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_element_clipped(target, &task.element)
 			}
 
+			// render carets / task outlines
 			low, high := task_low_and_high()
 			if low == high {
 				task := app_task_head()
@@ -1325,14 +1326,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				caret_state_increase_alpha(&app.caret)
 
 				// outline selected region
-				// fmt.eprintln("~~~")
 				for i in low..<high + 1 {
 					task := app_task_filter(i)
 					count += sign
 					value := count / range
 					color := i == app.task_head ? theme.caret : theme.text_default
+					// value offset slightly + fade with lower fading more
 					color.a = u8(min((value + 0.25) * ((real_alpha + value) * 0.5) * 255, 255))
-					// fmt.eprintln(value, count, range, color.a)
 					render_rect_outline(target, task.element.bounds, color)
 				}
 
@@ -2035,49 +2035,6 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			// render sub elements
 			for child in element.children {
 				render_element_clipped(target, child)
-			}
-
-			// // TODO speed up with flags?
-			// low, high := task_low_and_high()
-			// if low == high && task.filter_index == low {
-			// 	render_push_clip(target, task.element.parent.bounds)
-			// 	real_alpha := caret_state_real_alpha(&app.caret)
-
-			// 	if caret_state_update_motion(&app.caret, false) {
-			// 		iter := motion_rect_init(task.element.bounds, app.caret.motion_outline_last_x, app.caret.motion_outline_last_y, app.caret.motion_count)
-					
-
-			// 		for rect, step in motion_rect_iter(&iter) {
-			// 			r := rect_ftoi(rect)
-			// 			color := color_alpha(theme.caret, step * 0.25 * real_alpha)
-			// 			render_rect_outline(target, r, color)
-			// 		}
-
-			// 		// for i in 0..<50 {
-			// 		// 	step := f32(i) / motion_count
-			// 		// 	res := motion_rect(x, y, w, motion_last_x, motion_last_y, previous_x, step)
-
-			// 		// }
-			// 	} else {
-			// 		// single outline
-			// 		render_rect_outline(target, task.element.bounds, color_alpha(theme.caret, real_alpha))
-			// 	}
-			// } else {
-			// 	render_push_clip(target, task.element.parent.bounds)
-
-			// 	if low <= task.filter_index && task.filter_index <= high {
-			// 		// outline 
-			// 		color := app.task_head == task.filter_index ? theme.caret : theme.text_default
-			// 		render_rect_outline(target, task.element.bounds, color)
-			// 	} else {
-			// 		// shadow highlight
-			// 		color := color_alpha(theme.background[0], app.task_shadow_alpha)
-			// 		render_rect(target, rect, color)
-			// 	}
-			// }
-
-			if task.highlight {
-				render_rect_outline(target, element.bounds, RED)
 			}
 
 			return 1
