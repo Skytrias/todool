@@ -208,7 +208,7 @@ sidebar_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 sidebar_panel_init :: proc(parent: ^Element) {
 	app.panel_info = panel_init(parent, { .Panel_Default_Background, .VF, .Tab_Movement_Allowed }, 0, 5)
 	app.panel_info.background_index = 2
-	app.panel_info.z_index = 3
+	app.panel_info.z_index = 10
 
 	// side options
 	{

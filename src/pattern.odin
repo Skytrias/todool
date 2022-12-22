@@ -10,7 +10,7 @@ import "core:unicode/utf8"
 import "core:slice"
 import "core:strings"
 import "core:hash"
-import "core:text/lua"
+import "core:text/match"
 
 pattern_load_content_simple :: proc(
 	manager: ^Undo_Manager, 
@@ -22,12 +22,12 @@ pattern_load_content_simple :: proc(
 	temp := content
 
 	for line in strings.split_lines_iterator(&temp) {
-		m := lua.matcher_init(line, pattern)
+		m := match.matcher_init(line, pattern)
 	
-		match, ok := lua.matcher_match(&m)
+		res, ok := match.matcher_match(&m)
 
 		if ok && m.captures_length > 1 {
-			word := lua.matcher_capture(&m, 0)
+			word := match.matcher_capture(&m, 0)
 			task_push_undoable(manager, indentation, word, index_at^)
 			index_at^ += 1
 			found_any = true

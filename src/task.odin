@@ -11,6 +11,7 @@ import "core:unicode"
 import "core:strings"
 import "core:log"
 import "core:math"
+import "core:math/ease"
 import "core:intrinsics"
 import "core:slice"
 import "core:reflect"
@@ -1283,24 +1284,21 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_push_clip(target, app.mmpp.clip)
 				real_alpha := caret_state_real_alpha(&app.caret)
 
-				// only render the selected one
-				if app.task_head == app.task_tail && task.filter_index == app.task_head {
-					caret_state_render(target, &app.caret)
-				}
+				// render the caret
+				skip := app.caret.motion_skip
+				caret_state_render(target, &app.caret)
 
 				task_rect := task.element.bounds
 				app.caret.outline_current = rect_itof(task_rect)
-				rect_animate_to(&app.caret.outline_goal, task_rect, 4, 0.1)
+				
+				if skip {
+					app.caret.outline_goal = rect_itof(task_rect)
+				} else {
+					rect_animate_to(&app.caret.outline_goal, task_rect, 4, 0.1)
+				}
+
 				if caret_state_update_outline(&app.caret) {
 					rect := rect_ftoi(app.caret.outline_goal)
-
-					// rect := rect_wh(
-					// 	int(app.caret.motion_outline_last_x), 
-					// 	int(app.caret.motion_outline_last_y),
-					// 	rect_width(task.element.bounds),
-					// 	rect_height(task.element.bounds),
-					// )
-
 					color := color_alpha(theme.caret, real_alpha)
 					render_rect_outline(target, rect, color)
 				} else {
@@ -1310,6 +1308,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			} else {
 				render_push_clip(target, app.mmpp.clip)
 				shadow_color := color_alpha(theme.background[0], app.task_shadow_alpha)
+				app.caret.outline_goal = RECT_LERP_INIT
+				app.caret.motion_skip = true
 
 				// shadow first
 				for i in 0..<low {
@@ -1318,10 +1318,21 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 
 				// no shadow inbetween
+				range := f32(high - low + 1)
+				sign: f32 = app.task_head > app.task_tail ? 1 : -1
+				count := range if sign == -1 else 0
+				real_alpha := caret_state_real_alpha(&app.caret)
+				caret_state_increase_alpha(&app.caret)
+
+				// outline selected region
+				// fmt.eprintln("~~~")
 				for i in low..<high + 1 {
-					// outline 
 					task := app_task_filter(i)
-					color := app.task_head == i ? theme.caret : theme.text_default
+					count += sign
+					value := count / range
+					color := i == app.task_head ? theme.caret : theme.text_default
+					color.a = u8(min((value + 0.25) * ((real_alpha + value) * 0.5) * 255, 255))
+					// fmt.eprintln(value, count, range, color.a)
 					render_rect_outline(target, task.element.bounds, color)
 				}
 
@@ -3238,7 +3249,12 @@ caret_state_real_alpha :: proc(state: ^Caret_State) -> f32 {
 caret_state_update_outline :: proc(using state: ^Caret_State) -> bool {
 	return caret_animate() && 
 		caret_motion() && 
+		!motion_skip && 
 		outline_goal != outline_current
+}
+
+caret_state_update_multi :: proc(using state: ^Caret_State) -> bool {
+	return caret_animate()
 }
 
 Motion_Rect_Iter :: struct {
@@ -3314,6 +3330,10 @@ caret_state_render :: proc(target: ^Render_Target, using state: ^Caret_State) {
 		animate_to(&motion_last_y, f32(rect.t), 4, 0.1)
 	}
 
+	caret_state_increase_alpha(state)
+}
+
+caret_state_increase_alpha :: proc(using state: ^Caret_State) {
 	if caret_state_update_alpha(state) {
 		if alpha_forwards {
 			if alpha <= 1 {

@@ -593,18 +593,21 @@ element_children_sorted_or_unsorted :: proc(element: ^Element) -> (res: []^Eleme
 
 	if .Sort_By_Z_Index in element.flags {
 		res = slice.clone(res, context.temp_allocator)
-		
-		sort.quick_sort_proc(res, proc(a, b: ^Element) -> int {
-			if a.z_index < b.z_index {
-				return -1
-			}	
-
-			if a.z_index > b.z_index {
-				return 1
-			}
-
-			return 0
+		slice.sort_by_cmp(res, proc(a, b: ^Element) -> slice.Ordering {
+			return a.z_index > b.z_index ? .Greater : .Less
 		})
+
+		// sort.quick_sort_proc(res, proc(a, b: ^Element) -> int {
+		// 	if a.z_index < b.z_index {
+		// 		return -1
+		// 	}	
+
+		// 	if a.z_index > b.z_index {
+		// 		return 1
+		// 	}
+
+		// 	return 0
+		// })
 	}
 
 	return
@@ -1075,9 +1078,10 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 	
 			// CLIPPED STYLE
 			bounds := element.bounds
+			parent_clip := element.parent.clip
 			clips := [2]RectI {
-				rect_cut_left(&bounds, int(slider.position	* rect_widthf(bounds))),
-				bounds,
+				rect_intersection(parent_clip, rect_cut_left(&bounds, int(slider.position	* rect_widthf(bounds)))),
+				rect_intersection(parent_clip, bounds),
 			}
 			
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
@@ -1099,7 +1103,7 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				render_string_rect(target, element.bounds, text)
 			}
 
-			render_push_clip(target, element.bounds)
+			render_push_clip(target, element.clip)
 			render_rect_outline(target, element.bounds, text_color)
 		}
 
@@ -1813,7 +1817,7 @@ panel_floaty_init :: proc(
 	allocator := context.allocator,
 ) -> (res: ^Panel_Floaty) {
 	res	= element_init(Panel_Floaty, parent, {}, panel_floaty_message, allocator)
-	res.z_index = 255
+	res.z_index = 1000
 	
 	flags := panel_flags + { .Panel_Default_Background }
 	p := panel_init(res, flags)
@@ -3500,6 +3504,7 @@ Menu_Bar :: struct {
 
 menu_bar_init :: proc(parent: ^Element) -> (res: ^Menu_Bar) {
 	res = element_init(Menu_Bar, parent, {}, menu_bar_message, context.allocator)
+	res.z_index = 1001
 	return
 }
 

@@ -1105,6 +1105,9 @@ render_element_clipped :: proc(target: ^Render_Target, element: ^Element) {
 
 	temp := element_children_sorted_or_unsorted(element)
 
+	// for i := len(temp) - 1; i >= 0; i -= 1 {
+	// 	child := temp[i]
+
 	for child in temp {
 		render_element_clipped(target, child)
 		

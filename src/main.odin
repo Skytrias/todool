@@ -48,14 +48,12 @@ main :: proc() {
 	app.window_main = window
 	window.element.message_user = window_main_message
 	window.update_before = main_update
-	// window.update_after = proc(window: ^Window) {
-	// 	caret_state_animate(&app.caret)
-	// }
 	window.update_check = proc(window: ^Window) -> (handled: bool) {
 		handled |= power_mode_running()
 		handled |= caret_state_update_motion(&app.caret, true)
 		handled |= caret_state_update_alpha(&app.caret)
 		handled |= caret_state_update_outline(&app.caret)
+		handled |= caret_state_update_multi(&app.caret)
 		return
 	}
 	window.name = "MAIN"
