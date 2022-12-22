@@ -361,7 +361,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			}
 		}
 
-		case .Window_Save: {
+		case .Window_Close_Interrupt: {
 			return int(app_save_close())
 		}
 

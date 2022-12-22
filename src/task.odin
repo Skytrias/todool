@@ -70,7 +70,6 @@ App :: struct {
 	copy_state: Copy_State,
 	last_was_task_copy: bool,
 	caret: Caret_State,
-	// task_highlight: ^Task,
 
 	// progress bars
 	task_state_progression: Task_State_Progression,
@@ -1995,10 +1994,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			rect := task.element.bounds
 
 			// render panel front color
-			task_color := theme_panel(task_has_children(task) ? .Parent : .Front)
-			if task.highlight {
-				task_color = color_blend(theme.caret, task_color, 0.1, false)
-			}
+			task_color := task_panel_color(task)
 			render_rect(target, rect, task_color, ROUNDNESS)
 
 			// draw tags at an offset
@@ -3321,4 +3317,22 @@ caret_state_increase_alpha :: proc(using state: ^Caret_State) {
 			}
 		}
 	}
+}
+
+task_panel_color :: proc(task: ^Task) -> (res: Color) {
+	if task_has_children(task) {
+		res = theme_panel(.Parent)
+
+		if task.highlight {
+			res = color_blend(theme_panel(.Highlight), res, 0.5, false)
+		}
+	} else {
+		if task.highlight {
+			res = theme_panel(.Highlight)
+		} else {
+			res = theme_panel(.Front)
+		}
+	}
+
+	return
 }

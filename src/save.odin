@@ -794,7 +794,7 @@ json_save_misc :: proc(path: string) -> bool {
 	{
 		// NOTE dumb but it works :D
 		theme_save.background = transmute([3]u32) theme.background
-		theme_save.panel = transmute([2]u32) theme.panel
+		theme_save.panel = transmute([3]u32) theme.panel
 
 		theme_save.text_default = transmute(u32) theme.text_default
 		theme_save.text_blank = transmute(u32) theme.text_blank

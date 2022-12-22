@@ -1153,7 +1153,7 @@ window_build_combo :: proc(window: ^Window, key: sdl.KeyboardEvent) -> (res: str
 window_try_quit :: proc(window: ^Window, forced: bool = false) {
 	gs.ignore_quit = true
 
-	if forced || element_message(&window.element, .Window_Save) == 0 {
+	if forced || element_message(&window.element, .Window_Close_Interrupt) == 0 {
 		log.warn("~~~WINDOW CLOSE EVENT~~~")
 		element_message(&window.element, .Window_Close)
 		window_destroy(window)

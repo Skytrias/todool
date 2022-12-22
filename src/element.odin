@@ -95,7 +95,7 @@ Message :: enum {
 	Panel_Color,
 
 	// window
-	Window_Save,
+	Window_Close_Interrupt,
 	Window_Close,
 }
 
