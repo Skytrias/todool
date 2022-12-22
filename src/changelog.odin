@@ -212,7 +212,7 @@ changelog_result_pop_tasks :: proc() {
 		task := qtask.task
 
 		if qtask.remove {
-			archive_push(task_string(task))
+			archive_push(&sb.archive, task_string(task))
 
 			goal := task.filter_index - offset
 			// fmt.eprintln("~~~", task_string(task), task.filter_index, goal)

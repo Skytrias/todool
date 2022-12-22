@@ -26,6 +26,7 @@ SAVE_SIGNATURE_TAGS := [8]u8 { 'T', 'A', 'G', 'S', '_', '_', '_', '_' }
 SAVE_SIGNATURE_DATA := [8]u8 { 'D', 'A', 'T', 'A', '_', '_', '_', '_' }
 SAVE_SIGNATURE_FILTER := [8]u8 { 'F', 'I', 'L', 'T', 'E', 'R', '_', '_' }
 SAVE_SIGNATURE_FLAGS := [8]u8 { 'F', 'L', 'A', 'G', 'S', '_', '_', '_' }
+SAVE_SIGNATURE_ARCHIVE := [8]u8 { 'A', 'R', 'C', 'H', 'I', 'V', 'E', '_' }
 
 Save_Flag :: enum u8 {
 	// simple
@@ -61,6 +62,13 @@ buffer_write_string_u8 :: proc(buffer: ^bytes.Buffer, text: string) -> (err: io.
 	bytes.buffer_write_byte(buffer, count) or_return
 	// TODO is this utf8 safe?
 	bytes.buffer_write_string(buffer, text[:count]) or_return
+	return
+}
+
+buffer_write_ss :: proc(buffer: ^bytes.Buffer, ss: ^Small_String) -> (err: io.Error) {
+	bytes.buffer_write_byte(buffer, ss.length) or_return
+	// TODO is this utf8 safe?
+	bytes.buffer_write_string(buffer, ss_string(ss)) or_return
 	return
 }
 
@@ -166,11 +174,11 @@ save_views :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	defer block_size^ = u32be(len(buffer.buf) - block_start)
 	
 	// mode count
-	bytes.buffer_write_byte(buffer, u8(len(Mode)))
-	bytes.buffer_write_byte(buffer, u8(app.mmpp.mode))
+	bytes.buffer_write_byte(buffer, u8(len(Mode))) or_return
+	bytes.buffer_write_byte(buffer, u8(app.mmpp.mode)) or_return
 	save_scale := u8(math.round(TASK_SCALE * 100))
 	// fmt.eprintln("+++", save_scale, TASK_SCALE)
-	bytes.buffer_write_byte(buffer, save_scale)
+	bytes.buffer_write_byte(buffer, save_scale) or_return
 
 	// camera positions
 	temp: i32be
@@ -351,6 +359,27 @@ save_flags :: proc(
 	return
 }
 
+save_archive :: proc(buffer: ^bytes.Buffer, archive: ^Sidebar_Archive) -> (err: Save_Error) {
+	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_ARCHIVE, 1) or_return
+	defer block_size^ = u32be(len(buffer.buf) - block_start)
+
+	// write head / tail
+	buffer_write_int_i64(buffer, archive.head) or_return
+	buffer_write_int_i64(buffer, archive.tail) or_return
+
+	// count
+	c := panel_children(archive.buttons)
+	buffer_write_int_u32(buffer, len(c)) or_return
+
+	// write strings
+	for child in c {
+		field := cast(^Archive_Button) child
+		buffer_write_ss(buffer, &field.ss) or_return
+	}
+
+	return
+}
+
 save_all :: proc(file_path: string) -> (err: Save_Error) {
 	buffer: bytes.Buffer
 	bytes.buffer_init_allocator(&buffer, 0, mem.Megabyte * 10)
@@ -415,6 +444,7 @@ save_all :: proc(file_path: string) -> (err: Save_Error) {
 	save_data(&buffer, removed, valid_length) or_return
 	save_flags(&buffer, removed, valid_length) or_return
 	save_filter(&buffer) or_return
+	save_archive(&buffer, &sb.archive) or_return
 
 	ok := gs_write_safely(file_path, buffer.buf[:])
 	if !ok {
@@ -474,32 +504,34 @@ advance_string_u16 :: proc(data: ^[]u8, loc := #caller_location) -> (output: str
 
 // advance and set the data 
 advance_string_u8 :: proc(data: ^[]u8, loc := #caller_location) -> (output: string, err: Save_Error) {
-	length := advance_byte(data) or_return
+	length := advance_byte(data, loc) or_return
 	content := advance_slice(data, int(length), loc) or_return
 	output = string(content)
 	return
 }
 
 // advance by i64be and output an int
-advance_i64_int :: proc(data: ^[]u8) -> (result: int, err: Save_Error) {
+advance_i64_int :: proc(data: ^[]u8, loc := #caller_location) -> (result: int, err: Save_Error) {
 	value: i64be
-	advance_ptr(data, &value, size_of(i64be)) or_return
+	advance_ptr(data, &value, size_of(i64be), loc) or_return
 	result = int(value)
 	return
 }
 
 // advance by u32be and output an int
-advance_u32_int :: proc(data: ^[]u8) -> (result: int, err: Save_Error) {
+advance_u32_int :: proc(data: ^[]u8, loc := #caller_location) -> (result: int, err: Save_Error) {
 	value: u32be
-	advance_ptr(data, &value, size_of(u32be)) or_return
+	advance_ptr(data, &value, size_of(u32be), loc) or_return
 	result = int(value)
 	return
 }
 
 // check for done block 
-advance_check_done :: proc(data: []u8) -> (err: Save_Error) {
+advance_check_done :: proc(data: []u8, loc := #caller_location) -> (err: Save_Error) {
 	if len(data) != 0 {
+		fmt.eprintln("LEN", len(data))
 		err = .Block_Not_Fully_Read
+		save_loc = loc		
 	}
 
 	return
@@ -712,6 +744,30 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 	return
 }
 
+load_archive :: proc(data: ^[]u8, archive: ^Sidebar_Archive) -> (err: Save_Error) {
+	version, input := load_header(data, SAVE_SIGNATURE_ARCHIVE) or_return
+	
+	switch version {
+		case 1: {
+			head := advance_i64_int(&input) or_return
+			tail := advance_i64_int(&input) or_return
+			archive.head = head
+			archive.tail = tail
+			count := advance_u32_int(&input) or_return
+
+			for i in 0..<count {
+				str := advance_string_u8(&input) or_return
+				archive_push(&archive, str)
+			}
+		}
+
+		case: err = .Unsupported_Version
+	}
+
+	advance_check_done(input) or_return
+	return
+}
+
 load_all :: proc(data: []u8) -> (err: Save_Error) {
 	data := data
 
@@ -729,6 +785,7 @@ load_all :: proc(data: []u8) -> (err: Save_Error) {
 	load_optional(load_data(&data)) or_return
 	load_optional(load_flags(&data)) or_return
 	load_optional(load_filter(&data)) or_return
+	load_optional(load_archive(&data, &sb.archive)) or_return
 
 	if len(data) != 0 {
 		err = .File_Not_Fully_Read
@@ -830,12 +887,6 @@ Misc_Save_Load :: struct {
 		timer_ended: string,
 	},
 
-	archive: struct {
-		head: int,
-		tail: int,
-		data: []string,
-	},
-
 	search: struct {
 		pattern: string,
 		case_insensitive: bool,
@@ -867,16 +918,6 @@ json_save_misc :: proc(path: string) -> bool {
 	}
 
 	pomodoro_diff := time.stopwatch_duration(pomodoro.stopwatch)
-	
-	// archive data
-	// NOTE always skip scrollbar
-	archive_children := panel_children(sb.archive.buttons)
-	archive_data := make([]string, len(archive_children))
-	for i in 0..<len(archive_children) {
-		button := cast(^Archive_Button) archive_children[i]
-		archive_data[i] = strings.to_string(button.builder)
-	}
-
 	window_x, window_y := window_get_position(app.window_main)
 	window_width := app.window_main.width
 	window_height := app.window_main.height
@@ -974,12 +1015,6 @@ json_save_misc :: proc(path: string) -> bool {
 			gs.sound_paths[.Timer_Stop],
 			gs.sound_paths[.Timer_Resume],
 			gs.sound_paths[.Timer_Ended],
-		},
-
-		archive = {
-			sb.archive.head,
-			sb.archive.tail,
-			archive_data,
 		},
 
 		search = {
@@ -1151,13 +1186,6 @@ json_load_misc :: proc(path: string) -> bool {
 
 	pomodoro_label_format()
 	element_repaint(app.mmpp)
-
-	// archive
-	for text, i in misc.archive.data {
-		archive_push(text)
-	}
-	sb.archive.head = misc.archive.head
-	sb.archive.tail = misc.archive.tail
 
 	// search
 	if misc.search != {} {

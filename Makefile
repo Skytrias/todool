@@ -7,7 +7,7 @@ release:
 	@../Odin/odin build src -out:target/todool -o:speed -thread-count:12
 
 debug: 
-	@../Odin/odin build src -out:target/todool -debug -thread-count:12
+	@../Odin/odin build src -out:target/todool -debug -thread-count:12 -collection:heimdall="../heimdall"
 
 run:
 	@cd target && ./todool

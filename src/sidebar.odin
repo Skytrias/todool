@@ -22,37 +22,34 @@ ANIMATION_SPEED_MIN :: 0.1
 ANIMATION_SPEED_MAX :: 4
 
 // push to archive text
-archive_push :: proc(text: string) {
+archive_push :: proc(archive: ^Sidebar_Archive, text: string) {
 	if len(text) == 0 {
 		return
 	}
 
-	c := panel_children(sb.archive.buttons)
+	c := panel_children(archive.buttons)
 
-	// TODO check direction
 	// KEEP AT MAX.
 	if len(c) == ARCHIVE_MAX {
 		for i := len(c) - 1; i >= 1; i -= 1 {
 			a := cast(^Archive_Button) c[i]
 			b := cast(^Archive_Button) c[i - 1]
-			strings.builder_reset(&a.builder)
-			strings.write_string(&a.builder, strings.to_string(b.builder))
+			ss_copy(&a.ss, &b.ss)
 		}
 
 		c := cast(^Archive_Button) c[0]
-		strings.builder_reset(&c.builder)
-		strings.write_string(&c.builder, text)
+		ss_set_string(&c.ss, text)
 	} else {
 		// log.info("LEN", len(c))
-		archive_button_init(sb.archive.buttons, { .HF }, text)
-		sb.archive.head += 1
-		sb.archive.tail += 1
+		archive_button_init(archive.buttons, { .HF }, text)
+		archive.head += 1
+		archive.tail += 1
 	}
 }
 
-archive_low_and_high :: proc() -> (low, high: int) {
-	low = min(sb.archive.head, sb.archive.tail)
-	high = max(sb.archive.head, sb.archive.tail)
+archive_low_and_high :: proc(archive: ^Sidebar_Archive) -> (low, high: int) {
+	low = min(archive.head, archive.tail)
+	high = max(archive.head, archive.tail)
 	return
 }
 
@@ -595,17 +592,16 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 				return
 			}
 
-			low, high := archive_low_and_high()
+			low, high := archive_low_and_high(&sb.archive)
 			c := panel_children(sb.archive.buttons)
 			
 			copy_state_reset(&app.copy_state)
 			app.last_was_task_copy = true
 			element_repaint(app.mmpp)
 
-			// TODO FIX THIS
 			for i in low..<high + 1 {
 				button := cast(^Archive_Button) c[i - 1]
-				copy_state_push_empty(&app.copy_state, strings.to_string(button.builder))
+				copy_state_push_empty(&app.copy_state, ss_string(&button.ss))
 			}
 		}
 
@@ -693,7 +689,8 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 // saved to save file!
 Archive_Button :: struct {
 	using element: Element,
-	builder: strings.Builder,
+	// builder: strings.Builder,
+	ss: Small_String,
 	visual_index: int,
 }
 
@@ -707,13 +704,13 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 			target := element.window.target
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
-			low, high := archive_low_and_high()
+			low, high := archive_low_and_high(&sb.archive)
 			if low <= button.visual_index && button.visual_index <= high {
 				render_rect(target, element.bounds, theme_panel(.Front), ROUNDNESS)
 				text_color = theme.text_default
 			}
 
-			text := strings.to_string(button.builder)
+			text := ss_string(&button.ss)
 			rect := element.bounds
 			rect.l += int(TEXT_PADDING * SCALE)
 			fcs_element(element)
@@ -748,7 +745,7 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 		}
 
 		case .Get_Width: {
-			text := strings.to_string(button.builder)
+			text := ss_string(&button.ss)
 			fcs_element(element)
 			width := max(int(50 * SCALE), string_width(text) + int(TEXT_MARGIN_HORIZONTAL * SCALE))
 			return int(width)
@@ -756,10 +753,6 @@ archive_button_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 
 		case .Get_Height: {
 			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
-		}
-
-		case .Destroy: {
-			delete(button.builder.buf)
 		}
 	}
 
@@ -773,8 +766,7 @@ archive_button_init :: proc(
 	allocator := context.allocator,
 ) -> (res: ^Archive_Button) {
 	res = element_init(Archive_Button, parent, flags | { .Tab_Stop }, archive_button_message, allocator)
-	res.builder = strings.builder_make(0, len(text))
-	strings.write_string(&res.builder, text)
+	ss_set_string(&res.ss, text)
 	res.visual_index = len(parent.children) - 1
 	return
 }

@@ -81,6 +81,7 @@ copy_state_push_empty :: proc(state: ^Copy_State, text: string) {
 	append(&state.stored_tasks, Copy_Task {
 		text_start = u32(start),
 		text_end = u32(end),
+		fold_parent = -1,
 	})
 }
 
@@ -121,6 +122,7 @@ copy_state_push_task :: proc(state: ^Copy_State, task: ^Task, fold_parent: int) 
 		fold_parent,
 	})
 
+	// have to copy folded content
 	if task.filter_folded {
 		parent := state.parent_count
 		state.parent_count += 1

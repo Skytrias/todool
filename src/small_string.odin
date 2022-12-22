@@ -54,6 +54,11 @@ ss_clear :: #force_inline proc(ss: ^Small_String) {
 	ss.length = 0
 }
 
+ss_copy :: proc(a, b: ^Small_String) {
+	a.length = b.length
+	copy(a.buf[:], b.buf[:a.length])
+}
+
 // append the rune to the buffer
 // true on success
 ss_append :: proc(ss: ^Small_String, c: rune) -> bool {

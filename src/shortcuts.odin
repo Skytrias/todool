@@ -1270,7 +1270,7 @@ task_remove_selection :: proc(manager: ^Undo_Manager, move: bool) {
 	
 	for i in 0..<iter.range {
 		task := app_task_filter(iter.low)
-		archive_push(ss_string(&task.box.ss)) // only valid
+		archive_push(&sb.archive, ss_string(&task.box.ss)) // only valid
 
 		item := Undo_Item_Task_Remove_At { task.filter_index - i, task.list_index }
 		undo_task_remove_at(manager, &item)
@@ -1329,6 +1329,11 @@ todool_redo :: proc(du: u32) {
 }
 
 todool_save :: proc(du: u32) {
+	// ignore empty file saving
+	if app_filter_empty() {
+		return
+	}
+
 	when DEMO_MODE {
 		dialog_spawn(
 			app.window_main, 
@@ -1728,11 +1733,6 @@ app_save_maybe :: proc(
 
 	when !DEMO_MODE {
 		if options_autosave() {
-			// ignore empty file saving
-			if app_filter_empty() {
-				return
-			}
-
 			todool_save(COMBO_FALSE)
 		} else if app.dirty != app.dirty_saved {
 			app.save_callback = callback

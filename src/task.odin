@@ -1278,71 +1278,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				render_element_clipped(target, &task.element)
 			}
 
-			// render carets / task outlines
-			low, high := task_low_and_high()
-			if low == high {
-				task := app_task_head()
-				render_push_clip(target, app.mmpp.clip)
-				real_alpha := caret_state_real_alpha(&app.caret)
-
-				// render the caret
-				skip := app.caret.motion_skip
-				caret_state_render(target, &app.caret)
-
-				task_rect := task.element.bounds
-				app.caret.outline_current = rect_itof(task_rect)
-				
-				if skip {
-					app.caret.outline_goal = rect_itof(task_rect)
-				} else {
-					rect_animate_to(&app.caret.outline_goal, task_rect, 4, 0.1)
-				}
-
-				if caret_state_update_outline(&app.caret) {
-					rect := rect_ftoi(app.caret.outline_goal)
-					color := color_alpha(theme.caret, real_alpha)
-					render_rect_outline(target, rect, color)
-				} else {
-					// single outline
-					render_rect_outline(target, task.element.bounds, color_alpha(theme.caret, real_alpha))
-				}
-			} else {
-				render_push_clip(target, app.mmpp.clip)
-				shadow_color := color_alpha(theme.background[0], app.task_shadow_alpha)
-				app.caret.outline_goal = RECT_LERP_INIT
-				app.caret.motion_skip = true
-
-				// shadow first
-				for i in 0..<low {
-					task := app_task_filter(i)
-					render_rect(target, task.element.bounds, shadow_color)
-				}
-
-				// no shadow inbetween
-				range := f32(high - low + 1)
-				sign: f32 = app.task_head > app.task_tail ? 1 : -1
-				count := range if sign == -1 else 0
-				real_alpha := caret_state_real_alpha(&app.caret)
-				caret_state_increase_alpha(&app.caret)
-
-				// outline selected region
-				for i in low..<high + 1 {
-					task := app_task_filter(i)
-					count += sign
-					value := count / range
-					color := i == app.task_head ? theme.caret : theme.text_default
-					// value offset slightly + fade with lower fading more
-					color.a = u8(min((value + 0.25) * ((real_alpha + value) * 0.5) * 255, 255))
-					render_rect_outline(target, task.element.bounds, color)
-				}
-
-				// shadow last
-				for i in high + 1..<len(app.pool.filter) {
-					task := app_task_filter(i)
-					render_rect(target, task.element.bounds, shadow_color)
-				}
-			}
-
+			render_caret_and_outlines(target, panel.clip)
 			search_draw_highlights(target, panel)
 
 			// word error highlight
@@ -3261,6 +3197,79 @@ caret_state_increase_alpha :: proc(using state: ^Caret_State) {
 			} else {
 				alpha_forwards = true
 			}
+		}
+	}
+}
+
+render_caret_and_outlines :: proc(target: ^Render_Target, clip: RectI) {
+	if app_filter_empty() {
+		app.caret.outline_goal = RECT_LERP_INIT
+		app.caret.motion_skip = true
+		return
+	}
+
+	// render carets / task outlines
+	low, high := task_low_and_high()
+	if low == high {
+		task := app_task_head()
+		render_push_clip(target, clip)
+		real_alpha := caret_state_real_alpha(&app.caret)
+
+		// render the caret
+		skip := app.caret.motion_skip
+		caret_state_render(target, &app.caret)
+
+		task_rect := task.element.bounds
+		app.caret.outline_current = rect_itof(task_rect)
+		
+		if skip {
+			app.caret.outline_goal = rect_itof(task_rect)
+		} else {
+			rect_animate_to(&app.caret.outline_goal, task_rect, 4, 0.1)
+		}
+
+		if caret_state_update_outline(&app.caret) {
+			rect := rect_ftoi(app.caret.outline_goal)
+			color := color_alpha(theme.caret, real_alpha)
+			render_rect_outline(target, rect, color)
+		} else {
+			// single outline
+			render_rect_outline(target, task.element.bounds, color_alpha(theme.caret, real_alpha))
+		}
+	} else {
+		render_push_clip(target, clip)
+		shadow_color := color_alpha(theme.background[0], app.task_shadow_alpha)
+		app.caret.outline_goal = RECT_LERP_INIT
+		app.caret.motion_skip = true
+
+		// shadow first
+		for i in 0..<low {
+			task := app_task_filter(i)
+			render_rect(target, task.element.bounds, shadow_color)
+		}
+
+		// no shadow inbetween
+		range := f32(high - low + 1)
+		sign: f32 = app.task_head > app.task_tail ? 1 : -1
+		count := range if sign == -1 else 0
+		real_alpha := caret_state_real_alpha(&app.caret)
+		caret_state_increase_alpha(&app.caret)
+
+		// outline selected region
+		for i in low..<high + 1 {
+			task := app_task_filter(i)
+			count += sign
+			value := count / range
+			color := i == app.task_head ? theme.caret : theme.text_default
+			// value offset slightly + fade with lower fading more
+			color.a = u8(min((value + 0.25) * ((real_alpha + value) * 0.5) * 255, 255))
+			render_rect_outline(target, task.element.bounds, color)
+		}
+
+		// shadow last
+		for i in high + 1..<len(app.pool.filter) {
+			task := app_task_filter(i)
+			render_rect(target, task.element.bounds, shadow_color)
 		}
 	}
 }
