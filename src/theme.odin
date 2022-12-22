@@ -141,6 +141,24 @@ theme_presets_init :: proc() {
 	theme_preset_add("solarized light", Theme{background = {{238, 232, 213, 255}, {253, 246, 227, 255}, {255, 240, 201, 255}}, panel = {{255, 240, 196, 255}, {255, 246, 218, 255}, {192, 222, 208, 255}}, text_default = {88, 110, 117, 255}, text_blank = {74, 88, 91, 255}, text_good = {38, 139, 210, 255}, text_bad = {220, 50, 47, 255}, text_link = {108, 113, 196, 255}, text_date = {42, 161, 152, 255}, shadow = {189, 181, 156, 255}, caret = {0, 43, 54, 255}, caret_selection = {119, 119, 119, 255}, tags = {{133, 153, 0, 255}, {123, 178, 26, 255}, {131, 120, 69, 255}, {172, 188, 39, 255}, {125, 186, 43, 255}, {145, 169, 76, 255}, {156, 145, 0, 255}, {175, 117, 56, 255}}})
 }
 
+theme_task_panel_color :: proc(task: ^Task) -> (res: Color) {
+	if task_has_children(task) {
+		res = theme_panel(.Parent)
+
+		if task.highlight {
+			res = color_blend(theme_panel(.Highlight), res, 0.75, false)
+		}
+	} else {
+		if task.highlight {
+			res = theme_panel(.Highlight)
+		} else {
+			res = theme_panel(.Front)
+		}
+	}
+
+	return
+}
+
 theme_task_text :: #force_inline proc(state: Task_State) -> Color {
 	switch state {
 		case .Normal: return theme.text_default

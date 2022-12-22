@@ -1323,7 +1323,6 @@ todool_save :: proc(du: u32) {
 		dialog_spawn(
 			app.window_main, 
 			proc(dialog: ^Dialog, result: string) {
-				fmt.eprintln("dialog end todool save")
 				if dialog.result == .Default {
 					open_link("https://skytrias.itch.io/todool")
 				} 

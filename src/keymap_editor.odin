@@ -40,6 +40,10 @@ keymap_editor_window_message :: proc(element: ^Element, msg: Message, di: int, d
 
 			switch combo {
 				case "1"..<"5": {
+					if window.menu_filter {
+						return 0
+					}
+
 					value := strconv.atoi(combo)
 					grid := ke.grids[value - 1]
 					// ke.grid_keep_in_frame = grid

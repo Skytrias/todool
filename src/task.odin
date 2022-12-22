@@ -1340,7 +1340,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
-			render_task_highlights(target, panel.clip)
 			search_draw_highlights(target, panel)
 
 			// word error highlight
@@ -1994,7 +1993,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			rect := task.element.bounds
 
 			// render panel front color
-			task_color := task_panel_color(task)
+			task_color := theme_task_panel_color(task)
 			render_rect(target, rect, task_color, ROUNDNESS)
 
 			// draw tags at an offset
@@ -2809,62 +2808,6 @@ mode_panel_cam_freehand_off :: proc(cam: ^Pan_Camera) {
 	app.caret.alpha = 0
 }
 
-render_task_highlights :: proc(target: ^Render_Target, clip: RectI) {
-	// clipped := false
-
-	// for list_index in app.pool.filter {
-	// 	task := app_task_list(list_index)
-
-	// 	if task.highlight {
-	// 		if !clipped {
-	// 			render_push_clip(target, clip)
-	// 			clipped = true
-	// 		}
-
-	// 		bounds := rect_margin(task.element.bounds, -5)
-	// 		render_rect_outline(target, bounds, RED)
-	// 		// render_drop_shadow
-	// 	}
-	// } 
-
-	// // if 
-	// // 	after && mode_panel.mode == .List ||
-	// // 	!after && mode_panel.mode == .Kanban {
-	// // 	return
-	// // }
-
-	// exists := false
-
-	// for index in app.pool.filter {
-	// 	task := app_task_list(index)
-	// 	if app.task_highlight == task {
-	// 		exists = true
-	// 		continue
-	// 	}
-	// }
-
-	// if !exists {
-	// 	return
-	// }
-
-	// render_push_clip(target, app.mmpp.clip)
-
-	// switch app.mmpp.mode {
-	// 	case .List: {
-	// 		rect := app.mmpp.bounds
-	// 		rect.t = app.task_highlight.element.bounds.t
-	// 		rect.b = app.task_highlight.element.bounds.b
-	// 		render_rect(target, rect, theme.text_bad)
-	// 	}
-
-	// 	case .Kanban: {
-	// 		rect := app.task_highlight.element.bounds
-	// 		rect = rect_margin(rect, int(-10 * TASK_SCALE))
-	// 		render_rect(target, rect, theme.text_bad, ROUNDNESS)
-	// 	}
-	// }
-}
-
 task_render_progressbars :: proc(target: ^Render_Target) {
 	if app.progressbars_alpha == 0 {
 		return
@@ -2919,7 +2862,7 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			strings.builder_reset(&builder)
 			non_normal := len(task.filter_children) - task.state_count[.Normal]
 			if use_percentage {
-				fmt.sbprintf(&builder, "k.0f%%", f32(non_normal) / f32(len(task.filter_children)) * 100)
+				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(len(task.filter_children)) * 100)
 			} else {
 				fmt.sbprintf(&builder, "%d / %d", non_normal, len(task.filter_children))
 			}
@@ -3317,22 +3260,4 @@ caret_state_increase_alpha :: proc(using state: ^Caret_State) {
 			}
 		}
 	}
-}
-
-task_panel_color :: proc(task: ^Task) -> (res: Color) {
-	if task_has_children(task) {
-		res = theme_panel(.Parent)
-
-		if task.highlight {
-			res = color_blend(theme_panel(.Highlight), res, 0.5, false)
-		}
-	} else {
-		if task.highlight {
-			res = theme_panel(.Highlight)
-		} else {
-			res = theme_panel(.Front)
-		}
-	}
-
-	return
 }
