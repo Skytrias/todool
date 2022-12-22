@@ -366,6 +366,7 @@ save_archive :: proc(buffer: ^bytes.Buffer, archive: ^Sidebar_Archive) -> (err: 
 	// write head / tail
 	buffer_write_int_i64(buffer, archive.head) or_return
 	buffer_write_int_i64(buffer, archive.tail) or_return
+	fmt.eprintln("WRITE", archive.head, archive.tail)
 
 	// count
 	c := panel_children(archive.buttons)
@@ -751,14 +752,16 @@ load_archive :: proc(data: ^[]u8, archive: ^Sidebar_Archive) -> (err: Save_Error
 		case 1: {
 			head := advance_i64_int(&input) or_return
 			tail := advance_i64_int(&input) or_return
-			archive.head = head
-			archive.tail = tail
 			count := advance_u32_int(&input) or_return
+			archive_reset(archive)
 
 			for i in 0..<count {
 				str := advance_string_u8(&input) or_return
-				archive_push(&archive, str)
+				archive_push(archive, str)
 			}
+
+			archive.head = head
+			archive.tail = tail
 		}
 
 		case: err = .Unsupported_Version

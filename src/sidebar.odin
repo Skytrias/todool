@@ -53,6 +53,12 @@ archive_low_and_high :: proc(archive: ^Sidebar_Archive) -> (low, high: int) {
 	return
 }
 
+archive_reset :: proc(archive: ^Sidebar_Archive) {
+	element_destroy_descendents(archive.buttons, true)
+	archive.head = -1
+	archive.tail = -1
+}
+
 Sidebar_Mode :: enum {
 	Options,
 	Tags,
@@ -581,9 +587,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		b1 := button_init(top, { .HF }, "Clear")
 		b1.hover_info = "Clear all archive entries"
 		b1.invoke = proc(button: ^Button, data: rawptr) {
-			element_destroy_descendents(sb.archive.buttons, true)
-			sb.archive.head = -1
-			sb.archive.tail = -1
+			archive_reset(&sb.archive)
 		}
 		b2 := button_init(top, { .HF }, "Copy")
 		b2.hover_info = "Copy selected archive region for next task copy"
