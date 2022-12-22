@@ -39,7 +39,7 @@ TEXT_MARGIN_VERTICAL :: 10
 TEXT_MARGIN_HORIZONTAL :: 10
 TEXT_PADDING :: 5
 DEFAULT_FONT_SIZE :: 20
-DEFAULT_ICON_SIZE :: 18
+DEFAULT_ICON_SIZE :: 16
 SPLITTER_SIZE :: 4
 
 IMAGE_DISPLAY_HEIGHT :: 200
@@ -3107,7 +3107,7 @@ split_pane_init :: proc(
 //////////////////////////////////////////////
 
 // only renders a specific panel
-// NOTE: assumes mode == 0 is None state
+// NOTE: assumes mode == 0 is NONE state
 Enum_Panel :: struct {
 	using element: Element,
 	mode: ^int,
@@ -3422,7 +3422,7 @@ toggle_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			}
 
 			top.l += int(MARGIN * SCALE)
-			icon: Icon = (.Hide in toggle.panel.flags) ? .Simple_Right : .Simple_Down
+			icon: Icon = (.Hide in toggle.panel.flags) ? .RIGHT_OPEN : .DOWN_OPEN
 			top.l += int(render_icon_rect(target, top, icon)) + int(TEXT_PADDING * SCALE)
 			
 			fcs_element(toggle)
@@ -3709,7 +3709,7 @@ mbc :: proc(
 	parent: ^Element,
 	text: string,
 	command_custom: proc(),
-	icon: Icon = .None,
+	icon: Icon = .NONE,
 ) -> (res: ^Menu_Bar_Line) {
 	res = element_init(Menu_Bar_Line, parent, {}, menu_bar_line_message, context.allocator)
 	res.builder = strings.builder_make(0, len(text))
@@ -3726,7 +3726,7 @@ menu_bar_line_init :: proc(
 	text: string,
 	command: string = "",
 	command_du: u32 = COMBO_EMPTY,
-	icon: Icon = .None,
+	icon: Icon = .NONE,
 ) -> (res: ^Menu_Bar_Line) {
 	res = element_init(Menu_Bar_Line, parent, {}, menu_bar_line_message, context.allocator)
 	res.builder = strings.builder_make(0, len(text))
@@ -3761,7 +3761,7 @@ menu_bar_line_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 
 			icon_width := int(FIXED_ICON_WIDTH * SCALE)
 			icon_rect := rect_cut_left(&bounds, icon_width)
-			if line.icon != .None {
+			if line.icon != .NONE {
 				fcs_icon(SCALE)
 				fcs_ahv()
 				fcs_color(text_color)
@@ -4070,7 +4070,7 @@ button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			fcs_ahv()
 			fcs_color(text_color)
 			fcs_icon(SCALE)
-			icon: Icon = button.state ? .Simple_Right : .Simple_Down
+			icon: Icon = button.state ? .RIGHT_OPEN : .DOWN_OPEN
 			size := int(DEFAULT_ICON_SIZE * SCALE)
 			bounds := element.bounds
 			bounds.l += TEXT_MARGIN_HORIZONTAL / 2

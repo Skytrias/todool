@@ -601,7 +601,7 @@ task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 
 		case .Paint_Recursive: {
 			// NOTE only change
-			button.icon = task.filter_folded ? .Simple_Right : .Simple_Down
+			button.icon = task.filter_folded ? .RIGHT_OPEN : .DOWN_OPEN
 
 			pressed := button.window.pressed == button
 			hovered := button.window.hovered == button
@@ -624,6 +624,8 @@ task_button_fold_message :: proc(element: ^Element, msg: Message, di: int, dp: r
 			fcs_ahv()
 			fcs_color(text_color)
 			render_icon_rect(target, button.bounds, button.icon)
+
+			return 1
 		}
 
 		case .Get_Width: {
@@ -840,7 +842,7 @@ task_init :: proc(
 	res.indentation = indentation
 	res.indentation_smooth = f32(indentation)
 
-	res.button_fold = icon_button_init(&res.element, {}, .Simple_Down, task_button_fold_message, allocator)
+	res.button_fold = icon_button_init(&res.element, {}, .DOWN_OPEN, task_button_fold_message, allocator)
 	res.box = task_box_init(&res.element, {}, text, allocator)
 	res.box.message_user = task_box_message_custom
 
@@ -2583,8 +2585,8 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	p.background_index = 2
 
 	// deletion
-	mbl(p, "Completion", "change_task_state", COMBO_EMPTY, .Plus)
-	mbl(p, "Completion", "change_task_state", COMBO_SHIFT, .Minus)
+	mbl(p, "Completion", "change_task_state", COMBO_EMPTY, .PLUS)
+	mbl(p, "Completion", "change_task_state", COMBO_SHIFT, .MINUS)
 	mbs(p)
 	mbl(p, "Cut", "cut_tasks")
 	mbl(p, "Copy", "copy_tasks")
@@ -2884,11 +2886,11 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 	}
 
 	menu_bar_field_init(menu, "File", 1).invoke = proc(p: ^Panel) {
-		mbl(p, "New File", "new_file", COMBO_EMPTY, .File_Empty)
-		mbl(p, "Open File", "load", COMBO_EMPTY, .File_Load)
-		mbl(p, "Save", "save", COMBO_EMPTY, .Save)
-		mbl(p, "Save As...", "save", COMBO_TRUE, .Save)
-		mbc(p, "Locals", locals, .Folder_Open)
+		mbl(p, "New File", "new_file", COMBO_EMPTY, .DOC)
+		mbl(p, "Open File", "load", COMBO_EMPTY, .DOC_INV)
+		mbl(p, "Save", "save", COMBO_EMPTY, .FLOPPY)
+		mbl(p, "Save As...", "save", COMBO_TRUE, .FLOPPY)
+		mbc(p, "Locals", locals, .FOLDER)
 		mbs(p)
 		mbc(p, "Quit", quit)
 	}
@@ -2928,8 +2930,8 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		mbl(p, "To Lowercase", "tasks_to_lowercase")
 	}
 	menu_bar_field_init(menu, "Task-State", 4).invoke = proc(p: ^Panel) {
-		mbl(p, "Completion", "change_task_state", COMBO_EMPTY, .Plus)
-		mbl(p, "Completion", "change_task_state", COMBO_SHIFT, .Minus)
+		mbl(p, "Completion", "change_task_state", COMBO_EMPTY, .PLUS)
+		mbl(p, "Completion", "change_task_state", COMBO_SHIFT, .MINUS)
 		mbs(p)
 		mbl(p, "Folding", "toggle_folding")
 		mbl(p, "Bookmark", "toggle_bookmark")

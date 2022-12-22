@@ -64,6 +64,18 @@ buffer_write_string_u8 :: proc(buffer: ^bytes.Buffer, text: string) -> (err: io.
 	return
 }
 
+buffer_write_int_i64 :: proc(buffer: ^bytes.Buffer, value: int) -> (err: io.Error) {
+	value := i64be(value)
+	bytes.buffer_write_ptr(buffer, &value, size_of(i64be)) or_return	
+	return
+}
+
+buffer_write_int_u32 :: proc(buffer: ^bytes.Buffer, value: int) -> (err: io.Error) {
+	value := u32be(value)
+	bytes.buffer_write_ptr(buffer, &value, size_of(u32be)) or_return	
+	return
+}
+
 // Header for a byte blob
 Save_Header :: struct {
 	signature: [8]u8,
@@ -227,16 +239,25 @@ save_filter :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	block_start, block_size := save_push_header(buffer, SAVE_SIGNATURE_FILTER, 1) or_return
 	defer block_size^ = u32be(len(buffer.buf) - block_start)
 
-	// write count
-	head := i64be(app.task_head)
-	bytes.buffer_write_ptr(buffer, &head, size_of(i64be)) or_return
-	
-	tail := i64be(app.task_tail)
-	bytes.buffer_write_ptr(buffer, &tail, size_of(i64be)) or_return
+	// write task head / tail
+	buffer_write_int_i64(buffer, app.task_head) or_return
+	buffer_write_int_i64(buffer, app.task_tail) or_return
 
-	// write count
-	count := u32be(len(app.pool.filter))
-	bytes.buffer_write_ptr(buffer, &count, size_of(u32be)) or_return
+	box_head, box_tail: int
+
+	// when not empty, write the actual box head / tail
+	if app_filter_not_empty() {
+		task := app_task_head()
+		box_head = task.box.head
+		box_tail = task.box.tail
+	}
+
+	// always write the head / tail even if not set
+	buffer_write_int_i64(buffer, box_head) or_return
+	buffer_write_int_i64(buffer, box_tail) or_return
+
+	// write the filter count
+	buffer_write_int_u32(buffer, len(app.pool.filter)) or_return
 
 	for list_index in app.pool.filter {
 		index := u32be(list_index)
@@ -416,6 +437,19 @@ advance_ptr :: proc(data: ^[]u8, dst: rawptr, size: int, loc := #caller_location
 	return
 }
 
+// advance by byte
+advance_byte :: proc(data: ^[]u8, loc := #caller_location) -> (result: u8, err: Save_Error) {
+	if len(data) < 1 {
+		err = .No_Space_Advance
+		save_loc = loc
+		return
+	}
+
+	result = data[0]
+	data^ = data[1:]
+	return
+}
+
 // advance and output a slice for the advanced size
 advance_slice :: proc(data: ^[]u8, size: int, loc := #caller_location) -> (output: []u8, err: Save_Error) {
 	if len(data) < size {
@@ -435,6 +469,30 @@ advance_string_u16 :: proc(data: ^[]u8, loc := #caller_location) -> (output: str
 	advance_ptr(data, &length, size_of(u16be), loc) or_return
 	content := advance_slice(data, int(length), loc) or_return
 	output = string(content)
+	return
+}
+
+// advance and set the data 
+advance_string_u8 :: proc(data: ^[]u8, loc := #caller_location) -> (output: string, err: Save_Error) {
+	length := advance_byte(data) or_return
+	content := advance_slice(data, int(length), loc) or_return
+	output = string(content)
+	return
+}
+
+// advance by i64be and output an int
+advance_i64_int :: proc(data: ^[]u8) -> (result: int, err: Save_Error) {
+	value: i64be
+	advance_ptr(data, &value, size_of(i64be)) or_return
+	result = int(value)
+	return
+}
+
+// advance by u32be and output an int
+advance_u32_int :: proc(data: ^[]u8) -> (result: int, err: Save_Error) {
+	value: u32be
+	advance_ptr(data, &value, size_of(u32be)) or_return
+	result = int(value)
 	return
 }
 
@@ -463,10 +521,9 @@ load_tags :: proc(data: ^[]u8) -> (err: Save_Error) {
 		case 1: {
 			string_length: u8
 			for i in 0..<8 {
-				advance_ptr(&input, &string_length, size_of(u8)) or_return
-				string_bytes := advance_slice(&input, size_of(u8) * int(string_length)) or_return
+				result := advance_string_u8(&input) or_return
 				ss := sb.tags.names[i]
-				ss_set_string(ss, transmute(string) string_bytes)
+				ss_set_string(ss, result)
 			}
 
 			color: u32
@@ -488,14 +545,13 @@ load_views :: proc(data: ^[]u8) -> (err: Save_Error) {
 
 	switch version {
 		case 1: {
-			count: u8
-			advance_ptr(&input, &count, size_of(u8)) or_return
-			mode: u8
-			advance_ptr(&input, &mode, size_of(u8)) or_return
+			count := advance_byte(&input) or_return
+			mode := advance_byte(&input) or_return
 			app.mmpp.mode = Mode(mode)
-			scale: u8
-			advance_ptr(&input, &scale, size_of(u8)) or_return
+
+			scale := advance_byte(&input) or_return
 			load_scale := f32(scale) / 100
+
 			// fmt.eprintln("---", scale, load_scale)
 			scaling_set(SCALE, load_scale)
 
@@ -521,12 +577,10 @@ load_data :: proc(data: ^[]u8) -> (err: Save_Error) {
 
 	switch version {
 		case 1: {
-			count: u32be
-			advance_ptr(&input, &count, size_of(u32be)) or_return
+			count := advance_u32_int(&input) or_return
 
 			for i in 0..<count {
-				skip: b8
-				advance_ptr(&input, &skip, size_of(b8)) or_return
+				skip := transmute(b8) advance_byte(&input) or_return
 
 				// init data but put it on the free list
 				if skip {
@@ -567,16 +621,15 @@ load_filter :: proc(data: ^[]u8) -> (err: Save_Error) {
 
 	switch version {
 		case 1: {
-			head: i64be
-			advance_ptr(&input, &head, size_of(i64be)) or_return
-			app.task_head = int(head)
+			app.task_head = advance_i64_int(&input) or_return
+			app.task_tail = advance_i64_int(&input) or_return
 			
-			tail: i64be
-			advance_ptr(&input, &tail, size_of(i64be)) or_return
-			app.task_tail = int(tail)
+			box_head := advance_i64_int(&input) or_return
+			box_tail := advance_i64_int(&input) or_return
 
-			count: u32be
-			advance_ptr(&input, &count, size_of(u32be)) or_return
+			// TODO set head / tail
+
+			count := advance_u32_int(&input) or_return
 
 			index: u32be
 			for i in 0..<count {
@@ -597,8 +650,7 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 
 	switch version {
 		case 1: {
-			count: u32be
-			advance_ptr(&input, &count, size_of(u32be)) or_return
+			count := advance_u32_int(&input) or_return
 
 			list_index: u32be 
 			flags: Save_Flags
@@ -635,12 +687,12 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 				}
 				if .Folded in flags {
 					task.filter_folded = true
-					count: u32be
-					advance_ptr(&input, &count, size_of(u32be)) or_return
-					resize(&task.filter_children, int(count))
+					
+					child_count := advance_u32_int(&input) or_return
+					resize(&task.filter_children, int(child_count))
 
 					temp: u32be
-					for i in 0..<count {
+					for i in 0..<child_count {
 						advance_ptr(&input, &temp, size_of(u32be)) or_return
 						task.filter_children[i] = int(temp)
 					}

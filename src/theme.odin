@@ -212,7 +212,7 @@ toggle_simple_message :: proc(element: ^Element, msg: Message, di: int, dp: rawp
 			pressed := element.window.pressed == element
 			hovered := element.window.hovered == element
 
-			icon: Icon = toggle.state ? .Check : .Close
+			icon: Icon = toggle.state ? .OK : .CANCEL
 			fcs_icon(SCALE)
 			fcs_ahv()
 			color := toggle.state ? theme.text_good : theme.text_bad

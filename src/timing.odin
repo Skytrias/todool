@@ -653,7 +653,7 @@ menu_date_spawn :: proc(ptr: ^time.Time, x, y: int) {
 	// top bar
 	{
 		top := panel_init(p, { .Panel_Horizontal })
-		b1 := icon_button_init(top, {}, .Simple_Left)
+		b1 := icon_button_init(top, {}, .LEFT_OPEN)
 		b1.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			offset_year, offset_month, offset_day := menu_date_timing()
 			menu_date_day_offset -= offset_day
@@ -675,7 +675,7 @@ menu_date_spawn :: proc(ptr: ^time.Time, x, y: int) {
 
 			return 0
 		}
-		b3 := icon_button_init(top, {}, .Simple_Right)
+		b3 := icon_button_init(top, {}, .RIGHT_OPEN)
 		b3.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			offset_year, offset_month, offset_day := menu_date_timing()
 			days_in_month := int(month_day_count(offset_month))

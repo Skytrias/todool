@@ -47,7 +47,7 @@ scaling_set :: proc(global_scale: f32, task_scale: f32) {
 }
 
 Font :: fontstash.Font
-data_font_icon := #load("../assets/icofont.ttf")
+data_font_icon := #load("../assets/icons.ttf")
 data_font_regular := #load("../assets/Lato-Regular.ttf")
 data_font_bold := #load("../assets/Lato-Bold.ttf")
 data_font_fallback := #load("../assets/NotoSans-Regular.ttf")

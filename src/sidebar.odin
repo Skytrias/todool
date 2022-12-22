@@ -212,19 +212,19 @@ sidebar_panel_init :: proc(parent: ^Element) {
 
 	// side options
 	{
-		i1 := icon_button_init(app.panel_info, { .HF }, .Cog, sidebar_button_message)
+		i1 := icon_button_init(app.panel_info, { .HF }, .COG, sidebar_button_message)
 		i1.data = new_clone(Sidebar_Mode.Options)
 		i1.hover_info = "Options"
 		
-		i2 := icon_button_init(app.panel_info, { .HF }, .Tag, sidebar_button_message)
+		i2 := icon_button_init(app.panel_info, { .HF }, .TAG, sidebar_button_message)
 		i2.data = new_clone(Sidebar_Mode.Tags)
 		i2.hover_info = "Tags"
 
-		i3 := icon_button_init(app.panel_info, { .HF }, .Archive, sidebar_button_message)
+		i3 := icon_button_init(app.panel_info, { .HF }, .ARCHIVE, sidebar_button_message)
 		i3.data = new_clone(Sidebar_Mode.Archive)
 		i3.hover_info = "Archive"
 
-		i4 := icon_button_init(app.panel_info, { .HF }, .Chart, sidebar_button_message)
+		i4 := icon_button_init(app.panel_info, { .HF }, .CHART_AREA, sidebar_button_message)
 		i4.data = new_clone(Sidebar_Mode.Stats)
 		i4.hover_info = "Stats"
 	}
@@ -232,13 +232,13 @@ sidebar_panel_init :: proc(parent: ^Element) {
 	// pomodoro
 	{
 		spacer_init(app.panel_info, { .VF, }, 0, 20, .Thin)
-		i1 := icon_button_init(app.panel_info, { .HF }, .Tomato)
+		i1 := icon_button_init(app.panel_info, { .HF }, .PLAY_CIRCLED)
 		i1.hover_info = "Start / Stop Pomodoro Time"
 		i1.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_toggle()
 		}
-		i2 := icon_button_init(app.panel_info, { .HF }, .Reply)
+		i2 := icon_button_init(app.panel_info, { .HF }, .STOP)
 		i2.invoke = proc(button: ^Icon_Button, data: rawptr) {
 			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_reset()
@@ -615,7 +615,6 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			buttons.layout_elements_in_reverse = true
 		}
 	}
-
 
 	// statistics
 	{

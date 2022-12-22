@@ -28,31 +28,27 @@ Align_Vertical :: fontstash.AlignVertical
 DROP_SHADOW :: 20
 DEFAULT_VERTICES :: 1024 * 2
 
-Icon :: enum {
-	None = 0x00,
-
-	Simple_Down = 0xeab2,
-	Simple_Left = 0xeab5,
-	Simple_Right = 0xeab8,
-
-	Tomato = 0xeb9a,
-	Tag = 0xf004,
-
-	Check = 0xeed8,
-	Close = 0xeee4,
-
-	Cog = 0xefb0,
-	Reply = 0xec7f,
-	Archive = 0xeea5,
-
-	Chart = 0xe979,
-	Plus = 0xefc2,
-	Minus = 0xef9a,
-
-	Save = 0xee00,
-	File_Load = 0xec57,
-	File_Empty = 0xeb12,
-	Folder_Open = 0xef35,
+Icon :: enum {	
+	NONE =         0x0,
+	DOWN_OPEN =    0xe800,
+	FLOPPY =       0xe801,
+	TAG =          0xe802,
+	COG =          0xe803,
+	STOP =         0xe804,
+	PAUSE =        0xe805,
+	LEFT_OPEN =    0xe806,
+	RIGHT_OPEN =   0xe807,
+	DOC =          0xe808,
+	PLUS =         0xe809,
+	MINUS =        0xe80a,
+	CANCEL =       0xe80b,
+	OK =           0xe80c,
+	FOLDER =       0xe80d,
+	ARCHIVE =      0xe80e,
+	DOCS =         0xf0c5,
+	PLAY_CIRCLED = 0xf144,
+	DOC_INV =      0xf15b,
+	CHART_AREA =   0xf1fe,
 }
 
 Render_Target :: struct {

@@ -892,9 +892,9 @@ keymap_editor_menu_combo :: proc(line: ^Static_Line) {
 		keymap_editor_line_append(grid, nil, 0)
 		ke.issue_update = grid
 		menu_close(ke.window)
-	}, .Plus)
+	}, .PLUS)
 	mbc(p, "Remove", proc() {
 		keymap_editor_remove_call(ke.menu.line)
 		menu_close(ke.window)
-	}, .Close)
+	}, .CANCEL)
 }
