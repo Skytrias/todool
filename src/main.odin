@@ -22,7 +22,7 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
-POOL_DEBUG :: false
+POOL_DEBUG :: true
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
@@ -80,6 +80,10 @@ main :: proc() {
 			keymap_push_box_combos(&app.window_main.keymap_box)
 			keymap_push_vim_normal_combos(&app.keymap_vim_normal)
 			keymap_push_vim_insert_combos(&app.keymap_vim_insert)
+
+			keymap_force_push_latest(&app.window_main.keymap_custom)
+			keymap_force_push_latest(&app.keymap_vim_normal)
+
 			log.info("KEYMAP: Load failed -> Loading default")
 		} else {
 			log.info("KEYMAP: Load successful")
@@ -357,8 +361,12 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 			}
 		}
 
-		case .Window_Close: {
+		case .Window_Save: {
 			return int(app_save_close())
+		}
+
+		case .Window_Close: {
+			gs_destroy_all_windows()
 		}
 
 		case .Dropped_Files: {

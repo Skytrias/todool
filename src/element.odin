@@ -95,6 +95,7 @@ Message :: enum {
 	Panel_Color,
 
 	// window
+	Window_Save,
 	Window_Close,
 }
 
@@ -614,7 +615,7 @@ element_children_sorted_or_unsorted :: proc(element: ^Element) -> (res: []^Eleme
 }
 
 render_hovered_highlight :: #force_inline proc(target: ^Render_Target, bounds: RectI, scale := f32(1)) {
-	color := theme_shadow(1)
+	color := theme_shadow(scale)
 	render_rect(target, bounds, color, ROUNDNESS)
 }
 

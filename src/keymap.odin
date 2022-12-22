@@ -9,7 +9,7 @@ import dll "core:container/intrusive/list"
 
 Command :: proc(u32)
 COMBO_MAX :: 48
-LUT_SIZE :: 256
+LUT_SIZE :: 512
 
 Combo_Conflict :: struct {
 	using node: dll.Node,
@@ -30,7 +30,9 @@ Keymap_Command :: struct {
 	comment: string, // ptr to global keymap.command_comments
 	color: Color, // keymap editor color
 	call: Command, 
-	next: int, // next hash
+
+	hash_current: u32,
+	index_next: int, // next hash
 }
 
 // NOTE heap is easier for now
@@ -90,7 +92,7 @@ keymap_print_commands :: proc(keymap: ^Keymap) {
 	fmt.eprintln("KEYMAP\t", len(keymap.commands), cap(keymap.commands))
 
 	for cmd in keymap.commands {
-		fmt.eprintf("\tname = %s\tnext = %d\n", cmd.name, cmd.next)
+		fmt.eprintf("\tname = %s\tnext = %d\n", cmd.name, cmd.index_next)
 	}
 }
 
@@ -233,12 +235,13 @@ keymap_find_command :: proc(keymap: ^Keymap, command: string) -> int #no_bounds_
 
 	for index != -1 {
 		cmd := keymap.commands[index]
+		// use hash check?
 
-		if cmd.name == command {
+		if cmd.hash_current == h {
 			return index
 		}
 
-		index = cmd.next
+		index = cmd.index_next
 	}
 
 	return -1
@@ -254,13 +257,17 @@ keymap_push_command :: proc(
 	res := string_list_push_ptr(&keymap.command_names, command)
 	h := hash.fnv32(transmute([]byte) command) & (LUT_SIZE - 1)
 
+	assert(keymap.command_lut[h] == -1, command)
+
 	append(&keymap.commands, Keymap_Command {
-		res,
-		comment,
-		RED,
-		call,
-		keymap.command_lut[h],
+		name = res,
+		comment = comment,
+		call = call,
+		hash_current = h,
+		index_next = keymap.command_lut[h],
 	})
+
+	// fmt.eprintln("\tPUSH", h, len(keymap.commands) - 1)
 
 	// set this slot to the index
 	keymap.command_lut[h] = len(keymap.commands) - 1
@@ -302,11 +309,12 @@ keymap_push_combo_opt :: proc(
 	du: u32,
 ) {
 	command_index := keymap_find_command(keymap, command)
+	// fmt.eprintln("COMMAND INDEX", command_index)
 	res := keymap_command_find_combo(keymap, command_index, du)
 	
 	if res != nil {
 		c1 := string(res.combo[:res.combo_index])
-		real_cmd := keymap_get_command(keymap, res.command_index)
+		real_cmd := keymap_get_command(keymap, command_index)
 		fmt.eprintln("FOUND ALREADY", command, "|", c1, real_cmd.name)
 		return
 	}
@@ -713,15 +721,15 @@ keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
 	CP2_INSERTION()
 }
 
-keymap_force_push_latest :: proc() {
-	__keymap_push = &app.window_main.keymap_custom
-	CP4("alt a", "sort_locals")
-	CP4("ctrl r", "toggle_timestamp")
+keymap_force_push_latest :: proc(keymap: ^Keymap) {
+	__keymap_push = keymap
+	// CP4("alt a", "sort_locals")
+	// CP4("ctrl r", "toggle_timestamp")
 
-	CP4("ctrl home", "move_start")
-	CP4("ctrl shift home", "move_start", COMBO_SHIFT)
-	CP4("ctrl end", "move_end")
-	CP4("ctrl shift end", "move_end", COMBO_SHIFT)
+	// CP4("ctrl home", "move_start")
+	// CP4("ctrl shift home", "move_start", COMBO_SHIFT)
+	// CP4("ctrl end", "move_end")
+	// CP4("ctrl shift end", "move_end", COMBO_SHIFT)
 	
 	CP4("alt j", "toggle_highlight")
 }

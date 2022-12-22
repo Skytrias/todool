@@ -82,14 +82,6 @@ copy_state_push_empty :: proc(state: ^Copy_State, text: string) {
 	})
 }
 
-// copy_state_push_folded :: proc(state: ^Copy_State, list: []int) -> (start, end: int) {
-// 	start = len(state.stored_folded)
-// 	resize(&state.stored_folded, start + len(list))
-// 	copy(state.stored_folded[start:], list)
-// 	end = len(state.stored_folded)
-// 	return
-// }
-
 // push a task to copy list
 copy_state_push_task :: proc(state: ^Copy_State, task: ^Task, fold_parent: int) {
 	// NOTE works with utf8 :) copies task text

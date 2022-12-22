@@ -573,7 +573,7 @@ keymap_editor_static_line_message :: proc(element: ^Element, msg: Message, di: i
 
 			// highlight second lines
 			if sl.index % 2 == 1 {
-				render_hovered_highlight(target, element.bounds)
+				render_hovered_highlight(target, element.bounds, 0.5)
 			}
 
 			if ke.menu.line == sl {

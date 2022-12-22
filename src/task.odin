@@ -1262,8 +1262,6 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				// return 0
 			}
 
-			task_highlight_render(target, false)
-
 			camx, camy := cam_offsets(cam)
 			bounds.l -= int(camx)
 			bounds.r -= int(camx)
@@ -1343,6 +1341,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
+			render_task_highlights(target, panel.clip)
 			search_draw_highlights(target, panel)
 
 			// word error highlight
@@ -1997,6 +1996,9 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			// render panel front color
 			task_color := theme_panel(task_has_children(task) ? .Parent : .Front)
+			if task.highlight {
+				task_color = color_blend(theme.caret, task_color, 0.1, false)
+			}
 			render_rect(target, rect, task_color, ROUNDNESS)
 
 			// draw tags at an offset
@@ -2811,10 +2813,23 @@ mode_panel_cam_freehand_off :: proc(cam: ^Pan_Camera) {
 	app.caret.alpha = 0
 }
 
-task_highlight_render :: proc(target: ^Render_Target, after: bool) {
-	// if app.task_highlight == nil {
-	// 	return
-	// }
+render_task_highlights :: proc(target: ^Render_Target, clip: RectI) {
+	// clipped := false
+
+	// for list_index in app.pool.filter {
+	// 	task := app_task_list(list_index)
+
+	// 	if task.highlight {
+	// 		if !clipped {
+	// 			render_push_clip(target, clip)
+	// 			clipped = true
+	// 		}
+
+	// 		bounds := rect_margin(task.element.bounds, -5)
+	// 		render_rect_outline(target, bounds, RED)
+	// 		// render_drop_shadow
+	// 	}
+	// } 
 
 	// // if 
 	// // 	after && mode_panel.mode == .List ||

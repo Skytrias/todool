@@ -36,6 +36,8 @@ Save_Flag :: enum u8 {
 	Link_Path, // u16be string len + [N]u8 byte data
 	Timestamp, // i64be included = time.Time
 	Folded, // NO data included u16be length + N * size_of(u32be)
+
+	Highlight,
 }
 Save_Flags :: bit_set[Save_Flag]
 
@@ -289,6 +291,9 @@ save_flags :: proc(
 		if task.filter_folded {
 			incl(&flags, Save_Flag.Folded)
 		}
+		if task.highlight {
+			incl(&flags, Save_Flag.Highlight)
+		}
 
 		// in case any flag was set, write them linearly in mem
 		if flags != {} {
@@ -357,29 +362,31 @@ save_all :: proc(file_path: string) -> (err: Save_Error) {
 		removed, _ = slice.map_keys(list, context.temp_allocator)
 		slice.sort(removed[:])
 
-		// find lowest removed node
-		last_removed: bool
-		removed_index := len(removed) - 1
 		valid_length = len(app.pool.list)
-		for list_index := len(app.pool.list) - 1; list_index >= 0; list_index -= 1 {
-			if removed_index >= 0 && removed[removed_index] == list_index {
-				last_removed = true
-				removed_index -= 1
-			} else {
-				if last_removed {
-					valid_length = list_index + 1
-				}
 
-				// stop even if length wasnt set
-				break
-			}
-		}
+		// // find lowest removed node
+		// last_removed: bool
+		// removed_index := len(removed) - 1
+		// valid_length = len(app.pool.list)
+		// for list_index := len(app.pool.list) - 1; list_index >= 0; list_index -= 1 {
+		// 	if removed_index >= 0 && removed[removed_index] == list_index {
+		// 		last_removed = true
+		// 		removed_index -= 1
+		// 	} else {
+		// 		if last_removed {
+		// 			valid_length = list_index + 1
+		// 		}
+
+		// 		// stop even if length wasnt set
+		// 		break
+		// 	}
+		// }
 		
 		// if valid_length != 0 {
 		// 	t := app.pool.list[valid_length - 1]
 		// 	fmt.eprintln("SEE", t.removed, valid_length)
 		// }
-
+// 
 		return
 	}
 	
@@ -524,7 +531,8 @@ load_data :: proc(data: ^[]u8) -> (err: Save_Error) {
 				// init data but put it on the free list
 				if skip {
 					// fmt.eprintln("\tFREED at", i)
-					task_init(0, "", false)
+					task := task_init(0, "", false)
+					task.removed = true
 					
 					// append to free list
 					append(&app.pool.free_list, int(i))
@@ -604,6 +612,9 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 				}
 				if .Seperator in flags {
 					task_set_seperator(task, true)
+				}
+				if .Highlight in flags {
+					task.highlight = true
 				}
 
 				// NOTE advance dependant should not go out of order!
@@ -962,7 +973,6 @@ json_load_misc :: proc(path: string) -> bool {
 		// cap to defaults
 		if misc.hidden.fps >= 30 {
 			FPS = clamp(misc.hidden.fps, 30, 240)
-			fmt.eprintln(FPS, misc.hidden.fps)
 		}
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
@@ -1272,7 +1282,8 @@ keymap_load :: proc(path: string) -> bool {
 	section_read(&app.keymap_vim_normal, &content, "[VIM-NORMAL]") or_return
 	section_read(&app.keymap_vim_insert, &content, "[VIM-INSERT]") or_return
 
-	keymap_force_push_latest()
+	keymap_force_push_latest(&app.window_main.keymap_custom)
+	keymap_force_push_latest(&app.keymap_vim_normal)
 
 	return true
 }

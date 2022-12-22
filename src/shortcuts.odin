@@ -1139,8 +1139,11 @@ undo_task_remove_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 	task := app_task_list(data.list_index)
 	task.removed = true
 
-	ordered_remove(&app.pool.filter, data.filter_index)
+	if !task.filter_folded {
+		clear(&task.filter_children)
+	}
 
+	ordered_remove(&app.pool.filter, data.filter_index)
 	undo_push(manager, undo_task_insert_at, &output, size_of(Undo_Item_Task_Insert_At))
 }
 
@@ -1155,7 +1158,6 @@ undo_task_insert_at :: proc(manager: ^Undo_Manager, item: rawptr) {
 		data.filter_index,
 		data.list_index,
 	}
-
 	undo_push(manager, undo_task_remove_at, &output, size_of(Undo_Item_Task_Remove_At))
 }
 
@@ -1181,6 +1183,10 @@ undo_task_pop :: proc(manager: ^Undo_Manager, item: rawptr) {
 	task := app_task_filter(len(app.pool.filter) - 1)
 	task.removed = true
 	
+	// NOTE
+	// might need to clear children
+	// but techinically not possible to pop the last task that has visible children
+
 	// gather the popped element before
 	output := Undo_Item_Task_Append { task.list_index }
 	
@@ -1781,10 +1787,10 @@ app_save_close :: proc() -> (handled: bool) {
 		}
 	}
 
-	if !handled {
-		// on non handle just destroy all windows
-		gs_destroy_all_windows()
-	}
+	// if !handled {
+	// 	// on non handle just destroy all windows
+	// 	gs_destroy_all_windows()
+	// }
 
 	return handled
 }
