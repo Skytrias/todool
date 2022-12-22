@@ -785,7 +785,6 @@ box_render_selection :: proc(
 		return
 	}
 
-	// back_color := color_alpha(theme_panel(.Front), 1)
 	state := wrap_state_init(&gs.fc, box.wrapped_lines, box.head, box.tail)
 	scaled_size := f32(state.isize / 10)
 	color := color_alpha(color, alpha)

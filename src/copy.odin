@@ -30,6 +30,7 @@ Copy_Task :: struct #packed {
 	bookmarked: bool,
 	timestamp: time.Time,
 	highlight: bool,
+	separator: bool,
 	stored_image: ^Stored_Image,
 	link_start: u32,
 	link_end: u32,
@@ -109,10 +110,10 @@ copy_state_push_task :: proc(state: ^Copy_State, task: ^Task, fold_parent: int) 
 		u8(task.indentation),
 		task.state,
 		task.tags,
-		// task.folded,
 		task_bookmark_is_valid(task),
 		task_time_date_is_valid(task) ? task.time_date.stamp : {},
 		task.highlight,
+		task_separator_is_valid(task),
 		task.image_display == nil ? nil : task.image_display.img,
 		u32(link_start),
 		u32(link_end),
@@ -162,6 +163,10 @@ copy_state_paste_at :: proc(
 		task_set_bookmark(task, t.bookmarked)
 		task.tags = t.tags
 		task.highlight = t.highlight
+		
+		if t.separator {
+			task_set_separator(task, true)
+		}
 
 		if t.timestamp != {} {
 			task_set_time_date(task)

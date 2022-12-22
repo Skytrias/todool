@@ -43,6 +43,7 @@ TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
 TASK_SHADOW_ALPHA :: 0.5
 DRAG_CIRCLE :: 30
+SEPARATOR_SIZE :: 20
 
 Caret_State :: struct {
 	rect: RectI,
@@ -778,7 +779,7 @@ Task_Seperator :: struct {
 	using element: Element,
 }
 
-task_seperator_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+task_separator_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	sep := cast(^Task_Seperator) element
 
 	#partial switch msg {
@@ -799,7 +800,7 @@ task_seperator_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 
 		case .Right_Up, .Left_Up: {
 			task := cast(^Task) sep.parent
-			task_set_seperator(task, false)
+			task_set_separator(task, false)
 			element_repaint(&task.element)
 			return 1
 		}
@@ -808,15 +809,15 @@ task_seperator_message :: proc(element: ^Element, msg: Message, di: int, dp: raw
 	return 0
 }
 
-task_set_seperator :: proc(task: ^Task, show: bool) {
+task_set_separator :: proc(task: ^Task, show: bool) {
 	if task.seperator == nil {
-		task.seperator = element_init(Task_Seperator, &task.element, {}, task_seperator_message, context.allocator)
+		task.seperator = element_init(Task_Seperator, &task.element, {}, task_separator_message, context.allocator)
 	} 
 
 	element_hide(task.seperator, !show)
 }
 
-task_seperator_is_valid :: proc(task: ^Task) -> bool {
+task_separator_is_valid :: proc(task: ^Task) -> bool {
 	return task.seperator != nil && (.Hide not_in task.seperator.flags)
 }
 
@@ -1807,7 +1808,7 @@ task_layout :: proc(
 
 	// seperator
 	cut := bounds
-	if task_seperator_is_valid(task) {
+	if task_separator_is_valid(task) {
 		rect := rect_cut_top(&cut, int(20 * TASK_SCALE))
 
 		if move {
@@ -1972,7 +1973,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			line_size += draw_tags ? tag_mode_size(tag_mode) + int(5 * TASK_SCALE) : 0
 			line_size += image_display_has_content_soon(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
 			line_size += task_link_is_valid(task) ? element_message(task.button_link, .Get_Height) : 0
-			line_size += task_seperator_is_valid(task) ? int(20 * TASK_SCALE) : 0
+			line_size += task_separator_is_valid(task) ? int(SEPARATOR_SIZE * TASK_SCALE) : 0
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 2)
 			line_size += margin_scaled
 
@@ -2600,12 +2601,12 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	mbl(p, "Timestamp", "toggle_timestamp")
 
 	// if false && task != nil {
-	// 	b1_text := task_seperator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
+	// 	b1_text := task_separator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
 	// 	b1 := button_init(p, {}, b1_text)
 	// 	b1.invoke = proc(button: ^Button, data: rawptr) {
 	// 		task := app_task_head()
-	// 		valid := task_seperator_is_valid(task)
-	// 		task_set_seperator(task, !valid)
+	// 		valid := task_separator_is_valid(task)
+	// 		task_set_separator(task, !valid)
 			
 	// 		menu_close(button.window)
 	// 	}

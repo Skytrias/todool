@@ -30,7 +30,7 @@ SAVE_SIGNATURE_FLAGS := [8]u8 { 'F', 'L', 'A', 'G', 'S', '_', '_', '_' }
 Save_Flag :: enum u8 {
 	// simple
 	Bookmark,
-	Seperator,
+	Separator,
 
 	Image_Path, // u16be string len + [N]u8 byte data
 	Link_Path, // u16be string len + [N]u8 byte data
@@ -297,8 +297,8 @@ save_flags :: proc(
 		if task_bookmark_is_valid(task) {
 			incl(&flags, Save_Flag.Bookmark)
 		}
-		if task_seperator_is_valid(task) {
-			incl(&flags, Save_Flag.Seperator)
+		if task_separator_is_valid(task) {
+			incl(&flags, Save_Flag.Separator)
 		}
 		if image_display_has_path(task.image_display) {
 			incl(&flags, Save_Flag.Image_Path)
@@ -627,14 +627,19 @@ load_filter :: proc(data: ^[]u8) -> (err: Save_Error) {
 			box_head := advance_i64_int(&input) or_return
 			box_tail := advance_i64_int(&input) or_return
 
-			// TODO set head / tail
-
 			count := advance_u32_int(&input) or_return
 
 			index: u32be
 			for i in 0..<count {
 				advance_ptr(&input, &index, size_of(u32be)) or_return
 				append(&app.pool.filter, int(index))
+			}
+
+			// set tasks afterwards
+			if count != 0 {
+				task := app_task_head()
+				task.box.head = box_head
+				task.box.tail = box_tail
 			}
 		}
 		
@@ -662,8 +667,8 @@ load_flags :: proc(data: ^[]u8) -> (err: Save_Error) {
 				if .Bookmark in flags {
 					task_set_bookmark(task, true)
 				}
-				if .Seperator in flags {
-					task_set_seperator(task, true)
+				if .Separator in flags {
+					task_set_separator(task, true)
 				}
 				if .Highlight in flags {
 					task.highlight = true

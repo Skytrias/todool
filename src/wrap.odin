@@ -228,17 +228,18 @@ wrap_state_iter :: proc(
 		for codepoint, codepoint_index in cutf8.ds_iter(&ds, line) {
 			glyph := fontstash.__getGlyph(ctx, w.font, codepoint, w.isize, w.iblur)
 			index := w.codepoint_offset + codepoint_index
-
-			if w.codepoint_index_low <= index && index <= w.codepoint_index_high {
-				w.x_to = temp_x
-
-				if w.x_from == -1 {
-					w.x_from = w.x_to
-				}
-			}
+			old := temp_x
 
 			if glyph != nil {
 				fontstash.__getQuad(ctx, w.font, previous_glyph_index, glyph, w.scale, w.spacing, &temp_x, &temp_y, &q)
+			}
+
+			if w.codepoint_index_low <= index && index < w.codepoint_index_high  {
+				w.x_to = temp_x
+				
+				if w.x_from == -1 {
+					w.x_from = old
+				}
 			}
 
 			previous_glyph_index = glyph == nil ? -1 : glyph.index
@@ -246,11 +247,6 @@ wrap_state_iter :: proc(
 
 		w.y += 1
 		w.codepoint_offset += ds.codepoint_count
-
-		// include last glyph
-		if w.codepoint_offset == w.codepoint_index_high {
-			w.x_to = temp_x
-		}
 	}
 
 	return w.x_from != -1

@@ -309,17 +309,15 @@ keymap_push_combo_opt :: proc(
 	du: u32,
 ) {
 	command_index := keymap_find_command(keymap, command)
-	// fmt.eprintln("COMMAND INDEX", command_index)
 	res := keymap_command_find_combo(keymap, command_index, du)
 	
 	if res != nil {
 		c1 := string(res.combo[:res.combo_index])
 		real_cmd := keymap_get_command(keymap, command_index)
-		fmt.eprintln("FOUND ALREADY", command, "|", c1, real_cmd.name)
+		// fmt.eprintln("FOUND ALREADY", command, "|", c1, real_cmd.name)
 		return
 	}
 
-	fmt.eprintln("FORCE INSERTED", command)
 	append(&keymap.combos, Combo_Node {})
 	node := &keymap.combos[len(keymap.combos) - 1]
 	keymap_combo_set(keymap, node, combo, command, du)
@@ -482,6 +480,7 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	CP1("move_start", todool_move_start, "move to the start of the list")
 	CP1("move_end", todool_move_end, "move to the end of the list")
 	CP1("toggle_highlight", todool_toggle_highlight, "toggle highlight the selected tasks")
+	CP1("toggle_separator", todool_toggle_separator, "toggle separators on the selected tasks")
 }
 
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {
@@ -723,13 +722,14 @@ keymap_push_vim_insert_combos :: proc(keymap: ^Keymap) {
 
 keymap_force_push_latest :: proc(keymap: ^Keymap) {
 	__keymap_push = keymap
-	// CP4("alt a", "sort_locals")
-	// CP4("ctrl r", "toggle_timestamp")
+	CP4("alt a", "sort_locals")
+	CP4("ctrl r", "toggle_timestamp")
 
-	// CP4("ctrl home", "move_start")
-	// CP4("ctrl shift home", "move_start", COMBO_SHIFT)
-	// CP4("ctrl end", "move_end")
-	// CP4("ctrl shift end", "move_end", COMBO_SHIFT)
+	CP4("ctrl home", "move_start")
+	CP4("ctrl shift home", "move_start", COMBO_SHIFT)
+	CP4("ctrl end", "move_end")
+	CP4("ctrl shift end", "move_end", COMBO_SHIFT)	
 	
 	CP4("alt j", "toggle_highlight")
+	CP4("alt k", "toggle_separator")
 }

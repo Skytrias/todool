@@ -1029,10 +1029,20 @@ undo_task_swap :: proc(manager: ^Undo_Manager, item: rawptr) {
 // NOTE list index
 task_swap_animation :: proc(list_index: int) {
 	task := app_task_list(list_index)
-	task.top_offset = 0
 	task.top_animation_start = true
 	task.top_animating = true
-	task.top_old = task.element.bounds.t
+
+	if task_separator_is_valid(task) {
+		// offset by the separator properly as it doesnt count to the task bounds
+		task.top_old = task.element.bounds.t - int(SEPARATOR_SIZE * SCALE)
+		task.top_offset = -SEPARATOR_SIZE * SCALE
+		// task.top_old = task.element.bounds.t
+		// task.top_offset = 0
+ 	} else {
+		task.top_old = task.element.bounds.t
+		task.top_offset = 0
+ 	}
+
 	element_animation_start(&task.element)
 }
 
@@ -2239,6 +2249,19 @@ todool_toggle_highlight :: proc(du: u32) {
 	iter := lh_iter_init()
 	for task in lh_iter_step(&iter) {
 		task.highlight = !task.highlight
+	}
+
+	window_repaint(app.window_main)
+}
+
+todool_toggle_separator :: proc(du: u32) {
+	if app_filter_empty() {
+		return
+	}
+
+	iter := lh_iter_init()
+	for task in lh_iter_step(&iter) {
+		task_set_separator(task, !task_separator_is_valid(task))
 	}
 
 	window_repaint(app.window_main)
