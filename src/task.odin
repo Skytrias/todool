@@ -147,7 +147,11 @@ App :: struct {
 	save_string: string,
 
 	// focus
-	focus_task: ^Task,
+	focus: struct {
+		root: ^Task, // hard set ptr
+		start, end: int, // latest bounds
+		alpha: f32,
+	},
 }
 app: ^App
 
@@ -917,7 +921,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 	p := app_task_head()
 	color := theme.text_default
 
-	for p != nil && p != app.focus_task {
+	for p != nil && p != app.focus.root {
 		if p.visible_parent != nil {
 			bound_rect := RECT_INF
 
@@ -935,7 +939,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 			}
 
 			// stop after focus match
-			if p.visible_parent == app.focus_task {
+			if p.visible_parent == app.focus.root {
 				break
 			}
 		}
@@ -1130,7 +1134,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
-			list := task_focus_list()
+			list := app_focus_list()
 			for i := len(list) - 1; i >= 0; i -= 1 {
 				task := app_task_list(list[i])
 
@@ -1277,11 +1281,55 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			mode_panel_draw_verticals(target)
 
 			// custom draw loop!
-			// for list_index in app.pool.filter {
-			test := task_focus_list() 
-			for list_index in test {
-				task := app_task_list(list_index)
-				render_element_clipped(target, &task.element)
+			// if app.focus.root == nil {
+			// 	for list_index in app.pool.filter {
+			// 		task := app_task_list(list_index)
+			// 		render_element_clipped(target, &task.element)
+			// 	}
+			// } else {
+				// list := app_focus_list()
+			
+			alpha_animate := app_focus_alpha_animate()
+			if alpha_animate != 0 {
+				start := app.pool.filter[:app.focus.start]
+				shadow_color := color_alpha(theme.background[0], clamp(app.focus.alpha, 0, 1))
+
+				// inside focus
+				for list_index in start {
+					task := app_task_list(list_index)
+					render_element_clipped(target, &task.element)
+
+					render_push_clip(target, task.element.clip)
+					render_rect(target, task.element.bounds, shadow_color)
+				}
+
+				// NOTE! hard set
+				list := app.pool.filter[app.focus.start:app.focus.end]
+
+				// inside focus
+				for list_index in list {
+					task := app_task_list(list_index)
+					render_element_clipped(target, &task.element)
+				}
+
+				end := app.pool.filter[app.focus.end:]
+
+				// inside focus
+				for list_index in end {
+					task := app_task_list(list_index)
+					render_element_clipped(target, &task.element)
+
+					render_push_clip(target, task.element.clip)
+					render_rect(target, task.element.bounds, shadow_color)
+				}
+			} else {
+				list := app_focus_list()
+
+				// inside focus
+				for list_index in list {
+					task := app_task_list(list_index)
+					render_element_clipped(target, &task.element)
+				}
 			}
 
 			render_caret_and_outlines(target, panel.clip)
@@ -2943,10 +2991,10 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	gap := int(4 * TASK_SCALE)
 
 	// line_offset := options_vim_use() ? -task_head : 1
-	list := task_focus_list()
-	focus_start, focus_end := task_focus_bounds()
+	list := app_focus_list()
+	app_focus_bounds()
 	line_offset := TODOOL_RELEASE ? 1 : 0
-	line_offset += focus_start
+	line_offset += app.focus.root != nil ? app.focus.start : 0
 
 	for list_index, linear_index in list { 
 		t := app_task_list(list_index)
@@ -3203,15 +3251,17 @@ caret_state_render :: proc(target: ^Render_Target, using state: ^Caret_State) {
 
 caret_state_increase_alpha :: proc(using state: ^Caret_State) {
 	if caret_state_update_alpha(state) {
+		speed := visuals_animation_speed()
+
 		if alpha_forwards {
 			if alpha <= 1 {
-				alpha += gs.dt
+				alpha += gs.dt * speed
 			} else {
 				alpha_forwards = false
 			}
 		} else {
 			if alpha >= 0 {
-				alpha -= gs.dt
+				alpha -= gs.dt * speed
 			} else {
 				alpha_forwards = true
 			}
@@ -3289,6 +3339,63 @@ render_caret_and_outlines :: proc(target: ^Render_Target, clip: RectI) {
 		for i in high + 1..<len(app.pool.filter) {
 			task := app_task_filter(i)
 			render_rect(target, task.element.bounds, shadow_color)
+		}
+	}
+}
+
+// wether or not to update the focus alpha
+app_focus_alpha_animate :: proc() -> int {
+	if app.focus.root != nil {
+		return app.focus.alpha <= 1 ? 1 : 0
+	} else {
+		return app.focus.alpha >= 0 ? -1 : 0
+	}
+}
+
+app_focus_alpha_update :: proc() {
+	direction := app_focus_alpha_animate()
+	
+	if direction != 0 {
+		if visuals_use_animations() {
+			speed := visuals_animation_speed()
+			app.focus.alpha += f32(direction) * gs.dt * speed * 8
+		} else {
+			// quickly set the alpha manually
+			if direction == 1 {
+				app.focus.alpha = 1
+			} else {
+				app.focus.alpha = 0
+			}
+		}
+	}
+}
+
+// get focus slice or 
+app_focus_list :: proc() -> (res: []int) {
+	if app.focus.root != nil {
+		start := app.focus.root.filter_index
+		end := app.focus.root.filter_index + 1
+
+		if !app.focus.root.filter_folded {
+			end += len(app.focus.root.filter_children)
+		}
+
+		res = app.pool.filter[start:end]
+	} else {
+		res = app.pool.filter[:]
+	}
+
+	return
+}
+
+// get start/end of the focus range
+app_focus_bounds :: proc(){
+	if app.focus.root != nil {
+		app.focus.start = app.focus.root.filter_index
+		app.focus.end = app.focus.root.filter_index + 1
+
+		if !app.focus.root.filter_folded {
+			app.focus.end += len(app.focus.root.filter_children)
 		}
 	}
 }

@@ -54,6 +54,7 @@ main :: proc() {
 		handled |= caret_state_update_alpha(&app.caret)
 		handled |= caret_state_update_outline(&app.caret)
 		handled |= caret_state_update_multi(&app.caret)
+		handled |= app_focus_alpha_animate() != 0
 		return
 	}
 	window.name = "MAIN"
@@ -301,13 +302,15 @@ main_update :: proc(window: ^Window) {
 	}
 
 	// check focus outside
-	if app_filter_not_empty() && app.focus_task != nil {
-		start, end := task_focus_bounds()
+	if app_filter_not_empty() && app.focus.root != nil {
+		app_focus_bounds()
 
-		if !(start <= app.task_head && app.task_head < end) || !task_has_children(app.focus_task) {
-			app.focus_task = nil
+		if !(app.focus.start <= app.task_head && app.task_head < app.focus.end) || !task_has_children(app.focus.root) {
+			app.focus.root = nil
 		}
 	}
+
+	app_focus_alpha_update()
 }
 
 window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

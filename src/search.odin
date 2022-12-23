@@ -120,7 +120,7 @@ search_update :: proc(pattern: string) {
 		defer string_finder_destroy(sf)
 
 		// find results
-		list := task_focus_list()
+		list := app_focus_list()
 		for index in list {
 			task := app_task_list(index)
 			text := ss_string(&task.box.ss)
@@ -152,7 +152,7 @@ search_update :: proc(pattern: string) {
 		defer string_finder_destroy(sf)
 		
 		// find results
-		list := task_focus_list()
+		list := app_focus_list()
 		for index in list {
 			task := app_task_list(index)
 			text := ss_string(&task.box.ss)

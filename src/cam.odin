@@ -85,7 +85,7 @@ cam_update_check :: proc(using cam: ^Pan_Camera) {
 
 				case .Centered: {
 					cam_center_by_height_state(cam, app.mmpp.bounds, app.caret.rect.t)
-					fmt.eprintln(app.mmpp.bounds, app.caret.rect)
+					// fmt.eprintln(app.mmpp.bounds, app.caret.rect)
 				}
 			}
 		}

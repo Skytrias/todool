@@ -453,6 +453,12 @@ todool_selection_stop :: proc(du: u32) {
 }
 
 todool_escape :: proc(du: u32) {
+	if app.focus.root != nil {
+		app.focus.root = nil
+		window_repaint(app.window_main)
+		return
+	}
+
 	if image_display_has_content_now(app.custom_split.image_display) {
 		app.custom_split.image_display.img = nil
 		window_repaint(app.window_main)
@@ -1676,7 +1682,6 @@ todool_center :: proc(du: u32) {
 		cam := mode_panel_cam()
 		mode_panel_cam_freehand_off(cam)
 		cam_center_by_height_state(cam, app.mmpp.bounds, app.caret.rect.t)
-		fmt.eprintln("~~~", app.mmpp.bounds, app.caret.rect)
 	}
 }
 
@@ -2271,96 +2276,7 @@ todool_toggle_separator :: proc(du: u32) {
 	window_repaint(app.window_main)
 }
 
-// todool_focus_parent :: proc(du: u32) {
-// 	if app_filter_empty() {
-// 		return
-// 	}
-
-// 	// skip empty roots
-// 	task := app_task_head()
-// 	if task.indentation == 0 && !task_has_children(task) {
-// 		return
-// 	}
-
-// 	manager := mode_panel_manager_scoped()
-// 	task_head_tail_push(manager)
-
-// 	item := Undo_Item_Focus_Parent {}
-// 	undo_focus_parent(manager, &item)
-
-// 	// fmt.eprintln("yooo")
-
-// 	// x := &app.pool.filter
-// 	// y := &app.pool.filter_temp
-
-// 	// // set temp if it wasnt set yet
-// 	// if len(y) == 0 {
-// 	// 	task := app_task_head()
-// 	// 	task_original := task
-
-// 	// 	// insert parent if non parent
-// 	// 	if !task_has_children(task) {
-// 	// 		if task.visible_parent != nil {
-// 	// 			task = task.visible_parent
-// 	// 		}
-// 	// 	}
-
-// 	// 	// check for still nil, e.g. roots
-// 	// 	if task != nil {
-// 	// 		count := 1
-
-// 	// 		if !task.filter_folded {
-// 	// 			count += len(task.filter_children)
-// 	// 		} else {
-// 	// 			// optimize to only do one?
-// 	// 		}
-
-// 	// 		// save temp location
-// 	// 		app.pool.temp_index = task.filter_index
-			
-// 	// 		// copy the outside region into the temp
-// 	// 		resize(y, len(x) - count)
-// 	// 		copy(y[:], x[:task.filter_index])
-// 	// 		copy(y[task.filter_index:], x[task.filter_index + count:])
-
-// 	// 		// copy the region we want to the start and downscale
-// 	// 		copy(x[:], x[task.filter_index:task.filter_index + count])
-// 	// 		resize(x, count)
-
-// 	// 		app.keep_task_position = task
-
-// 	// 		// reposition cam
-// 	// 		cam := mode_panel_cam()
-// 	// 		cam_check(cam, .Bounds)
-// 	// 	}
-// 	// } else {
-// 	// 	task := app_task_head()
-// 	// 	app.keep_task_position = task
-		
-// 	// 	goal := app.pool.temp_index
-// 	// 	old_length := len(x)
-// 	// 	resize(x, len(y) + old_length)
-		
-// 	// 	// move result back to its origin
-// 	// 	copy(x[goal:], x[:old_length])
-
-// 	// 	// copy before
-// 	// 	copy(x[:goal], y[:goal])
-		
-// 	// 	// copy after
-// 	// 	copy(x[goal + old_length:], y[goal:])
-
-// 	// 	// reset
-// 	// 	clear(y)
-
-// 	// 	// reposition cam
-// 	// 	cam := mode_panel_cam()
-// 	// 	cam_check(cam, .Centered, 20)
-// 	// }
-
-// 	window_repaint(app.window_main)
-// }
-
+// toggle focusing a parent
 todool_focus_parent :: proc(du: u32) {
 	if app_filter_empty() {
 		return
@@ -2368,13 +2284,14 @@ todool_focus_parent :: proc(du: u32) {
 
 	task := app_task_head()
 	
-	if app.focus_task != nil {
-		// check if its the same parent, if so then remove focus
-		if task.visible_parent == app.focus_task {
-			app.focus_task = nil
-			return
-		} 
-	} 
+	// if app.focus.root != nil {
+	// 	// check if its the same parent, if so then remove focus
+	// 	if app.focus.root == task || task.visible_parent == app.focus.root {
+	// 		app.focus.root = nil
+	// 		return
+	// 	} 
+	// } 
+	// TODO
 
 	// insert parent if non parent
 	if !task_has_children(task) {
@@ -2384,38 +2301,8 @@ todool_focus_parent :: proc(du: u32) {
 	}
 
 	if task != nil {
-		app.focus_task = task
+		app.focus.root = task
 	}
 
 	window_repaint(app.window_main)
-}
-
-task_focus_list :: proc() -> (res: []int) {
-	if app.focus_task != nil {
-		start := app.focus_task.filter_index
-		end := app.focus_task.filter_index + 1
-
-		if !app.focus_task.filter_folded {
-			end += len(app.focus_task.filter_children)
-		}
-
-		res = app.pool.filter[start:end]
-	} else {
-		res = app.pool.filter[:]
-	}
-
-	return
-}
-
-task_focus_bounds :: proc() -> (start, end: int) {
-	if app.focus_task != nil {
-		start = app.focus_task.filter_index
-		end = app.focus_task.filter_index + 1
-
-		if !app.focus_task.filter_folded {
-			end += len(app.focus_task.filter_children)
-		}
-	}
-
-	return
 }
