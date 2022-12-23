@@ -1703,7 +1703,11 @@ gs_process_events :: proc() {
 	}
 }
 
-gs_update_dt :: proc() {
+gs_dt_start :: proc() {
+	gs.frame_start = sdl.GetPerformanceCounter()
+}
+
+gs_dt_end :: proc() {
 	// TODO could be bad cuz this is for multiple windows?
 	// TODO maybe time the section of time that was waited on?
 	// update frame counter
@@ -1765,7 +1769,7 @@ gs_message_loop :: proc() {
 		
 		// repaint all of the window
 		gs_draw_and_cleanup()
-		gs_update_dt()
+		gs_dt_end()
 
 		iter = gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {

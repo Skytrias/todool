@@ -166,6 +166,7 @@ save_tags :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 		buffer_write_color(buffer, theme.tags[i]) or_return
 	}
 
+	bytes.buffer_write_byte(buffer, u8(sb.tags.tag_show_mode)) or_return
 	return
 }
 
@@ -366,7 +367,6 @@ save_archive :: proc(buffer: ^bytes.Buffer, archive: ^Sidebar_Archive) -> (err: 
 	// write head / tail
 	buffer_write_int_i64(buffer, archive.head) or_return
 	buffer_write_int_i64(buffer, archive.tail) or_return
-	fmt.eprintln("WRITE", archive.head, archive.tail)
 
 	// count
 	c := panel_children(archive.buttons)
@@ -530,7 +530,6 @@ advance_u32_int :: proc(data: ^[]u8, loc := #caller_location) -> (result: int, e
 // check for done block 
 advance_check_done :: proc(data: []u8, loc := #caller_location) -> (err: Save_Error) {
 	if len(data) != 0 {
-		fmt.eprintln("LEN", len(data))
 		err = .Block_Not_Fully_Read
 		save_loc = loc		
 	}
@@ -564,6 +563,10 @@ load_tags :: proc(data: ^[]u8) -> (err: Save_Error) {
 				advance_ptr(&input, &color, size_of(u32)) or_return
 				theme.tags[i] = transmute(Color) color
 			}
+
+			mode := advance_byte(&input) or_return
+			sb.tags.tag_show_mode = int(mode)
+			toggle_selector_set(sb.tags.toggle_selector_tag, int(mode))
 		}
 
 		case: err = .Unsupported_Version
@@ -753,7 +756,6 @@ load_archive :: proc(data: ^[]u8, archive: ^Sidebar_Archive) -> (err: Save_Error
 			head := advance_i64_int(&input) or_return
 			tail := advance_i64_int(&input) or_return
 			count := advance_u32_int(&input) or_return
-			archive_reset(archive)
 
 			for i in 0..<count {
 				str := advance_string_u8(&input) or_return

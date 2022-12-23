@@ -1355,6 +1355,7 @@ todool_save :: proc(du: u32) {
 			default_path := gs_string_to_cstring(gs.pref_path)
 			file_patterns := [?]cstring { "*.todool" }
 			output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
+			gs_dt_start()
 			app.window_main.raise_next = true
 
 			if output != nil {
@@ -1409,6 +1410,7 @@ todool_load :: proc(du: u32) {
 
 	file_patterns := [?]cstring { "*.todool" }
 	output := tfd.open_file_dialog("Open", default_path, file_patterns[:])
+	gs_dt_start()
 	
 	if app.window_main.fullscreened {
 		window_hide(app.window_main)

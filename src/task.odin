@@ -2370,7 +2370,8 @@ tasks_load_reset :: proc() {
 
 	task_pool_clear(&app.pool)
 	spell_check_clear_user()
-	
+	archive_reset(&sb.archive)
+
 	undo_manager_reset(&app.um_task)
 	app.dirty = 0
 	app.dirty_saved = 0
