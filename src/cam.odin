@@ -16,13 +16,21 @@ Pan_Camera_Animation :: struct {
 	goal: int,
 }
 
+Cam_Check_Type :: enum {
+	Bounds,
+	Centered,
+}
+
 Pan_Camera :: struct {
 	start_x, start_y: int, // start of drag
 	offset_x, offset_y: f32,
 	margin_x, margin_y: int,
 
 	freehand: bool, // disables auto centering while panning
-	check_next_frame: bool,
+	
+	// check state
+	check_next_index: int,
+	check_next_type: Cam_Check_Type,
 
 	ay: Pan_Camera_Animation,
 	ax: Pan_Camera_Animation,
@@ -30,6 +38,11 @@ Pan_Camera :: struct {
 	// screenshake, running on power mode
 	screenshake_counter: f32,
 	screenshake_x, screenshake_y: f32,
+}
+
+cam_check :: proc(cam: ^Pan_Camera, type: Cam_Check_Type, frames := int(1)) {
+	cam.check_next_index = frames
+	cam.check_next_type = type
 }
 
 // update lifetime
@@ -57,13 +70,26 @@ cam_update_screenshake :: proc(using cam: ^Pan_Camera, update: bool) {
 	}
 }
 
-cam_update :: proc(using cam: ^Pan_Camera) {
-	if cam.check_next_frame {
-		mode_panel_cam_freehand_off(cam)
-		mode_panel_cam_bounds_check_x(cam, app.caret.rect.l, app.caret.rect.r, false, true)
-		mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
-		cam.check_next_frame = false
-	}	
+cam_update_check :: proc(using cam: ^Pan_Camera) {
+	if cam.check_next_index >= 0 {
+		cam.check_next_index -= 1
+
+		if cam.check_next_index == 0 {
+			mode_panel_cam_freehand_off(cam)
+			
+			switch cam.check_next_type {
+				case .Bounds: {
+					mode_panel_cam_bounds_check_x(cam, app.caret.rect.l, app.caret.rect.r, false, true)
+					mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
+				}
+
+				case .Centered: {
+					cam_center_by_height_state(cam, app.mmpp.bounds, app.caret.rect.t)
+					fmt.eprintln(app.mmpp.bounds, app.caret.rect)
+				}
+			}
+		}
+	}
 }
 
 // return offsets + screenshake

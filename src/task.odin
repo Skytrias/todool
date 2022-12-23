@@ -75,11 +75,6 @@ App :: struct {
 	// progress bars
 	task_state_progression: Task_State_Progression,
 	progressbars_alpha: f32, // animation
-
-	// focus
-	focusing: bool,
-	focus_head: int,
-	focus_tail: int,
 	main_thread_running: bool,
 
 	// keymap special
@@ -150,6 +145,9 @@ App :: struct {
 	// saving state
 	save_callback: proc(),
 	save_string: string,
+
+	// focus
+	focus_task: ^Task,
 }
 app: ^App
 
@@ -919,7 +917,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 	p := app_task_head()
 	color := theme.text_default
 
-	for p != nil {
+	for p != nil && p != app.focus_task {
 		if p.visible_parent != nil {
 			bound_rect := RECT_INF
 
@@ -934,6 +932,11 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 			if color.a == 255 {
 				color.a = 100
+			}
+
+			// stop after focus match
+			if p.visible_parent == app.focus_task {
+				break
 			}
 		}
 
@@ -1127,8 +1130,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
-			for i := len(app.pool.filter) - 1; i >= 0; i -= 1 {
-				task := app_task_filter(i)
+			list := task_focus_list()
+			for i := len(list) - 1; i >= 0; i -= 1 {
+				task := app_task_list(list[i])
 
 				if element_message(&task.element, .Find_By_Point_Recursive, 0, dp) == 1 {
 					return 1
@@ -1273,7 +1277,9 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			mode_panel_draw_verticals(target)
 
 			// custom draw loop!
-			for list_index in app.pool.filter {
+			// for list_index in app.pool.filter {
+			test := task_focus_list() 
+			for list_index in test {
 				task := app_task_list(list_index)
 				render_element_clipped(target, &task.element)
 			}
@@ -1464,7 +1470,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 					task := app_task_head()
 					diff_y := element.window.cursor_y - (task.element.bounds.t + rect_height_halfed(task.element.bounds))
 					todool_insert_sibling(diff_y < 0 ? COMBO_SHIFT : COMBO_EMPTY)
-					cam.check_next_frame = true
+					cam_check(cam, .Bounds)
 					return 1
 				}
 			}
@@ -2380,7 +2386,7 @@ tasks_load_reset :: proc() {
 tasks_load_tutorial :: proc() {
 	scaling_set(SCALE, 1)
 	cam := mode_panel_cam()
-	cam.check_next_frame = true
+	cam_check(cam, .Bounds)
 
 	// TODO add these to spell checker
 	@static load_indent := 0
@@ -2937,9 +2943,12 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	gap := int(4 * TASK_SCALE)
 
 	// line_offset := options_vim_use() ? -task_head : 1
+	list := task_focus_list()
+	focus_start, focus_end := task_focus_bounds()
 	line_offset := TODOOL_RELEASE ? 1 : 0
+	line_offset += focus_start
 
-	for list_index, linear_index in app.pool.filter { 
+	for list_index, linear_index in list { 
 		t := app_task_list(list_index)
 
 		// NOTE necessary as the modes could have the tasks at different positions
@@ -3248,6 +3257,7 @@ render_caret_and_outlines :: proc(target: ^Render_Target, clip: RectI) {
 	} else {
 		render_push_clip(target, clip)
 		shadow_color := color_alpha(theme.background[0], app.task_shadow_alpha)
+
 		app.caret.outline_goal = RECT_LERP_INIT
 		app.caret.motion_skip = true
 

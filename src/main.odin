@@ -297,7 +297,16 @@ main_update :: proc(window: ^Window) {
 	power_mode_set_caret_color()
 
 	for cam in &app.mmpp.cam {
-		cam_update(&cam)
+		cam_update_check(&cam)
+	}
+
+	// check focus outside
+	if app_filter_not_empty() && app.focus_task != nil {
+		start, end := task_focus_bounds()
+
+		if !(start <= app.task_head && app.task_head < end) || !task_has_children(app.focus_task) {
+			app.focus_task = nil
+		}
 	}
 }
 

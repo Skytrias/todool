@@ -479,6 +479,7 @@ keymap_push_todool_commands :: proc(keymap: ^Keymap) {
 	CP1("move_end", todool_move_end, "move to the end of the list")
 	CP1("toggle_highlight", todool_toggle_highlight, "toggle highlight the selected tasks")
 	CP1("toggle_separator", todool_toggle_separator, "toggle separators on the selected tasks")
+	CP1("focus_parent", todool_focus_parent, "focus parent WIP")
 }
 
 keymap_push_todool_combos :: proc(keymap: ^Keymap) {
@@ -730,4 +731,5 @@ keymap_force_push_latest :: proc(keymap: ^Keymap) {
 	
 	CP4("alt j", "toggle_highlight")
 	CP4("alt k", "toggle_separator")
+	CP4("alt h", "focus_parent")
 }

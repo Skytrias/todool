@@ -120,7 +120,8 @@ search_update :: proc(pattern: string) {
 		defer string_finder_destroy(sf)
 
 		// find results
-		for index in app.pool.filter {
+		list := task_focus_list()
+		for index in list {
 			task := app_task_list(index)
 			text := ss_string(&task.box.ss)
 			task_pushed: bool
@@ -151,7 +152,8 @@ search_update :: proc(pattern: string) {
 		defer string_finder_destroy(sf)
 		
 		// find results
-		for index in app.pool.filter {
+		list := task_focus_list()
+		for index in list {
 			task := app_task_list(index)
 			text := ss_string(&task.box.ss)
 			task_pushed: bool
