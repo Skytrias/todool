@@ -20,6 +20,10 @@ string_list_push_ptr :: proc(builder: ^strings.Builder, text: string) -> (res: s
 	return
 }
 
+inv_lerp :: proc(a, b, v: f32) -> f32 {
+	return (v - a) / (b - a)
+}
+
 // Bare data to copy task from
 Copy_Task :: struct #packed {
 	text_start: u32, // offset into text_list

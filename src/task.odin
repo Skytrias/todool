@@ -3162,13 +3162,21 @@ caret_state_render :: proc(target: ^Render_Target, using state: ^Caret_State) {
 			render_rect(target, r, color, 0)
 		}
 
+		// if pm_show() {
+		// 	task := app_task_head()
+		// 	xoff, yoff := cam_offsets(mode_panel_cam())
+		// 	color := theme_task_text(task.state)
+		// 	vert_off := DEFAULT_FONT_SIZE * TASK_SCALE / 2
+		// 	power_mode_spawn_at(motion_last_x, motion_last_y + vert_off, xoff, yoff, 1, color)
+		// }
+
 		motion_last_frame = true
 	} else {
 		motion_last_x = f32(rect.l)
 		motion_last_y = f32(rect.t)
 
 		color := color_alpha(theme.caret, real_alpha)
-		render_rect(target, app.caret.rect, color, 0)
+		render_rect(target, rect, color, 0)
 	}
 
 	// skip trail rendering

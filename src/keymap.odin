@@ -5,6 +5,7 @@ import "core:hash"
 import "core:mem"
 import "core:fmt"
 import "core:strings"
+import "../spall"
 import dll "core:container/intrusive/list"
 
 Command :: proc(u32)
@@ -200,13 +201,13 @@ keymap_combo_match :: proc(
 
 // execute a command by combo from a keymap
 keymap_combo_execute :: proc(keymap: ^Keymap, combo: string) -> bool {
-	// lookup last used for speedup
-	if keymap.combo_last != nil {
-		if cmd, ok := keymap_combo_match(keymap, keymap.combo_last, combo); ok {
-			cmd(keymap.combo_last.du)
-			return true
-		}
-	}
+	// // lookup last used for speedup
+	// if keymap.combo_last != nil {
+	// 	if cmd, ok := keymap_combo_match(keymap, keymap.combo_last, combo); ok {
+	// 		cmd(keymap.combo_last.du)
+	// 		return true
+	// 	}
+	// }
 
 	// lookup linear
 	for node in &keymap.combos {
@@ -267,8 +268,6 @@ keymap_push_command :: proc(
 		index_next = keymap.command_lut[h],
 	})
 
-	// fmt.eprintln("\tPUSH", h, len(keymap.commands) - 1)
-
 	// set this slot to the index
 	keymap.command_lut[h] = len(keymap.commands) - 1
 }
@@ -314,7 +313,6 @@ keymap_push_combo_opt :: proc(
 	if res != nil {
 		c1 := string(res.combo[:res.combo_index])
 		real_cmd := keymap_get_command(keymap, command_index)
-		// fmt.eprintln("FOUND ALREADY", command, "|", c1, real_cmd.name)
 		return
 	}
 

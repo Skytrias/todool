@@ -281,6 +281,9 @@ main_update :: proc(window: ^Window) {
 
 			// add spell checking results to user dictionary
 			spell_check_mapping_words_add(ss_string(&task.box.ss))
+
+			// save last state
+			// app.caret.last_state = task.state
 		}
 	}
 
@@ -331,7 +334,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				}
 
 				{
-					spall.scoped("keymap general execute")
+					spall.fscoped("keymap general execute %s", combo)
 					if keymap_combo_execute(&window.keymap_custom, combo) {
 						return 1
 					}
