@@ -2284,13 +2284,13 @@ todool_focus_parent :: proc(du: u32) {
 
 	task := app_task_head()
 	
-	// if app.focus.root != nil {
-	// 	// check if its the same parent, if so then remove focus
-	// 	if app.focus.root == task || task.visible_parent == app.focus.root {
-	// 		app.focus.root = nil
-	// 		return
-	// 	} 
-	// } 
+	if app.focus.root != nil {
+		// check if its the same parent, if so then remove focus
+		if app.focus.root == task || task.visible_parent == app.focus.root {
+			app.focus.root = nil
+			return
+		} 
+	} 
 	// TODO
 
 	// insert parent if non parent

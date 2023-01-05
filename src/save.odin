@@ -265,6 +265,13 @@ save_filter :: proc(buffer: ^bytes.Buffer) -> (err: Save_Error) {
 	buffer_write_int_i64(buffer, box_head) or_return
 	buffer_write_int_i64(buffer, box_tail) or_return
 
+	// write the focus root into
+	focus_index := -1
+	if app.focus.root != nil {
+		focus_index = app.focus.root.filter_index
+	}
+	buffer_write_int_i64(buffer, focus_index) or_return
+
 	// write the filter count
 	buffer_write_int_u32(buffer, len(app.pool.filter)) or_return
 
@@ -662,13 +669,20 @@ load_filter :: proc(data: ^[]u8) -> (err: Save_Error) {
 			
 			box_head := advance_i64_int(&input) or_return
 			box_tail := advance_i64_int(&input) or_return
-
+			
+			focus_index := advance_i64_int(&input) or_return
 			count := advance_u32_int(&input) or_return
 
 			index: u32be
 			for i in 0..<count {
 				advance_ptr(&input, &index, size_of(u32be)) or_return
 				append(&app.pool.filter, int(index))
+			}
+
+			// set focus afterwards
+			if focus_index != -1 {
+				app.focus.root = app_task_filter(focus_index)
+				app.focus.alpha = 1
 			}
 
 			// set tasks afterwards
