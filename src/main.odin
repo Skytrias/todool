@@ -470,7 +470,6 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				)
 			}
 
-
 			window_repaint(app.window_main)
 		}
 	}

@@ -76,8 +76,6 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 	#partial switch msg {
 		case .Layout: {
 			bounds := element.bounds
-			bottom, right := scrollbars_layout_prior(&bounds, td.hscrollbar, td.vscrollbar)
-			
 			// measure max string width and lines
 			iter := strings.to_string(td.builder)
 			width: int
@@ -89,9 +87,12 @@ changelog_text_display_message :: proc(element: ^Element, msg: Message, di: int,
 				line_count += 1
 			}
 
-			scrollbar_layout_post(
-				td.hscrollbar, bottom, width,
-				td.vscrollbar, right, line_count * scaled_size,
+			scrollbar_layout_help(
+				td.hscrollbar,
+				td.vscrollbar, 
+				element.bounds,
+				width,
+				line_count * scaled_size,
 			)
 		}
 

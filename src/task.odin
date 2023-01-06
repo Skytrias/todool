@@ -404,6 +404,8 @@ Task :: struct {
 	// flags
 	removed: bool,
 	highlight: bool,
+
+	keep_in_frame: bool,
 }
 
 Mode :: enum {
@@ -1162,6 +1164,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
 			task_min_width := int(max(300, (rect_widthf(panel.bounds) - 50) * TASK_SCALE))
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
+			// fmt.eprintln("GAPS", gap_vertical_scaled)
 
 			switch panel.mode {
 				case .List: {
@@ -1180,7 +1183,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						r := rect_cut_top(&cut, h)
 						r.l = r.l + int(task.indentation_smooth * f32(tab_scaled))
 						r.r = r.l + task_min_width
+
+						old := task.element.bounds
 						element_move(&task.element, r)
+
+						if task.keep_in_frame {
+							difft := old.t - task.element.bounds.t
+							diffb := old.b - task.element.bounds.b
+							fmt.eprintln("DIFF", difft, diffb)
+							task.keep_in_frame = false
+						}
 
 						cut.t += gap_vertical_scaled
 					}
@@ -1480,7 +1492,48 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Mouse_Scroll_Y: {
 			if element.window.ctrl {
-				scaling_set(SCALE, TASK_SCALE + f32(di) * 0.05)
+
+				inc := f32(di) * 0.01
+				scaling_set(SCALE, TASK_SCALE + inc)
+
+				task := app_task_head()
+				task.keep_in_frame = true
+
+				// old_scale := TASK_SCALE
+				// old_off := cam.offset_y
+				// cam.freehand = true
+
+				// task := app_task_head()
+				// height_before := element_message(&task.element, .Get_Height)
+
+				// inc := f32(di) * 0.01
+				// scaling_set(SCALE, TASK_SCALE + inc)
+				// fmt.eprintln("SCALING", TASK_SCALE)
+				
+				// if old_scale != TASK_SCALE {
+				// 	my := f32(element.window.cursor_y) - f32(element.bounds.t)
+					
+				// 	height_after := element_message(&task.element, .Get_Height)
+				// 	height_diff := (height_after - height_before)
+
+				// 	fmt.eprintln("height diff", height_diff, height_before, height_after)
+
+				// 	// height_off := f32(task.filter_index) * height_diff * 0.95
+				// 	height_off := (task.filter_index) * height_diff
+				// 	fmt.eprintln("\theight off", height_off)
+				// 	cam.offset_y -= f32(height_off)
+
+				// 	// off := old_scale * TASK_SCALE / DEFAULT_FONT_SIZE
+				// 	// cam.offset_y += off
+				// 	// diff := TASK_SCALE - old_scale
+				// 	// off := my / TASK_SCALE * diff
+				// 	// height_off := f32(task.filter_index) * height * inc
+				// 	// gap_off := f32(0)
+				// 	// fmt.eprintln("TRY", height_off, gap_off)
+				// 	// cam.offset_y -= (height_off + gap_off)
+				// }
+
+				// fmt.eprintln("TRY")
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
 				mode_panel_cam_freehand_on(cam)
@@ -2283,12 +2336,8 @@ goto_init :: proc(window: ^Window) {
 
 custom_split_set_scrollbars :: proc(split: ^Custom_Split) {
 	cam := mode_panel_cam()
-	if split.vscrollbar != nil {
-		split.vscrollbar.position = f32(-cam.offset_y)
-	}
-	if split.hscrollbar != nil {
-		split.hscrollbar.position = f32(-cam.offset_x)
-	}
+	scrollbar_position_set(split.vscrollbar, f32(-cam.offset_y))
+	scrollbar_position_set(split.hscrollbar, f32(-cam.offset_x))
 }
 
 custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -2317,15 +2366,20 @@ custom_split_message :: proc(element: ^Element, msg: Message, di: int, dp: rawpt
 			}
 
 			// avoid layouting twice
-			bottom, right := scrollbars_layout_prior(&bounds, split.hscrollbar, split.vscrollbar)
 			element_move(app.mmpp, bounds)
 
 			// scrollbar depends on result after mode panel layouting
-			task_bounds := task_total_bounds()
-			scrollbar_layout_post(
-				split.hscrollbar, bottom, rect_width(task_bounds),
-				split.vscrollbar, right, rect_height(task_bounds),
-			)
+			{
+				task_bounds := task_total_bounds()
+		
+				scrollbar_layout_help(
+					split.hscrollbar,
+					split.vscrollbar,
+					bounds,
+					rect_width(task_bounds),
+					rect_height(task_bounds),
+				)
+			}
 		}
 
 		case .Scrolled_X: {
@@ -2352,6 +2406,7 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	rect := split.window.rect
 
 	app.custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
+	app.custom_split.flags |= { .Sort_By_Z_Index }
 
 	when !PRESENTATION_MODE {
 		app.custom_split.vscrollbar = scrollbar_init(app.custom_split, {}, false, context.allocator)

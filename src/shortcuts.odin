@@ -2291,7 +2291,6 @@ todool_focus_parent :: proc(du: u32) {
 			return
 		} 
 	} 
-	// TODO
 
 	// insert parent if non parent
 	if !task_has_children(task) {
@@ -2304,5 +2303,6 @@ todool_focus_parent :: proc(du: u32) {
 		app.focus.root = task
 	}
 
+	app.task_tail = app.task_head
 	window_repaint(app.window_main)
 }
