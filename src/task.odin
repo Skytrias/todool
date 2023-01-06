@@ -113,7 +113,11 @@ App :: struct {
 	task_tail: int,
 	old_task_head: int,
 	old_task_tail: int,
+	
+	// scroll keeps
 	keep_task_position: Maybe(^Task),
+	keep_task_cam: Maybe(^Task),
+	keep_task_cam_rect: RectI,
 
 	// shadowing
 	task_shadow_alpha: f32,
@@ -404,8 +408,6 @@ Task :: struct {
 	// flags
 	removed: bool,
 	highlight: bool,
-
-	keep_in_frame: bool,
 }
 
 Mode :: enum {
@@ -1115,6 +1117,25 @@ find_same_indentation_forwards :: proc(visible_index: int, allow_lower: bool) ->
 	return
 }
 
+task_scale_factoring :: proc(di: int) -> (factor: f32) {
+	divisions := f32(di)
+	factor = f32(1)
+	per_division := f32(1.1)
+
+	for divisions > 0 {
+		factor *= per_division
+		divisions -= 1
+	}
+
+	for divisions < 0 {
+		factor /= per_division
+		divisions += 1
+	}
+
+	return
+}
+
+
 //////////////////////////////////////////////
 // messages
 //////////////////////////////////////////////
@@ -1166,6 +1187,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
 			// fmt.eprintln("GAPS", gap_vertical_scaled)
 
+			if task, ok := app.keep_task_cam.?; ok {
+				app.keep_task_cam_rect = task.element.bounds
+			}
+
 			switch panel.mode {
 				case .List: {
 					cut := bounds
@@ -1184,16 +1209,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						r.l = r.l + int(task.indentation_smooth * f32(tab_scaled))
 						r.r = r.l + task_min_width
 
-						old := task.element.bounds
 						element_move(&task.element, r)
-
-						if task.keep_in_frame {
-							difft := old.t - task.element.bounds.t
-							diffb := old.b - task.element.bounds.b
-							fmt.eprintln("DIFF", difft, diffb)
-							task.keep_in_frame = false
-						}
-
 						cut.t += gap_vertical_scaled
 					}
 				}
@@ -1268,6 +1284,25 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				mode_panel_cam_bounds_check_x(cam, app.caret.rect.r, app.caret.rect.r, false, true)
 				mode_panel_cam_bounds_check_y(cam, app.caret.rect.t, app.caret.rect.b, true)
 			}
+
+			// adjust cam based on task cam position diff
+			if task, ok := app.keep_task_cam.?; ok  {
+				diff_y := app.keep_task_cam_rect.t - task.element.bounds.t
+				diff_x := app.keep_task_cam_rect.l - task.element.bounds.l
+				
+				mx := diff_x
+				my := diff_y
+				// my := difft + (element.window.cursor_y - app.keep_task_cam_rect.t)
+				// my := difft - (element.window.cursor_y)
+
+				mode_panel_cam_freehand_on(cam)
+				cam_inc_y(cam, f32(my))
+				cam_inc_x(cam, f32(mx))
+				app.keep_task_cam = nil
+
+				// NOTE hack to just relayout with new cam offset!
+				element_message(element, .Layout)
+			}
 		}
 
 		case .Paint_Recursive: {
@@ -1285,10 +1320,32 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			}
 
 			camx, camy := cam_offsets(cam)
-			bounds.l -= int(camx)
-			bounds.r -= int(camx)
-			bounds.t -= int(camy)
-			bounds.b -= int(camy)
+			bounds.l += int(camx)
+			bounds.r += int(camx)
+			bounds.t += int(camy)
+			bounds.b += int(camy)
+			
+			// {
+			// 	r1 := bounds
+			// 	r1.r = r1.l + LINE_WIDTH
+			// 	render_rect(target, r1, RED)
+
+			// 	r2 := bounds
+			// 	r2.b = r2.t + LINE_WIDTH
+			// 	render_rect(target, r2, RED)
+
+			// 	r3 := bounds
+			// 	r3.b = r3.t
+			// 	r3.t = 0
+			// 	r3.r = r3.l + LINE_WIDTH
+			// 	render_rect(target, r3, BLUE)
+
+			// 	r4 := bounds
+			// 	r4.r = r4.l
+			// 	r4.l = 0
+			// 	r4.b = r4.t + LINE_WIDTH
+			// 	render_rect(target, r4, BLUE)
+			// }
 
 			mode_panel_draw_verticals(target)
 
@@ -1492,48 +1549,21 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Mouse_Scroll_Y: {
 			if element.window.ctrl {
+				factor := task_scale_factoring(di)
 
-				inc := f32(di) * 0.01
-				scaling_set(SCALE, TASK_SCALE + inc)
+				mx := element.window.cursor_x - element.bounds.l
+				my := element.window.cursor_y - element.bounds.t
+				// fmt.eprintln("XY", element.bounds.l, element.bounds.t)
+				// fmt.eprintln("MOUSE REL", my)
+				old := TASK_SCALE
+				scaling_set(SCALE, TASK_SCALE * factor)
+				// fmt.eprintln("SCALE", old, "->", TASK_SCALE)
+				cam_inc_x(cam, f32(mx) / TASK_SCALE * (1 - factor))
+				cam_inc_y(cam, f32(my) / TASK_SCALE * (1 - factor))
+				mode_panel_cam_freehand_on(cam)
 
 				task := app_task_head()
-				task.keep_in_frame = true
-
-				// old_scale := TASK_SCALE
-				// old_off := cam.offset_y
-				// cam.freehand = true
-
-				// task := app_task_head()
-				// height_before := element_message(&task.element, .Get_Height)
-
-				// inc := f32(di) * 0.01
-				// scaling_set(SCALE, TASK_SCALE + inc)
-				// fmt.eprintln("SCALING", TASK_SCALE)
-				
-				// if old_scale != TASK_SCALE {
-				// 	my := f32(element.window.cursor_y) - f32(element.bounds.t)
-					
-				// 	height_after := element_message(&task.element, .Get_Height)
-				// 	height_diff := (height_after - height_before)
-
-				// 	fmt.eprintln("height diff", height_diff, height_before, height_after)
-
-				// 	// height_off := f32(task.filter_index) * height_diff * 0.95
-				// 	height_off := (task.filter_index) * height_diff
-				// 	fmt.eprintln("\theight off", height_off)
-				// 	cam.offset_y -= f32(height_off)
-
-				// 	// off := old_scale * TASK_SCALE / DEFAULT_FONT_SIZE
-				// 	// cam.offset_y += off
-				// 	// diff := TASK_SCALE - old_scale
-				// 	// off := my / TASK_SCALE * diff
-				// 	// height_off := f32(task.filter_index) * height * inc
-				// 	// gap_off := f32(0)
-				// 	// fmt.eprintln("TRY", height_off, gap_off)
-				// 	// cam.offset_y -= (height_off + gap_off)
-				// }
-
-				// fmt.eprintln("TRY")
+				app.keep_task_cam = task
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
 				mode_panel_cam_freehand_on(cam)
@@ -1546,7 +1576,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Mouse_Scroll_X: {
 			if element.window.ctrl {
 			} else {
-				cam_inc_x(cam, f32(di) * 20)
+				cam_inc_x(cam, f32(di) * 25)
 				mode_panel_cam_freehand_on(cam)
 			}
 

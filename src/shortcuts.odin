@@ -2016,7 +2016,14 @@ todool_sort_locals :: proc(du: u32) {
 
 todool_scale :: proc(du: u32) {
 	amt := f32(du_pos_neg(du)) * 0.1
-	scaling_set(SCALE, TASK_SCALE + amt)
+	factor := task_scale_factoring(du_pos_neg(du))
+	scaling_set(SCALE, TASK_SCALE * factor)
+
+	if app_filter_not_empty() {
+		task := app_task_head()
+		app.keep_task_cam = task
+	}
+
 	window_repaint(app.window_main)
 }
 

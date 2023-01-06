@@ -29,7 +29,7 @@ TASK_SCALE := f32(1)
 LINE_WIDTH := 2
 ROUNDNESS :: 5
 SCALE_MIN :: 0.25
-SCALE_MAX :: 2
+SCALE_MAX :: 8
 HOVER_WIDTH :: 100
 
 scaling_set :: proc(global_scale: f32, task_scale: f32) {
