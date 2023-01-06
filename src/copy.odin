@@ -133,6 +133,7 @@ copy_state_push_task :: proc(state: ^Copy_State, task: ^Task, fold_parent: int) 
 		
 		for list_index in task.filter_children {
 			child := app_task_list(list_index)
+			fmt.eprintln("SAVE CHILD", task_string(child))
 			copy_state_push_task(state, child, parent)
 		}
 	}

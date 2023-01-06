@@ -27,17 +27,18 @@ Task_Pool :: struct {
 	list: [dynamic]Task, // storage for tasks, never change layout here
 	filter: [dynamic]int, // what to use
 	free_list: [dynamic]int, // empty indices that are allocated but unused from a save file
-
-	// temp storage
-	// filter_temp: [dynamic]int,
-	// temp_index: int, // where the region was extracted 
 }
 
 task_pool_push_new :: proc(pool: ^Task_Pool, check_freed: bool) -> (task: ^Task) {
 	if check_freed && len(pool.free_list) > 0 {
 		freed_index := pool.free_list[len(pool.free_list) - 1]
 		pop(&pool.free_list)
-		return &pool.list[freed_index]
+
+		// NOTE we need to set the removed flag to false again, as they could still be marked!
+		task = &pool.list[freed_index]
+		task.removed = false
+
+		return
 	}
 
 	index := len(pool.list)
@@ -67,33 +68,28 @@ task_pool_push_new :: proc(pool: ^Task_Pool, check_freed: bool) -> (task: ^Task)
 task_pool_init :: proc() -> (res: Task_Pool) {
 	res.list = make([dynamic]Task, 0, 256)
 	res.filter = make([dynamic]int, 0, 256)
-	// res.filter_temp = make([dynamic]int, 0, 256)
 	res.free_list = make([dynamic]int, 0, 64)
 	return
 }
 
 task_pool_clear :: proc(pool: ^Task_Pool) {
 	for task in &pool.list {
-		// element_destroy(&task)
 		element_destroy_and_deallocate(&task.element)
 	}
 
 	// TODO clear other data
 	clear(&pool.list)
 	clear(&pool.filter)
-	// clear(&pool.filter_temp)
 	clear(&pool.free_list)
 }
 
 task_pool_destroy :: proc(pool: ^Task_Pool) {
 	for task in &pool.list {
-		// element_destroy(&task)
 		element_destroy_and_deallocate(&task.element)
 	}
 
 	// TODO clear other data
 	delete(pool.list)
 	delete(pool.filter)
-	// delete(pool.filter_temp)
 	delete(pool.free_list)
 }

@@ -22,7 +22,7 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
-POOL_DEBUG :: false
+POOL_DEBUG :: true
 TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
