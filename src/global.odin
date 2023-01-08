@@ -26,6 +26,7 @@ import "../spall"
 FPS := f32(60) // 60fps
 SCALE := f32(1)
 TASK_SCALE := f32(1)
+TASK_SCALE_DEFAULT :: f32(1)
 LINE_WIDTH := 2
 ROUNDNESS :: 5
 SCALE_MIN :: 0.25
@@ -2269,6 +2270,8 @@ efont_size :: proc(element: ^Element) -> int {
 task_font_size :: proc(element: ^Element) -> int {
 	scaled_size := f32(element.font_options == nil ? DEFAULT_FONT_SIZE : element.font_options.size) * TASK_SCALE * 10
 	return int(i16(scaled_size) / 10)
+	// scaled_size := f32(element.font_options == nil ? DEFAULT_FONT_SIZE : element.font_options.size) * TASK_SCALE
+	// return int(scaled_size)
 }	
 
 fcs_icon :: proc(scaling: f32) -> int {

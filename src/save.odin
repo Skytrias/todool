@@ -402,17 +402,22 @@ save_all :: proc(file_path: string) -> (err: Save_Error) {
 	collect_sorted_removed_list :: proc() -> (removed: []int, valid_length: int) {
 		Empty :: struct {}
 
+		set :: proc(mapping: ^map[int]Empty, task: ^Task, list_index: int) {
+			mapping[list_index] = {}
+
+			// gather even children from tasks that were removed
+			// as they are also removed for saving
+			for child_index in task.filter_children {
+				child := &app.pool.list[child_index]
+				set(mapping, child, child_index)
+			}
+		}
+
 		// gather all removed lines in a non duplicate map
 		list := make(map[int]Empty, 256, context.temp_allocator)
-		for task, list_index in app.pool.list {
+		for task, list_index in &app.pool.list {
 			if task.removed {
-				list[list_index] = {}
-
-				// gather even children from tasks that were removed
-				// as they are also removed for saving
-				for child_index in task.filter_children {
-					list[child_index] = {}
-				}
+				set(&list, &task, list_index)
 			}
 		}
 

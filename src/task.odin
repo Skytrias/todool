@@ -1184,7 +1184,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			kanban_width_scaled := int(visuals_kanban_width() * TASK_SCALE)
 			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
 			task_min_width := int(max(300, (rect_widthf(panel.bounds) - 50) * TASK_SCALE))
-			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
+			// margin_scaled := int(visuals_task_margin() * TASK_SCALE)
+			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 10) / 10
 			// fmt.eprintln("GAPS", gap_vertical_scaled)
 
 			if task, ok := app.keep_task_cam.?; ok {
@@ -2507,6 +2508,7 @@ tasks_load_file :: proc() {
 tasks_load_reset :: proc() {
 	app.mmpp.mode = .List
 
+	scaling_set(SCALE, TASK_SCALE_DEFAULT)
 	task_pool_clear(&app.pool)
 	spell_check_clear_user()
 	archive_reset(&sb.archive)
