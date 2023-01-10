@@ -1194,8 +1194,212 @@ slider_set :: proc(slider: ^Slider, goal: f32) {
 }
 
 //////////////////////////////////////////////
-// checkbox
+// drag float/int
 //////////////////////////////////////////////
+
+Drag_Int :: struct {
+	using element: Element,
+	position: int,
+	low, high: int,
+	speed: int,
+	format: string,
+}
+
+drag_int_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	start: int,
+	x1: int,
+	x2: int,
+	speed: int,
+	format: string,
+) -> (res: ^Drag_Int) {
+	res = element_init(Drag_Int, parent, flags, drag_int_message, context.allocator)
+	res.format = format
+	res.speed = speed
+	
+	// just to make sure we arent dumb
+	low := min(x1, x2)
+	high := max(x1, x2)
+	res.position = clamp(start, low, high)
+	res.low = low
+	res.high = high
+
+	return
+}
+
+drag_int_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	drag := cast(^Drag_Int) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			render_rect_outline(target, element.bounds, text_color)
+			fcs_element(element)
+			fcs_color(text_color)
+
+			if hovered || pressed {
+				render_hovered_highlight(target, element.bounds)
+
+				fcs_ahv(.LEFT, .MIDDLE)
+				left := fmt.tprintf("%d", drag.low)
+				r := element.bounds
+				r.l += int(TEXT_PADDING * SCALE)
+				render_string_rect(target, r, left)
+
+				fcs_ahv(.RIGHT, .MIDDLE)
+				r = element.bounds
+				r.r -= int(TEXT_PADDING * SCALE)
+				right := fmt.tprintf("%d", drag.high)
+				render_string_rect(target, r, right)
+			}
+
+			text := fmt.tprintf(drag.format, drag.position)
+			fcs_ahv()
+			render_string_rect(target, element.bounds, text)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Resize_Horizontal)
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Get_Width: {
+			return int(SCALE * 100)
+		}
+
+		case .Get_Height: {
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+		}
+	}
+
+	if msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT {
+		old := drag.position
+		diff_x := element.window.cursor_x - element.window.cursor_x_old
+	
+		// apply only on mouse diff		
+		if diff_x != 0 {
+			direction := diff_x > 0 ? 1 : -1
+			drag.position = clamp(drag.position + drag.speed * direction, drag.low, drag.high)
+
+			if old != drag.position {
+				element_message(element, .Value_Changed)
+				element_repaint(element)
+			}
+		}
+	}
+
+	return 0
+}
+
+Drag_Float :: struct {
+	using element: Element,
+	position: f32,
+	low, high: f32,
+	speed: f32,
+	format: string,
+}
+
+drag_float_init :: proc(
+	parent: ^Element,
+	flags: Element_Flags,
+	start: f32,
+	x1: f32,
+	x2: f32,
+	speed: f32,
+	format: string,
+) -> (res: ^Drag_Float) {
+	res = element_init(Drag_Float, parent, flags, drag_float_message, context.allocator)
+	res.format = format
+	res.speed = speed
+	
+	// just to make sure we arent dumb
+	low := min(x1, x2)
+	high := max(x1, x2)
+	res.position = clamp(start, low, high)
+	res.low = low
+	res.high = high
+
+	return
+}
+
+drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
+	drag := cast(^Drag_Float) element
+
+	#partial switch msg {
+		case .Paint_Recursive: {
+			target := element.window.target
+			pressed := element.window.pressed == element
+			hovered := element.window.hovered == element
+			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			render_rect_outline(target, element.bounds, text_color)
+			fcs_element(element)
+			fcs_color(text_color)
+
+			if hovered || pressed {
+				render_hovered_highlight(target, element.bounds)
+
+				fcs_ahv(.LEFT, .MIDDLE)
+				left := fmt.tprintf("%.3f", drag.low)
+				r := element.bounds
+				r.l += int(TEXT_PADDING * SCALE)
+				render_string_rect(target, r, left)
+
+				fcs_ahv(.RIGHT, .MIDDLE)
+				r = element.bounds
+				r.r -= int(TEXT_PADDING * SCALE)
+				right := fmt.tprintf("%.3f", drag.high)
+				render_string_rect(target, r, right)
+			}
+
+			text := fmt.tprintf(drag.format, drag.position)
+			fcs_ahv()
+			render_string_rect(target, element.bounds, text)
+		}
+
+		case .Get_Cursor: {
+			return int(Cursor.Resize_Horizontal)
+		}
+
+		case .Update: {
+			element_repaint(element)
+		}
+
+		case .Get_Width: {
+			return int(SCALE * 100)
+		}
+
+		case .Get_Height: {
+			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+		}
+	}
+
+	if msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT {
+		old := drag.position
+		diff_x := element.window.cursor_x - element.window.cursor_x_old
+	
+		// apply only on mouse diff		
+		if diff_x != 0 {
+			direction := f32(diff_x > 0 ? 1 : -1)
+			drag.position = clamp(drag.position + drag.speed * direction, drag.low, drag.high)
+
+			if old != drag.position {
+				element_message(element, .Value_Changed)
+				element_repaint(element)
+			}
+		}
+	}
+
+	return 0
+}
 
 //////////////////////////////////////////////
 // checkbox
