@@ -1443,6 +1443,17 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				power_mode_render(target)
 			}
 
+			if true {
+				render_push_clip(target, panel.clip)
+				rect := panel.clip
+				rect.b = rect.t + 50
+				rect.l = rect.r - 300
+				ms := gs.dt * 1000
+				fps := 1 / gs.dt
+				text := fmt.tprintf("wanted %.fFPS    current: %.fFPS    %.5fms", FPS, fps, ms)
+				render_string_rect(target, rect, text)
+			}
+
 			bookmarks_render_connections(target, panel.clip)
 			render_line_highlights(target, panel.clip)
 			render_zoom_highlight(target, panel.clip)
@@ -3231,10 +3242,6 @@ caret_state_update_outline :: proc(using state: ^Caret_State) -> bool {
 		caret_motion() && 
 		!motion_skip && 
 		outline_goal != outline_current
-}
-
-caret_state_update_multi :: proc(using state: ^Caret_State) -> bool {
-	return caret_animate()
 }
 
 Motion_Rect_Iter :: struct {

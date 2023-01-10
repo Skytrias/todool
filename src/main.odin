@@ -54,7 +54,6 @@ main :: proc() {
 		handled |= caret_state_update_motion(&app.caret, true)
 		handled |= caret_state_update_alpha(&app.caret)
 		handled |= caret_state_update_outline(&app.caret)
-		handled |= caret_state_update_multi(&app.caret)
 		handled |= app_focus_alpha_animate() != 0
 		return
 	}

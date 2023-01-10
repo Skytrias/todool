@@ -1786,6 +1786,7 @@ gs_message_loop :: proc() {
 		// do this at last, makes sure the window runs at wanted FPS if not vsynced
 		step := f32(1) / FPS
 		gs.accumulator += gs.dt
+		// fmt.eprintln("MS", gs.dt * 1000,)
 		for gs.accumulator > step {
 			gs.accumulator -= step
 			
