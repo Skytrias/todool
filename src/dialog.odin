@@ -67,7 +67,8 @@ dialog_init :: proc(
 	window.update_next = true
 
 	// write content
-	window_animate(parent.window, &res.shadow, 1, .Quadratic_Out, time.Millisecond * 200)
+	element_animation_start(res)
+	// window_animate(parent.window, &res.shadow, 1, .Quadratic_Out, time.Millisecond * 200)
 	undo_manager_init(&res.um, mem.Kilobyte * 2)
 
 	// panel 
@@ -152,6 +153,12 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 				dialog_close(dialog.window)
 				return 1
 			}
+		}
+
+		case .Animate: {
+			handled := dialog.shadow >= 1
+			dialog.shadow = min(dialog.shadow + gs.dt * visuals_animation_speed(), 1)
+			return int(handled)
 		}
 	}
 

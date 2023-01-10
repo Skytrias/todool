@@ -114,3 +114,13 @@ bookmarks_render_connections :: proc(target: ^Render_Target, clip: RectI) {
 		count += 1
 	}
 }
+
+bookmark_alpha_animate :: proc() -> bool {
+	return bs.alpha > 0
+}
+
+bookmark_alpha_update :: proc() {
+	if bookmark_alpha_animate() {
+		bs.alpha = max(bs.alpha - gs.dt * visuals_animation_speed(), 0)
+	}
+}

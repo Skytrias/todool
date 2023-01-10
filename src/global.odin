@@ -146,9 +146,6 @@ Window :: struct {
 	update_next: bool,
 	update_check: proc(window: ^Window) -> bool, // for custom animation handling
 	target: ^Render_Target,
-	flux: ease.Flux_Map(f32), // can force an update
-	flux_had_animations: bool,
-	flux_render_last_frame: bool,
 
 	// sdl data
 	w: ^sdl.Window,
@@ -487,7 +484,6 @@ window_init :: proc(
 
 	keymap_init(&res.keymap_box, 16, 32)
 	keymap_init(&res.keymap_custom, command_cap, combos_cap)
-	res.flux = ease.flux_init(f32, 32)
 
 	// set hovered panel
 	{
@@ -1097,7 +1093,6 @@ window_deallocate :: proc(window: ^Window) {
 	keymap_destroy(&window.keymap_box)
 	keymap_destroy(&window.keymap_custom)
 
-	ease.flux_destroy(window.flux)
 	delete(window.drop_indices)
 	delete(window.drop_file_name_builder.buf)
 
@@ -1728,13 +1723,6 @@ gs_message_loop :: proc() {
 
 		// check prior for any window needing updates
 		iter := gs_windows_iter_head()
-		for w in dll.iterate_next(&iter) {
-			// fmt.eprintln("\tSTART?", w.update_next)
-			w.flux_had_animations = len(w.flux.values) != 0 
-			w.update_next |= (w.flux_had_animations || w.flux_render_last_frame)
-			w.flux_render_last_frame = false
-			// fmt.eprintln("\tFLUX?", w.update_next)
-		}
 
 		// forced animation, from exterior animation
 		iter = gs_windows_iter_head()
@@ -1788,18 +1776,6 @@ gs_message_loop :: proc() {
 				gs_dt_end()
 			}
 		}
-
-		iter = gs_windows_iter_head()
-		for w in dll.iterate_next(&iter) {
-			// TODO maybe window dt?
-			rate := f64(gs.dt)
-			ease.flux_update(&w.flux, rate)
-
-			// render last frame
-			if len(w.flux.values) == 0 && w.flux_had_animations {
-				w.flux_render_last_frame = true
-			}
-		}
 	}
 
 	theme_presets_destroy()
@@ -1827,27 +1803,27 @@ gs_process_animations :: proc() {
 	}
 }
  
-window_animate_forced :: proc(
-	window: ^Window,
-	value: ^f32,
-	to: f32,
-	type: ease.Ease = .Quadratic_Out,
-	duration: time.Duration = time.Second,
-	delay: f64 = 0,
-) {
-	flux_to_restricted(&window.flux, value, to, type, duration, delay)
-}
+// window_animate_forced :: proc(
+// 	window: ^Window,
+// 	value: ^f32,
+// 	to: f32,
+// 	type: ease.Ease = .Quadratic_Out,
+// 	duration: time.Duration = time.Second,
+// 	delay: f64 = 0,
+// ) {
+// 	flux_to_restricted(&window.flux, value, to, type, duration, delay)
+// }
 
-window_animate :: proc(
-	window: ^Window,
-	value: ^f32,
-	to: f32,
-	type: ease.Ease = .Quadratic_Out,
-	duration: time.Duration = time.Second,
-	delay: f64 = 0,
-) {
-	ease.flux_to(&window.flux, value, to, type, duration, delay)
-}
+// window_animate :: proc(
+// 	window: ^Window,
+// 	value: ^f32,
+// 	to: f32,
+// 	type: ease.Ease = .Quadratic_Out,
+// 	duration: time.Duration = time.Second,
+// 	delay: f64 = 0,
+// ) {
+// 	ease.flux_to(&window.flux, value, to, type, duration, delay)
+// }
 
 // version that stops ongoing animation on different goal
 flux_to_restricted :: proc(

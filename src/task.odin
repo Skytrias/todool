@@ -41,7 +41,7 @@ vim: Vim_State
 
 TAB_WIDTH :: 200
 TASK_DRAG_SIZE :: 80
-TASK_SHADOW_ALPHA :: 0.5
+TASK_SHADOW_ALPHA :: 0.75
 DRAG_CIRCLE :: 30
 SEPARATOR_SIZE :: 20
 
@@ -2188,6 +2188,12 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				}
 			}
 
+			// decrease state unit
+			if task.state_unit >= 0 {
+				task.state_unit = max(task.state_unit - gs.dt * visuals_animation_speed() * 4, 0)
+				handled = true
+			}
+
 			return int(handled)
 		}
 
@@ -3411,7 +3417,7 @@ render_caret_and_outlines :: proc(target: ^Render_Target, clip: RectI) {
 		}
 	} else {
 		render_push_clip(target, clip)
-		shadow_color := color_alpha(theme.background[0], app.task_shadow_alpha)
+		shadow_color := color_alpha(theme.background[0], app.task_shadow_alpha * TASK_SHADOW_ALPHA)
 
 		app.caret.outline_goal = RECT_LERP_INIT
 		app.caret.motion_skip = true
@@ -3548,4 +3554,22 @@ tasks_render_with_focus_animation :: proc(target: ^Render_Target) {
 			render_element_clipped(target, &task.element)
 		}
 	}
+}
+
+app_shadow_animate :: proc() -> bool {
+	return app.task_head != app.task_tail && app.task_shadow_alpha != 1
+}
+
+app_shadow_update :: proc() {
+	// reset
+	if app.task_head == app.task_tail {
+		app.task_shadow_alpha = 0
+	}
+
+	if app_shadow_animate() {
+		app.task_shadow_alpha = min(
+			app.task_shadow_alpha + gs.dt * visuals_animation_speed() * 8, 
+			1,
+		)		
+	}	
 }

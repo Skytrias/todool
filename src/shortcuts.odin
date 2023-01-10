@@ -228,7 +228,6 @@ todool_bookmark_jump :: proc(du: u32) {
 		vim.rep_task = nil
 
 		bs.alpha = 1
-		window_animate(app.window_main, &bs.alpha, 0, .Quadratic_Out, time.Second * 2)
 	}
 }
 
@@ -1111,8 +1110,9 @@ task_set_state_undoable :: proc(
 		// power mode spawn
 		power_mode_spawn_along_task_text(task, task_count)
 
+		// animate transition
+		element_animation_start(&task.element)
 		task.state_unit = 1
-		window_animate_forced(app.window_main, &task.state_unit, 0, .Quadratic_Out, time.Millisecond * 100)
 	}
 }
 

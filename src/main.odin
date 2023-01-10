@@ -57,6 +57,8 @@ main :: proc() {
 		handled |= mode_panel_zoom_running()
 		handled |= app_focus_alpha_animate() != 0
 		handled |= progressbars_animate()
+		handled |= app_shadow_animate()
+		handled |= bookmark_alpha_animate()
 		return
 	}
 	window.name = "MAIN"
@@ -166,17 +168,6 @@ main_update :: proc(window: ^Window) {
 	rendered_glyphs_clear()
 	wrapped_lines_clear()
 
-	// // animate progressbars 
-	// {
-	// 	state := progressbar_show()
-	// 	if state && app.progressbars_alpha == 0 {
-	// 		window_animate(window, &app.progressbars_alpha, 1, .Quadratic_In, time.Millisecond * 200)
-	// 	}
-	// 	if !state && app.progressbars_alpha == 1 {
-	// 		window_animate(window, &app.progressbars_alpha, 0, .Quadratic_In, time.Millisecond * 100)
-	// 	}
-	// }
-
 	task_set_children_info()
 	task_check_parent_states(&app.um_task)
 
@@ -226,23 +217,6 @@ main_update :: proc(window: ^Window) {
 	}
 
 	task_head_tail_clamp()
-
-	// shadow animation
-	{
-		// animate up
-		if 
-			app.task_head != app.task_tail &&
-			app.task_shadow_alpha == 0 {
-			window_animate_forced(window, &app.task_shadow_alpha, TASK_SHADOW_ALPHA, .Quadratic_Out, time.Millisecond * 100)
-		}
-
-		// animate down
-		if 
-			app.task_head == app.task_tail &&
-			app.task_shadow_alpha != 0 {
-			window_animate_forced(window, &app.task_shadow_alpha, 0, .Exponential_Out, time.Millisecond * 50)
-		}
-	}
 
 	// keep the head / tail at the position of the task you set it to at some point
 	if task, ok := app.keep_task_position.?; ok {
@@ -297,6 +271,8 @@ main_update :: proc(window: ^Window) {
 	app_focus_alpha_update()
 	mode_panel_zoom_update()
 	progressbars_update()
+	app_shadow_update()
+	bookmark_alpha_update()
 }
 
 window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

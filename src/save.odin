@@ -1137,6 +1137,10 @@ json_load_misc :: proc(path: string) -> bool {
 		drag_int_set(sb.options.visuals.animation_speed, misc.options.animation_speed)
 	}
 
+	if misc.options.fps != 0 {
+		drag_int_set(sb.options.visuals.fps, misc.options.fps)
+	}
+
 	// options
 	drag_int_set(sb.options.visuals.tab, misc.options.tab)
 	checkbox_set(sb.options.checkbox_autosave, misc.options.autosave)
