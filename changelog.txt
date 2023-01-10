@@ -1,3 +1,96 @@
+Version 0.4.0
+	Task Based
+		rework task highlights & allow multiple ones
+		panel highlight color now available
+		task vertical shifting animation ignores separator
+	UI
+		scrollbars are now floating and disappear an non usage
+		backing shadow when dialogs appear
+		save/load dialogs work better in fullscreen
+		windows reappear if they already exist
+		dialogs can use text boxes -> pattern import dialog
+		context menus now use menu buttons with keyboard command highlights
+	Menu Bar
+		icons added on the left of items
+		open locals folder
+		about dialog with version number
+	Shift Up / Down Rework
+		single shifts will also shift children around
+		multi shift will shift only the selected content
+		automatically opens folded content when tasks would result being inside a folded task
+	Based On Feedback
+		box word movement improved to ignore spaces properly
+		store undo/redo text harder when space is inserted
+		camera zooming improved to zoom near selection and mouse
+	Animations
+		motion trailing caret
+		caret alpha
+		character selection animation
+		task outline
+	Keymap Rework
+		show what a command does when hovering
+		fuzzy search command filtering
+		dialog that steals key combinations when up
+		highlight conflicting key commands
+		right click on lines to remove/add
+	Focus System
+		movement escapes focus region
+		press escape to quit focus
+		focus the same parent quits focus
+		only focus region interactable via mouse
+		focus new parent refocuses
+		rendering and other functionality like search is localized to focus region
+	Save File
+		reworked entirely -> will not load old save files
+		now saves all task data - visible content is only the data you see currently
+		task scale added
+		box head / tail now saved
+		all cameras added
+		extensible for new byte blobs
+		highlighted tasks are now saved
+	General
+		copy paste now includes newer task states properly (highlights, links, separators)
+		option to set FPS in hidden json
+		using hsluv color space for randomly generated colors
+		first task is no longer forced to be indentation zero
+		fallback fonts now added (noto-sans europe)
+		search state now saved + case sensitivity
+		case-insensitive search option added
+		pattern import now supports lua pattern matching
+	Theme Editor Rework
+		new color "panel highlight" added
+		use a grid for element layouts to reduce text
+		randomize and reset buttons as a menu bar
+		color picker is now a floating popup
+		pickable root color that will be used to generate other colors in the groups
+		variation in % to generate offspring from the root
+		keyboard navigation removed
+		added ~10 presets
+		press 1-9 to toggle between lock regions
+		press "space" to randomize all
+		press "return" to randomize tags only
+	Command Additions / Changes
+		"duplicate_line" now duplicates additional state too
+		"duplicate_line" nowworks with multi-selection
+		"change_state" only pushes undo step on changesqwe
+		"change_state" changes parent if all state changes would be the same
+		"insert_sibling" now inserts at the next same indentation
+		"insert_child" inserts at the end of the children
+		"sort_locals" now animates transitions
+		ctrl+j = "toggle_highlight" added - toggle a slight background highlight on task selection
+		alt+k = "toggle_separator" added - toggle a separator line on task selection
+		alt+h = "focus_parent" added - switch focus ranges from global to parent
+		"move_start" added - move to the start of the file
+		"move_end" added - move to the end of the file
+    Bugs
+	    wrapped lines selection rect doesnt cover last codepoint in line
+	    rightclick date has weird color reset on lower task
+	    mouse selection not working on line breaks fixed
+	    dialog cancel twice crash fixed
+	    clipboard changes now properly reset the priority of the next copy
+	    closing  windows out of  order doesnt crash anymore
+
+---------------------------------------------------------------------------------------------------
 Version 0.3.2
 	Demo Mode
 		Latest version builds are now added which can't save

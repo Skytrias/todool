@@ -23,8 +23,8 @@ import "../cutf8"
 import "../btrie"
 
 POOL_DEBUG :: false
-TRACK_MEMORY :: true
-TODOOL_RELEASE :: false
+TRACK_MEMORY :: false
+TODOOL_RELEASE :: true
 PRESENTATION_MODE :: false
 DEMO_MODE :: false // wether or not save&load are enabled
 VERSION :: "0.4.0"
