@@ -1228,6 +1228,17 @@ drag_int_init :: proc(
 	return
 }
 
+drag_int_set :: proc(drag: ^Drag_Int, to: int) {
+	old := drag.position
+	goal := clamp(to, drag.low, drag.high)
+	drag.position = goal
+	
+	if old != drag.position {
+		element_message(drag, .Value_Changed)
+		element_repaint(drag)
+	}
+}
+
 drag_int_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
 	drag := cast(^Drag_Int) element
 
@@ -1292,7 +1303,9 @@ drag_int_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		// apply only on mouse diff		
 		if diff_x != 0 {
 			direction := diff_x > 0 ? 1 : -1
-			drag.position = clamp(drag.position + drag.speed * direction, drag.low, drag.high)
+			modifier: f32 = element.window.shift ? 1.5 : element.window.ctrl ? 0.5 : 1
+			addition := int(f32(drag.speed * direction) * modifier)
+			drag.position = clamp(drag.position + addition, drag.low, drag.high)
 
 			if old != drag.position {
 				element_message(element, .Value_Changed)
@@ -1334,6 +1347,17 @@ drag_float_init :: proc(
 	res.high = high
 
 	return
+}
+
+drag_float_set :: proc(drag: ^Drag_Float, to: f32) {
+	old := drag.position
+	goal := clamp(to, drag.low, drag.high)
+	drag.position = goal
+	
+	if old != drag.position {
+		element_message(drag, .Value_Changed)
+		element_repaint(drag)
+	}
 }
 
 drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1406,7 +1430,9 @@ drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		// apply only on mouse diff		
 		if diff_x != 0 {
 			direction := f32(diff_x > 0 ? 1 : -1)
-			drag.position = clamp(drag.position + drag.speed * direction, drag.low, drag.high)
+			modifier: f32 = element.window.shift ? 1.5 : element.window.ctrl ? 0.5 : 1
+			addition := drag.speed * direction * modifier
+			drag.position = clamp(drag.position + addition, drag.low, drag.high)
 
 			if old != drag.position {
 				element_message(element, .Value_Changed)

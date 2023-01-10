@@ -826,7 +826,6 @@ Misc_Save_Load :: struct {
 	// not shown directly to the user,
 	hidden: struct {
 		scale: f32,
-		fps: f32,
 
 		font_regular_path: string,
 		font_bold_path: string,
@@ -838,27 +837,30 @@ Misc_Save_Load :: struct {
 		window_fullscreen: bool,
 		hide_statusbar: bool,
 		hide_menubar: bool,
-		window_opacity: f32,
-		animation_speed: f32,
 
 		last_save_location: string,
 	},
 
 	options: struct {
-		tab: f32,
+		tab: int,
 		autosave: bool,
 		invert_x: bool,
 		invert_y: bool,
 		uppercase_word: bool,
 		use_animations: bool,
-		bordered: bool,
+
+		opacity: f32,
 		volume: f32,
-		gap_horizontal: f32,
-		gap_vertical: f32,
-		kanban_width: f32,
-		task_margin: f32,
+		bordered: bool,
+
+		task_gap: int,
+		task_margin: int,
+		kanban_gap: int,
+		kanban_width: int,
 		vim: bool,
 		spell_checking: bool,
+		animation_speed: int,
+		fps: int,
 		
 		progressbar_show: bool,
 		progressbar_percentage: bool,
@@ -961,7 +963,6 @@ json_save_misc :: proc(path: string) -> bool {
 	value := Misc_Save_Load {
 		hidden = {
 			scale = SCALE,
-			fps = 60,
 
 			font_regular_path = gs.font_regular_path,
 			font_bold_path = gs.font_bold_path,
@@ -973,29 +974,30 @@ json_save_misc :: proc(path: string) -> bool {
 			window_fullscreen = app.window_main.fullscreened,
 			hide_statusbar = sb.options.checkbox_hide_statusbar.state,
 			hide_menubar = sb.options.checkbox_hide_menubar.state,
-			window_opacity = window_opacity_get(app.window_main),
-			// TODO
-			animation_speed = 0.4,
-			// animation_speed = sb.options.slider_animation_speed.position,
 
 			last_save_location = strings.to_string(app.last_save_location),
 		},
 
 		options = {
-			0,// TODO
+			visuals_tab(),
 			options_autosave(),
 			sb.options.checkbox_invert_x.state,
 			sb.options.checkbox_invert_y.state,
 			options_uppercase_word(),
 			visuals_use_animations(),
-			options_bordered(),
+			
+			window_opacity_get(app.window_main),
 			options_volume(),
-			0,// sb.options.slider_gap_horizontal.position,
-			0,// sb.options.slider_gap_vertical.position,
-			0,// sb.options.slider_kanban_width.position,
-			0,// sb.options.slider_task_margin.position,
+			options_bordered(),
+
+			sb.options.visuals.task_gap.position,
+			sb.options.visuals.task_margin.position,
+			sb.options.visuals.kanban_gap.position,
+			sb.options.visuals.kanban_width.position,
 			options_vim_use(),
 			options_spell_checking(),
+			sb.options.visuals.animation_speed.position,
+			visuals_fps(),
 
 			// progressbar
 			progressbar_show(),
@@ -1091,11 +1093,6 @@ json_load_misc :: proc(path: string) -> bool {
 
 	// hidden
 	{
-		// cap to defaults
-		if misc.hidden.fps >= 30 {
-			// FPS = clamp(misc.hidden.fps, 30, 240)
-		}
-
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {
 			total_width, total_height := gs_display_total_bounds()
 
@@ -1131,27 +1128,28 @@ json_load_misc :: proc(path: string) -> bool {
 		element_hide(statusbar.stat, misc.hidden.hide_statusbar)
 		checkbox_set(sb.options.checkbox_hide_menubar, misc.hidden.hide_menubar)
 		element_hide(app.task_menu_bar, misc.hidden.hide_menubar)
+	}
 
-		opacity := misc.hidden.window_opacity == 0 ? 1 : misc.hidden.window_opacity
-		// TODO
-		// slider_set(sb.options.slider_opacity, opacity)
-		// slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
+	opacity := misc.options.opacity == 0 ? 1 : misc.options.opacity
+	drag_float_set(sb.options.opacity, opacity)
+
+	if misc.options.animation_speed != 0 {
+		drag_int_set(sb.options.visuals.animation_speed, misc.options.animation_speed)
 	}
 
 	// options
-	// slider_set(sb.options.slider_tab, misc.options.tab)
+	drag_int_set(sb.options.visuals.tab, misc.options.tab)
 	checkbox_set(sb.options.checkbox_autosave, misc.options.autosave)
 	checkbox_set(sb.options.checkbox_invert_x, misc.options.invert_x)
 	checkbox_set(sb.options.checkbox_invert_y, misc.options.invert_y)
 	checkbox_set(sb.options.checkbox_uppercase_word, misc.options.uppercase_word)
-	// TODO
-	// checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
-	// checkbox_set(sb.options.checkbox_bordered, misc.options.bordered)
-	// slider_set(sb.options.slider_volume, misc.options.volume)
-	// slider_set(sb.options.slider_gap_horizontal, misc.options.gap_horizontal)
-	// slider_set(sb.options.slider_gap_vertical, misc.options.gap_vertical)
-	// slider_set(sb.options.slider_kanban_width, misc.options.kanban_width)
-	// slider_set(sb.options.slider_task_margin, misc.options.task_margin)
+	checkbox_set(sb.options.visuals.use_animations, misc.options.use_animations)
+	checkbox_set(sb.options.checkbox_bordered, misc.options.bordered)
+	drag_float_set(sb.options.volume, misc.options.volume)
+	drag_int_set(sb.options.visuals.kanban_gap, misc.options.kanban_gap)
+	drag_int_set(sb.options.visuals.kanban_width, misc.options.kanban_width)
+	drag_int_set(sb.options.visuals.task_gap, misc.options.task_gap)
+	drag_int_set(sb.options.visuals.task_margin, misc.options.task_margin)
 	checkbox_set(sb.options.checkbox_vim, misc.options.vim)
 	checkbox_set(sb.options.checkbox_spell_checking, misc.options.spell_checking)
 	
@@ -1165,32 +1163,29 @@ json_load_misc :: proc(path: string) -> bool {
 
 	// pomodoro
 	pomodoro.index = misc.pomodoro.index
-	// TODO
-	// slider_set(sb.stats.slider_pomodoro_work, f32(clamp(misc.pomodoro.work, 0, 60)) / 60)
-	// slider_set(sb.stats.slider_pomodoro_short_break, f32(clamp(misc.pomodoro.short_break, 0, 60)) / 60)
-	// slider_set(sb.stats.slider_pomodoro_long_break, f32(clamp(misc.pomodoro.long_break, 0, 60)) / 60)
+	drag_int_set(sb.stats.work, misc.pomodoro.work)
+	drag_int_set(sb.stats.short_break, misc.pomodoro.short_break)
+	drag_int_set(sb.stats.long_break, misc.pomodoro.long_break)
 	pomodoro.stopwatch.running = misc.pomodoro.stopwatch_running
 	pomodoro.stopwatch._accumulation = time.Duration(misc.pomodoro.stopwatch_acuumulation)
 
 	// line highlights
-	// TODO
-	// checkbox_set(sb.options.checkbox_line_highlight_use, misc.options.line_highlight_use)
-	// slider_set(sb.options.slider_line_highlight_alpha, misc.options.line_highlight_alpha)
+	checkbox_set(sb.options.line_highlight.use, misc.options.line_highlight_use)
+	drag_float_set(sb.options.line_highlight.alpha, misc.options.line_highlight_alpha)
 
 	// power mode
 	{
 		temp := &sb.options.pm	
 		using temp
 
-		// TODO
 		if misc.power_mode != {} {
-			// checkbox_set(ps_show, misc.power_mode.show)
-			// slider_set(p_lifetime, misc.power_mode.particle_lifetime)
-			// slider_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
-			// checkbox_set(p_colored, misc.power_mode.particle_colored)
-			// checkbox_set(s_use, misc.power_mode.screenshake_use)
-			// slider_set(s_amount, misc.power_mode.screenshake_amount)
-			// slider_set(s_lifetime, misc.power_mode.screenshake_lifetime)
+			checkbox_set(ps_show, misc.power_mode.show)
+			drag_float_set(p_lifetime, misc.power_mode.particle_lifetime)
+			drag_float_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
+			checkbox_set(p_colored, misc.power_mode.particle_colored)
+			checkbox_set(s_use, misc.power_mode.screenshake_use)
+			drag_float_set(s_amount, misc.power_mode.screenshake_amount)
+			drag_float_set(s_lifetime, misc.power_mode.screenshake_lifetime)
 		}
 	}
 	
@@ -1207,9 +1202,7 @@ json_load_misc :: proc(path: string) -> bool {
 	}
 	
 	// statistics
-	goal := clamp(misc.statistics.work_goal, 1, 24)
-	// TODO
-	// sb.stats.slider_work_today.position = f32(goal) / 24.0
+	drag_int_set(sb.stats.work_today, misc.statistics.work_goal)
 	pomodoro.accumulated = time.Duration(misc.statistics.accumulated)
 
 	pomodoro.stopwatch._start_time = time.tick_now()

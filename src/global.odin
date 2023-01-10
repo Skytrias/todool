@@ -1786,16 +1786,18 @@ gs_message_loop :: proc() {
 			}
 		}
 
-		// FPS = 240
-		wanted := f64(1) / f64(visuals_fps())
-		diff := wanted - elapsed_ms
-		goal := u32(diff * 1000)
+		// frame minimum, if vsync doesnt clamp it lower
+		{
+			wanted := f64(1) / f64(visuals_fps())
+			diff := wanted - elapsed_ms
+			goal := u32(diff * 1000)
 
-		// fmt.eprintln("GOAL", elapsed_ms, wanted, diff, goal)
-		if elapsed_ms < wanted {
-			// fmt.eprintln("\tSLEEP")
-			sdl.Delay(goal)
-			gs_dt_end()
+			// fmt.eprintln("GOAL", elapsed_ms, wanted, diff, goal)
+			if elapsed_ms < wanted && goal > 0 && goal < 500 {
+				// fmt.eprintln("\tSLEEP")
+				sdl.Delay(goal)
+				gs_dt_end()
+			}
 		}
 	}
 

@@ -373,14 +373,14 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		checkbox_vim = checkbox_init(panel, flags, "Use VIM bindings", false)
 		checkbox_spell_checking = checkbox_init(panel, flags, "Use Spell-Checking", false)
 	
-		volume = drag_float_init(panel, flags, 1, 0, 1, 0.05, "Volume: %.3f")
+		volume = drag_float_init(panel, flags, 1, 0, 1, 0.02, "Volume: %.3f")
 		volume.hover_info = "Volume of all sound effects"
 		volume.on_changed = proc(drag: ^Drag_Float) {
 			value := i32(drag.position * 128)
 			mix_volume_set(value)
 		}
 
-		opacity = drag_float_init(panel, flags, 1, 0.1, 1, 0.05, "Opacity: %.3f")
+		opacity = drag_float_init(panel, flags, 1, 0.1, 1, 0.02, "Opacity: %.3f")
 		opacity.hover_info = "Opacity of the main window"
 		opacity.on_changed = proc(drag: ^Drag_Float) {
 			window_opacity_set(app.window_main, drag.position)
@@ -390,7 +390,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		label_visuals := label_init(panel, { .HF, .Label_Center }, "Visuals")
 		label_visuals.font_options = &app.font_options_header
 
-		visuals.tab = drag_int_init(panel, flags, 20, 0, 200, 10, "Tab: %dpx")
+		visuals.tab = drag_int_init(panel, flags, 20, 0, 200, 5, "Tab: %dpx")
 		visuals.tab.hover_info = "Tab Indentation Width"
 		
 		visuals.kanban_gap = drag_int_init(panel, flags, 10, 0, 100, 5, "Kanban Gap: %dpx")
@@ -408,7 +408,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		visuals.animation_speed = drag_int_init(panel, flags, 100, 10, 400, 5, "Animation Speed: %d%%")
 		visuals.animation_speed.hover_info = "Animation speed multiplier of all linear animations"
 
-		visuals.fps = drag_int_init(panel, flags, 30, 10, 240, 5, "%dfps")
+		visuals.fps = drag_int_init(panel, flags, 60, 10, 240, 5, "Wanted FPS: %dfps")
 		visuals.fps.hover_info = "Set the minimum FPS, in case vsync isn't enabled, only used if vsync frequency is higher than FPS"
 
 		visuals.use_animations = checkbox_init(panel, flags, "Use Animations", true)
@@ -446,7 +446,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			header.font_options = &app.font_options_header
 
 			line_highlight.use = checkbox_init(panel, flags, "Show", false)
-			line_highlight.alpha = drag_float_init(panel, flags, 0.5, 0, 1, 0.05, "Alpha: %.3f")
+			line_highlight.alpha = drag_float_init(panel, flags, 0.5, 0, 1, 0.02, "Alpha: %.3f")
 			line_highlight.alpha.hover_info = "Alpha for line numbers"
 		}
 
@@ -461,10 +461,10 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 			ps_show = checkbox_init(panel, flags, "Show", false)
 
-			p_lifetime = drag_float_init(panel, flags, 0.5, 0.25, 2, 0.05, "Particle Lifetime: %.3f")
+			p_lifetime = drag_float_init(panel, flags, 0.5, 0.25, 2, 0.02, "Particle Lifetime: %.3f")
 			p_lifetime.hover_info = "Particle Lifetime Scaling - the higher the longer one stays alive"
 
-			p_alpha_scale = drag_float_init(panel, flags, 0.5, 0, 1, 0.05, "Particle Alpha: %.3f")
+			p_alpha_scale = drag_float_init(panel, flags, 0.5, 0, 1, 0.02, "Particle Alpha: %.3f")
 			p_alpha_scale.hover_info = "Particle Alpha Scale - the higher the more visible"
 
 			p_colored = checkbox_init(panel, flags, "Use Colors", true)
@@ -476,7 +476,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			s_amount = drag_float_init(panel, flags, 3, 1, 20, 1, "Screenshake Amount: %.0fpx")
 			s_amount.hover_info = "Screenshake Amount in px - the higher the more screenshake"
 
-			s_lifetime = drag_float_init(panel, flags, 1, 0, 1, 0.05, "Screenshake Multiplier: %.3f")
+			s_lifetime = drag_float_init(panel, flags, 1, 0, 1, 0.02, "Screenshake Multiplier: %.3f")
 			s_lifetime.hover_info = "Screenshake Multiplier - the lower the longer it screenshakes"
 		}
 	}
