@@ -2630,32 +2630,9 @@ task_context_menu_spawn :: proc(task: ^Task) {
 	mbs(p)
 	mbl(p, "Bookmark", "toggle_bookmark")
 	mbl(p, "Timestamp", "toggle_timestamp")
-
-	// if false && task != nil {
-	// 	b1_text := task_separator_is_valid(task) ? "Remove Seperator" : "Add Seperator"
-	// 	b1 := button_init(p, {}, b1_text)
-	// 	b1.invoke = proc(button: ^Button, data: rawptr) {
-	// 		task := app_task_head()
-	// 		valid := task_separator_is_valid(task)
-	// 		task_set_separator(task, !valid)
-			
-	// 		menu_close(button.window)
-	// 	}
-
-	// 	b2_text := app.task_highlight == task ? "Remove Highlight" : "Set Highlight"
-	// 	b2 := button_init(p, {}, b2_text)
-
-	// 	b2.invoke = proc(button: ^Button, data: rawptr) {
-	// 		task := app_task_head()
-	// 		if task == app.task_highlight {
-	// 			app.task_highlight = nil
-	// 		} else {
-	// 			app.task_highlight = task
-	// 		}
-
-	// 		menu_close(button.window)
-	// 	}
-	// }
+	mbl(p, "Separator", "toggle_separator")
+	mbl(p, "Highlight", "toggle_highlight")
+	mbl(p, "Focus", "focus_parent")
 }
 
 // Check if point is inside circle
@@ -3009,6 +2986,9 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		mbl(p, "Folding", "toggle_folding")
 		mbl(p, "Bookmark", "toggle_bookmark")
 		mbl(p, "Timestamp", "toggle_timestamp")
+		mbl(p, "Separator", "toggle_separator")
+		mbl(p, "Highlight", "toggle_highlight")
+		mbl(p, "Focus", "focus_parent")
 		mbs(p)
 		mbl(p, "Tag 1", "toggle_tag", COMBO_VALUE + 0x01)
 		mbl(p, "Tag 2", "toggle_tag", COMBO_VALUE + 0x02)
