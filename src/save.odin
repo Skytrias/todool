@@ -974,13 +974,15 @@ json_save_misc :: proc(path: string) -> bool {
 			hide_statusbar = sb.options.checkbox_hide_statusbar.state,
 			hide_menubar = sb.options.checkbox_hide_menubar.state,
 			window_opacity = window_opacity_get(app.window_main),
-			animation_speed = sb.options.slider_animation_speed.position,
+			// TODO
+			animation_speed = 0.4,
+			// animation_speed = sb.options.slider_animation_speed.position,
 
 			last_save_location = strings.to_string(app.last_save_location),
 		},
 
 		options = {
-			visuals_tab(),
+			0,// TODO
 			options_autosave(),
 			sb.options.checkbox_invert_x.state,
 			sb.options.checkbox_invert_y.state,
@@ -988,10 +990,10 @@ json_save_misc :: proc(path: string) -> bool {
 			visuals_use_animations(),
 			options_bordered(),
 			options_volume(),
-			sb.options.slider_gap_horizontal.position,
-			sb.options.slider_gap_vertical.position,
-			sb.options.slider_kanban_width.position,
-			sb.options.slider_task_margin.position,
+			0,// sb.options.slider_gap_horizontal.position,
+			0,// sb.options.slider_gap_vertical.position,
+			0,// sb.options.slider_kanban_width.position,
+			0,// sb.options.slider_task_margin.position,
 			options_vim_use(),
 			options_spell_checking(),
 
@@ -1001,8 +1003,11 @@ json_save_misc :: proc(path: string) -> bool {
 			progressbar_hover_only(),
 
 			// line highlights
-			sb.options.checkbox_line_highlight_use.state,
-			sb.options.slider_line_highlight_alpha.position,
+			// TODO
+			false,
+			0,
+			// sb.options.checkbox_line_highlight_use.state,
+			// sb.options.slider_line_highlight_alpha.position,
 		},
 
 		pomodoro = {
@@ -1028,7 +1033,7 @@ json_save_misc :: proc(path: string) -> bool {
 
 		statistics = {
 			int(pomodoro.accumulated),
-			int(sb.stats.slider_work_today.position * 24),
+			sb.stats.work_today.position,
 		},
 
 		theme = theme_save,
@@ -1128,59 +1133,64 @@ json_load_misc :: proc(path: string) -> bool {
 		element_hide(app.task_menu_bar, misc.hidden.hide_menubar)
 
 		opacity := misc.hidden.window_opacity == 0 ? 1 : misc.hidden.window_opacity
-		slider_set(sb.options.slider_opacity, opacity)
-		slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
+		// TODO
+		// slider_set(sb.options.slider_opacity, opacity)
+		// slider_set(sb.options.slider_animation_speed, misc.hidden.animation_speed)
 	}
 
 	// options
-	slider_set(sb.options.slider_tab, misc.options.tab)
+	// slider_set(sb.options.slider_tab, misc.options.tab)
 	checkbox_set(sb.options.checkbox_autosave, misc.options.autosave)
 	checkbox_set(sb.options.checkbox_invert_x, misc.options.invert_x)
 	checkbox_set(sb.options.checkbox_invert_y, misc.options.invert_y)
 	checkbox_set(sb.options.checkbox_uppercase_word, misc.options.uppercase_word)
-	checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
-	checkbox_set(sb.options.checkbox_bordered, misc.options.bordered)
-	slider_set(sb.options.slider_volume, misc.options.volume)
-	slider_set(sb.options.slider_gap_horizontal, misc.options.gap_horizontal)
-	slider_set(sb.options.slider_gap_vertical, misc.options.gap_vertical)
-	slider_set(sb.options.slider_kanban_width, misc.options.kanban_width)
-	slider_set(sb.options.slider_task_margin, misc.options.task_margin)
+	// TODO
+	// checkbox_set(sb.options.checkbox_use_animations, misc.options.use_animations)
+	// checkbox_set(sb.options.checkbox_bordered, misc.options.bordered)
+	// slider_set(sb.options.slider_volume, misc.options.volume)
+	// slider_set(sb.options.slider_gap_horizontal, misc.options.gap_horizontal)
+	// slider_set(sb.options.slider_gap_vertical, misc.options.gap_vertical)
+	// slider_set(sb.options.slider_kanban_width, misc.options.kanban_width)
+	// slider_set(sb.options.slider_task_margin, misc.options.task_margin)
 	checkbox_set(sb.options.checkbox_vim, misc.options.vim)
 	checkbox_set(sb.options.checkbox_spell_checking, misc.options.spell_checking)
 	
 	// progressbar 
-	checkbox_set(sb.options.checkbox_progressbar_show, misc.options.progressbar_show)
-	checkbox_set(sb.options.checkbox_progressbar_percentage, misc.options.progressbar_percentage)
-	checkbox_set(sb.options.checkbox_progressbar_hover_only, misc.options.progressbar_hover_only)
+	checkbox_set(sb.options.progressbar.show, misc.options.progressbar_show)
+	checkbox_set(sb.options.progressbar.percentage, misc.options.progressbar_percentage)
+	checkbox_set(sb.options.progressbar.hover_only, misc.options.progressbar_hover_only)
 
 	// theme
 	theme_load_from(misc.theme)
 
 	// pomodoro
 	pomodoro.index = misc.pomodoro.index
-	slider_set(sb.stats.slider_pomodoro_work, f32(clamp(misc.pomodoro.work, 0, 60)) / 60)
-	slider_set(sb.stats.slider_pomodoro_short_break, f32(clamp(misc.pomodoro.short_break, 0, 60)) / 60)
-	slider_set(sb.stats.slider_pomodoro_long_break, f32(clamp(misc.pomodoro.long_break, 0, 60)) / 60)
+	// TODO
+	// slider_set(sb.stats.slider_pomodoro_work, f32(clamp(misc.pomodoro.work, 0, 60)) / 60)
+	// slider_set(sb.stats.slider_pomodoro_short_break, f32(clamp(misc.pomodoro.short_break, 0, 60)) / 60)
+	// slider_set(sb.stats.slider_pomodoro_long_break, f32(clamp(misc.pomodoro.long_break, 0, 60)) / 60)
 	pomodoro.stopwatch.running = misc.pomodoro.stopwatch_running
 	pomodoro.stopwatch._accumulation = time.Duration(misc.pomodoro.stopwatch_acuumulation)
 
 	// line highlights
-	checkbox_set(sb.options.checkbox_line_highlight_use, misc.options.line_highlight_use)
-	slider_set(sb.options.slider_line_highlight_alpha, misc.options.line_highlight_alpha)
+	// TODO
+	// checkbox_set(sb.options.checkbox_line_highlight_use, misc.options.line_highlight_use)
+	// slider_set(sb.options.slider_line_highlight_alpha, misc.options.line_highlight_alpha)
 
 	// power mode
 	{
 		temp := &sb.options.pm	
 		using temp
 
+		// TODO
 		if misc.power_mode != {} {
-			checkbox_set(ps_show, misc.power_mode.show)
-			slider_set(p_lifetime, misc.power_mode.particle_lifetime)
-			slider_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
-			checkbox_set(p_colored, misc.power_mode.particle_colored)
-			checkbox_set(s_use, misc.power_mode.screenshake_use)
-			slider_set(s_amount, misc.power_mode.screenshake_amount)
-			slider_set(s_lifetime, misc.power_mode.screenshake_lifetime)
+			// checkbox_set(ps_show, misc.power_mode.show)
+			// slider_set(p_lifetime, misc.power_mode.particle_lifetime)
+			// slider_set(p_alpha_scale, misc.power_mode.particle_alpha_scale)
+			// checkbox_set(p_colored, misc.power_mode.particle_colored)
+			// checkbox_set(s_use, misc.power_mode.screenshake_use)
+			// slider_set(s_amount, misc.power_mode.screenshake_amount)
+			// slider_set(s_lifetime, misc.power_mode.screenshake_lifetime)
 		}
 	}
 	
@@ -1198,14 +1208,15 @@ json_load_misc :: proc(path: string) -> bool {
 	
 	// statistics
 	goal := clamp(misc.statistics.work_goal, 1, 24)
-	sb.stats.slider_work_today.position = f32(goal) / 24.0
+	// TODO
+	// sb.stats.slider_work_today.position = f32(goal) / 24.0
 	pomodoro.accumulated = time.Duration(misc.statistics.accumulated)
 
 	pomodoro.stopwatch._start_time = time.tick_now()
 	
 	// run everything
 	if pomodoro.stopwatch.running {
-		element_hide(sb.stats.button_pomodoro_reset, false)
+		element_hide(sb.stats.pomodoro_reset, false)
 	}
 
 	pomodoro_label_format()

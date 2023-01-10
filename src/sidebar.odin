@@ -11,11 +11,6 @@ import "core:strings"
 import "core:encoding/json"
 
 ARCHIVE_MAX :: 512
-GAP_HORIZONTAL_MAX :: 100
-GAP_VERTICAL_MAX :: 20
-KANBAN_WIDTH_MIN :: 300
-KANBAN_WIDTH_MAX :: 1000
-TASK_MARGIN_MAX :: 50
 OPACITY_MIN :: 0.1
 OPACITY_MAX :: 1.0
 ANIMATION_SPEED_MIN :: 0.1
@@ -92,44 +87,46 @@ Sidebar_Options :: struct {
 	checkbox_hide_menubar: ^Checkbox,
 	checkbox_vim: ^Checkbox,
 	checkbox_spell_checking: ^Checkbox,
-	slider_volume: ^Slider,
-	slider_opacity: ^Slider,
+	volume: ^Drag_Float,
+	opacity: ^Drag_Float,
 
 	// visuals
-	slider_tab: ^Slider,
-	slider_gap_vertical: ^Slider,
-	slider_gap_horizontal: ^Slider,
-	slider_kanban_width: ^Slider,
-	slider_task_margin: ^Slider,
-	slider_animation_speed: ^Slider,
-	checkbox_use_animations: ^Checkbox,	
-	
 	visuals: struct {
+		tab: ^Drag_Int,
 		fps: ^Drag_Int,
+		kanban_gap: ^Drag_Int,
+		kanban_width: ^Drag_Int,
+		task_gap: ^Drag_Int,
+		task_margin: ^Drag_Int,
+		animation_speed: ^Drag_Int,
+		use_animations: ^Checkbox,
 	},
 
 	// progressbar
-	checkbox_progressbar_show: ^Checkbox,
-	checkbox_progressbar_percentage: ^Checkbox,
-	checkbox_progressbar_hover_only: ^Checkbox,
+	progressbar: struct {
+		show: ^Checkbox,
+		percentage: ^Checkbox,
+		hover_only: ^Checkbox,
+	},
 
-	// line highleight,
-	checkbox_line_highlight_use: ^Checkbox,
-	slider_line_highlight_alpha: ^Slider,
+	line_highlight: struct {
+		use: ^Checkbox,
+		alpha: ^Drag_Float,
+	},
 
 	// powermode
 	pm: struct {
 		ps_show: ^Checkbox,
 
 		// particle
-		p_lifetime: ^Slider,
-		p_alpha_scale: ^Slider,
+		p_lifetime: ^Drag_Float,
+		p_alpha_scale: ^Drag_Float,
 		p_colored: ^Checkbox,
 
 		// screenshake
 		s_use: ^Checkbox,
-		s_amount: ^Slider,
-		s_lifetime: ^Slider,
+		s_amount: ^Drag_Float,
+		s_lifetime: ^Drag_Float,
 	},
 
 	caret: struct {
@@ -167,12 +164,12 @@ Sidebar_Archive :: struct {
 Sidebar_Stats :: struct {
 	panel: ^Panel,
 
-	slider_pomodoro_work: ^Slider,
-	slider_pomodoro_short_break: ^Slider,
-	slider_pomodoro_long_break: ^Slider,
-	button_pomodoro_reset: ^Icon_Button,
+	work: ^Drag_Int,
+	short_break: ^Drag_Int,
+	long_break: ^Drag_Int,
+	pomodoro_reset: ^Icon_Button,
 
-	slider_work_today: ^Slider,
+	work_today: ^Drag_Int,
 	gauge_work_today: ^Linear_Gauge,
 	label_time_accumulated: ^Label,
 }
@@ -242,18 +239,18 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		i1 := icon_button_init(app.panel_info, { .HF }, .PLAY_CIRCLED)
 		i1.hover_info = "Start / Stop Pomodoro Time"
 		i1.invoke = proc(button: ^Icon_Button, data: rawptr) {
-			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
+			element_hide(sb.stats.pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_toggle()
 		}
 		i2 := icon_button_init(app.panel_info, { .HF }, .STOP)
 		i2.invoke = proc(button: ^Icon_Button, data: rawptr) {
-			element_hide(sb.stats.button_pomodoro_reset, pomodoro.stopwatch.running)
+			element_hide(sb.stats.pomodoro_reset, pomodoro.stopwatch.running)
 			pomodoro_stopwatch_reset()
 			pomodoro_label_format()
 			sound_play(.Timer_Stop)
 		}
 		i2.hover_info = "Reset Pomodoro Time"
-		sb.stats.button_pomodoro_reset = i2
+		sb.stats.pomodoro_reset = i2
 		element_hide(i2, true)
 
 		sb.pomodoro_label = label_init(app.panel_info, { .HF, .Label_Center }, "00:00")
@@ -376,100 +373,54 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		checkbox_vim = checkbox_init(panel, flags, "Use VIM bindings", false)
 		checkbox_spell_checking = checkbox_init(panel, flags, "Use Spell-Checking", false)
 	
-		slider_volume = slider_init(panel, flags, 1)
-		slider_volume.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			slider := cast(^Slider) element
-
-			if msg == .Value_Changed {
-				value := i32(slider.position * 128)
-				mix_volume_set(value)
-			}
-
-			return 0
-		}
-		slider_volume.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Volume: %d%%", int(position * 100))
+		volume = drag_float_init(panel, flags, 1, 0, 1, 0.05, "Volume: %.3f")
+		volume.hover_info = "Volume of all sound effects"
+		volume.on_changed = proc(drag: ^Drag_Float) {
+			value := i32(drag.position * 128)
+			mix_volume_set(value)
 		}
 
-		slider_opacity = slider_init(panel, flags, 1)
-		slider_opacity.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-			slider := cast(^Slider) element
-
-			if msg == .Value_Changed {
-				window_opacity_set(app.window_main, clamp(slider.position, OPACITY_MIN, OPACITY_MAX))
-			}
-
-			return 0
-		}
-		slider_opacity.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Opacity: %d%%", int(position * 100))
+		opacity = drag_float_init(panel, flags, 1, 0.1, 1, 0.05, "Opacity: %.3f")
+		opacity.hover_info = "Opacity of the main window"
+		opacity.on_changed = proc(drag: ^Drag_Float) {
+			window_opacity_set(app.window_main, drag.position)
 		}
 
 		spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
 		label_visuals := label_init(panel, { .HF, .Label_Center }, "Visuals")
 		label_visuals.font_options = &app.font_options_header
 
-		slider_tab = slider_init(panel, flags, 0.25)
-		slider_tab.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Tab: %.3f%%", position)
-		}
-		slider_tab.hover_info = "Tab width in % of 200"
+		visuals.tab = drag_int_init(panel, flags, 20, 0, 200, 10, "Tab: %dpx")
+		visuals.tab.hover_info = "Tab Indentation Width"
 		
-		slider_gap_horizontal = slider_init(panel, flags, f32(10.0) / GAP_HORIZONTAL_MAX)
-		slider_gap_horizontal.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Gap Horizontal: %dpx", int(position * GAP_HORIZONTAL_MAX))
-		}
-		slider_gap_horizontal.hover_info = "Horizontal gap between kanbans"
-		
-		slider_gap_vertical = slider_init(panel, flags, f32(1.0) / GAP_VERTICAL_MAX)
-		slider_gap_vertical.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Gap Vertical: %dpx", int(position * GAP_VERTICAL_MAX))
-		}
-		slider_gap_vertical.hover_info = "Vertical gap between tasks"
+		visuals.kanban_gap = drag_int_init(panel, flags, 10, 0, 100, 5, "Kanban Gap: %dpx")
+		visuals.kanban_gap.hover_info = "Horizontal gap between kanbans"
 
-		kanban_default := math.remap(f32(300), KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX, 0, 1)
-		slider_kanban_width = slider_init(panel, flags, kanban_default)
-		slider_kanban_width.formatting = proc(builder: ^strings.Builder, position: f32) {
-			value := visuals_kanban_width()
-			fmt.sbprintf(builder, "Kanban Width: %dpx", int(value))
-		}
-		slider_kanban_width.hover_info = "Minimum Width of a Kanban"
+		visuals.kanban_width = drag_int_init(panel, flags, 300, 300, 1000, 20, "Kanban Width: %dpx")
+		visuals.kanban_width.hover_info = "Minimum width of a Kanban"
 
-		slider_task_margin = slider_init(panel, flags, f32(5.0) / TASK_MARGIN_MAX)
-		slider_task_margin.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Task Margin: %dpx", int(position * TASK_MARGIN_MAX))
-		}
-		slider_task_margin.hover_info = "Margin in px around a task"
+		visuals.task_gap = drag_int_init(panel, flags, 1, 0, 20, 1, "Task Gap: %dpx")
+		visuals.task_gap.hover_info = "Vertical gap between tasks"
 
-		animation_speed_default := math.remap(f32(1), ANIMATION_SPEED_MIN, ANIMATION_SPEED_MAX, 0, 1)
-		slider_animation_speed = slider_init(panel, flags, animation_speed_default)
-		slider_animation_speed.formatting = proc(builder: ^strings.Builder, position: f32) {
-			value := visuals_animation_speed()
-			fmt.sbprintf(builder, "Animation Speed: %d%%", int(value * 100))
-		}
-		slider_animation_speed.hover_info = "Animation speed multiplier of all linear animations"
+		visuals.task_margin = drag_int_init(panel, flags, 5, 0, 50, 1, "Task Margin: %dpx")
+		visuals.task_margin.hover_info = "Margin around tasks"
 
-		fps_default := math.remap(f32(60), FPS_MIN, FPS_MAX, 0, 1)
-		// slider_fps = slider_init(panel, flags, fps_default)
-		// slider_fps.formatting = proc(builder: ^strings.Builder, position: f32) {
-		// 	value := visuals_fps()
-		// 	fmt.sbprintf(builder, "FPS Minimum: %dfps", int(value))
-		// }
-		// slider_fps.apply_rounding = true
+		visuals.animation_speed = drag_int_init(panel, flags, 100, 10, 400, 5, "Animation Speed: %d%%")
+		visuals.animation_speed.hover_info = "Animation speed multiplier of all linear animations"
 
 		visuals.fps = drag_int_init(panel, flags, 30, 10, 240, 5, "%dfps")
 		visuals.fps.hover_info = "Set the minimum FPS, in case vsync isn't enabled, only used if vsync frequency is higher than FPS"
 
-		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
+		visuals.use_animations = checkbox_init(panel, flags, "Use Animations", true)
 	
 		// progressbar
 		{
 			spacer_init(panel, { .HF }, 0, spacer_scaled, .Empty)
 			header := label_init(panel, { .HF, .Label_Center }, "Progressbars")
 			header.font_options = &app.font_options_header
-			checkbox_progressbar_show = checkbox_init(panel, flags, "Show", true)
-			checkbox_progressbar_percentage = checkbox_init(panel, flags, "Use Percentage", false)
-			checkbox_progressbar_hover_only = checkbox_init(panel, flags, "Hover Only", false)
+			progressbar.show = checkbox_init(panel, flags, "Show", true)
+			progressbar.percentage = checkbox_init(panel, flags, "Use Percentage", false)
+			progressbar.hover_only = checkbox_init(panel, flags, "Hover Only", false)
 		}
 
 		// caret
@@ -494,12 +445,9 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			header := label_init(panel, { .HF, .Label_Center }, "Line Numbers")
 			header.font_options = &app.font_options_header
 
-			checkbox_line_highlight_use = checkbox_init(panel, flags, "Show", false)
-			slider_line_highlight_alpha = slider_init(panel, flags, 0.5)
-			slider_line_highlight_alpha.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "Alpha: %.3f", position)
-			}
-			slider_line_highlight_alpha.hover_info = "Alpha for line numbers"
+			line_highlight.use = checkbox_init(panel, flags, "Show", false)
+			line_highlight.alpha = drag_float_init(panel, flags, 0.5, 0, 1, 0.05, "Alpha: %.3f")
+			line_highlight.alpha.hover_info = "Alpha for line numbers"
 		}
 
 		// power mode
@@ -513,18 +461,10 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 			ps_show = checkbox_init(panel, flags, "Show", false)
 
-			lifetime_default := math.remap(f32(0.5), P_LIFETIME_MIN, P_LIFETIME_MAX, 0, 1)
-			p_lifetime = slider_init(panel, flags, lifetime_default)
-			p_lifetime.formatting = proc(builder: ^strings.Builder, position: f32) {
-				value := pm_particle_lifetime()
-				fmt.sbprintf(builder, "Particle Lifetime: %.3f", value)
-			}
+			p_lifetime = drag_float_init(panel, flags, 0.5, 0.25, 2, 0.05, "Particle Lifetime: %.3f")
 			p_lifetime.hover_info = "Particle Lifetime Scaling - the higher the longer one stays alive"
 
-			p_alpha_scale = slider_init(panel, flags, 0.5)
-			p_alpha_scale.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "Particle Alpha: %.3f", position)
-			}
+			p_alpha_scale = drag_float_init(panel, flags, 0.5, 0, 1, 0.05, "Particle Alpha: %.3f")
 			p_alpha_scale.hover_info = "Particle Alpha Scale - the higher the more visible"
 
 			p_colored = checkbox_init(panel, flags, "Use Colors", true)
@@ -533,18 +473,10 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			// screenshake
 			s_use = checkbox_init(panel, flags, "Use Screenshake", true)
 
-			shake_amount := math.remap(f32(3), S_AMOUNT_MIN, S_AMOUNT_MAX, 0, 1)
-			s_amount = slider_init(panel, flags, shake_amount)
-			s_amount.formatting = proc(builder: ^strings.Builder, position: f32) {
-				value := pm_screenshake_amount()
-				fmt.sbprintf(builder, "Screenshake Amount: %dpx", int(value))
-			}
+			s_amount = drag_float_init(panel, flags, 3, 1, 20, 1, "Screenshake Amount: %.0fpx")
 			s_amount.hover_info = "Screenshake Amount in px - the higher the more screenshake"
 
-			s_lifetime = slider_init(panel, flags, 1)
-			s_lifetime.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "Screenshake Multiplier: %.3f", position)
-			}
+			s_lifetime = drag_float_init(panel, flags, 1, 0, 1, 0.05, "Screenshake Multiplier: %.3f")
 			s_lifetime.hover_info = "Screenshake Multiplier - the lower the longer it screenshakes"
 		}
 	}
@@ -639,18 +571,9 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		panel = shared_panel(enum_panel, "Pomodoro")
 
 		// pomodoro		
-		slider_pomodoro_work = slider_init(panel, flags, 50.0 / 60.0)
-		slider_pomodoro_work.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Work: %dmin", int(position * 60))
-		}
-		slider_pomodoro_short_break = slider_init(panel, flags, 10.0 / 60)
-		slider_pomodoro_short_break.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Short Break: %dmin", int(position * 60))
-		}
-		slider_pomodoro_long_break = slider_init(panel, flags, 30.0 / 60)
-		slider_pomodoro_long_break.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Long Break: %dmin", int(position * 60))
-		}
+		work = drag_int_init(panel, flags, 50, 0, 60, 1, "Work: %dmin")
+		short_break = drag_int_init(panel, flags, 10, 0, 60, 1, "Short Break: %dmin")
+		long_break = drag_int_init(panel, flags, 30, 0, 60, 1, "Long Break: %dmin")
 
 		// statistics
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
@@ -668,25 +591,18 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			sub := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background }, 0, 2)
 			sub.rounded = true
 			sub.background_index = 2
-			s := slider_init(sub, flags, 30.0 / 60)
-			s.formatting = proc(builder: ^strings.Builder, position: f32) {
-				fmt.sbprintf(builder, "Cheat: %dmin", int(position * 60))
-			}
+			drag := drag_int_init(sub, flags, 30.0, 0, 60, 1, "Cheat: %dmin")
 
 			b := button_init(sub, flags, "Add")
-			b.data = s
+			b.data = drag
 			b.invoke = proc(button: ^Button, data: rawptr) {
-				slider := cast(^Slider) data
-				// sb.options.slider_work_today.position += (slider.position / 60)
-				minutes := time.Duration(slider.position * 60) * time.Minute
+				drag := cast(^Drag_Int) data
+				minutes := time.Duration(drag.position) * time.Minute
 				pomodoro.accumulated += minutes
 			}
 		}
 
-		slider_work_today = slider_init(panel, flags, 8.0 / 24)
-		slider_work_today.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "Goal Today: %dh", int(position * 24))
-		}
+		work_today = drag_int_init(panel, flags, 8, 0, 24, 1, "Goal Today: %dh")
 
 		gauge_work_today = linear_gauge_init(panel, flags, 0.5, "Done Today", "Working Overtime")
 		gauge_work_today.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -795,7 +711,7 @@ options_bordered :: #force_inline proc() -> bool {
 }
 
 options_volume :: #force_inline proc() -> f32 {
-	return sb.options.slider_volume.position
+	return sb.options.volume.position
 }
 
 options_autosave :: #force_inline proc() -> bool {
@@ -827,33 +743,32 @@ options_spell_checking :: #force_inline proc() -> bool {
 }
 
 visuals_use_animations :: #force_inline proc() -> bool {
-	return sb.options.checkbox_use_animations.state
+	return sb.options.visuals.use_animations.state
 }
 
-visuals_tab :: #force_inline proc() -> f32 {
-	return sb.options.slider_tab.position
+visuals_tab :: #force_inline proc() -> int {
+	return sb.options.visuals.tab.position
 }
 
-visuals_gap_vertical :: #force_inline proc() -> f32 {
-	return sb.options.slider_gap_vertical.position * GAP_VERTICAL_MAX
+visuals_task_gap :: #force_inline proc() -> int {
+	return sb.options.visuals.task_gap.position
 }
 
-visuals_gap_horizontal :: #force_inline proc() -> f32 {
-	return sb.options.slider_gap_horizontal.position * GAP_HORIZONTAL_MAX
+visuals_kanban_gap :: #force_inline proc() -> int {
+	return sb.options.visuals.kanban_gap.position
 }
 
 // remap from unit to wanted range
-visuals_kanban_width :: #force_inline proc() -> f32 {
-	return math.remap(sb.options.slider_kanban_width.position, 0, 1, KANBAN_WIDTH_MIN, KANBAN_WIDTH_MAX)
+visuals_kanban_width :: #force_inline proc() -> int {
+	return sb.options.visuals.kanban_width.position
 }
 
-visuals_task_margin :: #force_inline proc() -> f32 {
-	return sb.options.slider_task_margin.position * TASK_MARGIN_MAX
+visuals_task_margin :: #force_inline proc() -> int {
+	return sb.options.visuals.task_margin.position
 }
 
 visuals_animation_speed :: #force_inline proc() -> f32 {
-	value := math.remap(sb.options.slider_animation_speed.position, 0, 1, ANIMATION_SPEED_MIN, ANIMATION_SPEED_MAX)
-	return value
+	return f32(sb.options.visuals.animation_speed.position) / 100
 }
 
 visuals_fps :: #force_inline proc() -> int {
@@ -861,21 +776,21 @@ visuals_fps :: #force_inline proc() -> int {
 }
 
 visuals_line_highlight_use :: #force_inline proc() -> bool {
-	return sb.options.checkbox_line_highlight_use.state
+	return sb.options.line_highlight.use.state
 }
 
 visuals_line_highlight_alpha :: #force_inline proc() -> f32 {
-	return sb.options.slider_line_highlight_alpha.position
+	return sb.options.line_highlight.alpha.position
 }
 
 progressbar_show :: #force_inline proc() -> bool {
-	return sb.options.checkbox_progressbar_show.state
+	return sb.options.progressbar.show.state
 }
 progressbar_percentage :: #force_inline proc() -> bool {
-	return sb.options.checkbox_progressbar_percentage.state
+	return sb.options.progressbar.percentage.state
 }
 progressbar_hover_only :: #force_inline proc() -> bool {
-	return sb.options.checkbox_progressbar_hover_only.state
+	return sb.options.progressbar.hover_only.state
 }
 
 // power mode options
@@ -884,7 +799,7 @@ pm_show :: #force_inline proc() -> bool {
 	return sb.options.pm.ps_show.state
 }
 pm_particle_lifetime :: #force_inline proc() -> f32 {
-	return math.remap(sb.options.pm.p_lifetime.position, 0, 1, P_LIFETIME_MIN, P_LIFETIME_MAX)
+	return sb.options.pm.p_lifetime.position
 }
 pm_particle_alpha_scale :: #force_inline proc() -> f32 {
 	return sb.options.pm.p_alpha_scale.position

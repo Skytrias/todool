@@ -118,7 +118,7 @@ pomodoro_stopwatch_toggle :: proc() {
 }
 
 pomodoro_stopwatch_reset :: #force_inline proc() {
-	element_hide(sb.stats.button_pomodoro_reset, true)
+	element_hide(sb.stats.pomodoro_reset, true)
 
 	if pomodoro.stopwatch.running {
 		pomodoro_stopwatch_stop_add()
@@ -129,7 +129,7 @@ pomodoro_stopwatch_reset :: #force_inline proc() {
 // toggle stopwatch on or off based on index
 pomodoro_stopwatch_hot_toggle :: proc(du: u32) {
 	defer {
-		element_hide(sb.stats.button_pomodoro_reset, !pomodoro.stopwatch.running)
+		element_hide(sb.stats.pomodoro_reset, !pomodoro.stopwatch.running)
 		element_repaint(app.mmpp)
 	}
 	
@@ -188,15 +188,14 @@ pomodoro_timer_callback :: proc "c" (interval: u32, data: rawptr) -> u32 {
 }
 
 // get time from slider
-pomodoro_time_index :: proc(index: int) -> f32 {
+pomodoro_time_index :: proc(index: int) -> (position: int) {
 	index := clamp(index, 0, 2)
-	position: f32
 	switch index {
-		case 0: position = sb.stats.slider_pomodoro_work.position
-		case 1: position = sb.stats.slider_pomodoro_short_break.position
-		case 2: position = sb.stats.slider_pomodoro_long_break.position
+		case 0: position = sb.stats.work.position
+		case 1: position = sb.stats.short_break.position
+		case 2: position = sb.stats.long_break.position
 	}
-	return position * 60
+	return
 }
 
 pomodoro_button_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -249,7 +248,7 @@ pomodoro_update :: proc() {
 
 	// set work today position
 	{
-		goal_today := max(time.Duration(sb.stats.slider_work_today.position * 24), 1) * time.Hour
+		goal_today := max(time.Duration(sb.stats.work_today.position * 24), 1) * time.Hour
 		sb.stats.gauge_work_today.position = f32(pomodoro.accumulated) / f32(goal_today)
 	}
 

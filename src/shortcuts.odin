@@ -2212,7 +2212,7 @@ vim_visual_reptition_check :: proc(task: ^Task, direction: int) -> bool {
 }
 
 todool_toggle_progressbars :: proc(du: u32) {
-	check := sb.options.checkbox_progressbar_show
+	check := sb.options.progressbar.show
 	
 	if check != nil {
 		checkbox_set(check, !check.state)

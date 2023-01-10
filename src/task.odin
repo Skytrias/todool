@@ -935,7 +935,7 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 		return
 	}
 
-	tab := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
+	tab := int(f32(visuals_tab()) * TASK_SCALE)
 	p := app_task_head()
 	color := theme.text_default
 
@@ -1191,13 +1191,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			bounds.r += int(camx)
 			bounds.t += int(camy)
 			bounds.b += int(camy)
-			gap_vertical_scaled := int(visuals_gap_vertical() * TASK_SCALE)
-			gap_horizontal_scaled := int(visuals_gap_horizontal() * TASK_SCALE)
-			kanban_width_scaled := int(visuals_kanban_width() * TASK_SCALE)
-			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
+			task_gap_scaled := int(f32(visuals_task_gap()) * TASK_SCALE)
+			kanban_gap_scaled := int(f32(visuals_kanban_gap()) * TASK_SCALE)
+			kanban_width_scaled := int(f32(visuals_kanban_width()) * TASK_SCALE)
+			tab_scaled := int(f32(visuals_tab()) * TASK_SCALE)
 			task_min_width := int(max(300, (rect_widthf(panel.bounds) - 50) * TASK_SCALE))
 			// margin_scaled := int(visuals_task_margin() * TASK_SCALE)
-			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 10) / 10
+			margin_scaled := int(f32(visuals_task_margin()) * TASK_SCALE * 10) / 10
 			// fmt.eprintln("GAPS", gap_vertical_scaled)
 
 			if task, ok := app.keep_task_cam.?; ok {
@@ -1223,7 +1223,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						r.r = r.l + task_min_width
 
 						element_move(&task.element, r)
-						cut.t += gap_vertical_scaled
+						cut.t += task_gap_scaled
 					}
 				}
 
@@ -1258,16 +1258,16 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 							kanban_width := kanban_width_scaled
 							// TODO check this
-							kanban_width += int(f32(max_indentations) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
+							kanban_width += int(f32(max_indentations) * f32(visuals_tab()) * TASK_SCALE)
 							kanban_current = rect_cut_left(&cut, kanban_width)
 							task.kanban_rect = kanban_current
-							cut.l += gap_horizontal_scaled
+							cut.l += kanban_gap_scaled
 						}
 
 						// pseudo layout for correct witdth
 						pseudo_rect := kanban_current
 						box_rect := task_layout(task, pseudo_rect, false, tab_scaled, margin_scaled)
-						box_rect.l += int(f32(task.indentation) * visuals_tab() * TAB_WIDTH * TASK_SCALE)
+						box_rect.l += int(f32(task.indentation) * f32(visuals_tab()) * TASK_SCALE)
 						task_box_format_to_lines(task.box, rect_width(box_rect))
 
 						h := element_message(&task.element, .Get_Height)
@@ -1276,7 +1276,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 						element_move(&task.element, r)
 
 						if linear_index - kanban_children_start < kanban_children_count - 1 {
-							kanban_current.t += gap_vertical_scaled
+							kanban_current.t += task_gap_scaled
 						}
 					}
 				}
@@ -1778,7 +1778,7 @@ task_box_message_custom :: proc(element: ^Element, msg: Message, di: int, dp: ra
 }
 
 task_indentation_width :: proc(indentation: f32) -> f32 {
-	return indentation * visuals_tab() * TAB_WIDTH * TASK_SCALE
+	return indentation * f32(visuals_tab()) * TASK_SCALE
 }
 
 fcs_task_tags :: proc() -> int {
@@ -2021,7 +2021,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 			line_size += image_display_has_content_soon(task.image_display) ? int(IMAGE_DISPLAY_HEIGHT * TASK_SCALE) : 0
 			line_size += task_link_is_valid(task) ? element_message(task.button_link, .Get_Height) : 0
 			line_size += task_separator_is_valid(task) ? int(SEPARATOR_SIZE * TASK_SCALE) : 0
-			margin_scaled := int(visuals_task_margin() * TASK_SCALE * 2)
+			margin_scaled := int(f32(visuals_task_margin()) * TASK_SCALE * 2)
 			line_size += margin_scaled
 
 			return int(line_size)
@@ -2033,8 +2033,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 				task.top_animation_start = false
 			}
 
-			tab_scaled := int(visuals_tab() * TAB_WIDTH * TASK_SCALE)
-			margin_scaled := int(visuals_task_margin() * TASK_SCALE)
+			tab_scaled := int(f32(visuals_tab()) * TASK_SCALE)
+			margin_scaled := int(f32(visuals_task_margin()) * TASK_SCALE)
 			task_layout(task, element.bounds, true, tab_scaled, margin_scaled)
 		}
 

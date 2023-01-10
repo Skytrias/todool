@@ -1212,7 +1212,7 @@ drag_int_init :: proc(
 	x1: int,
 	x2: int,
 	speed: int,
-	format: string,
+	format: string = "%d",
 ) -> (res: ^Drag_Int) {
 	res = element_init(Drag_Int, parent, flags, drag_int_message, context.allocator)
 	res.format = format
@@ -1238,6 +1238,11 @@ drag_int_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			hovered := element.window.hovered == element
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
+			fill := element.bounds
+			unit := math.remap(f32(drag.position), f32(drag.low), f32(drag.high), 0, 1)
+			fill.r = fill.l + int(rect_widthf(fill) * unit)
+			render_rect(target, fill, theme.text_good, ROUNDNESS)
+			
 			render_rect_outline(target, element.bounds, text_color)
 			fcs_element(element)
 			fcs_color(text_color)
@@ -1305,6 +1310,7 @@ Drag_Float :: struct {
 	low, high: f32,
 	speed: f32,
 	format: string,
+	on_changed: proc(^Drag_Float),
 }
 
 drag_float_init :: proc(
@@ -1314,7 +1320,7 @@ drag_float_init :: proc(
 	x1: f32,
 	x2: f32,
 	speed: f32,
-	format: string,
+	format: string = "%f",
 ) -> (res: ^Drag_Float) {
 	res = element_init(Drag_Float, parent, flags, drag_float_message, context.allocator)
 	res.format = format
@@ -1339,6 +1345,11 @@ drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			pressed := element.window.pressed == element
 			hovered := element.window.hovered == element
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
+
+			fill := element.bounds
+			unit := math.remap(drag.position, drag.low, drag.high, 0, 1)
+			fill.r = fill.l + int(rect_widthf(fill) * unit)
+			render_rect(target, fill, theme.text_good, ROUNDNESS)
 
 			render_rect_outline(target, element.bounds, text_color)
 			fcs_element(element)
@@ -1379,6 +1390,12 @@ drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 		case .Get_Height: {
 			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE)
+		}
+
+		case .Value_Changed: {
+			if drag.on_changed != nil {
+				drag->on_changed()
+			}
 		}
 	}
 

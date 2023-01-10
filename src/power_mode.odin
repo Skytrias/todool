@@ -19,8 +19,6 @@ import "../cutf8"
 
 S_AMOUNT_MIN :: 1
 S_AMOUNT_MAX :: 20
-P_LIFETIME_MIN :: 0.25
-P_LIFETIME_MAX :: 2
 P_SPAWN_HIGH :: 10
 P_SPAWN_LOW :: 4
 
