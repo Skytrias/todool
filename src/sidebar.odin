@@ -361,13 +361,11 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			return 0
 		}
 		checkbox_hide_statusbar = checkbox_init(panel, flags, "Hide Statusbar", false)
-		checkbox_hide_statusbar.invoke = proc(data: rawptr) {
-			box := cast(^Checkbox) data
+		checkbox_hide_statusbar.invoke = proc(box: ^Checkbox) {
 			element_hide(statusbar.stat, box.state)
 		}
 		checkbox_hide_menubar = checkbox_init(panel, flags, "Hide Menubar", false)
-		checkbox_hide_menubar.invoke = proc(data: rawptr) {
-			box := cast(^Checkbox) data
+		checkbox_hide_menubar.invoke = proc(box: ^Checkbox) {
 			element_hide(app.task_menu_bar, box.state)
 		}
 		checkbox_vim = checkbox_init(panel, flags, "Use VIM bindings", false)
@@ -419,6 +417,9 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			header := label_init(panel, { .HF, .Label_Center }, "Progressbars")
 			header.font_options = &app.font_options_header
 			progressbar.show = checkbox_init(panel, flags, "Show", true)
+			progressbar.show.invoke = proc(box: ^Checkbox) {
+				app.progressbars_goal = box.state ? 1 : 0
+			}
 			progressbar.percentage = checkbox_init(panel, flags, "Use Percentage", false)
 			progressbar.hover_only = checkbox_init(panel, flags, "Hover Only", false)
 		}

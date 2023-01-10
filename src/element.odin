@@ -1454,7 +1454,7 @@ Checkbox :: struct {
 	state: bool,
 	state_transition: bool,
 	state_unit: f32,
-	invoke: proc(data: rawptr),
+	invoke: proc(box: ^Checkbox),
 }
 
 checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -1538,7 +1538,7 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			box.state_transition = true
 
 			if box.invoke != nil {
-				box.invoke(box.data)
+				box->invoke()
 			}
 		}
 

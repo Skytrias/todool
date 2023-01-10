@@ -1775,17 +1775,6 @@ gs_message_loop :: proc() {
 		gs_draw_and_cleanup()
 		elapsed_ms := gs_dt_end()
 
-		iter = gs_windows_iter_head()
-		for w in dll.iterate_next(&iter) {
-			// TODO maybe window dt?
-			ease.flux_update(&w.flux, f64(gs.dt))
-
-			// render last frame
-			if len(w.flux.values) == 0 && w.flux_had_animations {
-				w.flux_render_last_frame = true
-			}
-		}
-
 		// frame minimum, if vsync doesnt clamp it lower
 		{
 			wanted := f64(1) / f64(visuals_fps())
@@ -1797,6 +1786,18 @@ gs_message_loop :: proc() {
 				// fmt.eprintln("\tSLEEP")
 				sdl.Delay(goal)
 				gs_dt_end()
+			}
+		}
+
+		iter = gs_windows_iter_head()
+		for w in dll.iterate_next(&iter) {
+			// TODO maybe window dt?
+			rate := f64(gs.dt)
+			ease.flux_update(&w.flux, rate)
+
+			// render last frame
+			if len(w.flux.values) == 0 && w.flux_had_animations {
+				w.flux_render_last_frame = true
 			}
 		}
 	}

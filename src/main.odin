@@ -54,7 +54,9 @@ main :: proc() {
 		handled |= caret_state_update_motion(&app.caret, true)
 		handled |= caret_state_update_alpha(&app.caret)
 		handled |= caret_state_update_outline(&app.caret)
+		handled |= mode_panel_zoom_running()
 		handled |= app_focus_alpha_animate() != 0
+		handled |= progressbars_animate()
 		return
 	}
 	window.name = "MAIN"
@@ -164,16 +166,16 @@ main_update :: proc(window: ^Window) {
 	rendered_glyphs_clear()
 	wrapped_lines_clear()
 
-	// animate progressbars 
-	{
-		state := progressbar_show()
-		if state && app.progressbars_alpha == 0 {
-			window_animate(window, &app.progressbars_alpha, 1, .Quadratic_In, time.Millisecond * 200)
-		}
-		if !state && app.progressbars_alpha == 1 {
-			window_animate(window, &app.progressbars_alpha, 0, .Quadratic_In, time.Millisecond * 100)
-		}
-	}
+	// // animate progressbars 
+	// {
+	// 	state := progressbar_show()
+	// 	if state && app.progressbars_alpha == 0 {
+	// 		window_animate(window, &app.progressbars_alpha, 1, .Quadratic_In, time.Millisecond * 200)
+	// 	}
+	// 	if !state && app.progressbars_alpha == 1 {
+	// 		window_animate(window, &app.progressbars_alpha, 0, .Quadratic_In, time.Millisecond * 100)
+	// 	}
+	// }
 
 	task_set_children_info()
 	task_check_parent_states(&app.um_task)
@@ -293,6 +295,8 @@ main_update :: proc(window: ^Window) {
 	}
 
 	app_focus_alpha_update()
+	mode_panel_zoom_update()
+	progressbars_update()
 }
 
 window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {

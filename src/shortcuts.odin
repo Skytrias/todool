@@ -2216,6 +2216,7 @@ todool_toggle_progressbars :: proc(du: u32) {
 	
 	if check != nil {
 		checkbox_set(check, !check.state)
+		app.progressbars_goal = check.state ? 1 : 0
 		element_repaint(check)
 	}
 }

@@ -240,7 +240,7 @@ changelog_update_safe :: proc() {
 	changelog.window.update_next = true
 }
 
-changelog_update_invoke :: proc(data: rawptr) {
+changelog_update_invoke :: proc(box: ^Checkbox) {
 	changelog.check_next = true
 	changelog.window.update_next = true
 }

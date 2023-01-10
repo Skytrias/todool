@@ -75,6 +75,7 @@ App :: struct {
 	// progress bars
 	task_state_progression: Task_State_Progression,
 	progressbars_alpha: f32, // animation
+	progressbars_goal: f32, // goal
 	main_thread_running: bool,
 
 	// keymap special
@@ -438,10 +439,19 @@ mode_panel_manager_end :: #force_inline proc(manager: ^Undo_Manager) {
 	undo_group_end(manager)
 }
 
+mode_panel_zoom_running :: proc() -> bool {
+	return app.mmpp.zoom_highlight > 0
+}
+
+mode_panel_zoom_update :: proc() {
+	if app.mmpp.zoom_highlight > 0 {
+		app.mmpp.zoom_highlight -= gs.dt * visuals_animation_speed()
+	}
+}
+
 mode_panel_zoom_animate :: proc() {
 	if app.mmpp != nil {
 		app.mmpp.zoom_highlight = 2
-		window_animate(app.window_main, &app.mmpp.zoom_highlight, 0, .Quadratic_Out, time.Second)
 	} 
 	
 	power_mode_clear()
@@ -2165,7 +2175,8 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					always := true
 					state := Task_State(i)
 					// in case this gets run too early to avoid divide by 0
-					value := f32(count) / max(f32(len(task.filter_children)), 1)
+					total := max(task_indentation_child_count(task, task.indentation + 1), 1)
+					value := f32(count) / f32(total)
 
 					handled |= animate_to_state(
 						&always,
@@ -2865,6 +2876,21 @@ mode_panel_cam_freehand_off :: proc(cam: ^Pan_Camera) {
 	app.caret.alpha = 0
 }
 
+progressbars_animate :: proc() -> bool {
+	return app.progressbars_alpha != app.progressbars_goal
+}
+
+progressbars_update :: proc() {
+	if progressbars_animate() {
+		direction := f32(app.progressbars_goal == 0 ? -1 : 1)
+		app.progressbars_alpha = clamp(
+			app.progressbars_alpha + gs.dt * visuals_animation_speed() * direction, 
+			0, 
+			1,
+		)
+	}
+}
+
 task_render_progressbars :: proc(target: ^Render_Target) {
 	if app.progressbars_alpha == 0 {
 		return
@@ -3114,12 +3140,12 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 
 // render top right zoom highlight 
 render_zoom_highlight :: proc(target: ^Render_Target, clip: RectI) {
-	if app.mmpp.zoom_highlight == 0 {
+	if app.mmpp.zoom_highlight <= 0 {
 		return
 	}
 
 	render_push_clip(target, clip)
-	alpha := min(app.mmpp.zoom_highlight, 1)
+	alpha := clamp(app.mmpp.zoom_highlight, 0, 1)
 	color := color_alpha(theme.text_default, alpha)
 	rect := app.mmpp.bounds
 	rect.l = rect.r - 100
