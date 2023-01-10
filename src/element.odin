@@ -1056,6 +1056,7 @@ Slider :: struct {
 	position: f32,
 	builder: strings.Builder,
 	formatting: Slider_Format_Proc,
+	apply_rounding: bool,
 }
 
 slider_default_formatting :: proc(
@@ -1152,6 +1153,10 @@ slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 			unit = math.round(unit * 10) / 10
 		}
 
+		// if slider.apply_rounding {
+		// 	unit = math.round(unit * 100) / 100
+		// }
+
 		slider.position = 
 			clamp(
 				unit,
@@ -1187,6 +1192,10 @@ slider_set :: proc(slider: ^Slider, goal: f32) {
 	slider.position = clamp(goal, 0, 1)
 	element_message(slider, .Value_Changed)
 }
+
+//////////////////////////////////////////////
+// checkbox
+//////////////////////////////////////////////
 
 //////////////////////////////////////////////
 // checkbox

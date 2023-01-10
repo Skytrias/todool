@@ -23,7 +23,9 @@ import "heimdall:fontstash"
 import "../cutf8"
 import "../spall"
 
-FPS := f32(60) // 60fps
+FPS_MIN :: 15
+FPS_MAX :: 240
+
 SCALE := f32(1)
 TASK_SCALE := f32(1)
 TASK_SCALE_DEFAULT :: f32(1)
@@ -1708,13 +1710,14 @@ gs_dt_start :: proc() {
 	gs.frame_start = sdl.GetPerformanceCounter()
 }
 
-gs_dt_end :: proc() {
+gs_dt_end :: proc() -> (elapsed_ms: f64) {
 	// TODO could be bad cuz this is for multiple windows?
 	// TODO maybe time the section of time that was waited on?
 	// update frame counter
 	frame_end := sdl.GetPerformanceCounter()
-	elapsed_ms := f64(frame_end - gs.frame_start) / f64(sdl.GetPerformanceFrequency())
+	elapsed_ms = f64(frame_end - gs.frame_start) / f64(sdl.GetPerformanceFrequency())
 	gs.dt = f32(elapsed_ms)
+	return
 }
 
 gs_message_loop :: proc() {
@@ -1770,7 +1773,7 @@ gs_message_loop :: proc() {
 		
 		// repaint all of the window
 		gs_draw_and_cleanup()
-		gs_dt_end()
+		elapsed_ms := gs_dt_end()
 
 		iter = gs_windows_iter_head()
 		for w in dll.iterate_next(&iter) {
@@ -1783,16 +1786,16 @@ gs_message_loop :: proc() {
 			}
 		}
 
-		// do this at last, makes sure the window runs at wanted FPS if not vsynced
-		step := f32(1) / FPS
-		gs.accumulator += gs.dt
-		// fmt.eprintln("MS", gs.dt * 1000,)
-		for gs.accumulator > step {
-			gs.accumulator -= step
-			
-			if gs.accumulator < 0 {
-				gs.accumulator = 0
-			}
+		// FPS = 240
+		wanted := f64(1) / f64(visuals_fps())
+		diff := wanted - elapsed_ms
+		goal := u32(diff * 1000)
+
+		// fmt.eprintln("GOAL", elapsed_ms, wanted, diff, goal)
+		if elapsed_ms < wanted {
+			// fmt.eprintln("\tSLEEP")
+			sdl.Delay(goal)
+			gs_dt_end()
 		}
 	}
 

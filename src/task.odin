@@ -1450,7 +1450,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				rect.l = rect.r - 300
 				ms := gs.dt * 1000
 				fps := 1 / gs.dt
-				text := fmt.tprintf("wanted %.fFPS    current: %.fFPS    %.5fms", FPS, fps, ms)
+				text := fmt.tprintf("wanted %.fFPS    current: %.fFPS    %.5fms", visuals_fps(), fps, ms)
 				render_string_rect(target, rect, text)
 			}
 

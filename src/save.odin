@@ -961,7 +961,7 @@ json_save_misc :: proc(path: string) -> bool {
 	value := Misc_Save_Load {
 		hidden = {
 			scale = SCALE,
-			fps = FPS,
+			fps = 60,
 
 			font_regular_path = gs.font_regular_path,
 			font_bold_path = gs.font_bold_path,
@@ -1088,7 +1088,7 @@ json_load_misc :: proc(path: string) -> bool {
 	{
 		// cap to defaults
 		if misc.hidden.fps >= 30 {
-			FPS = clamp(misc.hidden.fps, 30, 240)
+			// FPS = clamp(misc.hidden.fps, 30, 240)
 		}
 
 		if misc.hidden.window_width != 0 && misc.hidden.window_height != 0 {

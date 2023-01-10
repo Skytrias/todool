@@ -102,6 +102,7 @@ Sidebar_Options :: struct {
 	slider_kanban_width: ^Slider,
 	slider_task_margin: ^Slider,
 	slider_animation_speed: ^Slider,
+	slider_fps: ^Slider,
 	checkbox_use_animations: ^Checkbox,	
 
 	// progressbar
@@ -444,6 +445,15 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			fmt.sbprintf(builder, "Animation Speed: %d%%", int(value * 100))
 		}
 		slider_animation_speed.hover_info = "Animation speed multiplier of all linear animations"
+
+		fps_default := math.remap(f32(60), FPS_MIN, FPS_MAX, 0, 1)
+		slider_fps = slider_init(panel, flags, fps_default)
+		slider_fps.formatting = proc(builder: ^strings.Builder, position: f32) {
+			value := visuals_fps()
+			fmt.sbprintf(builder, "FPS Minimum: %dfps", int(value))
+		}
+		slider_fps.apply_rounding = true
+		slider_fps.hover_info = "Set the minimum FPS, in case vsync isn't enabled, only used if vsync frequency is higher than FPS"
 
 		checkbox_use_animations = checkbox_init(panel, flags, "Use Animations", true)
 	
@@ -838,6 +848,11 @@ visuals_task_margin :: #force_inline proc() -> f32 {
 
 visuals_animation_speed :: #force_inline proc() -> f32 {
 	value := math.remap(sb.options.slider_animation_speed.position, 0, 1, ANIMATION_SPEED_MIN, ANIMATION_SPEED_MAX)
+	return value
+}
+
+visuals_fps :: #force_inline proc() -> f32 {
+	value := math.remap(sb.options.slider_fps.position, 0, 1, FPS_MIN, FPS_MAX)
 	return value
 }
 
