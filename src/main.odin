@@ -27,6 +27,7 @@ TRACK_MEMORY :: true
 TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 DEMO_MODE :: false // wether or not save&load are enabled
+VERSION :: "0.4.0"
 
 main :: proc() {
 	spall.init("test.spall")
@@ -209,25 +210,7 @@ main_update :: proc(window: ^Window) {
 		task.element.font_options = task_has_children(task) ? &app.font_options_bold : nil
 	}
 
-	// find dragging index at
-	if app.drag_running {
-		if !window_mouse_inside(window) {
-			// set index to invalid
-			app.drag_index_at = -1
-		} else {
-			for index in app.pool.filter {
-				task := app_task_list(index)
-
-				if rect_contains(task.element.bounds, window.cursor_x, window.cursor_y) {
-					app.drag_index_at = task.filter_index
-					break
-				}
-			}
-		}
-
-		window_set_cursor(window, .Hand_Drag)
-	}
-
+	task_dragging_check_find(window)
 	bookmarks_clear_and_set()
 
 	// title building
@@ -357,7 +340,7 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 		}
 
 		case .Unicode_Insertion: {
-			if window_focused_shown(window) {
+			if window_focused_shown(window) || window.dialog != nil {
 				return 0
 			}
 
@@ -414,7 +397,8 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 						x -= window_x
 						y -= window_y
 
-						for index in app.pool.filter {
+						list := app_focus_list()
+						for index in list {
 							t := app_task_list(index)
 
 							if rect_contains(t.element.bounds, x, y) {

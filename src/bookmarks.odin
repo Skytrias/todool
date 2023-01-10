@@ -74,7 +74,9 @@ bookmark_advance :: proc(backward: bool) {
 bookmarks_clear_and_set :: proc() {
 	// count first
 	clear(&bs.rows)
-	for index in app.pool.filter {
+	list := app_focus_list()
+
+	for index in list {
 		task := app_task_list(index)
 
 		if task_bookmark_is_valid(task) {

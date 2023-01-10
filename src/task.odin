@@ -909,11 +909,13 @@ mode_panel_init :: proc(
 	allocator := context.allocator,
 ) -> (res: ^Mode_Panel) {
 	res = element_init(Mode_Panel, parent, flags, mode_panel_message, allocator)
-
-	cam_init(&res.cam[.List], 25, 50)
-	cam_init(&res.cam[.Kanban], 25, 50)
-
+	mode_panel_cameras_init(res)
 	return
+}
+
+mode_panel_cameras_init :: proc(mmpp: ^Mode_Panel) {
+	cam_init(&mmpp.cam[.List], 25, 50)
+	cam_init(&mmpp.cam[.Kanban], 25, 50)		
 }
 
 mode_panel_draw_verticals :: proc(target: ^Render_Target) {
@@ -1349,59 +1351,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			// }
 
 			mode_panel_draw_verticals(target)
-
-			// custom draw loop!
-			// if app.focus.root == nil {
-			// 	for list_index in app.pool.filter {
-			// 		task := app_task_list(list_index)
-			// 		render_element_clipped(target, &task.element)
-			// 	}
-			// } else {
-				// list := app_focus_list()
-			
-			alpha_animate := app_focus_alpha_animate()
-			if alpha_animate != 0 {
-				start := app.pool.filter[:app.focus.start]
-				shadow_color := color_alpha(theme.background[0], clamp(app.focus.alpha, 0, 1))
-
-				// inside focus
-				for list_index in start {
-					task := app_task_list(list_index)
-					render_element_clipped(target, &task.element)
-
-					render_push_clip(target, task.element.clip)
-					render_rect(target, task.element.bounds, shadow_color)
-				}
-
-				// NOTE! hard set
-				list := app.pool.filter[app.focus.start:app.focus.end]
-
-				// inside focus
-				for list_index in list {
-					task := app_task_list(list_index)
-					render_element_clipped(target, &task.element)
-				}
-
-				end := app.pool.filter[app.focus.end:]
-
-				// inside focus
-				for list_index in end {
-					task := app_task_list(list_index)
-					render_element_clipped(target, &task.element)
-
-					render_push_clip(target, task.element.clip)
-					render_rect(target, task.element.bounds, shadow_color)
-				}
-			} else {
-				list := app_focus_list()
-
-				// inside focus
-				for list_index in list {
-					task := app_task_list(list_index)
-					render_element_clipped(target, &task.element)
-				}
-			}
-
+			tasks_render_with_focus_animation(target)
 			render_caret_and_outlines(target, panel.clip)
 			search_draw_highlights(target, panel)
 
@@ -1563,8 +1513,10 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				cam_inc_y(cam, f32(my) / TASK_SCALE * (1 - factor))
 				mode_panel_cam_freehand_on(cam)
 
-				task := app_task_head()
-				app.keep_task_cam = task
+				if app_filter_not_empty() {
+					task := app_task_head()
+					app.keep_task_cam = task
+				}
 			} else {
 				cam_inc_y(cam, f32(di) * 20)
 				mode_panel_cam_freehand_on(cam)
@@ -1597,8 +1549,8 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 			// add task on double click
 			clicks := di % 2
-			if clicks == 1 {
-				if app.task_head != -1 {
+			if clicks == 1 && !element.window.ctrl && !element.window.shift {
+				if app_filter_not_empty() {
 					task := app_task_head()
 					diff_y := element.window.cursor_y - (task.element.bounds.t + rect_height_halfed(task.element.bounds))
 					todool_insert_sibling(diff_y < 0 ? COMBO_SHIFT : COMBO_EMPTY)
@@ -2512,6 +2464,7 @@ tasks_load_reset :: proc() {
 	task_pool_clear(&app.pool)
 	spell_check_clear_user()
 	archive_reset(&sb.archive)
+	mode_panel_cameras_init(app.mmpp)
 
 	undo_manager_reset(&app.um_task)
 	app.dirty = 0
@@ -2789,6 +2742,31 @@ task_dragging_check_start :: proc(task: ^Task, mouse: Mouse_Coordinates) -> bool
 	return true
 }
 
+task_dragging_check_find :: proc(window: ^Window) {
+	// find dragging index at
+	if !app.drag_running {
+		return
+	}
+
+	if !window_mouse_inside(window) {
+		// set index to invalid
+		app.drag_index_at = -1
+	} else {
+		list := app_focus_list()
+		
+		for index in list {
+			task := app_task_list(index)
+
+			if rect_contains(task.element.bounds, window.cursor_x, window.cursor_y) {
+				app.drag_index_at = task.filter_index
+				break
+			}
+		}
+	}
+
+	window_set_cursor(window, .Hand_Drag)
+}
+
 task_dragging_end :: proc() -> bool {
 	if !app.drag_running {
 		return false
@@ -2912,7 +2890,9 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	use_percentage := progressbar_percentage()
 	hover_only := progressbar_hover_only()
 
-	for index in app.pool.filter {
+	list := app_focus_list()
+
+	for index in list {
 		task := app_task_list(index)
 		
 		if hover_only && hovered != &task.element && hovered.parent != &task.element {
@@ -2964,12 +2944,26 @@ todool_menu_bar :: proc(parent: ^Element) -> (split: ^Menu_Split, menu: ^Menu_Ba
 		open_folder(gs.pref_path)
 	}
 
+	about :: proc() {
+		dialog_spawn(
+			app.window_main, 
+			proc(dialog: ^Dialog, res: string) {
+
+			}, 
+			200,
+			"Todool\n%l\n%s",
+			fmt.tprintf("Version: %s", VERSION),
+		)
+	}
+
 	menu_bar_field_init(menu, "File", 1).invoke = proc(p: ^Panel) {
 		mbl(p, "New File", "new_file", COMBO_EMPTY, .DOC)
 		mbl(p, "Open File", "load", COMBO_EMPTY, .DOC_INV)
 		mbl(p, "Save", "save", COMBO_EMPTY, .FLOPPY)
 		mbl(p, "Save As...", "save", COMBO_TRUE, .FLOPPY)
 		mbc(p, "Locals", locals, .FOLDER)
+		mbs(p)
+		mbc(p, "About", about)
 		mbs(p)
 		mbc(p, "Quit", quit)
 	}
@@ -3483,6 +3477,51 @@ app_focus_bounds :: proc(){
 
 		if !app.focus.root.filter_folded {
 			app.focus.end += len(app.focus.root.filter_children)
+		}
+	}
+}
+
+tasks_render_with_focus_animation :: proc(target: ^Render_Target) {
+	alpha_animate := app_focus_alpha_animate()
+	if alpha_animate != 0 {
+		start := app.pool.filter[:app.focus.start]
+		shadow_color := color_alpha(theme.background[0], clamp(app.focus.alpha, 0, 1))
+
+		// inside focus
+		for list_index in start {
+			task := app_task_list(list_index)
+			render_element_clipped(target, &task.element)
+
+			render_push_clip(target, task.element.clip)
+			render_rect(target, task.element.bounds, shadow_color)
+		}
+
+		// NOTE! hard set
+		list := app.pool.filter[app.focus.start:app.focus.end]
+
+		// inside focus
+		for list_index in list {
+			task := app_task_list(list_index)
+			render_element_clipped(target, &task.element)
+		}
+
+		end := app.pool.filter[app.focus.end:]
+
+		// inside focus
+		for list_index in end {
+			task := app_task_list(list_index)
+			render_element_clipped(target, &task.element)
+
+			render_push_clip(target, task.element.clip)
+			render_rect(target, task.element.bounds, shadow_color)
+		}
+	} else {
+		list := app_focus_list()
+
+		// inside focus
+		for list_index in list {
+			task := app_task_list(list_index)
+			render_element_clipped(target, &task.element)
 		}
 	}
 }

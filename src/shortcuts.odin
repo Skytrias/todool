@@ -453,12 +453,6 @@ todool_selection_stop :: proc(du: u32) {
 }
 
 todool_escape :: proc(du: u32) {
-	if app.focus.root != nil {
-		app.focus.root = nil
-		window_repaint(app.window_main)
-		return
-	}
-
 	if image_display_has_content_now(app.custom_split.image_display) {
 		app.custom_split.image_display.img = nil
 		window_repaint(app.window_main)
@@ -466,6 +460,12 @@ todool_escape :: proc(du: u32) {
 	}
 
 	if element_hide(sb.enum_panel, true) {
+		window_repaint(app.window_main)
+		return
+	}
+
+	if app.focus.root != nil {
+		app.focus.root = nil
 		window_repaint(app.window_main)
 		return
 	}
@@ -2085,7 +2085,8 @@ vim_visual_move_left :: proc(du: u32) {
 			}
 
 			// find closest distance
-			for index in app.pool.filter {
+			list := app_focus_list()
+			for index in list {
 				task := app_task_list(index)
 				if task.element.bounds.r < b.l {
 					dist_x := task.element.bounds.r - b.l 
@@ -2132,7 +2133,8 @@ vim_visual_move_right :: proc(du: u32) {
 			}
 
 			// find closest distance
-			for index in app.pool.filter {
+			list := app_focus_list()
+			for index in list {
 				task := app_task_list(index)
 				if b.r < task.element.bounds.r {
 					dist_x := task.element.bounds.l - b.r 
@@ -2308,8 +2310,14 @@ todool_focus_parent :: proc(du: u32) {
 
 	if task != nil {
 		app.focus.root = task
+		count := len(task.filter_children) if !task.filter_folded else 1
+
+		// when outside of range, reset tail
+		if !(task.filter_index <= app.task_tail && app.task_tail < task.filter_index + count) {
+			app.task_tail = app.task_head
+		}
 	}
 
-	app.task_tail = app.task_head
+	// app.task_tail = app.task_head
 	window_repaint(app.window_main)
 }

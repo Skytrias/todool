@@ -90,7 +90,6 @@ dialog_spawn :: proc(
 	args: ..string,
 ) -> (res: ^Dialog) {
 	dialog_close(window)
-
 	res = dialog_init(&window.element, on_finish, width, format, ..args)
 	window.dialog = res
 	return
@@ -146,6 +145,11 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 
 			if combo == "return" && dialog.button_default != nil {
 				dialog_close(dialog.window, .Default)
+				return 1
+			}
+
+			if combo == "escape" {
+				dialog_close(dialog.window)
 				return 1
 			}
 		}
@@ -265,6 +269,11 @@ dialog_build_elements :: proc(dialog: ^Dialog, format: string, args: ..string) {
 				row = panel_init(dialog.panel, { .Panel_Horizontal, .HF }, 0, 5)
 			}
 		}
+	}
+
+	// force dialog to receive key combinations still
+	if focus_next == nil {
+		focus_next = dialog
 	}
 
 	element_focus(dialog.window, focus_next)
