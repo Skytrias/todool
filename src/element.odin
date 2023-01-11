@@ -414,6 +414,19 @@ element_find_by_point_custom :: proc(element: ^Element, p: ^Find_By_Point) -> in
 	return 0
 }
 
+element_find_by_point_single :: proc(element: ^Element, p: ^Find_By_Point) {
+	if (.Hide not_in element.flags) && rect_contains(element.clip, p.x, p.y) {
+		if p.res == nil {
+			p.res = element
+		}
+	}
+}
+
+// helper 
+find_by_point_found :: #force_inline proc(p: ^Find_By_Point) -> int {
+	return p.res == nil ? 1 : 0
+}
+
 // find first element by point
 element_find_by_point :: proc(element: ^Element, x, y: int) -> ^Element {
 	p := Find_By_Point { x, y, nil }
@@ -1107,10 +1120,15 @@ drag_int_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			hovered := element.window.hovered == element
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
-			fill := element.bounds
-			unit := math.remap(f32(drag.position), f32(drag.low), f32(drag.high), 0, 1)
-			fill.r = fill.l + int(rect_widthf(fill) * unit)
-			render_rect(target, fill, theme.text_good, ROUNDNESS)
+			{
+				drag_width := int(20 * SCALE)
+				fill := element.bounds
+				unit := math.remap(f32(drag.position), f32(drag.low), f32(drag.high), 0, 1)
+				fill.l = fill.l + int(f32(rect_width(fill) - drag_width) * unit)
+				fill.r = fill.l + drag_width
+				color := color_alpha(theme.text_blank, 0.5)
+				render_rect(target, fill, color, ROUNDNESS)
+			}
 			
 			render_rect_outline(target, element.bounds, text_color)
 			fcs_element(element)
@@ -1222,10 +1240,15 @@ drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			hovered := element.window.hovered == element
 			text_color := hovered || pressed ? theme.text_default : theme.text_blank
 
-			fill := element.bounds
-			unit := math.remap(drag.position, drag.low, drag.high, 0, 1)
-			fill.r = fill.l + int(rect_widthf(fill) * unit)
-			render_rect(target, fill, theme.text_good, ROUNDNESS)
+			{
+				drag_width := int(20 * SCALE)
+				fill := element.bounds
+				unit := math.remap(drag.position, drag.low, drag.high, 0, 1)
+				fill.l = fill.l + int(f32(rect_width(fill) - drag_width) * unit)
+				fill.r = fill.l + drag_width
+				color := color_alpha(theme.text_blank, 0.5)
+				render_rect(target, fill, color, ROUNDNESS)
+			}
 
 			render_rect_outline(target, element.bounds, text_color)
 			fcs_element(element)
@@ -1721,21 +1744,17 @@ panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> i
 		}
 
 		case .Layout: {
-			scrollbar_layout_help(
-				panel.hscrollbar,
-				panel.vscrollbar,
-				element.bounds,
-				element_message(panel, .Get_Width),
-				element_message(panel, .Get_Height),
-			)
+			// if .Hide not_in element.flags {
+				scrollbar_layout_help(
+					panel.hscrollbar,
+					panel.vscrollbar,
+					element.bounds,
+					element_message(panel, .Get_Width),
+					element_message(panel, .Get_Height),
+				)
+			// }
 
 			panel_layout(panel, element.bounds, false)
-		}
-
-		case .Update: {
-			for child in element.children {
-				element_message(child, .Update, di, dp)
-			}
 		}
 
 		case .Left_Down: {
@@ -1914,6 +1933,7 @@ Scrollbar :: struct {
 	in_drag: bool,
 	shorted: bool,
 
+	keep_from_set: bool,
 	keep_hot: f32,
 	hot: f32,
 }
@@ -1948,6 +1968,7 @@ scrollbar_position_set :: proc(scrollbar: ^Scrollbar, to: f32) {
 		old := scrollbar.position
 		scrollbar.position = to
 		scrollbar.keep_hot = 2
+		scrollbar.keep_from_set = true
 		
 		if old != scrollbar.position {
 			element_message(scrollbar, .Update)
@@ -1972,11 +1993,17 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			}
 
 			tiny := rect_margin(scrollbar.thumb, int(3 * SCALE))
-			color := color_alpha(theme.text_default, scrollbar.hot)
+			alpha_mod: f32 = scrollbar.keep_from_set ? 0.5 : 1
+			color := color_alpha(theme.text_default, scrollbar.hot * alpha_mod)
 			render_rect(target, tiny, color, ROUNDNESS)
 		}
 
 		case .Update: {
+			// on element based updates
+			if di != 0 {
+				scrollbar.keep_from_set = false
+			}
+
 			element_animation_start(element)
 		}
 
@@ -1985,7 +2012,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			pressed := element.window.pressed == element
 
 			if scrollbar.keep_hot >= 0 {	
-				animate_to(&scrollbar.keep_hot, 0)
+				scrollbar.keep_hot -= gs.dt
 				scrollbar.hot = 1
 				return 1
 			}
@@ -2018,6 +2045,7 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 				element_repaint(scrollbar)
 				out: Message = scrollbar.horizontal ? .Scrolled_X : .Scrolled_Y
 				element_message(scrollbar.parent, out)
+				scrollbar.keep_from_set = false
 			}
 		}
 
@@ -2171,257 +2199,6 @@ scrollbar_inactive :: proc(scrollbar: ^Scrollbar) -> bool {
 scrollbar_valid :: proc(scrollbar: ^Scrollbar) -> bool {
 	return scrollbar != nil && (.Hide not_in scrollbar.flags)
 }
-
-//////////////////////////////////////////////
-// table
-//////////////////////////////////////////////
-
-// TABLE_ROW :: 30
-// TABLE_HEADER :: 30
-// TABLE_COLUMN_GAP :: 20
-
-// Table :: struct {
-// 	using element: Element,
-	
-// 	scrollbar: ^Scrollbar,
-// 	columns: string,
-// 	buffer: [256]u8,
-
-// 	item_count: int, // top to bottom per column
-// 	column_widths: []f32, // max width per every column
-// 	column_count: int, // columns are left to right <->
-// }
-
-// table_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-// 	table := cast(^Table) element
-
-// 	#partial switch msg {
-// 		case .Get_Width: {
-// 			return int(200 * SCALE)
-// 		}
-
-// 		case .Get_Height: {
-// 			return int(200 * SCALE)
-// 		}
-
-// 		case .Layout: {
-// 			scrollbar_bounds := element.bounds
-// 			scrollbar_bounds.l = scrollbar_bounds.r - SCROLLBAR_SIZE * SCALE
-// 			table.scrollbar.maximum = f32(table.item_count) * TABLE_ROW * SCALE
-// 			table.scrollbar.page = rect_height(element.bounds) - TABLE_HEADER * SCALE
-// 			element_move(table.scrollbar, scrollbar_bounds)
-// 		}
-
-// 		case .Paint_Recursive: {
-// 			target := element.window.target
-// 			defer render_rect_outline(target, element.bounds, theme.text_default)
-
-// 			assert(table.column_widths != nil, "table_resize_columns needs to be called once")
-
-// 			item := Table_Get_Item {
-// 				buffer = table.buffer[:],
-// 			}
-
-// 			row := element.bounds
-// 			row_height := TABLE_ROW * SCALE
-// 			row.t += TABLE_HEADER * SCALE
-// 			row.t -= f32(int(table.scrollbar.position) % int(row_height))
-
-// 			fcs_element(element)
-// 			fcs_ahv(.Left, .Middle)
-
-// 			hovered := table_hit_test(table, element.window.cursor_x, element.window.cursor_y)
-// 			for i := int(table.scrollbar.position / row_height); i < table.item_count; i += 1 {
-// 				if row.t > element.clip.b {
-// 					break
-// 				}
-
-// 				row.b = row.t + row_height
-				
-// 				// init
-// 				item.index = i
-// 				item.is_selected = false
-// 				item.column = 0
-// 				text_color := theme.text_default
-// 				element_message(element, .Table_Get_Item, 0, &item)
-
-// 				if item.is_selected {
-// 					render_rect(target, row, text_color, 0)
-// 					text_color = theme.background[0]
-// 				} else if hovered == i {
-// 					render_rect(target, row, text_color, 0)
-// 					text_color = theme.background[0]
-// 				}
-
-// 				fcs_color(text_color)
-// 				fcs_ahv(.Left, .Middle)
-// 				cell := row
-// 				cell.l += TABLE_COLUMN_GAP * SCALE
-
-// 				// walk through each column
-// 				for j in 0..<table.column_count {
-// 					// dont recall j == 0
-// 					if j != 0 {
-// 						item.column = j
-// 						element_message(element, .Table_Get_Item, 0, &item)
-// 					}
-
-// 					cell.r = cell.l + table.column_widths[j]
-// 					render_string_rect(target, cell, item.output)
-// 					cell.l += table.column_widths[j] + TABLE_COLUMN_GAP * SCALE
-// 				}
-
-// 				row.t += row_height
-// 			}
-
-// 			// header 
-// 			header := element.bounds
-// 			header.b = header.t + TABLE_HEADER * SCALE
-// 			render_rect(target, header, color_blend_amount(theme.text_default, WHITE, 0.1), ROUNDNESS)
-// 			render_underline(target, header, theme.text_default, 2)
-// 			header.l += TABLE_COLUMN_GAP * SCALE
-
-// 			fcs_color(theme.text_default)
-
-// 			// draw each column
-// 			index := 0
-// 			mod := table.columns
-// 			for word in strings.split_iterator(&mod, "\t") {
-// 				header.r = header.l + table.column_widths[index]
-// 				render_string_rect(target, header, word)
-// 				header.l += table.column_widths[index] + TABLE_COLUMN_GAP * SCALE
-// 				index += 1	
-// 			}
-// 		}
-
-// 		case .Mouse_Scroll_Y: {
-// 			return element_message(table.scrollbar, msg, di, dp)
-// 		}
-
-// 		case .Mouse_Move, .Update: {
-// 			element_repaint(element)
-// 		}
-
-// 		case .Destroy: {
-// 			delete(table.columns)
-// 			delete(table.column_widths)
-// 		}
-// 	}
-
-// 	return 0
-// }
-
-// table_init :: proc(
-// 	parent: ^Element, 
-// 	flags: Element_Flags, 
-// 	columns := "",
-// 	allocator := context.allocator,
-// ) -> (res: ^Table) {
-// 	res = element_init(Table, parent, flags, table_message, allocator)	
-// 	res.scrollbar = scrollbar_init(res, {}, allocator)
-// 	res.columns = strings.clone(columns)
-// 	return
-// }
-
-// table_hit_test :: proc(table: ^Table, x, y: f32) -> int {
-// 	x := x - table.bounds.l
-
-// 	// x check
-// 	if x < 0 || x >= rect_width(table.bounds) - SCROLLBAR_SIZE * SCALE {
-// 		return - 1
-// 	}
-
-// 	y := y
-// 	y -= (table.bounds.t + TABLE_HEADER * SCALE) - table.scrollbar.position
-
-// 	// y check
-// 	row_height := TABLE_ROW * SCALE
-// 	if y < 0 || y >= row_height * f32(table.item_count) {
-// 		return -1
-// 	}
-
-// 	return int(y / row_height)
-// }
-
-// table_header_hit_test :: proc(table: ^Table, x, y: int) -> int {
-// 	if table.column_count == 0 {
-// 		return -1
-// 	}
-
-// 	header := table.bounds
-// 	header.b = header.t + TABLE_HEADER * SCALE
-// 	header.l += TABLE_COLUMN_GAP * SCALE
-
-// 	// iterate columns
-// 	mod := table.columns
-// 	index := 0
-// 	for word in strings.split_iterator(&mod, "\t") {
-// 		header.r = header.l + table.column_widths[index]
-
-// 		if rect_contains(header, f32(x), f32(y)) {
-// 			return index
-// 		}
-
-// 		header.l += table.column_widths[index] + TABLE_COLUMN_GAP * SCALE
-// 		index += 1
-// 	}
-
-// 	return -1
-// }
-
-// table_ensure_visible :: proc(table: ^Table, index: int) -> bool {
-// 	row_height := TABLE_ROW * SCALE
-// 	y := f32(index) * row_height
-// 	height := rect_height(table.bounds) - TABLE_HEADER * SCALE - row_height
-
-// 	if y < 0 {
-// 		table.scrollbar.position += y
-// 		element_repaint(table)
-// 		return true
-// 	} else if y > height {
-// 		table.scrollbar.position -= height - y
-// 		element_repaint(table)
-// 		return true
-// 	} else {
-// 		return false
-// 	}
-// }
-
-// // calculate column widths based on each item width
-// table_resize_columns :: proc(table: ^Table) {
-// 	table.column_count = 0
-// 	mod := table.columns
-// 	for word in strings.split_iterator(&mod, "\t") {
-// 		table.column_count += 1
-// 	}
-
-// 	delete(table.column_widths)
-// 	table.column_widths = make([]f32, table.column_count)
-
-// 	item := Table_Get_Item {
-// 		buffer = table.buffer[:],
-// 	}
-
-// 	// retrieve longest textual width per column by iterating through all items widths
-// 	mod = table.columns
-// 	fcs_element(table)
-// 	for word in strings.split_iterator(&mod, "\t") {
-// 		longest := string_width(word)
-
-// 		for i in 0..<table.item_count {
-// 			item.index = i
-// 			element_message(table, .Table_Get_Item, 0, &item)
-// 			width := string_width(item.output)
-
-// 			if width > longest {
-// 				longest = width
-// 			}
-// 		}
-
-// 		table.column_widths[item.column] = longest
-// 		item.column += 1
-// 	}
-// }
 
 //////////////////////////////////////////////
 // color wheel
@@ -3113,7 +2890,13 @@ enum_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			chosen := element.children[panel.mode^]
 		
 			for child in element.children {
-				child.clip = {}
+				if child != chosen {
+					child.clip = {}
+					child.bounds = {}
+					incl(&child.flags, Element_Flags { .Hide, .Disabled })
+				}
+				
+				excl(&child.flags, Element_Flags { .Hide, .Disabled })
 			}
 
 			element_move(chosen, element.bounds)
@@ -3122,20 +2905,6 @@ enum_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 		case .Update: {
 			chosen := element.children[panel.mode^]
 			element_message(chosen, msg, di, dp)
-		}
-
-		case .Find_By_Point_Recursive: {
-			chosen := element.children[panel.mode^]
-			point := cast(^Find_By_Point) dp
-			element_find_by_point_custom(chosen, point)	
-			return 0
-		}
-
-		case .Paint_Recursive: {
-			chosen := element.children[panel.mode^]
-			target := element.window.target
-			render_element_clipped(target, chosen)
-			return 1
 		}
 	}
 

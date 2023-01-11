@@ -1168,15 +1168,11 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 	#partial switch msg {
 		case .Find_By_Point_Recursive: {
-			p := cast(^Find_By_Point) dp
+			point := cast(^Find_By_Point) dp
 
 			if image_display_has_content_now(app.custom_split.image_display) {
-				child := app.custom_split.image_display
-
-				if (.Hide not_in child.flags) && rect_contains(child.bounds, p.x, p.y) {
-					p.res = child
-					return 1
-				}
+				element_find_by_point_single(app.custom_split.image_display, point)
+				return find_by_point_found(point)
 			}
 
 			list := app_focus_list()
@@ -1188,7 +1184,7 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				}
 			}
 
-			return 1
+			return find_by_point_found(point)
 		}
 
 		// NOTE custom layout based on mode
@@ -2194,7 +2190,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			// decrease state unit
 			if task.state_unit >= 0 {
-				animate_to(&task.state_unit, 0, 1, 0.01)
+				animate_to(&task.state_unit, 0, 2, 0.01)
 				handled = true
 			}
 
@@ -3471,7 +3467,7 @@ app_focus_alpha_update :: proc() {
 	if direction != 0 {
 		if visuals_use_animations() {
 			goal := f32(direction == 1 ? 1 : 0)
-			animate_to(&app.focus.alpha, goal, 1, 0.01)
+			animate_to(&app.focus.alpha, goal, 2, 0.1)
 		} else {
 			// quickly set the alpha manually
 			if direction == 1 {
