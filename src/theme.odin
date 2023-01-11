@@ -68,6 +68,10 @@ Theme_Save_Load :: struct {
 }
 
 theme_load_from :: proc(temp: Theme_Save_Load) {
+	if temp == {} {
+		return
+	}
+
 	temp := temp
 	count := size_of(Theme) / size_of(Color)
 	for i in 0..<count {
@@ -139,6 +143,8 @@ theme_presets_init :: proc() {
 	
 	theme_preset_add("solarized dark", Theme{background = {{0, 43, 54, 255}, {7, 54, 66, 255}, {7, 54, 66, 255}}, panel = {{22, 61, 71, 255}, {26, 69, 80, 255}, {34, 97, 114, 255}}, text_default = {147, 161, 161, 255}, text_blank = {106, 118, 122, 255}, text_good = {133, 153, 0, 255}, text_bad = {203, 75, 22, 255}, text_link = {108, 113, 196, 255}, text_date = {42, 161, 152, 255}, shadow = {0, 0, 0, 255}, caret = {253, 246, 227, 255}, caret_selection = {179, 179, 179, 255}, tags = {{220, 50, 47, 255}, {159, 34, 94, 255}, {204, 120, 39, 255}, {148, 64, 76, 255}, {165, 49, 83, 255}, {205, 69, 45, 255}, {200, 30, 112, 255}, {219, 41, 35, 255}}})
 	theme_preset_add("solarized light", Theme{background = {{238, 232, 213, 255}, {253, 246, 227, 255}, {255, 240, 201, 255}}, panel = {{255, 240, 196, 255}, {255, 246, 218, 255}, {192, 222, 208, 255}}, text_default = {88, 110, 117, 255}, text_blank = {74, 88, 91, 255}, text_good = {38, 139, 210, 255}, text_bad = {220, 50, 47, 255}, text_link = {108, 113, 196, 255}, text_date = {42, 161, 152, 255}, shadow = {189, 181, 156, 255}, caret = {0, 43, 54, 255}, caret_selection = {119, 119, 119, 255}, tags = {{133, 153, 0, 255}, {123, 178, 26, 255}, {131, 120, 69, 255}, {172, 188, 39, 255}, {125, 186, 43, 255}, {145, 169, 76, 255}, {156, 145, 0, 255}, {175, 117, 56, 255}}})
+
+	theme = theme_presets[0].theme
 }
 
 theme_task_panel_color :: proc(task: ^Task) -> (res: Color) {
