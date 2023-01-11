@@ -371,14 +371,14 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		checkbox_vim = checkbox_init(panel, flags, "Use VIM bindings", false)
 		checkbox_spell_checking = checkbox_init(panel, flags, "Use Spell-Checking", false)
 	
-		volume = drag_float_init(panel, flags, 1, 0, 1, 0.02, "Volume: %.3f")
+		volume = drag_float_init(panel, flags, 1, 0, 1, "Volume: %.3f")
 		volume.hover_info = "Volume of all sound effects"
 		volume.on_changed = proc(drag: ^Drag_Float) {
 			value := i32(drag.position * 128)
 			mix_volume_set(value)
 		}
 
-		opacity = drag_float_init(panel, flags, 1, 0.1, 1, 0.02, "Opacity: %.3f")
+		opacity = drag_float_init(panel, flags, 1, 0.1, 1, "Opacity: %.3f")
 		opacity.hover_info = "Opacity of the main window"
 		opacity.on_changed = proc(drag: ^Drag_Float) {
 			window_opacity_set(app.window_main, drag.position)
@@ -388,25 +388,25 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		label_visuals := label_init(panel, { .HF, .Label_Center }, "Visuals")
 		label_visuals.font_options = &app.font_options_header
 
-		visuals.tab = drag_int_init(panel, flags, 20, 0, 200, 5, "Tab: %dpx")
+		visuals.tab = drag_int_init(panel, flags, 20, 0, 200, "Tab: %dpx")
 		visuals.tab.hover_info = "Tab Indentation Width"
 		
-		visuals.kanban_gap = drag_int_init(panel, flags, 10, 0, 100, 5, "Kanban Gap: %dpx")
+		visuals.kanban_gap = drag_int_init(panel, flags, 10, 0, 100, "Kanban Gap: %dpx")
 		visuals.kanban_gap.hover_info = "Horizontal gap between kanbans"
 
-		visuals.kanban_width = drag_int_init(panel, flags, 300, 300, 1000, 20, "Kanban Width: %dpx")
+		visuals.kanban_width = drag_int_init(panel, flags, 300, 300, 1000, "Kanban Width: %dpx")
 		visuals.kanban_width.hover_info = "Minimum width of a Kanban"
 
-		visuals.task_gap = drag_int_init(panel, flags, 1, 0, 20, 1, "Task Gap: %dpx")
+		visuals.task_gap = drag_int_init(panel, flags, 1, 0, 20, "Task Gap: %dpx")
 		visuals.task_gap.hover_info = "Vertical gap between tasks"
 
-		visuals.task_margin = drag_int_init(panel, flags, 5, 0, 50, 1, "Task Margin: %dpx")
+		visuals.task_margin = drag_int_init(panel, flags, 5, 0, 50, "Task Margin: %dpx")
 		visuals.task_margin.hover_info = "Margin around tasks"
 
-		visuals.animation_speed = drag_int_init(panel, flags, 100, 10, 400, 5, "Animation Speed: %d%%")
+		visuals.animation_speed = drag_int_init(panel, flags, 100, 10, 400, "Animation Speed: %d%%")
 		visuals.animation_speed.hover_info = "Animation speed multiplier of all linear animations"
 
-		visuals.fps = drag_int_init(panel, flags, 60, 10, 240, 5, "Wanted FPS: %dfps")
+		visuals.fps = drag_int_init(panel, flags, 60, 10, 240, "Wanted FPS: %dfps")
 		visuals.fps.hover_info = "Set the minimum FPS, in case vsync isn't enabled, only used if vsync frequency is higher than FPS"
 
 		visuals.use_animations = checkbox_init(panel, flags, "Use Animations", true)
@@ -447,7 +447,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			header.font_options = &app.font_options_header
 
 			line_highlight.use = checkbox_init(panel, flags, "Show", false)
-			line_highlight.alpha = drag_float_init(panel, flags, 0.5, 0, 1, 0.02, "Alpha: %.3f")
+			line_highlight.alpha = drag_float_init(panel, flags, 0.5, 0, 1, "Alpha: %.3f")
 			line_highlight.alpha.hover_info = "Alpha for line numbers"
 		}
 
@@ -462,10 +462,10 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 
 			ps_show = checkbox_init(panel, flags, "Show", false)
 
-			p_lifetime = drag_float_init(panel, flags, 0.5, 0.25, 2, 0.02, "Particle Lifetime: %.3f")
+			p_lifetime = drag_float_init(panel, flags, 0.5, 0.25, 2, "Particle Lifetime: %.3f")
 			p_lifetime.hover_info = "Particle Lifetime Scaling - the higher the longer one stays alive"
 
-			p_alpha_scale = drag_float_init(panel, flags, 0.5, 0, 1, 0.02, "Particle Alpha: %.3f")
+			p_alpha_scale = drag_float_init(panel, flags, 0.5, 0, 1, "Particle Alpha: %.3f")
 			p_alpha_scale.hover_info = "Particle Alpha Scale - the higher the more visible"
 
 			p_colored = checkbox_init(panel, flags, "Use Colors", true)
@@ -474,10 +474,10 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			// screenshake
 			s_use = checkbox_init(panel, flags, "Use Screenshake", true)
 
-			s_amount = drag_float_init(panel, flags, 3, 1, 20, 1, "Screenshake Amount: %.0fpx")
+			s_amount = drag_float_init(panel, flags, 3, 1, 20, "Screenshake Amount: %.0fpx")
 			s_amount.hover_info = "Screenshake Amount in px - the higher the more screenshake"
 
-			s_lifetime = drag_float_init(panel, flags, 1, 0, 1, 0.02, "Screenshake Multiplier: %.3f")
+			s_lifetime = drag_float_init(panel, flags, 1, 0, 1, "Screenshake Multiplier: %.3f")
 			s_lifetime.hover_info = "Screenshake Multiplier - the lower the longer it screenshakes"
 		}
 	}
@@ -572,9 +572,9 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 		panel = shared_panel(enum_panel, "Pomodoro")
 
 		// pomodoro		
-		work = drag_int_init(panel, flags, 50, 0, 60, 1, "Work: %dmin")
-		short_break = drag_int_init(panel, flags, 10, 0, 60, 1, "Short Break: %dmin")
-		long_break = drag_int_init(panel, flags, 30, 0, 60, 1, "Long Break: %dmin")
+		work = drag_int_init(panel, flags, 50, 0, 60, "Work: %dmin")
+		short_break = drag_int_init(panel, flags, 10, 0, 60, "Short Break: %dmin")
+		long_break = drag_int_init(panel, flags, 30, 0, 60, "Long Break: %dmin")
 
 		// statistics
 		spacer_init(panel, flags, 0, spacer_scaled, .Empty)
@@ -592,7 +592,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			sub := panel_init(panel, { .HF, .Panel_Horizontal, .Panel_Default_Background }, 0, 2)
 			sub.rounded = true
 			sub.background_index = 2
-			drag := drag_int_init(sub, flags, 30.0, 0, 60, 1, "Cheat: %dmin")
+			drag := drag_int_init(sub, flags, 30.0, 0, 60, "Cheat: %dmin")
 
 			b := button_init(sub, flags, "Add")
 			b.data = drag
@@ -603,7 +603,7 @@ sidebar_enum_panel_init :: proc(parent: ^Element) {
 			}
 		}
 
-		work_today = drag_int_init(panel, flags, 8, 0, 24, 1, "Goal Today: %dh")
+		work_today = drag_int_init(panel, flags, 8, 0, 24, "Goal Today: %dh")
 
 		gauge_work_today = linear_gauge_init(panel, flags, 0.5, "Done Today", "Working Overtime")
 		gauge_work_today.message_user = proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
@@ -812,7 +812,7 @@ pm_screenshake_use :: #force_inline proc() -> bool {
 	return sb.options.pm.s_use.state
 }
 pm_screenshake_amount :: #force_inline proc() -> f32 {
-	return math.remap(sb.options.pm.s_amount.position, 0, 1, S_AMOUNT_MIN, S_AMOUNT_MAX)
+	return sb.options.pm.s_amount.position
 }
 pm_screenshake_lifetime :: #force_inline proc() -> f32 {
 	return sb.options.pm.s_lifetime.position

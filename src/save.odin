@@ -1005,11 +1005,8 @@ json_save_misc :: proc(path: string) -> bool {
 			progressbar_hover_only(),
 
 			// line highlights
-			// TODO
-			false,
-			0,
-			// sb.options.checkbox_line_highlight_use.state,
-			// sb.options.slider_line_highlight_alpha.position,
+			sb.options.line_highlight.use.state,
+			sb.options.line_highlight.alpha.position,
 		},
 
 		pomodoro = {

@@ -151,6 +151,7 @@ Window :: struct {
 	w: ^sdl.Window,
 	w_id: u32,
 	cursor: Cursor,
+	cursor_motion: [2]int,
 
 	// key state
 	combo_builder: strings.Builder,
@@ -1306,6 +1307,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 			window.cursor_y_old = window.cursor_y
 			window.cursor_x = int(e.motion.x)
 			window.cursor_y = int(e.motion.y)
+			window.cursor_motion = { int(e.motion.xrel), int(e.motion.yrel) }
 			window_input_event(window, .Mouse_Move)
 		}
 
@@ -1621,6 +1623,7 @@ gs_destroy :: proc() {
 		sdl.FreeCursor(cursor)
 	}
 
+	log.info("QUIT")
 	sdl.Quit()
 	free(gs)
 }
@@ -1761,6 +1764,11 @@ gs_message_loop :: proc() {
 		
 		// repaint all of the window
 		gs_draw_and_cleanup()
+		
+		if !gs.running {
+			break
+		}
+
 		elapsed_ms := gs_dt_end()
 
 		// frame minimum, if vsync doesnt clamp it lower
@@ -1778,8 +1786,11 @@ gs_message_loop :: proc() {
 		}
 	}
 
+	log.info("PRESETS DESTROY")
 	theme_presets_destroy()
+	log.info("APP DESTROY")
 	app_destroy(app)
+	log.info("GS DESTROY")
 	gs_destroy()
 }
 
@@ -1801,61 +1812,6 @@ gs_process_animations :: proc() {
 		// NOTE repaint even on last frame
 		element_repaint(element)
 	}
-}
- 
-// window_animate_forced :: proc(
-// 	window: ^Window,
-// 	value: ^f32,
-// 	to: f32,
-// 	type: ease.Ease = .Quadratic_Out,
-// 	duration: time.Duration = time.Second,
-// 	delay: f64 = 0,
-// ) {
-// 	flux_to_restricted(&window.flux, value, to, type, duration, delay)
-// }
-
-// window_animate :: proc(
-// 	window: ^Window,
-// 	value: ^f32,
-// 	to: f32,
-// 	type: ease.Ease = .Quadratic_Out,
-// 	duration: time.Duration = time.Second,
-// 	delay: f64 = 0,
-// ) {
-// 	ease.flux_to(&window.flux, value, to, type, duration, delay)
-// }
-
-// version that stops ongoing animation on different goal
-flux_to_restricted :: proc(
-	flux: ^ease.Flux_Map($T),
-	value: ^T, 
-	goal: T, 
-	type: ease.Ease = .Quadratic_Out,
-	duration: time.Duration = time.Second, 
-	delay: f64 = 0,
-) -> (tween: ^ease.Flux_Tween(T)) where intrinsics.type_is_float(T) {
-	if res, ok := &flux.values[value]; ok {
-		// return on same goal
-		if res.goal == goal {
-			return
-		}
-
-		tween = res
-	} else {
-		flux.values[value] = {}
-		tween = &flux.values[value]
-	}
-
-	tween^ = { 
-		value = value, 
-		goal = goal, 
-		duration = duration,
-		delay = delay,
-		type = type,
-		data = value,
-	}
-
-	return
 }
 
 // true if the given element is 
@@ -1913,13 +1869,14 @@ gs_draw_and_cleanup :: proc() {
 	iter := gs_windows_iter_head()
 
 	for window in dll.iterate_next(&iter) {
-		root := &window.node
+		root := window.node
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
 			window_count -= 1
+			log.info("REMOVE WINDOW", root)
 			// remove the node wanted out of the DLL
-			dll.remove(&gs.windows_list, root)
+			dll.remove(&gs.windows_list, &root)
 		} else if window.update_next {
 			spall.scoped("draw window")
 			window_draw(window)
@@ -1929,6 +1886,7 @@ gs_draw_and_cleanup :: proc() {
 	}
 
 	if window_count == 0 {
+		log.info("STOP EARLY")
 		gs.running = false
 	}
 }

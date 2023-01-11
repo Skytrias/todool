@@ -1453,13 +1453,17 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				power_mode_render(target)
 			}
 
-			if true {
+			when SHOW_FPS {
 				render_push_clip(target, panel.clip)
 				rect := panel.clip
 				rect.b = rect.t + 50
-				rect.l = rect.r - 300
+				// rect.l = rect.r - 300
 				ms := gs.dt * 1000
 				fps := 1 / gs.dt
+				fcs_ahv()
+				fcs_font(font_regular)
+				fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
+				fcs_color(theme.text_default)
 				text := fmt.tprintf("wanted %dFPS    current: %.fFPS    %.5fms", visuals_fps(), fps, ms)
 				render_string_rect(target, rect, text)
 			}
@@ -2890,7 +2894,7 @@ progressbars_update :: proc() {
 	if progressbars_animate() {
 		direction := f32(app.progressbars_goal == 0 ? -1 : 1)
 		app.progressbars_alpha = clamp(
-			app.progressbars_alpha + gs.dt * visuals_animation_speed() * direction, 
+			app.progressbars_alpha + gs.dt * visuals_animation_speed() * direction * 4, 
 			0, 
 			1,
 		)

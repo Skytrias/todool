@@ -17,8 +17,6 @@ import "../cutf8"
 // screenshake amount
 // screenshake lifetime (how quick it ends)
 
-S_AMOUNT_MIN :: 1
-S_AMOUNT_MAX :: 20
 P_SPAWN_HIGH :: 10
 P_SPAWN_LOW :: 4
 

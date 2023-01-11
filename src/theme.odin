@@ -318,8 +318,8 @@ theme_editor_variation_reset :: proc() {
 	lines := theme_editor_lines()
 
 	for line in lines {
-		slider := cast(^Slider) line.children[4]
-		slider.position = 1
+		drag := cast(^Drag_Float) line.children[4]
+		drag.position = 1
 	}
 
 	window_repaint(theme_editor.window)
@@ -416,8 +416,8 @@ theme_randomize_all :: proc(tags_only: bool) {
 				if !lock.state {
 					button := cast(^Color_Button) line.children[1]
 					newish := color_rgb_rand()
-					slider := cast(^Slider) line.children[4]
-					button.color^ = color_blend_amount(newish, root_color^, slider.position)
+					drag := cast(^Drag_Float) line.children[4]
+					button.color^ = color_blend_amount(newish, root_color^, drag.position)
 				}
 			}
 		}
@@ -613,10 +613,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 		toggle2 := toggle_simple_init(line, false)
 		toggle2.invoke = theme_editor_root_set
 
-		variation := slider_init(line, {}, variation_value)
-		variation.formatting = proc(builder: ^strings.Builder, position: f32) {
-			fmt.sbprintf(builder, "%d%%", int(position * 100))
-		}
+		variation := drag_float_init(line, {}, variation_value, 0, 1, "%.2f", false)
 	}
 
 	{

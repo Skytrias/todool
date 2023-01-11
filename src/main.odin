@@ -22,9 +22,10 @@ import "../spall"
 import "../cutf8"
 import "../btrie"
 
+SHOW_FPS :: false
 POOL_DEBUG :: false
 TRACK_MEMORY :: false
-TODOOL_RELEASE :: true
+TODOOL_RELEASE :: false
 PRESENTATION_MODE :: false
 DEMO_MODE :: false // wether or not save&load are enabled
 VERSION :: "0.4.0"

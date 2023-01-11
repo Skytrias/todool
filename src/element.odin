@@ -22,6 +22,15 @@ UPDATE_PRESSED_LEAVE :: 4
 UPDATE_FOCUS_GAINED :: 5
 UPDATE_FOCUS_LOST :: 6
 
+inverse_lerp :: proc(x1, x2, value: f32) -> f32 {
+	return (value - x1) / (x2 - x1)
+}
+
+inverse_clamped_lerp :: proc(x1, x2, value: f32) -> f32 {
+	value := clamp(value, x1, x2)
+	return inverse_lerp(x1, f32(x2), value)
+}
+
 di_update_interacted :: proc(di: int) -> bool {
 	return di == UPDATE_HOVERED || 
 		di == UPDATE_HOVERED_LEAVE ||
@@ -1046,154 +1055,6 @@ label_init :: proc(
 }
 
 //////////////////////////////////////////////
-// slider
-//////////////////////////////////////////////
-
-Slider_Format_Proc :: proc(builder: ^strings.Builder, position: f32)
-
-Slider :: struct {
-	using element: Element,
-	position: f32,
-	builder: strings.Builder,
-	formatting: Slider_Format_Proc,
-	apply_rounding: bool,
-}
-
-slider_default_formatting :: proc(
-	builder: ^strings.Builder, 
-	position: f32,
-) {
-	strings.builder_reset(builder)
-	fmt.sbprintf(builder, "%.1f", position)
-}
-
-slider_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> int {
-	slider := cast(^Slider) element
-	// SLIDER_ADD :: 8
-	SLIDER_ADD :: 0
-
-	#partial switch msg {
-		case .Paint_Recursive: {
-			pressed := element.window.pressed == element
-			hovered := element.window.hovered == element
-			target := element.window.target
-	
-			// CLIPPED STYLE
-			bounds := element.bounds
-			parent_clip := element.parent.clip
-			clips := [2]RectI {
-				rect_intersection(parent_clip, rect_cut_left(&bounds, int(slider.position	* rect_widthf(bounds)))),
-				rect_intersection(parent_clip, bounds),
-			}
-			
-			text_color := hovered || pressed ? theme.text_default : theme.text_blank
-			colors := [2]Color {
-				text_color,
-				theme.background[1],
-			}
-
-			fcs_element(slider)
-			fcs_ahv()
-			strings.builder_reset(&slider.builder)
-			slider.formatting(&slider.builder, slider.position)
-			text := strings.to_string(slider.builder)
-
-			for i in 0..<2 {
-				render_push_clip(target, clips[i])
-				fcs_color(colors[1 - i])
-				render_rect(target, element.bounds, colors[i], ROUNDNESS)
-				render_string_rect(target, element.bounds, text)
-			}
-
-			render_push_clip(target, element.clip)
-			render_rect_outline(target, element.bounds, text_color)
-		}
-
-		case .Mouse_Scroll_Y: {
-			if element.window.ctrl {
-				old := slider.position
-				slider.position = clamp(slider.position + f32(di) * 0.05, 0, 1) 
-
-				if old != slider.position	{
-					element_message(element, .Value_Changed)
-					element_repaint(element)
-				}
-
-				return 1
-			}
-		}
-
-		case .Get_Cursor: {
-			return int(Cursor.Resize_Horizontal)
-		}
-
-		case .Update: {
-			element_repaint(element)
-		}
-
-		case .Get_Width: {
-			return int(SCALE * 100)
-		}
-
-		case .Get_Height: {
-			return efont_size(element) + int(TEXT_MARGIN_VERTICAL * SCALE + SLIDER_ADD * SCALE)
-		}
-
-		case .Destroy: {
-			delete(slider.builder.buf)
-		}
-	}
-
-	// change slider position and cause repaint
-	if msg == .Left_Down || (msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT) {
-		old := slider.position
-		unit := f32(element.window.cursor_x - element.bounds.l) / f32(rect_width(element.bounds))
-
-		if element.window.shift || element.window.ctrl || element.window.alt {
-			unit = math.round(unit * 10) / 10
-		}
-
-		// if slider.apply_rounding {
-		// 	unit = math.round(unit * 100) / 100
-		// }
-
-		slider.position = 
-			clamp(
-				unit,
-				0,
-				1,
-			)
-		
-		if old != slider.position	{
-			element_message(element, .Value_Changed)
-			element_repaint(element)
-		}
-	}
-
-	return 0
-}
-
-slider_init :: proc(
-	parent: ^Element, 
-	flags: Element_Flags, 
-	position: f32 = 0,
-	formatting: Slider_Format_Proc = slider_default_formatting,
-	allocator := context.allocator,
-) -> (res: ^Slider) {
-	res = element_init(Slider, parent, flags, slider_message, allocator)
-	res.builder = strings.builder_make(0, 32)
-	res.position = clamp(position, 0, 1)
-	res.formatting = formatting
-	return
-}
-
-// use this in case procedures have a value changed call!
-slider_set :: proc(slider: ^Slider, goal: f32) {
-	slider.position = clamp(goal, 0, 1)
-	element_message(slider, .Value_Changed)
-}
-
-//////////////////////////////////////////////
 // drag float/int
 //////////////////////////////////////////////
 
@@ -1201,7 +1062,6 @@ Drag_Int :: struct {
 	using element: Element,
 	position: int,
 	low, high: int,
-	speed: int,
 	format: string,
 }
 
@@ -1211,12 +1071,10 @@ drag_int_init :: proc(
 	start: int,
 	x1: int,
 	x2: int,
-	speed: int,
-	format: string = "%d",
+	format: string,
 ) -> (res: ^Drag_Int) {
 	res = element_init(Drag_Int, parent, flags, drag_int_message, context.allocator)
 	res.format = format
-	res.speed = speed
 	
 	// just to make sure we arent dumb
 	low := min(x1, x2)
@@ -1296,21 +1154,14 @@ drag_int_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 		}
 	}
 
-	if msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT {
+	if msg == .Left_Down || (msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT) {
 		old := drag.position
-		diff_x := element.window.cursor_x - element.window.cursor_x_old
-	
-		// apply only on mouse diff		
-		if diff_x != 0 {
-			direction := diff_x > 0 ? 1 : -1
-			modifier: f32 = element.window.shift ? 1.5 : element.window.ctrl ? 0.5 : 1
-			addition := int(f32(drag.speed * direction) * modifier)
-			drag.position = clamp(drag.position + addition, drag.low, drag.high)
+		unit := inverse_clamped_lerp(f32(element.bounds.l), f32(element.bounds.r), f32(element.window.cursor_x))
+		drag.position = int(math.lerp(f32(drag.low), f32(drag.high), unit))
 
-			if old != drag.position {
-				element_message(element, .Value_Changed)
-				element_repaint(element)
-			}
+		if old != drag.position {
+			element_message(element, .Value_Changed)
+			element_repaint(element)
 		}
 	}
 
@@ -1321,8 +1172,9 @@ Drag_Float :: struct {
 	using element: Element,
 	position: f32,
 	low, high: f32,
-	speed: f32,
 	format: string,
+
+	draw_low_high: bool,
 	on_changed: proc(^Drag_Float),
 }
 
@@ -1332,12 +1184,12 @@ drag_float_init :: proc(
 	start: f32,
 	x1: f32,
 	x2: f32,
-	speed: f32,
-	format: string = "%f",
+	format: string,
+	draw_low_high := true
 ) -> (res: ^Drag_Float) {
 	res = element_init(Drag_Float, parent, flags, drag_float_message, context.allocator)
 	res.format = format
-	res.speed = speed
+	res.draw_low_high = draw_low_high
 	
 	// just to make sure we arent dumb
 	low := min(x1, x2)
@@ -1379,11 +1231,11 @@ drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			fcs_element(element)
 			fcs_color(text_color)
 
-			if hovered || pressed {
+			if drag.draw_low_high && (hovered || pressed) {
 				render_hovered_highlight(target, element.bounds)
 
 				fcs_ahv(.LEFT, .MIDDLE)
-				left := fmt.tprintf("%.3f", drag.low)
+				left := fmt.tprintf("%.1f", drag.low)
 				r := element.bounds
 				r.l += int(TEXT_PADDING * SCALE)
 				render_string_rect(target, r, left)
@@ -1391,7 +1243,7 @@ drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				fcs_ahv(.RIGHT, .MIDDLE)
 				r = element.bounds
 				r.r -= int(TEXT_PADDING * SCALE)
-				right := fmt.tprintf("%.3f", drag.high)
+				right := fmt.tprintf("%.1f", drag.high)
 				render_string_rect(target, r, right)
 			}
 
@@ -1425,19 +1277,11 @@ drag_float_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 
 	if msg == .Mouse_Drag && element.window.pressed_button == MOUSE_LEFT {
 		old := drag.position
-		diff_x := element.window.cursor_x - element.window.cursor_x_old
-	
-		// apply only on mouse diff		
-		if diff_x != 0 {
-			direction := f32(diff_x > 0 ? 1 : -1)
-			modifier: f32 = element.window.shift ? 1.5 : element.window.ctrl ? 0.5 : 1
-			addition := drag.speed * direction * modifier
-			drag.position = clamp(drag.position + addition, drag.low, drag.high)
-
-			if old != drag.position {
-				element_message(element, .Value_Changed)
-				element_repaint(element)
-			}
+		unit := inverse_clamped_lerp(f32(element.bounds.l), f32(element.bounds.r), f32(element.window.cursor_x))
+		drag.position = math.lerp(drag.low, drag.high, unit)
+		if old != drag.position {
+			element_message(element, .Value_Changed)
+			element_repaint(element)
 		}
 	}
 
@@ -1537,6 +1381,9 @@ checkbox_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 			element_animation_start(element)
 			box.state_transition = true
 
+		}
+
+		case .Value_Changed: {
 			if box.invoke != nil {
 				box->invoke()
 			}
