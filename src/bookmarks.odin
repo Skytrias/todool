@@ -121,6 +121,11 @@ bookmark_alpha_animate :: proc() -> bool {
 
 bookmark_alpha_update :: proc() {
 	if bookmark_alpha_animate() {
-		bs.alpha = max(bs.alpha - gs.dt * visuals_animation_speed(), 0)
+		animate_to(
+			&bs.alpha,
+			0,
+			0.25,
+			0.01,
+		)
 	}
 }

@@ -1984,8 +1984,8 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 			hovered := element.window.hovered == element
 			pressed := element.window.pressed == element
 
-			if scrollbar.keep_hot >= 0 {
-				scrollbar.keep_hot -= gs.dt
+			if scrollbar.keep_hot >= 0 {	
+				animate_to(&scrollbar.keep_hot, 0)
 				scrollbar.hot = 1
 				return 1
 			}

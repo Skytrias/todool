@@ -10,6 +10,7 @@ Version 0.4.0
 		windows reappear if they already exist
 		dialogs can use text boxes -> pattern import dialog
 		context menus now use menu buttons with keyboard command highlights
+		sliders reworked internally and also show start/end of ranges now
 	Menu Bar
 		icons added on the left of items
 		open locals folder
@@ -50,13 +51,15 @@ Version 0.4.0
 		highlighted tasks are now saved
 	General
 		copy paste now includes newer task states properly (highlights, links, separators)
-		option to set FPS in hidden json
 		using hsluv color space for randomly generated colors
 		first task is no longer forced to be indentation zero
 		fallback fonts now added (noto-sans europe)
 		search state now saved + case sensitivity
 		case-insensitive search option added
 		pattern import now supports lua pattern matching
+	FPS
+		now configurable in options from 10-240fps
+		vsync frequency is prioritized if lower than wanted fps
 	Theme Editor Rework
 		new color "panel highlight" added
 		use a grid for element layouts to reduce text

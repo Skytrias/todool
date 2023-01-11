@@ -156,8 +156,13 @@ dialog_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> 
 		}
 
 		case .Animate: {
-			handled := dialog.shadow >= 1
-			dialog.shadow = min(dialog.shadow + gs.dt * visuals_animation_speed(), 1)
+			handled := dialog.shadow <= 1
+			animate_to(
+				&dialog.shadow,
+				1,
+				2,
+				0.01,
+			)
 			return int(handled)
 		}
 	}

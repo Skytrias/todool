@@ -25,9 +25,9 @@ import "../btrie"
 SHOW_FPS :: false
 POOL_DEBUG :: false
 TRACK_MEMORY :: false
-TODOOL_RELEASE :: false
+TODOOL_RELEASE :: true
 PRESENTATION_MODE :: false
-DEMO_MODE :: false // wether or not save&load are enabled
+DEMO_MODE :: true // wether or not save&load are enabled
 VERSION :: "0.4.0"
 
 main :: proc() {
@@ -213,7 +213,6 @@ main_update :: proc(window: ^Window) {
 		strings.write_string(b, "Todool: ")
 		strings.write_string(b, strings.to_string(app.last_save_location))
 		strings.write_string(b, app.dirty != app.dirty_saved ? " * " : " ")
-		// fmt.sbprintf(b, "| acc %.3f | dt %.3f ", gs.accumulator, gs.dt)
 		window_title_push_builder(window, b)
 	}
 

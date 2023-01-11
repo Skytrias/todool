@@ -444,8 +444,8 @@ mode_panel_zoom_running :: proc() -> bool {
 }
 
 mode_panel_zoom_update :: proc() {
-	if app.mmpp.zoom_highlight > 0 {
-		app.mmpp.zoom_highlight -= gs.dt * visuals_animation_speed()
+	if mode_panel_zoom_running() {
+		animate_to(&app.mmpp.zoom_highlight, 0.0, 0.5, 0.08)
 	}
 }
 
@@ -2194,7 +2194,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 
 			// decrease state unit
 			if task.state_unit >= 0 {
-				task.state_unit = max(task.state_unit - gs.dt * visuals_animation_speed() * 4, 0)
+				animate_to(&task.state_unit, 0, 1, 0.01)
 				handled = true
 			}
 
@@ -2892,12 +2892,8 @@ progressbars_animate :: proc() -> bool {
 
 progressbars_update :: proc() {
 	if progressbars_animate() {
-		direction := f32(app.progressbars_goal == 0 ? -1 : 1)
-		app.progressbars_alpha = clamp(
-			app.progressbars_alpha + gs.dt * visuals_animation_speed() * direction * 4, 
-			0, 
-			1,
-		)
+		goal := f32(app.progressbars_goal == 0 ? 0 : 1)
+		animate_to(&app.progressbars_alpha, goal, 1, 0.01)
 	}
 }
 
@@ -2912,7 +2908,6 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 	fcs_ahv()
 	fcs_font(font_regular)
 	fcs_size(DEFAULT_FONT_SIZE * TASK_SCALE)
-	fcs_color(theme_panel(.Parent))
 
 	w := int(100 * TASK_SCALE)
 	h := int((DEFAULT_FONT_SIZE + TEXT_MARGIN_VERTICAL) * TASK_SCALE)
@@ -2962,6 +2957,9 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			} else {
 				fmt.sbprintf(&builder, "%d / %d", non_normal, total)
 			}
+
+			color := color_alpha(theme_panel(.Parent), alpha)
+			fcs_color(color)
 			render_string_rect(target, rect, strings.to_string(builder))
 		}
 	}
@@ -3472,8 +3470,8 @@ app_focus_alpha_update :: proc() {
 	
 	if direction != 0 {
 		if visuals_use_animations() {
-			speed := visuals_animation_speed()
-			app.focus.alpha += f32(direction) * gs.dt * speed * 8
+			goal := f32(direction == 1 ? 1 : 0)
+			animate_to(&app.focus.alpha, goal, 1, 0.01)
 		} else {
 			// quickly set the alpha manually
 			if direction == 1 {
@@ -3571,9 +3569,6 @@ app_shadow_update :: proc() {
 	}
 
 	if app_shadow_animate() {
-		app.task_shadow_alpha = min(
-			app.task_shadow_alpha + gs.dt * visuals_animation_speed() * 8, 
-			1,
-		)		
+		animate_to(&app.task_shadow_alpha, 1, 1, 0.01)
 	}	
 }

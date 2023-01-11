@@ -1869,14 +1869,14 @@ gs_draw_and_cleanup :: proc() {
 	iter := gs_windows_iter_head()
 
 	for window in dll.iterate_next(&iter) {
-		root := window.node
+		root := &window.node
 
 		// anything to destroy?
 		if element_deallocate(&window.element) {
 			window_count -= 1
 			log.info("REMOVE WINDOW", root)
 			// remove the node wanted out of the DLL
-			dll.remove(&gs.windows_list, &root)
+			dll.remove(&gs.windows_list, root)
 		} else if window.update_next {
 			spall.scoped("draw window")
 			window_draw(window)
