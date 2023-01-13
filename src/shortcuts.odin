@@ -1296,6 +1296,10 @@ todool_indentation_shift :: proc(du: u32) {
 		return
 	}
 
+	if app.task_head == app.task_tail && app.task_head == 0 {
+		return
+	}
+
 	manager := mode_panel_manager_scoped()
 	task_head_tail_push(manager)
 
@@ -1303,7 +1307,7 @@ todool_indentation_shift :: proc(du: u32) {
 	app.task_state_progression = .Update_Animated
 
 	for task in lh_iter_step(&iter) {
-		if task.indentation + amt >= 0 {
+		if task.filter_index != 0 && task.indentation + amt >= 0 {
 			task_indentation_set_animate(manager, task, task.indentation + amt)
 		}
 	}

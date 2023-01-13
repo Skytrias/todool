@@ -479,7 +479,7 @@ task_indentation_child_count :: proc(task: ^Task, indentation: int) -> (total: i
 	for index in task.filter_children {
 		child := app_task_list(index)
 		
-		if child.indentation == indentation {
+		if child.indentation > indentation {
 			total += 1
 		}
 	}
@@ -978,6 +978,18 @@ mode_panel_draw_verticals :: proc(target: ^Render_Target) {
 
 // set has children, index, and visible parent per each task
 task_set_children_info :: proc() {
+	unfolds: bool
+	manager := mode_panel_manager_begin()
+	
+	// force indentation == 0
+	if app_filter_not_empty() {
+		task := app_task_filter(0)
+		if task.indentation != 0 {
+			task_indentation_set_animate(manager, task, 0)
+			unfolds = true
+		}
+	}
+
 	// reset data
 	for list_index, linear_index in app.pool.filter {
 		task := app_task_list(list_index)
@@ -1017,8 +1029,6 @@ task_set_children_info :: proc() {
 		return
 	}
 
-	manager := mode_panel_manager_begin()
-	unfolds: bool
 	previous: ^Task
 	for i in 0..<len(app.pool.filter) {
 		task := app_task_filter(i)
@@ -2175,7 +2185,7 @@ task_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -> in
 					always := true
 					state := Task_State(i)
 					// in case this gets run too early to avoid divide by 0
-					total := max(task_indentation_child_count(task, task.indentation + 1), 1)
+					total := max(task_indentation_child_count(task, task.indentation), 1)
 					value := f32(count) / f32(total)
 
 					handled |= animate_to_state(
@@ -2946,8 +2956,10 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			}
 
 			strings.builder_reset(&builder)
-			total := task_indentation_child_count(task, task.indentation + 1)
+			total := task_indentation_child_count(task, task.indentation)
 			non_normal := total - task.state_count[.Normal]
+			fmt.eprintln(total, len(task.filter_children))
+			
 			if use_percentage {
 				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(total) * 100)
 			} else {
