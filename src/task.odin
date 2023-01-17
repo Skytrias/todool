@@ -479,7 +479,7 @@ task_indentation_child_count :: proc(task: ^Task, indentation: int) -> (total: i
 	for index in task.filter_children {
 		child := app_task_list(index)
 		
-		if child.indentation > indentation {
+		if child.indentation > indentation && child.visible_parent == task {
 			total += 1
 		}
 	}
@@ -2958,7 +2958,6 @@ task_render_progressbars :: proc(target: ^Render_Target) {
 			strings.builder_reset(&builder)
 			total := task_indentation_child_count(task, task.indentation)
 			non_normal := total - task.state_count[.Normal]
-			fmt.eprintln(total, len(task.filter_children))
 			
 			if use_percentage {
 				fmt.sbprintf(&builder, "%.0f%%", f32(non_normal) / f32(total) * 100)
