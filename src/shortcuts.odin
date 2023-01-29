@@ -1381,6 +1381,8 @@ todool_save :: proc(du: u32) {
 			log.info("SAVE: save.todool failed saving =", err)
 		}
 
+		json_save_todool("testing.json")
+
 		// when anything was pushed - set to false
 		if app.dirty != app.dirty_saved {
 			app.dirty_saved = app.dirty

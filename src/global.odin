@@ -1284,7 +1284,7 @@ window_handle_event :: proc(window: ^Window, e: ^sdl.Event) {
 			}
 
 			direction: i32 = 1
-			if e.wheel.direction == u32(sdl.SDL_MouseWheelDirection.FLIPPED) {
+			if e.wheel.direction == u32(sdl.MouseWheelDirection.FLIPPED) {
 				direction *= -1
 			}
 

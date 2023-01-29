@@ -1401,3 +1401,55 @@ keymap_load :: proc(path: string) -> bool {
 
 	return true
 }
+
+json_save_todool :: proc(path: string) -> bool {
+	JSON_Tag :: struct {
+		color: u32,
+		text: string,
+	}
+
+	JSON_View_Camera :: [2]f32
+
+
+	JSON_Test :: struct {
+		tag_mode: int,
+		tags: [8]JSON_Tag,
+		view_mode_count: int,
+		view_current_mode: int,
+		view_scale: f32,
+		view_cameras: []JSON_View_Camera,
+	}
+	test: JSON_Test
+
+	// tags
+	test.tag_mode = sb.tags.tag_show_mode
+	for i in 0..<8 {
+		tag := &test.tags[i]
+		tag.text = ss_string(sb.tags.names[i])
+		tag.color = transmute(u32) theme.tags[i]
+	}
+
+	// view + cams
+	test.view_mode_count = len(Mode)
+	test.view_current_mode = int(app.mmpp.mode)
+	test.view_scale = TASK_SCALE
+	cams: [len(Mode)]JSON_View_Camera
+	for mode, i in Mode {
+		cam := &app.mmpp.cam[mode]
+		cams[i] = { cam.offset_x, cam.offset_y }
+	}
+	test.view_cameras = cams[:]
+
+	result, err := json.marshal(test, { 
+		spec = .JSON5,
+		pretty = true,
+		write_uint_as_hex = true,
+	})
+
+	if err == nil {
+		file_path := bpath_temp(path)
+		return gs_write_safely(file_path, result[:])
+	}
+
+	return false
+}
