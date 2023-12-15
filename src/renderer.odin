@@ -190,7 +190,7 @@ render_target_init :: proc(window: ^sdl.Window) -> (res: ^Render_Target) {
 
 	// render data
 	groups = make([dynamic]Render_Group, 0, 32)
-	vertices = make([]Render_Vertex, 1000 * 32)
+	vertices = make([]Render_Vertex, 1000 * 64)
 
 	render_target_fontstash_generate(res, gs.fc.width, gs.fc.height)
 	textures[.Fonts].uniform_sampler = gl.GetUniformLocation(shader_program, "u_sampler_font")

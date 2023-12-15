@@ -286,17 +286,17 @@ animate_to :: proc(
 	if value^ == -1 {
 		value^ = goal
 	} else {
-		lambda := 10 * rate * visuals_animation_speed()
-		res := math.lerp(value^, goal, 1 - math.exp(-lambda * gs.dt))
-		// res := math.lerp(value^, end, 1 - math.pow(rate, core.dt * 10))
+	lambda := 10 * rate * visuals_animation_speed()
+	res := math.lerp(value^, goal, 1 - math.exp(-lambda * gs.dt))
+	// res := math.lerp(value^, end, 1 - math.pow(rate, core.dt * 10))
 
-		// skip cutoff
-		if abs(res - goal) < cuttoff {
-			value^ = goal
-		} else {
-			value^ = res
-			ok = true
-		}
+	// skip cutoff
+	if abs(res - goal) < cuttoff {
+		value^ = goal
+	} else {
+		value^ = res
+		ok = true
+	}
 	}
 
 	return

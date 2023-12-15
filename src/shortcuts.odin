@@ -565,7 +565,7 @@ todool_toggle_folding :: proc(du: u32 = 0) {
 
 // push memory bits for a task
 task_push_unfold :: proc(task: ^Task) -> ^Undo_Item_Filter_Unfold {
-	root := mem.alloc(
+	root, _ := mem.alloc(
 		size_of(Undo_Item_Filter_Unfold) + size_of(int) * len(task.filter_children), 
 		mem.DEFAULT_ALIGNMENT,
 		context.temp_allocator,

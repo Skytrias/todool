@@ -322,9 +322,9 @@ image_load_from_file :: proc(path: string) -> (res: ^image.Image) {
 }
 
 // loads images on a seperate thread to the stored data
-image_load_process_on_thread :: proc(t: ^thread.Thread) {
+image_load_process_on_thread :: proc() {
 	{
-		spall.scoped("Load images", u32(t.id))
+		spall.scoped("Load images")
 
 		for img in &gs.stored_images {
 			// loading needs to be done
@@ -339,7 +339,7 @@ image_load_process_on_thread :: proc(t: ^thread.Thread) {
 	sdl_push_empty_event()
 	intrinsics.atomic_store(&app.window_main.update_next, true)
 	gs.stored_image_thread = nil
-	thread.destroy(t)
+	// thread.destroy(t)
 }
 
 image_load_process_texture_handles :: proc(window: ^Window) {
