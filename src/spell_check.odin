@@ -137,7 +137,7 @@ compressed_trie_build :: proc() {
 	btrie.ctrie_init(80000)
 	defer btrie.ctrie_destroy()
 
-	bytes, ok := os.read_entire_file("../assets/big.txt", context.allocator)
+	bytes, ok := os.read_entire_file("assets/big.txt", context.allocator)
 	defer delete(bytes)
 
 	// NOTE ASSUMING ASCII ENCODING
@@ -174,11 +174,12 @@ compressed_trie_build :: proc() {
 	btrie.comp_print_size()
 	btrie.comp_print()
 
-	btrie.comp_write_to_file("../assets/comp_trie.bin")
+	btrie.comp_write_to_file("assets/comp_trie.bin")
 	btrie.comp_destroy()
 }
 
 spell_check_init :: proc() {
+	// btrie.comp_read_from_file("assets/comp_trie.bin")
 	btrie.comp_read_from_data(spell_check_bin)
 	sc.word_results = make([dynamic]Word_Result, 0, 32)
 	
