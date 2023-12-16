@@ -1,5 +1,7 @@
 # Todool
 
+![preview](assets/todool_preview.png)
+
 I developed [Todool](https://todool.de/) fulltime from 2022-2023 in [odin](https://odin-lang.org/). I started selling it in November 2022 but quickly felt a bit of burnout. Lot's of reworks lead to the current state of things, which I feel like reworking again... 
 
 Instead of letting the project die completly I'll share the source here, have fun with it!
