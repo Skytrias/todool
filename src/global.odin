@@ -1427,7 +1427,7 @@ gs_init :: proc() {
 
 	// get pref path
 	{
-		path := sdl.GetPrefPath("skytrias", "todool")
+		path := sdl.GetPrefPath("todool", "")
 		if path != nil {
 			pref_path = strings.clone_from_cstring(path)
 			sdl.free(rawptr(path))
@@ -1451,15 +1451,15 @@ gs_init :: proc() {
 	}
 
 	// use file logger on release builds
-	log_path = strings.clone(bpath_temp("log.txt"))
+	log_path = strings.clone(bpath_temp("todool.log"))
 
 	// write only, create new file if not exists, truncate file at start
 	when os.OS == .Linux {
 		// all rights on linux
 		mode := 0o0777
-		log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, mode)
+		log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_APPEND, mode)
 	} else {
-		log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+		log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_APPEND)
 	}
 
 	logger = log.create_file_logger(log_file_handle)
