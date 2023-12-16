@@ -1345,59 +1345,44 @@ todool_save :: proc(du: u32) {
 		return
 	}
 
-	when DEMO_MODE {
-		dialog_spawn(
-			app.window_main, 
-			proc(dialog: ^Dialog, result: string) {
-				if dialog.result == .Default {
-					open_link("https://skytrias.itch.io/todool")
-				} 
-			},
-			350,
-			"Saving is disabled in Demo Mode\n%l\n%f\n%C%B",
-			"Okay",
-			"Buy Now",
-		)
-	} else {
-		force_dialog := du_bool(du)
-		
-		if force_dialog || len(app.last_save_location.buf) == 0 {
-			// output: cstring
-			default_path := gs_string_to_cstring(gs.pref_path)
-			file_patterns := [?]cstring { "*.todool" }
-			output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
-			gs_dt_start()
-			app.window_main.raise_next = true
+	force_dialog := du_bool(du)
+	
+	if force_dialog || len(app.last_save_location.buf) == 0 {
+		// output: cstring
+		default_path := gs_string_to_cstring(gs.pref_path)
+		file_patterns := [?]cstring { "*.todool" }
+		output := tfd.save_file_dialog("Save", default_path, file_patterns[:], "")
+		gs_dt_start()
+		app.window_main.raise_next = true
 
-			if output != nil {
-				last_save_set(string(output))
-			} else {
-				return
-			}
+		if output != nil {
+			last_save_set(string(output))
+		} else {
+			return
 		}
-
-		err := save_all(strings.to_string(app.last_save_location))
-		if err != nil {
-			log.info("SAVE: save.todool failed saving =", err)
-		}
-
-		json_save_todool("testing.json")
-
-		// when anything was pushed - set to false
-		if app.dirty != app.dirty_saved {
-			app.dirty_saved = app.dirty
-		}
-
-		if !json_save_misc("save.sjson") {
-			log.info("SAVE: save.sjson failed saving")
-		}
-
-		if !keymap_save("save.keymap") {
-			log.info("SAVE: save.keymap failed saving")
-		}
-
-		window_repaint(app.window_main)
 	}
+
+	err := save_all(strings.to_string(app.last_save_location))
+	if err != nil {
+		log.info("SAVE: save.todool failed saving =", err)
+	}
+
+	json_save_todool("testing.json")
+
+	// when anything was pushed - set to false
+	if app.dirty != app.dirty_saved {
+		app.dirty_saved = app.dirty
+	}
+
+	if !json_save_misc("save.sjson") {
+		log.info("SAVE: save.sjson failed saving")
+	}
+
+	if !keymap_save("save.keymap") {
+		log.info("SAVE: save.keymap failed saving")
+	}
+
+	window_repaint(app.window_main)
 }
 
 // load
@@ -1746,32 +1731,30 @@ app_save_maybe :: proc(
 ) {
 	handled: bool
 
-	when !DEMO_MODE {
-		if options_autosave() {
-			todool_save(COMBO_FALSE)
-		} else if app.dirty != app.dirty_saved {
-			app.save_callback = callback
+	if options_autosave() {
+		todool_save(COMBO_FALSE)
+	} else if app.dirty != app.dirty_saved {
+		app.save_callback = callback
 
-			dialog := dialog_spawn(
-				window, 
-				proc(dialog: ^Dialog, result: string) {
-					if dialog.result == .Default {
-						todool_save(COMBO_FALSE)
-					} 
+		dialog := dialog_spawn(
+			window, 
+			proc(dialog: ^Dialog, result: string) {
+				if dialog.result == .Default {
+					todool_save(COMBO_FALSE)
+				} 
 
-					if dialog.result != .Cancel {
-						app.save_callback()
-					}
-				},
-				300,
-				"Save progress?\n%l\n%B%b%C",
-				"Yes",
-				"No",
-				"Cancel",
-			)
+				if dialog.result != .Cancel {
+					app.save_callback()
+				}
+			},
+			300,
+			"Save progress?\n%l\n%B%b%C",
+			"Yes",
+			"No",
+			"Cancel",
+		)
 
-			handled = true
-		}
+		handled = true
 	}
 
 	if !handled {
@@ -1786,29 +1769,27 @@ app_save_close :: proc() -> (handled: bool) {
 		return 
 	}
 
-	when !DEMO_MODE {
-		if options_autosave() {
-			todool_save(COMBO_FALSE)
-		} else if app.dirty != app.dirty_saved {
-			dialog := dialog_spawn(
-				app.window_main, 
-				proc(dialog: ^Dialog, result: string) {
-					if dialog.result == .Default {
-						todool_save(COMBO_FALSE)
-						window_try_quit(app.window_main, true)
-					} else if dialog.result != .Cancel {
-						window_try_quit(app.window_main, true)
-					}
-				},
-				300,
-				"Save progress?\n%l\n%B%b%C",
-				"Yes",
-				"No",
-				"Cancel",
-			)
+	if options_autosave() {
+		todool_save(COMBO_FALSE)
+	} else if app.dirty != app.dirty_saved {
+		dialog := dialog_spawn(
+			app.window_main, 
+			proc(dialog: ^Dialog, result: string) {
+				if dialog.result == .Default {
+					todool_save(COMBO_FALSE)
+					window_try_quit(app.window_main, true)
+				} else if dialog.result != .Cancel {
+					window_try_quit(app.window_main, true)
+				}
+			},
+			300,
+			"Save progress?\n%l\n%B%b%C",
+			"Yes",
+			"No",
+			"Cancel",
+		)
 
-			handled = true
-		}
+		handled = true
 	}
 
 	// if !handled {

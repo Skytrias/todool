@@ -2,7 +2,7 @@ package src
 
 import "core:unicode"
 import "core:fmt"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 import "../cutf8"
 
 //////////////////////////////////////////////
@@ -226,7 +226,7 @@ wrap_state_iter :: proc(
 
 		// step through each line to find selection area
 		for codepoint, codepoint_index in cutf8.ds_iter(&ds, line) {
-			glyph := fontstash.__getGlyph(ctx, w.font, codepoint, w.isize, w.iblur)
+			glyph, ok := fontstash.__getGlyph(ctx, w.font, codepoint, w.isize, w.iblur)
 			index := w.codepoint_offset + codepoint_index
 			old := temp_x
 

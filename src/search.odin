@@ -4,7 +4,7 @@ import "core:math"
 import "core:mem"
 import "core:fmt"
 import "core:strings"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 import "../spall"
 import "../cutf8"
 

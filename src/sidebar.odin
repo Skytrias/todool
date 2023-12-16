@@ -304,10 +304,6 @@ sidebar_panel_init :: proc(parent: ^Element) {
 		b2 := image_button_init(app.panel_info, { .HF }, .Kanban, SIZE, SIZE, mode_based_button_message)
 		b2.hover_info = "Kanban Mode"
 	}	
-
-	when PRESENTATION_MODE {
-		element_hide(app.panel_info, true)
-	}
 }
 
 sidebar_enum_panel_init :: proc(parent: ^Element) {

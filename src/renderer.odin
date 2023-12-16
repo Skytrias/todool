@@ -13,7 +13,7 @@ import "core:sort"
 import "core:slice"
 import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 import "../cutf8"
 
 shader_vert := #load("../assets/vert.glsl")
@@ -933,13 +933,13 @@ render_icon :: proc(
 
 	// get glyph codepoint manually	
 	codepoint := rune(icon)
-	glyph := fontstash.__getGlyph(ctx, font, codepoint, isize, 0)
+	glyph, ok := fontstash.__getGlyph(ctx, font, codepoint, isize, 0)
 	q: fontstash.Quad
 	x_origin := x
 	x := x
 	y := y
 
-	if glyph != nil {
+	if ok {
 		fontstash.__getQuad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
 		render_glyph_quad(target, group, state, &q)
 	}
@@ -980,10 +980,10 @@ render_icon_rect :: proc(
 
 	// get glyph codepoint manually	
 	codepoint := rune(icon)
-	glyph := fontstash.__getGlyph(ctx, font, codepoint, isize, 0)
+	glyph, ok := fontstash.__getGlyph(ctx, font, codepoint, isize, 0)
 	q: fontstash.Quad
 
-	if glyph != nil {
+	if ok {
 		fontstash.__getQuad(ctx, font, -1, glyph, scale, state.spacing, &x, &y, &q)
 		render_glyph_quad(target, group, state, &q)
 	}

@@ -19,7 +19,7 @@ import dll "core:container/intrusive/list"
 import sdl "vendor:sdl2"
 import mix "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 import "../cutf8"
 import "../spall"
 
@@ -203,7 +203,7 @@ Cursor :: enum {
 Global_State :: struct {
 	windows_list: dll.List,
 
-	//  wether dropped was text or file paths
+	// wether dropped was text or file paths
 	dropped_text: bool,
 
 	// logger data
@@ -1457,22 +1457,18 @@ gs_init :: proc() {
 	}
 
 	// use file logger on release builds
-	when TODOOL_RELEASE {
-		log_path = strings.clone(bpath_temp("log.txt"))
+	log_path = strings.clone(bpath_temp("log.txt"))
 
-		// write only, create new file if not exists, truncate file at start
-		when os.OS == .Linux {
-			// all rights on linux
-			mode := 0o0777
-			log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, mode)
-		} else {
-			log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
-		}
-
-		logger = log.create_file_logger(log_file_handle)
+	// write only, create new file if not exists, truncate file at start
+	when os.OS == .Linux {
+		// all rights on linux
+		mode := 0o0777
+		log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, mode)
 	} else {
-		logger = log.create_console_logger()
-	}	
+		log_file_handle, errno := os.open(log_path, os.O_WRONLY | os.O_CREATE | os.O_TRUNC)
+	}
+
+	logger = log.create_file_logger(log_file_handle)
 	context.logger = logger
 
 	{
@@ -1602,12 +1598,8 @@ gs_destroy :: proc() {
 	fontstash.Destroy(&fc)
 
 	// based on mode
-	when TODOOL_RELEASE {
-		log.destroy_file_logger(&logger)
-		delete(log_path)
-	} else {
-		log.destroy_console_logger(logger)
-	}
+	log.destroy_file_logger(&logger)
+	delete(log_path)
 	delete(pref_path)
 	delete(base_path)
 

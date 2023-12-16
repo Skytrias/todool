@@ -560,7 +560,7 @@ theme_editor_spawn :: proc(du: u32 = COMBO_EMPTY) {
 			theme_editor_menu_colors()
 		}
 
-		when !TODOOL_RELEASE {
+		when ODIN_DEBUG {
 			// temp print theme
 			button_init(p, {}, "Print").invoke = proc(button: ^Button, data: rawptr) {
 				builder := strings.builder_make_len_cap(0, mem.Kilobyte, context.temp_allocator)

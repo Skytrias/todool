@@ -17,7 +17,6 @@ import "core:unicode"
 import "core:thread"
 import "core:intrinsics"
 import sdl "vendor:sdl2"
-import "heimdall:fontstash"
 import "../spall"
 import "../cutf8"
 import "../btrie"
@@ -25,9 +24,6 @@ import "../btrie"
 SHOW_FPS :: false
 POOL_DEBUG :: false
 TRACK_MEMORY :: false
-TODOOL_RELEASE :: true
-PRESENTATION_MODE :: false
-DEMO_MODE :: false // wether or not save&load are enabled
 VERSION :: "0.4.0"
 
 main :: proc() {
@@ -134,10 +130,6 @@ main :: proc() {
 	// do actual loading later because options might change the path
 	gs_update_after_load()
 	spall.end(0)
-
-	when PRESENTATION_MODE {
-		window_border_set(window_main, false)
-	}
 
 	defer {
 		intrinsics.atomic_store(&app.main_thread_running, false)

@@ -10,7 +10,7 @@ import "core:strings"
 import "core:intrinsics"
 import "core:time"
 import "../cutf8"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 
 //////////////////////////////////////////////
 // normal text box

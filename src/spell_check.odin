@@ -9,7 +9,7 @@ import "core:unicode"
 import "core:strings"
 import "../cutf8"
 import "../spall"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 import "../btrie"
 
 DISABLE_USER :: false

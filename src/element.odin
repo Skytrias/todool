@@ -12,7 +12,7 @@ import "core:math"
 import "core:time"
 import "core:unicode"
 import "core:strings"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 
 DEBUG_PANEL :: false
 UPDATE_HOVERED :: 1

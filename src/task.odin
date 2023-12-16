@@ -18,7 +18,7 @@ import "core:reflect"
 import "core:time"
 import "core:thread"
 import "../cutf8"
-import "heimdall:fontstash"
+import "vendor:fontstash"
 import "../spall"
 
 Task_State_Progression :: enum {
@@ -1382,17 +1382,13 @@ mode_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 			search_draw_highlights(target, panel)
 
 			// word error highlight
-			when !PRESENTATION_MODE {
-				if options_spell_checking() && app.task_head != -1 && app.task_head == app.task_tail {
-					render_push_clip(target, panel.clip)
-					task := app_task_head() 
-					spell_check_render_missing_words(target, task)
-				}
+			if options_spell_checking() && app.task_head != -1 && app.task_head == app.task_tail {
+				render_push_clip(target, panel.clip)
+				task := app_task_head() 
+				spell_check_render_missing_words(target, task)
 			}
 
-			when !PRESENTATION_MODE {
-				task_render_progressbars(target)
-			}
+			task_render_progressbars(target)
 
 			// drag visualizing circle
 			if !app.drag_running && app.drag_circle {
@@ -2439,12 +2435,10 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 	app.custom_split = element_init(Custom_Split, split, {}, custom_split_message, context.allocator)
 	app.custom_split.flags |= { .Sort_By_Z_Index }
 
-	when !PRESENTATION_MODE {
-		app.custom_split.vscrollbar = scrollbar_init(app.custom_split, {}, false, context.allocator)
-		app.custom_split.vscrollbar.force_visible = true	
-		app.custom_split.hscrollbar = scrollbar_init(app.custom_split, {}, true, context.allocator)
-		app.custom_split.hscrollbar.force_visible = true	
-	}
+	app.custom_split.vscrollbar = scrollbar_init(app.custom_split, {}, false, context.allocator)
+	app.custom_split.vscrollbar.force_visible = true	
+	app.custom_split.hscrollbar = scrollbar_init(app.custom_split, {}, true, context.allocator)
+	app.custom_split.hscrollbar.force_visible = true	
 
 	app.custom_split.image_display = image_display_init(app.custom_split, {}, nil)
 	app.custom_split.image_display.aspect = .Mix
@@ -3117,7 +3111,7 @@ render_line_highlights :: proc(target: ^Render_Target, clip: RectI) {
 	// line_offset := options_vim_use() ? -task_head : 1
 	list := app_focus_list()
 	app_focus_bounds()
-	line_offset := TODOOL_RELEASE ? 1 : 0
+	line_offset := ODIN_DEBUG ? 1 : 0
 	line_offset += app.focus.root != nil ? app.focus.start : 0
 
 	for list_index, linear_index in list { 
