@@ -21,7 +21,6 @@ import mix "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
 import "vendor:fontstash"
 import "../cutf8"
-import "../spall"
 
 FPS_MIN :: 15
 FPS_MAX :: 240
@@ -324,8 +323,6 @@ image_load_from_file :: proc(path: string) -> (res: ^image.Image) {
 // loads images on a seperate thread to the stored data
 image_load_process_on_thread :: proc() {
 	{
-		spall.scoped("Load images")
-
 		for img in &gs.stored_images {
 			// loading needs to be done
 			if !img.loaded {
@@ -400,7 +397,6 @@ window_init :: proc(
 	x_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	y_pos := i32(sdl.WINDOWPOS_UNDEFINED)
 	window_flags: sdl.WindowFlags = { .OPENGL, .HIDDEN, .RESIZABLE }
-	spall.fscoped("window init %s", title)
 
 	if .Window_Center_In_Owner in flags {
 		x_pos	= sdl.WINDOWPOS_CENTERED
@@ -518,8 +514,6 @@ window_init :: proc(
 }
 
 gs_update_after_load :: proc() {
-	spall.scoped("load after sjson")
-	
 	ctx := &gs.fc
 
 	// preload most used characters
@@ -1752,8 +1746,6 @@ gs_message_loop :: proc() {
 			gs_process_events()
 		}
 
-		spall.scoped("message step")
-		
 		// repaint all of the window
 		gs_draw_and_cleanup()
 		
@@ -1855,7 +1847,6 @@ gs_draw_and_cleanup :: proc() {
 	context.logger = gs.logger 
 
 	window_count: int
-	spall.scoped("draw&cleanup")
 	iter := gs_windows_iter_head()
 
 	for window in dll.iterate_next(&iter) {
@@ -1868,7 +1859,6 @@ gs_draw_and_cleanup :: proc() {
 			// remove the node wanted out of the DLL
 			dll.remove(&gs.windows_list, root)
 		} else if window.update_next {
-			spall.scoped("draw window")
 			window_draw(window)
 		}
 		
@@ -1993,8 +1983,6 @@ sdl_push_empty_event :: #force_inline proc() {
 }
 
 clipboard_check_changes :: proc() -> bool {
-	spall.scoped("clipboard changes check")
-
 	if clipboard_has_content() {
 		text := sdl.GetClipboardText()
 		

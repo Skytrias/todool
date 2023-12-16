@@ -17,20 +17,20 @@ import "core:unicode"
 import "core:thread"
 import "core:intrinsics"
 import sdl "vendor:sdl2"
-import "../spall"
 import "../cutf8"
 import "../btrie"
 
 SHOW_FPS :: false
 POOL_DEBUG :: false
 TRACK_MEMORY :: false
-VERSION :: "0.4.0"
+
+when ODIN_DEBUG {
+	VERSION :: "DEBUG"
+} else {
+	VERSION :: "0.4.0"
+}
 
 main :: proc() {
-	spall.init("test.spall")
-	spall.begin("init all", 0)
-	defer spall.destroy()
-
 	gs_init()
 	context.logger = gs.logger
 	context.allocator = gs_allocator()
@@ -61,9 +61,7 @@ main :: proc() {
 	window.name = "MAIN"
 
 	{
-		spall.scoped("load keymap")
 		// keymap loading
-
 		keymap_push_todool_commands(&app.window_main.keymap_custom)
 		keymap_push_box_commands(&app.window_main.keymap_box)
 		// NOTE push default todool to vim too
@@ -93,8 +91,6 @@ main :: proc() {
 	}
 
 	{
-		spall.scoped("gen elements")
-
 		// add_shortcuts(window)
 		menu_split, menu_bar := todool_menu_bar(&window.element)
 		app.task_menu_bar = menu_bar
@@ -116,7 +112,6 @@ main :: proc() {
 	}
 
 	{
-		spall.scoped("load sjson")
 		if loaded := json_load_misc("save.sjson"); loaded {
 			log.info("JSON: Load Successful")
 		} else {
@@ -129,7 +124,6 @@ main :: proc() {
 
 	// do actual loading later because options might change the path
 	gs_update_after_load()
-	spall.end(0)
 
 	defer {
 		intrinsics.atomic_store(&app.main_thread_running, false)
@@ -300,7 +294,6 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 				}
 
 				{
-					spall.fscoped("keymap general execute %s", combo)
 					if keymap_combo_execute(&window.keymap_custom, combo) {
 						return 1
 					}
@@ -406,7 +399,6 @@ window_main_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr
 								defer delete(content)
 
 								if ok {
-									spall.fscoped("%s", file_path)
 									had_imports |= pattern_load_content_simple(manager, string(content), result, task_indentation, &task_insert_offset)
 								}
 							}

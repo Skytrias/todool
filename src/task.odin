@@ -19,7 +19,6 @@ import "core:time"
 import "core:thread"
 import "../cutf8"
 import "vendor:fontstash"
-import "../spall"
 
 Task_State_Progression :: enum {
 	Idle,
@@ -2466,7 +2465,6 @@ task_panel_init :: proc(split: ^Split_Pane) -> (element: ^Element) {
 }
 
 tasks_load_file :: proc() {
-	spall.scoped("load tasks")
 	err: Save_Error = nil
 	
 	if len(app.last_save_location.buf) != 0 {

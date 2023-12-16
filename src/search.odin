@@ -5,7 +5,6 @@ import "core:mem"
 import "core:fmt"
 import "core:strings"
 import "vendor:fontstash"
-import "../spall"
 import "../cutf8"
 
 // THOUGHTS
@@ -105,7 +104,6 @@ search_push_result :: proc(start, end: int) {
 
 // update serach state and find new results
 search_update :: proc(pattern: string) {
-	spall.fscoped("search update: %s", pattern)
 	search_clear()
 	search.pattern_length = cutf8.count(pattern)
 

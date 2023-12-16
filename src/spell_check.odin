@@ -8,9 +8,8 @@ import "core:thread"
 import "core:unicode"
 import "core:strings"
 import "../cutf8"
-import "../spall"
-import "vendor:fontstash"
 import "../btrie"
+import "vendor:fontstash"
 
 DISABLE_USER :: false
 

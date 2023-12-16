@@ -10,7 +10,6 @@ import "core:time"
 import "core:math/bits"
 import "../cutf8"
 import "../tfd"
-import "../spall"
 
 // iterate by whitespace, utf8 conform
 combo_iterate :: proc(text: ^string) -> (res: string, ok: bool) {
