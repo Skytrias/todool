@@ -7,7 +7,7 @@ import "core:math/rand"
 import "core:math/noise"
 import "core:math/ease"
 import "vendor:fontstash"
-import "../cutf8"
+import "cutf8"
 
 // NOTE noise return -1 to 1 range
 

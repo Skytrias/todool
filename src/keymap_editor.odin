@@ -6,7 +6,7 @@ import "core:math/rand"
 import "core:fmt"
 import "core:mem"
 import dll "core:container/intrusive/list"
-import "../fuzz"
+import "fuzz"
 
 Keymap_Editor :: struct {
 	window: ^Window,

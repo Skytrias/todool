@@ -20,7 +20,7 @@ import sdl "vendor:sdl2"
 import mix "vendor:sdl2/mixer"
 import gl "vendor:OpenGL"
 import "vendor:fontstash"
-import "../cutf8"
+import "cutf8"
 
 FPS_MIN :: 15
 FPS_MAX :: 240
@@ -49,18 +49,18 @@ scaling_set :: proc(global_scale: f32, task_scale: f32) {
 }
 
 Font :: fontstash.Font
-data_font_icon := #load("../assets/icons.ttf")
-data_font_regular := #load("../assets/Lato-Regular.ttf")
-data_font_bold := #load("../assets/Lato-Bold.ttf")
-data_font_fallback := #load("../assets/NotoSans-Regular.ttf")
+data_font_icon := #load("assets/icons.ttf")
+data_font_regular := #load("assets/Lato-Regular.ttf")
+data_font_bold := #load("assets/Lato-Bold.ttf")
+data_font_fallback := #load("assets/NotoSans-Regular.ttf")
 font_regular: int
 font_bold: int
 font_icon: int
 font_fallback: int
-data_sound_timer_start := #load("../assets/sounds/timer_start.wav")
-data_sound_timer_stop := #load("../assets/sounds/timer_stop.wav")
-data_sound_timer_resume := #load("../assets/sounds/timer_resume.wav")
-data_sound_timer_ended := #load("../assets/sounds/timer_ended.wav")
+data_sound_timer_start := #load("sounds/timer_start.wav")
+data_sound_timer_stop := #load("sounds/timer_stop.wav")
+data_sound_timer_resume := #load("sounds/timer_resume.wav")
+data_sound_timer_ended := #load("sounds/timer_ended.wav")
 
 // load wav files from mem or path, optional
 custom_load_wav_path :: mix.LoadWAV

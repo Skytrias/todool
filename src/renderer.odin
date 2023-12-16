@@ -14,15 +14,15 @@ import "core:slice"
 import sdl "vendor:sdl2"
 import gl "vendor:OpenGL"
 import "vendor:fontstash"
-import "../cutf8"
+import "cutf8"
 
-shader_vert := #load("../assets/vert.glsl")
-shader_frag := #load("../assets/frag.glsl")
-png_sv := #load("../assets/sv.png")
-png_hue := #load("../assets/hue.png")
-png_mode_icon_kanban := #load("../assets/Kanban Mode Icon.png")
-png_mode_icon_list := #load("../assets/List Mode Icon.png")
-png_mode_icon_drag := #load("../assets/Task Drag Icon.png")
+shader_vert := #load("assets/vert.glsl")
+shader_frag := #load("assets/frag.glsl")
+png_sv := #load("assets/sv.png")
+png_hue := #load("assets/hue.png")
+png_mode_icon_kanban := #load("assets/Kanban Mode Icon.png")
+png_mode_icon_list := #load("assets/List Mode Icon.png")
+png_mode_icon_drag := #load("assets/Task Drag Icon.png")
 Align_Horizontal :: fontstash.AlignHorizontal
 Align_Vertical :: fontstash.AlignVertical
 DROP_SHADOW :: 20

@@ -17,8 +17,8 @@ import "core:unicode"
 import "core:thread"
 import "core:intrinsics"
 import sdl "vendor:sdl2"
-import "../cutf8"
-import "../btrie"
+import "cutf8"
+import "btrie"
 
 SHOW_FPS :: false
 POOL_DEBUG :: false

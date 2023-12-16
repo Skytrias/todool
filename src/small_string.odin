@@ -3,7 +3,7 @@ package src
 import "core:unicode"
 import "core:unicode/utf8"
 import "core:fmt"
-import "../cutf8"
+import "cutf8"
 
 SS_SIZE :: 255
 

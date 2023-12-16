@@ -17,7 +17,7 @@ import "core:slice"
 import "core:reflect"
 import "core:time"
 import "core:thread"
-import "../cutf8"
+import "cutf8"
 import "vendor:fontstash"
 
 Task_State_Progression :: enum {

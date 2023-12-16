@@ -3,7 +3,7 @@ package src
 import "core:unicode"
 import "core:fmt"
 import "vendor:fontstash"
-import "../cutf8"
+import "cutf8"
 
 //////////////////////////////////////////////
 // line wrapping helpers

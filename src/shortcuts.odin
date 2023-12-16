@@ -8,8 +8,8 @@ import "core:log"
 import "core:mem"
 import "core:time"
 import "core:math/bits"
-import "../cutf8"
-import "../tfd"
+import "cutf8"
+import "tfd"
 
 // iterate by whitespace, utf8 conform
 combo_iterate :: proc(text: ^string) -> (res: string, ok: bool) {

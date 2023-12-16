@@ -5,7 +5,7 @@ import "core:mem"
 import "core:fmt"
 import "core:strings"
 import sdl "vendor:sdl2"
-import "../cutf8"
+import "cutf8"
 
 Dialog_Callback :: proc(^Dialog, string)
 

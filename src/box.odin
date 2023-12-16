@@ -9,7 +9,7 @@ import "core:log"
 import "core:strings"
 import "core:intrinsics"
 import "core:time"
-import "../cutf8"
+import "cutf8"
 import "vendor:fontstash"
 
 //////////////////////////////////////////////

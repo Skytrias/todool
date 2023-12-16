@@ -15,7 +15,7 @@ import "core:encoding/json"
 import "core:math"
 import "core:math/bits"
 import "core:runtime"
-import "../cutf8"
+import "cutf8"
 
 save_loc: runtime.Source_Code_Location
 

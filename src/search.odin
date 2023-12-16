@@ -5,7 +5,7 @@ import "core:mem"
 import "core:fmt"
 import "core:strings"
 import "vendor:fontstash"
-import "../cutf8"
+import "cutf8"
 
 // THOUGHTS
 // check task search_updateidity? or update search results based on validity

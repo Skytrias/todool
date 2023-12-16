@@ -7,13 +7,13 @@ import "core:fmt"
 import "core:thread"
 import "core:unicode"
 import "core:strings"
-import "../cutf8"
-import "../btrie"
+import "cutf8"
+import "btrie"
 import "vendor:fontstash"
 
 DISABLE_USER :: false
 
-spell_check_bin := #load("../assets/comp_trie.bin")
+spell_check_bin := #load("assets/comp_trie.bin")
 
 // TODO changes for strings interning
 // clear interned content?
