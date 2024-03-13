@@ -24,8 +24,15 @@ Instead of letting the project die completly I'll share the source here, have fu
 
 ## How To Build
 
-1. Install [Odin](https://odin-lang.org/docs/install/) based on your platform.
-2. LINUX you have to build stb truetype -> go to `vendor/stb/src/` and run `make`
-3. Clone this repository.
-4. create a `target` folder next to the `src` folder
-5. on windows: run `build.bat` - on linux: run `make`
+Install [Odin](https://odin-lang.org/docs/install/) based on your platform.
+
+### Prepare Static Libraries (Linux/Darwin)
+
+1. Build stb truetype -> go to `odin/vendor/stb/src/` and run `make` in there
+2. Build -> go to `src/tfd` and run `make` in there
+
+### Todool
+
+1. Clone this repository.
+2. Create a `target` folder next to the `src` folder
+3. On Windows: run `build.bat` - On Linux/Darwin: run `make`
