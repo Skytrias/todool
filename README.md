@@ -13,7 +13,7 @@ Instead of letting the project die completly I'll share the source here, have fu
 - DB: store the editor content in a database and write out a readable text file that ppl can have as a backup or git inspection
 - Kanban: remove kanban and focus solely on "List Mode" and make that better
 
-## Tech:
+## Tech
 
 - OpenGL 3.3 renderer similar to 4coder
 - SDL2
@@ -21,3 +21,11 @@ Instead of letting the project die completly I'll share the source here, have fu
 - RMGUI - similar to [luigi](https://github.com/nakst/luigi/blob/main/luigi.h)
 - Undo/Redo with callbacks (not that nice)
 - Custom binary file format (trash)
+
+## How To Build
+
+1. Install [Odin](https://odin-lang.org/docs/install/) based on your platform.
+2. LINUX you have to build stb truetype -> go to `vendor/stb/src/` and run `make`
+3. Clone this repository.
+4. create a `target` folder next to the `src` folder
+5. on windows: run `build.bat` - on linux: run `make`
