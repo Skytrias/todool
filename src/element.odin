@@ -207,10 +207,10 @@ element_hide_toggle :: proc(element: ^Element) {
 element_hide :: proc(element: ^Element, state: bool) -> (res: bool) {
 	if state {
 		res = .Hide not_in element.flags
-		incl(&element.flags, Element_Flag.Hide)
+		element.flags += { Element_Flag.Hide }
 	} else {
 		res = .Hide in element.flags
-		excl(&element.flags, Element_Flag.Hide)
+		element.flags -= { Element_Flag.Hide }
 	}
 	
 	return 
@@ -501,7 +501,7 @@ element_destroy :: proc(element: ^Element) -> bool {
 
 	// add destroy flag
 	element_message(element, .Destroy)
-	incl(&element.flags, Element_Flags { .Destroy, .Hide })
+	element.flags += Element_Flags { .Destroy, .Hide }
 
 	// set parent to destroy_descendent flag
 	ancestor := element.parent
@@ -511,7 +511,7 @@ element_destroy :: proc(element: ^Element) -> bool {
 			break
 		}
 
-		incl(&ancestor.flags, Element_Flag.Destroy_Descendent)
+		ancestor.flags += { Element_Flag.Destroy_Descendent }
 		ancestor = ancestor.parent
 	}
 
@@ -555,7 +555,7 @@ element_deallocate_raw :: proc(element: ^Element) {
 element_deallocate :: proc(element: ^Element) -> bool {
 	if .Destroy_Descendent in element.flags {
 		// clear flag
-		excl(&element.flags, Element_Flag.Destroy_Descendent)
+		element.flags -= { Element_Flag.Destroy_Descendent }
 
 		// destroy each child, loop from end to pop quickly
 		for i := len(element.children) - 1; i >= 0; i -= 1 {
@@ -2085,9 +2085,9 @@ scrollbar_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) 
 
 			if scrollbar_inactive(scrollbar) && !scrollbar.force_visible {
 				scrollbar.position = 0
-				incl(&element.flags, Element_Flag.Hide)
+				element.flags += { Element_Flag.Hide }
 			} else {
-				excl(&element.flags, Element_Flag.Hide)
+				element.flags -= { Element_Flag.Hide }
 
 				// layout each element
 				scrollbar_size := scrollbar.horizontal ? rect_width(element.bounds) : rect_height(element.bounds)
@@ -2893,10 +2893,10 @@ enum_panel_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr)
 				if child != chosen {
 					child.clip = {}
 					child.bounds = {}
-					incl(&child.flags, Element_Flags { .Hide, .Disabled })
+					child.flags += Element_Flags { .Hide, .Disabled }
 				}
 				
-				excl(&child.flags, Element_Flags { .Hide, .Disabled })
+				child.flags -= Element_Flags { .Hide, .Disabled }
 			}
 
 			element_move(chosen, element.bounds)

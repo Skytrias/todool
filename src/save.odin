@@ -311,25 +311,25 @@ save_flags :: proc(
 		}
 
 		if task_bookmark_is_valid(task) {
-			incl(&flags, Save_Flag.Bookmark)
+			flags += { Save_Flag.Bookmark }
 		}
 		if task_separator_is_valid(task) {
-			incl(&flags, Save_Flag.Separator)
+			flags += { Save_Flag.Separator }
 		}
 		if image_display_has_path(task.image_display) {
-			incl(&flags, Save_Flag.Image_Path)
+			flags += { Save_Flag.Image_Path }
 		}
 		if task_link_is_valid(task) {
-			incl(&flags, Save_Flag.Link_Path)
+			flags += { Save_Flag.Link_Path }
 		}
 		if task_time_date_is_valid(task) {
-			incl(&flags, Save_Flag.Timestamp)
+			flags += { Save_Flag.Timestamp }
 		}
 		if task.filter_folded {
-			incl(&flags, Save_Flag.Folded)
+			flags += { Save_Flag.Folded }
 		}
 		if task.highlight {
-			incl(&flags, Save_Flag.Highlight)
+			flags += { Save_Flag.Highlight }
 		}
 
 		// in case any flag was set, write them linearly in mem

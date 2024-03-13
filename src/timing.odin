@@ -585,14 +585,14 @@ menu_date_buttons_set :: proc() {
 		text := fmt.bprintf(button.bytes[:], "%d", i + 1)
 		button.byte_length = u8(len(text))
 		button.alpha = 255
-		excl(&button.flags, Element_Flag.Hide)	
+		button.flags -= { Element_Flag.Hide }
 		count += 1
 	}
 
 	// hide the rest of them
 	for i in count..<MENU_DATE_COUNT + 7 {
 		button := cast(^Button_Day) menu_date_grid.children[i]
-		incl(&button.flags, Element_Flag.Hide)
+		button.flags += { Element_Flag.Hide }
 	}
 
 	window_repaint(app.window_main)

@@ -51,7 +51,7 @@ dialog_init :: proc(
 
 	// disable other elements
 	for element in window.element.children {
-		incl(&element.flags, Element_Flag.Disabled)
+		element.flags += { Element_Flag.Disabled }
 	}
 
 	res = element_init(Dialog, parent, {}, dialog_message, context.allocator)
@@ -304,7 +304,7 @@ dialog_close :: proc(window: ^Window, set: Maybe(Dialog_Result) = nil) -> bool {
 	// reset state
 	window.focused = window.dialog.focus_start
 	for element in window.element.children {
-		excl(&element.flags, Element_Flag.Disabled)
+		element.flags -= { Element_Flag.Disabled }
 	}
 
 	// reset state to default

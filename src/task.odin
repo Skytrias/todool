@@ -759,12 +759,12 @@ task_set_time_date :: proc(task: ^Task) {
 	} else {
 		if .Hide in task.time_date.flags {
 			task.time_date.spawn_particles = true
-			excl(&task.time_date.flags, Element_Flag.Hide)
+			task.time_date.flags -= { Element_Flag.Hide }
 		} else {
 			if !time_date_update(task.time_date) {
 				task.time_date.spawn_particles = true
 			} else {
-				incl(&task.time_date.flags, Element_Flag.Hide)
+				task.time_date.flags += { Element_Flag.Hide }
 			}
 		}
 	}
