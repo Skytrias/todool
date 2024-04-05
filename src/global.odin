@@ -903,6 +903,9 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 								if sibling != nil {
 									element = sibling
 									break
+								} else {
+									element = &window.element
+									break next_search
 								}
 
 								if window.dialog == nil {
