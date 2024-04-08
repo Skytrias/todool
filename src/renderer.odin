@@ -226,7 +226,7 @@ render_target_destroy :: proc(using target: ^Render_Target) {
 	delete(vertices)
 	delete(groups)
 	
-	for texture in &textures {
+	for &texture in &textures {
 		texture_destroy(&texture)
 	}
 

@@ -241,7 +241,7 @@ main_update :: proc(window: ^Window) {
 	statusbar_update(&statusbar)
 	power_mode_set_caret_color()
 
-	for cam in &app.mmpp.cam {
+	for &cam in &app.mmpp.cam {
 		cam_update_check(&cam)
 	}
 
