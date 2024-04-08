@@ -803,7 +803,7 @@ theme_editor_menu_colors :: proc() {
 	p := menu.panel
 	p.shadow = true
 	
-	for preset in &theme_presets {
+	for &preset in &theme_presets {
 		theme_button_init(p, { .HF }, &preset)
 	}	
 }

@@ -415,7 +415,7 @@ save_all :: proc(file_path: string) -> (err: Save_Error) {
 
 		// gather all removed lines in a non duplicate map
 		list := make(map[int]Empty, 256, context.temp_allocator)
-		for task, list_index in &app.pool.list {
+		for &task, list_index in &app.pool.list {
 			if task.removed {
 				set(&list, &task, list_index)
 			}

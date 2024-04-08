@@ -264,7 +264,7 @@ image_path :: proc(img: ^Stored_Image) -> string {
 image_find :: proc(path: string) -> (index: int) {
 	index = -1
 	
-	for img, i in &gs.stored_images {
+	for &img, i in &gs.stored_images {
 		if image_path(&img) == path {
 			index = i
 			return 
@@ -323,7 +323,7 @@ image_load_from_file :: proc(path: string) -> (res: ^image.Image) {
 // loads images on a seperate thread to the stored data
 image_load_process_on_thread :: proc() {
 	{
-		for img in &gs.stored_images {
+		for &img in &gs.stored_images {
 			// loading needs to be done
 			if !img.loaded {
 				img.backing = image_load_from_file(image_path(&img))

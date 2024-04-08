@@ -170,7 +170,7 @@ keymap_command_find_combo :: proc(
 	du: u32 = COMBO_EMPTY,
 ) -> (res: ^Combo_Node) {
 	if command_index != -1 {
-		for node in &keymap.combos {
+		for &node in &keymap.combos {
 			if command_index == node.command_index && node.du == du {
 				res = &node
 				return
@@ -209,7 +209,7 @@ keymap_combo_execute :: proc(keymap: ^Keymap, combo: string) -> bool {
 	// }
 
 	// lookup linear
-	for node in &keymap.combos {
+	for &node in &keymap.combos {
 		if cmd, ok := keymap_combo_match(keymap, &node, combo); ok {
 			cmd(node.du)
 			return true

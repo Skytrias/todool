@@ -267,7 +267,7 @@ keymap_editor_check_conflict_removal :: proc(keymap: ^Keymap, combo_node: ^Combo
 		// count and keep track of existing conflicts
 		temp := make([dynamic]^Combo_Node, 0, 32, context.temp_allocator)
 		count: int
-		for node in &keymap.combos {
+		for &node in &keymap.combos {
 			if node.conflict == conflict_check {
 				count += 1
 				append(&temp, &node)
@@ -307,7 +307,7 @@ keymap_editor_check_conflicts :: proc(keymap: ^Keymap, skip: ^Combo_Node, check:
 
 	// hook up nodes that dont have a conflict set yet
 	conflict: ^Combo_Conflict
-	for node in &keymap.combos {
+	for &node in &keymap.combos {
 		c1 := string(node.combo[:node.combo_index])
 
 		if &node != skip && node.conflict == nil && c1 == check {
@@ -699,7 +699,7 @@ keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool)
 	}
 
 	line_count: int
-	for node in &keymap.combos {
+	for &node in &keymap.combos {
 		keymap_editor_line_append(grid, &node, line_count)
 		line_count += 1
 	}
