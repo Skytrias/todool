@@ -676,6 +676,7 @@ window_border_size :: proc(window: ^Window) -> (top, left, bottom, right: int) {
 // send call to focused, focused parents or window
 window_send_msg_to_focused_or_parents :: proc(window: ^Window, msg: Message, di: int, dp: rawptr) -> (handled: bool) {
 	if window.focused != nil {
+		
 		// call messages up the parents till anyone returns 1
 		e := window.focused
 		for e != nil {
@@ -931,6 +932,12 @@ window_input_event :: proc(window: ^Window, msg: Message, di: int = 0, dp: rawpt
 
 				if !handled {
 					handled = window_send_msg_to_focused_or_parents(window, .Key_Combination, di, dp)
+				}
+
+				// NOTE workaround to get about to close on non focus
+				if !handled && window.dialog != nil {
+					dialog_close(window)
+					handled = true
 				}
 
 				res = handled
