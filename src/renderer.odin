@@ -5,7 +5,7 @@ import "core:strings"
 import "core:log"
 import "core:mem"
 import glm "core:math/linalg/glsl"
-import "core:runtime"
+import "base:runtime"
 import "core:math"
 import "core:image"
 import "core:image/png"
@@ -857,7 +857,7 @@ render_glyph_quad :: proc(
 	v[3] = v[1]
 	v[4] = v[2]
 
-	for vertex in &v {
+	for &vertex in &v {
 		vertex.color = state.color
 		vertex.kind = .Glyph
 	}
@@ -1141,7 +1141,7 @@ render_glyph_quad_store :: proc(
 	v[3] = v[1]
 	v[4] = v[2]
 
-	for vertex in &v {
+	for &vertex in &v {
 		vertex.color = state.color
 		vertex.kind = .Glyph
 	}

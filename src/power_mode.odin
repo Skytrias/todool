@@ -1,6 +1,6 @@
 package src
 
-import "core:intrinsics"
+import "base:intrinsics"
 import "core:fmt"
 import "core:strings"
 import "core:math/rand"

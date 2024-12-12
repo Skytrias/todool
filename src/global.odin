@@ -1,6 +1,6 @@
 package src
 
-import "core:intrinsics"
+import "base:intrinsics"
 import "core:thread"
 import "core:image"
 import "core:image/png"
@@ -12,7 +12,7 @@ import "core:math/ease"
 import "core:mem"
 import "core:log"
 import "core:strings"
-import "core:runtime"
+import "base:runtime"
 import "core:unicode"
 import "core:unicode/utf8"
 import dll "core:container/intrusive/list"
@@ -342,7 +342,7 @@ image_load_process_on_thread :: proc() {
 image_load_process_texture_handles :: proc(window: ^Window) {
 	sdl.GL_MakeCurrent(window.w, window.target.opengl_context)
 
-	for img in &gs.stored_images {
+	for &img in &gs.stored_images {
 		if img.backing != nil && img.loaded && !img.handle_set {
 			img.handle = shallow_texture_init(img.backing)
 			img.handle_set = true
@@ -1602,7 +1602,7 @@ gs_destroy :: proc() {
 	fontstash.Destroy(&fc)
 
 	// based on mode
-	log.destroy_file_logger(&logger)
+	log.destroy_file_logger(logger)
 	delete(log_path)
 	delete(pref_path)
 	delete(base_path)

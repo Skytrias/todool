@@ -380,7 +380,7 @@ time_date_render_highlight_on_pressed :: proc(
 			for i in pair.x..<pair.y {
 				glyph := glyphs[i]
 
-				for v in &glyph.vertices {
+				for &v in &glyph.vertices {
 					v.color = theme.text_default
 				}
 			}

@@ -1,6 +1,6 @@
 package src
 
-import "core:runtime"
+import "base:runtime"
 import "core:math/bits"
 import "core:image"
 import "core:image/png"
@@ -15,7 +15,7 @@ import "core:log"
 import "core:math/rand"
 import "core:unicode"
 import "core:thread"
-import "core:intrinsics"
+import "base:intrinsics"
 import sdl "vendor:sdl2"
 import "cutf8"
 import "btrie"

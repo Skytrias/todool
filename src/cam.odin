@@ -6,7 +6,7 @@ import "core:math"
 import "core:strings"
 import "core:math/rand"
 import "core:math/ease"
-import "core:intrinsics"
+import "base:intrinsics"
 
 CAM_CENTER :: 100
 

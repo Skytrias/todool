@@ -1,6 +1,6 @@
 package src
 
-import "core:runtime"
+import "base:runtime"
 import "core:hash"
 import "core:mem"
 import "core:fmt"

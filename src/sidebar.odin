@@ -1,7 +1,7 @@
 package src
 
 import "core:time"
-import "core:runtime"
+import "base:runtime"
 import "core:math"
 import "core:fmt"
 import "core:mem"

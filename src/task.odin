@@ -1,7 +1,7 @@
 package src
 
 import "core:os"
-import "core:runtime"
+import "base:runtime"
 import "core:c/libc"
 import "core:io"
 import "core:mem"
@@ -12,7 +12,7 @@ import "core:strings"
 import "core:log"
 import "core:math"
 import "core:math/ease"
-import "core:intrinsics"
+import "base:intrinsics"
 import "core:slice"
 import "core:reflect"
 import "core:time"

@@ -2,7 +2,7 @@ package src
 
 import "core:sort"
 import "core:slice"
-import "core:runtime"
+import "base:runtime"
 import "core:image"
 import "core:image/png"
 import "core:mem"
@@ -21,6 +21,7 @@ UPDATE_PRESSED :: 3
 UPDATE_PRESSED_LEAVE :: 4
 UPDATE_FOCUS_GAINED :: 5
 UPDATE_FOCUS_LOST :: 6
+DEFAULT_RESERVE_CAPACITY :: 16
 
 inverse_lerp :: proc(x1, x2, value: f32) -> f32 {
 	return (value - x1) / (x2 - x1)
@@ -342,7 +343,7 @@ element_init :: proc(
 	messaging: Message_Proc,
 	allocator: mem.Allocator,
 	index_at := -1,
-	cap := runtime.DEFAULT_RESERVE_CAPACITY,
+	cap := DEFAULT_RESERVE_CAPACITY,
 	loc := #caller_location,
 ) -> (res: ^T) {
 	res = new(T, allocator, loc)

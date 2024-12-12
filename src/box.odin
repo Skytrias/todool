@@ -7,7 +7,7 @@ import "core:unicode/utf8"
 import "core:mem"
 import "core:log"
 import "core:strings"
-import "core:intrinsics"
+import "base:intrinsics"
 import "core:time"
 import "cutf8"
 import "vendor:fontstash"
@@ -159,7 +159,7 @@ text_box_message :: proc(element: ^Element, msg: Message, di: int, dp: rawptr) -
 					if (low <= i && i < high) {
 						glyph := box.rendered_glyphs[i]
 						
-						for v in &glyph.vertices {
+						for &v in &glyph.vertices {
 							v.color = back_color
 						}
 					}

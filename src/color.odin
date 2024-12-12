@@ -12,7 +12,7 @@ WHITE :: Color { 255, 255, 255, 255 }
 TRANSPARENT :: Color { }
 GOLDEN_RATIO :: 0.618033988749895
 
-color_rgb_rand :: proc(gen: ^rand.Rand = nil) -> Color {
+color_rgb_rand :: proc() -> Color {
 	return {
 		u8(rand.float32() * 255),
 		u8(rand.float32() * 255),
@@ -31,7 +31,7 @@ color_rgb_rand :: proc(gen: ^rand.Rand = nil) -> Color {
 // 	return color_hsv_to_rgb(hue, s, v)
 // }
 
-color_hsluv_rand :: proc(gen: ^rand.Rand = nil, s := f64(1), l := f64(0.5)) -> Color {
+color_hsluv_rand :: proc(s := f64(1), l := f64(0.5)) -> Color {
 	hue := rand.float64() * 360
 	r, g, b := hsluv_to_rgb(hue, s * 100, l * 100)
 	return { u8(r * 255), u8(g * 255), u8(b * 255), 255 }
@@ -43,7 +43,7 @@ color_hsluv_to_rgb :: proc(hue, s, l: f64) -> Color {
 	return { u8(r * 255), u8(g * 255), u8(b * 255), 255 }
 }
 
-color_hsluv_golden_rand :: proc(gen: ^rand.Rand = nil, s := f64(1), l := f64(0.5)) -> Color {
+color_hsluv_golden_rand :: proc(s := f64(1), l := f64(0.5)) -> Color {
 	hue := math.mod(rand.float64() + GOLDEN_RATIO, 1) * 360
 	r, g, b := hsluv_to_rgb(hue, s * 100, l * 100)
 	return { u8(r * 255), u8(g * 255), u8(b * 255), 255 }

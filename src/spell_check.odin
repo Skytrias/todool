@@ -1,7 +1,7 @@
 package src
 
 import "core:mem"
-import "core:intrinsics"
+import "base:intrinsics"
 import "core:os"
 import "core:fmt"
 import "core:thread"

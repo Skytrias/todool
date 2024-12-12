@@ -4,7 +4,7 @@ import "core:log"
 import "core:fmt"
 import "core:math/rand"
 import "core:math/ease"
-import "core:runtime"
+import "base:runtime"
 import "core:strings"
 import "core:time"
 import sdl "vendor:sdl2"
@@ -64,7 +64,7 @@ pomodoro_celebration_render :: proc(target: ^Render_Target) {
 	if pomodoro.celebrating {
 		draw_count := 0
 
-		for c in &pomodoro.celebration {
+		for &c in &pomodoro.celebration {
 			if c.skip {
 				continue
 			}

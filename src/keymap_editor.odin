@@ -324,7 +324,7 @@ keymap_editor_check_conflicts :: proc(keymap: ^Keymap, skip: ^Combo_Node, check:
 		skip.conflict = conflict
 		mem.copy(&conflict.combo[0], raw_data(check), len(check))
 		conflict.combo_index = u8(len(check))
-		conflict.color = color_hsluv_golden_rand(nil, 1, 0.75)
+		conflict.color = color_hsluv_golden_rand(1, 0.75)
 		conflict.count = 2
 		dll.push_back(&keymap.conflict_list, conflict)
 	}
@@ -677,8 +677,8 @@ keymap_editor_static_grid_message :: proc(element: ^Element, msg: Message, di: i
 }
 
 keymap_editor_push_keymap :: proc(keymap: ^Keymap, header: string, folded: bool) -> (grid: ^Static_Grid) {
-	for cmd in &keymap.commands {
-		cmd.color = color_hsluv_golden_rand(nil, 0.5, 0.75)
+	for &cmd in &keymap.commands {
+		cmd.color = color_hsluv_golden_rand(0.5, 0.75)
 	}
 
 	cell_sizes := [?]int { 250, 250, 100 }

@@ -14,7 +14,7 @@ import "core:os"
 import "core:encoding/json"
 import "core:math"
 import "core:math/bits"
-import "core:runtime"
+import "base:runtime"
 import "cutf8"
 
 save_loc: runtime.Source_Code_Location
@@ -1250,7 +1250,7 @@ keymap_save :: proc(path: string) -> bool {
 		strings.write_byte(b, '\n')
 		count: int
 
-		for node in &keymap.combos {
+		for &node in &keymap.combos {
 			if node.command_index == -1 {
 				continue
 			}

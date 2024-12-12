@@ -2,7 +2,7 @@ package src
 
 import "core:mem"
 import "core:fmt"
-import "core:runtime"
+import "base:runtime"
 
 // TASK LAYOUT DATA
 // dynamic array to store new tasks -> no new(Task) required anymore
@@ -55,8 +55,8 @@ task_pool_push_new :: proc(pool: ^Task_Pool, check_freed: bool) -> (task: ^Task)
 
 	if resized {
 		// NOTE stupid fix to keep pointers to task parents sane
-		for task in &pool.list {
-			for child in &task.element.children {
+		for &task in &pool.list {
+			for &child in &task.element.children {
 				child.parent = &task.element
 			}
 		}
@@ -73,7 +73,7 @@ task_pool_init :: proc() -> (res: Task_Pool) {
 }
 
 task_pool_clear :: proc(pool: ^Task_Pool) {
-	for task in &pool.list {
+	for &task in &pool.list {
 		element_destroy_and_deallocate(&task.element)
 	}
 
@@ -84,7 +84,7 @@ task_pool_clear :: proc(pool: ^Task_Pool) {
 }
 
 task_pool_destroy :: proc(pool: ^Task_Pool) {
-	for task in &pool.list {
+	for &task in &pool.list {
 		element_destroy_and_deallocate(&task.element)
 	}
 
